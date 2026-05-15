@@ -1,0 +1,11 @@
+# Ignore everything by default; the mod repos and the SDK clone are
+# independent git repos and must not be embedded here, and docs/ holds
+# process artifacts (specs, plans) intentionally left untracked. Only the
+# shared, machine-agnostic files are tracked.
+.DS_Store
+__pycache__
+/*
+!/.gitignore
+!/.tool-versions
+!/CLAUDE.md
+!/utils/
