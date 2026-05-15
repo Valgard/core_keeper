@@ -11,7 +11,7 @@ machine — change it only when an insight is genuinely mod-agnostic.
 - `CoreKeeperModSDK/` — the Pugstorm SDK clone, **shared** by every mod. Its
   own git repo. Mods do not vendor a private SDK copy.
 - `<mod-name>/` — one directory per mod, each its own git repo. Currently:
-  `disable-durability/`.
+  `disable-durability/` and `faster-talents/`.
 
 A mod keeps **every file the Unity Editor generates for it** — `.cs`
 sources, `.asmdef`s, the ModBuilderSettings `.asset`, and all `.meta` GUID
@@ -19,12 +19,12 @@ carriers — in a `unity/` directory that mirrors the SDK's `Assets/` tree
 1:1. Otherwise those files exist only as untracked files inside the shared
 SDK clone — one `git clean` or re-clone away from loss.
 
-`scripts/link.sh` symlinks that mirror into `CoreKeeperModSDK/Assets/`: one
+`utils/link.sh` symlinks that mirror into `CoreKeeperModSDK/Assets/`: one
 **directory** symlink for the mod folder — which captures every current and
 future Editor-generated file, so nothing has to be wired up by hand — plus
 file symlinks for any Assets-level files beside it. The symlinks encode
 absolute paths, so they dangle after a worktree switch or repo move;
-`build.sh` re-runs `link.sh` on every build so this self-heals.
+`utils/build.sh` re-runs `link.sh` on every build so this self-heals.
 
 ## Required setup (per machine / per SDK clone)
 
@@ -141,12 +141,32 @@ Constants: Core Keeper's mod.io **game ID is `5289`**; the CrossOver bottle is
 named **"Core Keeper"**. Full background and upstream-fix candidates:
 `disable-durability/docs/research/macos-crossover-wine-workaround.md`.
 
-## Build pattern (per mod)
+## Build pattern (shared `utils/`)
 
-Each mod ships its own `scripts/` — typically a `build.sh` that refreshes
-the SDK symlinks (`link.sh`), runs a Unity batchmode build via
-`-executeMethod`, then on macOS auto-runs the fake-mod.io install step
-described above. The concrete pipeline lives in each mod's own `CLAUDE.md`.
+All mods build through one shared copy of the build scripts in
+`core_keeper/utils/` — `build.sh`, `link.sh`, `install-macos.sh`. The scripts
+are mod-agnostic: each mod supplies its identity through `export`s in its own
+`.envrc` (`MOD_NAME`, `MOD_NAME_ID`, `MOD_SUMMARY`, `FAKE_MOD_ID`) alongside
+the machine paths (`UNITY_BIN`, `SDK_PATH`, `MOD_INSTALL_PATH`,
+`CK_GAME_VERSION`). To build a mod, `source` its `.envrc` and run
+`../utils/build.sh` from the mod repo root:
+
+```bash
+cd <mod-name>
+source .envrc
+../utils/build.sh
+```
+
+`build.sh` refreshes the SDK symlinks (`link.sh`), runs a Unity batchmode
+build via `-executeMethod` (`<MOD_NAME>.Editor.CLIBuildHelper.Build`), then on
+macOS auto-runs the fake-mod.io install step described above
+(`install-macos.sh`). Each script resolves the mod repo from its first
+argument, defaulting to `$PWD`.
+
+`core_keeper/` is itself a git repo, but its `.gitignore` tracks only
+`utils/`, this `CLAUDE.md`, and `.tool-versions` — the mod repos and the SDK
+clone are independent repos and are deliberately ignored so they are not
+embedded.
 
 ## Conventions
 
