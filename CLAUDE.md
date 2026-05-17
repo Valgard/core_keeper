@@ -128,6 +128,15 @@ finds nothing, and deletes the local files + ZIP. Game start, world load and
 gameplay are safe; only the mod browser triggers the sync. If the entry is
 wiped, re-run the mod's install step to restore all three locations.
 
+Subscribing to a real mod.io mod on its website does **not** install it —
+the install happens only when the in-game Mods menu is opened and the
+client syncs pending subscription changes. So opening that menu is
+sometimes unavoidable; when you do, the same sync wipes **every** fake-ID
+mod alongside applying the newly subscribed one. Plan for it as a
+two-step: open the menu to let the mod.io change land, then rebuild each
+fake-ID mod (`source .envrc && ../utils/build.sh`, which re-runs
+`install-macos.sh`) to restore all three locations.
+
 `CoreLib` hits the same Wine bug on a fresh cache — keep it in `disabledMods`
 while developing unless you genuinely need it at runtime.
 
