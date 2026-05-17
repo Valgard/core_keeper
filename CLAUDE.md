@@ -146,6 +146,24 @@ menu shows a warning dialog (`TitleMenuIncompatibleModWarning`) offering
 `Loader.LoadUnsupportedMod`) and restarts the game; the choice persists
 across launches — a usable fallback when a local mod is wrongly rejected.
 
+The "Load Anyway" choice is stored mod-loader-side in `config.json`:
+
+```
+…/LocalLow/Pugstorm/Core Keeper/Steam/<steam-account-id>/modloader/config.json
+```
+
+`{"version":"1.2.1","unsupportedModsToLoad":["<mod-guid>", …]}` — the
+loader (`PugMod.Loader.dll`, the game's copy, not the SDK's) skips its
+`!supportsCurrentVersion` rejection for any mod GUID in
+`unsupportedModsToLoad`. The list is **not** save-game state and uses no
+PlayerPrefs. On startup `Loader.Init` compares `config.version` against the
+running game version (`ModVersion.GetVersion(Application.version)`,
+truncated to three parts) and **clears the whole list** on any mismatch — so
+a "Load Anyway" decision survives only until the next Core Keeper update,
+after which every incompatible mod re-triggers the warning dialog. To reset
+manually, drop the GUID from the file (or delete it) while the game is
+closed; the loader rewrites `config.json` on exit.
+
 Constants: Core Keeper's mod.io **game ID is `5289`**; the CrossOver bottle is
 named **"Core Keeper"**. Full background and upstream-fix candidates:
 `disable-durability/docs/research/macos-crossover-wine-workaround.md`.
