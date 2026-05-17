@@ -153,7 +153,8 @@ named **"Core Keeper"**. Full background and upstream-fix candidates:
 ## Build pattern (shared `utils/`)
 
 All mods build through one shared copy of the build scripts in
-`core_keeper/utils/` — `build.sh`, `link.sh`, `install-macos.sh`. The scripts
+`core_keeper/utils/` — `build.sh`, `link.sh`, `install-macos.sh`,
+`upload.sh`, `uninstall-macos.sh`. The scripts
 are mod-agnostic: each mod supplies its identity through `export`s in its own
 `.envrc` (`MOD_NAME`, `MOD_NAME_ID`, `MOD_SUMMARY`, `FAKE_MOD_ID`) alongside
 the machine paths (`UNITY_BIN`, `SDK_PATH`, `MOD_INSTALL_PATH`,
@@ -172,10 +173,61 @@ macOS auto-runs the fake-mod.io install step described above
 (`install-macos.sh`). Each script resolves the mod repo from its first
 argument, defaulting to `$PWD`.
 
+To publish a mod to mod.io, `source` its `.envrc` and run
+`../utils/upload.sh` from the mod repo root. The script refreshes the SDK
+symlinks and runs a Unity batchmode build via
+`<MOD_NAME>.Editor.CLIPublishHelper.Publish`, which builds the mod and
+drives the mod.io plugin to create/update the mod profile and upload a new
+modfile. `upload.sh --dry-run` builds and validates without any writing
+mod.io call.
+
+A new mod.io profile is created **hidden**; review it on the website and
+switch it to visible manually. The real mod ID is stored in the SDK-native
+`<mod-name>/unity/<MOD_NAME>/Editor/<MOD_NAME>_modio.asset` — versioned in
+git, so re-runs reuse the profile instead of creating a second one.
+
+`utils/uninstall-macos.sh` is the counterpart to `install-macos.sh`: it
+removes a fake-ID local dev install from the CrossOver bottle.
+
 `core_keeper/` is itself a git repo, but its `.gitignore` tracks only
 `utils/`, this `CLAUDE.md`, and `.tool-versions` — the mod repos and the SDK
 clone are independent repos and are deliberately ignored so they are not
 embedded.
+
+## mod.io publishing (applies to every mod)
+
+Publishing runs through the SDK's own mod.io plugin (`ModIOUnity`), not a
+REST client — `utils/upload.sh` invokes a per-mod Editor class
+`CLIPublishHelper` (sibling of `CLIBuildHelper`) via `-executeMethod`.
+
+- **One-time login:** open the Pugstorm Mod SDK window, use the "Log in" tab
+  (email + security code). The mod.io plugin persists the session;
+  batchmode publishes authenticate from it. The session expires after about
+  a year — re-login through the window when that happens.
+- **Version + changelog:** taken from the mod's `CHANGELOG.md`. The topmost
+  `## [x.y.z]` entry is the published version; its body is the modfile
+  changelog. There is no version field anywhere in mod source.
+- **Async batchmode:** the mod.io calls are asynchronous, so `upload.sh`
+  invokes Unity **without `-quit`** and `CLIPublishHelper` calls
+  `EditorApplication.Exit` itself; a `timeout` guards a hung run.
+
+### The three mod IDs
+
+Three distinct uses of a "mod.io ID", deliberately kept separate:
+
+- **Publishing** uses the **real** mod ID, stored in
+  `unity/<MOD_NAME>/Editor/<MOD_NAME>_modio.asset`.
+- **Playing** the published mod uses the **real** ID — written by the game
+  client when you subscribe normally in the in-game Mods menu.
+- **Local dev builds** use the **fake** `FAKE_MOD_ID` via `install-macos.sh`,
+  which isolates the dev build from mod.io's catalog sync.
+
+**Dev/Prod coexistence:** never have both the fake-ID dev install and a real
+subscription of the same mod active — the loader would load both copies and
+double-apply Harmony patches. The mod author runs only the fake-ID dev
+install and does not subscribe to their own mod. To test the published
+build as an end user, first run `utils/uninstall-macos.sh` to remove the dev
+install.
 
 ## Conventions
 
