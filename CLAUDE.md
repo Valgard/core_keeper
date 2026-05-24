@@ -36,6 +36,14 @@ absolute paths, so they dangle after a worktree switch or repo move;
   Files" must be run once.
 - The Unity Editor **locks the project** — it must be closed during any
   `-batchmode` build.
+- **`corekeeper-patch` applied to the installed game's `PugMod.Loader.dll`** —
+  required on macOS / CrossOver hosts. Two IL patches: (Patch 1) fixes the
+  Wine `Directory.Delete` failure on stale `ModLoader/<ModName>/Scripts/`,
+  (Patch 2) forces `CultureInfo.DefaultThreadCurrentUICulture =
+  InvariantCulture` so Roslyn doesn't fail compiles by chasing the missing
+  `de-DE` satellite assembly. Every Core Keeper update reverts the DLL to
+  stock — re-apply after each update. Rationale + canonical commands in
+  the `corekeeper-roslyn-locale-bug` memory.
 
 ## SDK quirks (apply to every mod)
 
@@ -88,17 +96,30 @@ bootstrap `IMod` class and the patch class are conventionally separate files.
 asmdef cannot reference an editor-only one, so a CLI build helper (for
 `unity -batchmode -executeMethod`) needs its own `*.Editor.asmdef`.
 
-## macOS / CrossOver — the big one
+## macOS / CrossOver — distribution & loader
 
-Core Keeper runs under CrossOver here. Pugstorm's loader extracts a locally
-built mod's `Scripts/` into a `\\?\C:\…` long-path temp dir, and Wine's
-`RemoveDirectoryRecursive` fails on that prefix — the loader then reports
-"compilation failed" although no compile ran. This breaks **every** locally
-built source mod.
+Core Keeper runs under CrossOver here. Two orthogonal concerns:
 
-Workaround: route the mod through mod.io's load path by faking a mod.io
-install — populate three locations under the CrossOver bottle, using a fake
-mod ID not in mod.io's catalog. Each mod needs its **own** distinct fake ID
+1. **How a locally developed mod gets loaded at all** — Pugstorm's loader
+   only looks at mods that arrive via the mod.io subscription path. A mod
+   sitting in a bottle folder with no matching `state.json` subscription is
+   simply not seen. The fake-ID install (next section) is the mechanism
+   that makes a not-yet-published local mod loadable.
+2. **Wine-specific loader bugs** that used to break loading independently
+   of how the mod was distributed — the `RemoveDirectoryRecursive` failure
+   on stale `ModLoader/<ModName>/Scripts/` (Wine long-path bug) and the
+   Roslyn `de-DE` satellite lookup failure. Both are fixed by
+   `corekeeper-patch` (see "Required setup" above). They affected
+   mod.io-distributed mods just as much as fake-ID ones, on any update
+   that left a stale `ModLoader/` folder behind.
+
+The rest of this section documents (1) and the dialog/override surfaces
+the loader exposes for incompatible mods.
+
+### Fake-ID dev install — loading a not-yet-published local mod
+
+Populate three locations under the CrossOver bottle, using a fake mod ID
+not in mod.io's catalog. Each mod needs its **own** distinct fake ID
 (`9999999`, `9999998`, …) or their `mods/<id>_1/` folders collide:
 1. `…/mod.io/5289/mods/<fakeid>_1/` — extracted mod files
 2. `…/Temp/Pugstorm/Core Keeper/5289/<fakeid>_1.zip` — ZIP cache the loader expects
@@ -111,16 +132,11 @@ modProfile.tags)`; with no matching tag it flags the mod "not compatible with
 current version" and shunts it into the main-menu warning dialog. Real mod.io
 mods carry these version tags — the fake install must replicate one.
 
-The mod.io route does **not** bypass `ModLoader/` staging: the loader still
-copies every mod's `Scripts/` into
-`…/Temp/Pugstorm/Core Keeper/ModLoader/<ModName>/Scripts/` and compiles from
-there. The Wine `RemoveDirectoryRecursive` failure strikes specifically when
-the loader has to delete a **stale** `ModLoader/<ModName>/Scripts/` left by a
-previous run — a fresh (absent) one stages cleanly. The exception propagates
-out of `Loader.Reload` and aborts the whole mod-load pass, so one mod's stale
-`ModLoader/` folder can block *every* mod that run. Each mod's
-`install-macos.sh` clears its own `ModLoader/<ModName>` before launch; a
-stale folder from a mod you no longer build must be removed by hand.
+`utils/install-macos.sh` writes all three locations and clears
+`…/Temp/Pugstorm/Core Keeper/ModLoader/<ModName>/` before launch (defensive
+hygiene against the Wine stale-folder issue; with `corekeeper-patch` Patch 1
+applied, the cleanup is no longer load-critical but still avoids unrelated
+clutter accumulating).
 
 **Do not open the in-game Mods menu** while a fake-ID mod is installed — it
 triggers a mod.io API sync that resolves the fake ID against the real catalog,
@@ -137,8 +153,7 @@ two-step: open the menu to let the mod.io change land, then rebuild each
 fake-ID mod (`source .envrc && ../utils/build.sh`, which re-runs
 `install-macos.sh`) to restore all three locations.
 
-`CoreLib` hits the same Wine bug on a fresh cache — keep it in `disabledMods`
-while developing unless you genuinely need it at runtime.
+### Incompatible-mod dialog & `unsupportedModsToLoad`
 
 If the loader flags a mod incompatible for any reason, Core Keeper's main
 menu shows a warning dialog (`TitleMenuIncompatibleModWarning`) offering
@@ -164,8 +179,33 @@ after which every incompatible mod re-triggers the warning dialog. To reset
 manually, drop the GUID from the file (or delete it) while the game is
 closed; the loader rewrites `config.json` on exit.
 
-Constants: Core Keeper's mod.io **game ID is `5289`**; the CrossOver bottle is
-named **"Core Keeper"**. Full background and upstream-fix candidates:
+### Disabling a mod (`state.json:disabledMods`)
+
+To exclude a single subscribed mod from loading without unsubscribing on
+mod.io, append the mod.io ID (string) to
+`existingUsers["<userId>"].disabledMods` in
+`…/Public/mod.io/5289/state.json`. The loader skips disabled mods **before
+the compile step entirely** — no `TitleMenuIncompatibleModWarning` dialog
+appears. Format: mod.io IDs as strings (not GUIDs); the file is minified
+JSON, preserve `separators=(',',':')` when editing programmatically.
+
+Do not confuse `disabledMods` with `unsupportedModsToLoad` — they are
+opposites. `disabledMods` says "skip this mod"; `unsupportedModsToLoad`
+says "load this incompatible mod anyway". To get rid of a stuck
+incompatible mod cleanly: remove the GUID from `unsupportedModsToLoad`
+*and* add the mod.io ID to `disabledMods`.
+
+For "why a previously-working mod suddenly crashes after a new subscribe"
+see the `corekeeper-compile-fail-cascade` memory — Pugstorm's loader
+compiles all source mods into one shared `RoslynCSharp.ScriptDomain`, and
+one mod's `CompileFailed` can desynchronise an unrelated mod's Harmony
+patches. The same memory documents the loading-screen quit-deadlock
+symptom (`Exit blocked by ModManager`, requires `SIGKILL`).
+
+### Constants & paths
+
+Core Keeper's mod.io **game ID is `5289`**; the CrossOver bottle is named
+**"Core Keeper"**. Full background and upstream-fix candidates:
 `disable-durability/docs/research/macos-crossover-wine-workaround.md`.
 
 ## Build pattern (shared `utils/`)
@@ -187,9 +227,9 @@ source .envrc
 
 `build.sh` refreshes the SDK symlinks (`link.sh`), runs a Unity batchmode
 build via `-executeMethod` (`<MOD_NAME>.Editor.CLIBuildHelper.Build`), then on
-macOS auto-runs the fake-mod.io install step described above
-(`install-macos.sh`). Each script resolves the mod repo from its first
-argument, defaulting to `$PWD`.
+macOS auto-runs `install-macos.sh` to place the fresh build into the
+fake-ID locations so the loader picks it up on next launch. Each script
+resolves the mod repo from its first argument, defaulting to `$PWD`.
 
 To publish a mod to mod.io, `source` its `.envrc` and run
 `../utils/upload.sh` from the mod repo root. The script refreshes the SDK
@@ -238,7 +278,9 @@ Three distinct uses of a "mod.io ID", deliberately kept separate:
 - **Playing** the published mod uses the **real** ID — written by the game
   client when you subscribe normally in the in-game Mods menu.
 - **Local dev builds** use the **fake** `FAKE_MOD_ID` via `install-macos.sh`,
-  which isolates the dev build from mod.io's catalog sync.
+  which is the mechanism by which a not-yet-published mod can be loaded at
+  all (Pugstorm's loader only walks the mod.io subscription path); the
+  fake ID also keeps the dev build out of the real mod.io catalog sync.
 
 **Dev/Prod coexistence:** never have both the fake-ID dev install and a real
 subscription of the same mod active — the loader would load both copies and
