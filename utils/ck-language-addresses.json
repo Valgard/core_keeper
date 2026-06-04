@@ -1,0 +1,18 @@
+{
+  "_comment": "Core Keeper LanguageDataBlock address->ISO6391 table. Captured 2026-06-04 via a one-time runtime dump (ScriptableData.GetDataBlocks<LanguageDataBlock>()) from game 1.2.1.4-7f74, because these blocks are runtime-only data (absent in the editor, edit-mode AND batchmode). Used by the Option-II localisation generator to template native TextDataBlock .asset files at build time. Stable game data; re-dump only if a CK update changes the language set. 'low'/'high' are DataBlockAddress.lowBits/highBits (the two halves of the address GUID). Primary language = order 0 (en).",
+  "languages": [
+    { "iso": "en",    "low": 681352171529052915,   "high": 2314507893210082619,  "order": 0 },
+    { "iso": "de",    "low": 5554070574462901973,   "high": -3923471906115629047, "order": 1 },
+    { "iso": "fr",    "low": 6040640903323332866,   "high": 4472318406855671320,  "order": 2 },
+    { "iso": "pt-br", "low": 7851011593462244222,   "high": 4794823751170882376,  "order": 3 },
+    { "iso": "it",    "low": 4644340974835219079,   "high": -8672482724880852038, "order": 4 },
+    { "iso": "ja",    "low": -7722434995445778156,  "high": 2655981564484923289,  "order": 5 },
+    { "iso": "ko",    "low": -2052239290651699458,  "high": -8389256263833660117, "order": 6 },
+    { "iso": "ru",    "low": -998452581336238672,   "high": -1236628366252422438, "order": 7 },
+    { "iso": "es",    "low": 555117963105384372,    "high": 3194402766475108890,  "order": 8 },
+    { "iso": "uk",    "low": 7031320391619404414,   "high": 5017443214120506826,  "order": 9 },
+    { "iso": "zh-ch", "low": 8319415704751845611,   "high": -6023042414290333943, "order": 10 },
+    { "iso": "zh-tw", "low": -2957573344710624914,  "high": 6297677370195620808,  "order": 11 },
+    { "iso": "th",    "low": 7837645069971566515,   "high": 4238944138262099067,  "order": 12 }
+  ]
+}
