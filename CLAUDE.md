@@ -247,6 +247,30 @@ git, so re-runs reuse the profile instead of creating a second one.
 `utils/uninstall-macos.sh` is the counterpart to `install-macos.sh`: it
 removes a fake-ID local dev install from the CrossOver bottle.
 
+### Shared editor helpers and localisation tooling
+
+The CLI editor helpers (`CLIBuildHelper`, `CLIPublishHelper`) and the
+`LocalizationGenerator` now live in `core_keeper/utils/` and are symlinked
+into a mod's `unity/<Mod>/Editor/` by `link.sh`, gated behind the per-mod
+`.envrc` flag `USE_SHARED_EDITOR_HELPERS=1`. When that flag is set,
+`build.sh` / `upload.sh` use the constants
+`-executeMethod CoreKeeperModUtils.CLIBuildHelper.Build` /
+`...CLIPublishHelper.Publish` rather than the per-mod
+`<Mod>.Editor.CLIBuildHelper.Build` path.
+
+**ItemChecklist is the pilot.** `disable-durability` and `faster-talents`
+still use their per-mod `<Mod>.Editor.*` helpers and migrate later.
+
+Also in `utils/`:
+- **`ck-language-addresses.json`** — the CK language address→ISO table (13
+  runtime languages), captured once via a runtime dump because
+  `LanguageDataBlock`s are runtime-only and are not enumerable through the SDK
+  editor API at build time. Required by `LocalizationGenerator`.
+- **`LocalizationGenerator.cs`** — reads a mod's
+  `Localization/localization.yaml` and templates raw `.asset` YAML for each
+  language (Option II: raw asset templating). Used by ItemChecklist; the same
+  generator can be reused by any mod that adopts the shared-helper pattern.
+
 `core_keeper/` is itself a git repo, but its `.gitignore` tracks only
 `utils/`, this `CLAUDE.md`, and `.tool-versions` — the mod repos and the SDK
 clone are independent repos and are deliberately ignored so they are not

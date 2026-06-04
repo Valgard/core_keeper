@@ -62,7 +62,7 @@ ln -sfn "$MIRROR/$MOD_NAME.meta"       "$ASSETS/$MOD_NAME.meta"
 if [ "${USE_SHARED_EDITOR_HELPERS:-}" = "1" ]; then
     EDITOR_DIR="$MIRROR/$MOD_NAME/Editor"
     mkdir -p "$EDITOR_DIR"
-    for f in CLIBuildHelper.cs LocalizationGenerator.cs; do
+    for f in CLIBuildHelper.cs CLIPublishHelper.cs LocalizationGenerator.cs; do
         ln -sfn "$UTILS_DIR_ABS/$f" "$EDITOR_DIR/$f"
     done
     echo "✓ Shared editor helpers symlinked into $EDITOR_DIR"

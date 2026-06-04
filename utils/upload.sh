@@ -58,7 +58,7 @@ if timeout 600 "$UNITY_BIN" \
         -batchmode \
         -nographics \
         -projectPath "$SDK_PATH" \
-        -executeMethod "${MOD_NAME}.Editor.CLIPublishHelper.Publish" \
+        -executeMethod "$([ "${USE_SHARED_EDITOR_HELPERS:-}" = "1" ] && echo CoreKeeperModUtils.CLIPublishHelper.Publish || echo "${MOD_NAME}.Editor.CLIPublishHelper.Publish")" \
         -logFile -; then
     echo "✓ Publish complete."
 else
