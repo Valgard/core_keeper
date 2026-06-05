@@ -56,17 +56,16 @@ ln -sfn "$MIRROR/$MOD_NAME.asset"      "$ASSETS/$MOD_NAME.asset"
 ln -sfn "$MIRROR/$MOD_NAME.asset.meta" "$ASSETS/$MOD_NAME.asset.meta"
 ln -sfn "$MIRROR/$MOD_NAME.meta"       "$ASSETS/$MOD_NAME.meta"
 
-# Iter-11 pilot: when a mod opts into the shared utils/ editor helpers, symlink
-# them (and the loc generator) into the mod's Editor/ folder so they compile into
-# <Mod>.Editor. Off by default → other mods keep their own per-mod helpers.
-if [ "${USE_SHARED_EDITOR_HELPERS:-}" = "1" ]; then
-    EDITOR_DIR="$MIRROR/$MOD_NAME/Editor"
-    mkdir -p "$EDITOR_DIR"
-    for f in CLIBuildHelper.cs CLIPublishHelper.cs LocalizationGenerator.cs; do
-        ln -sfn "$UTILS_DIR_ABS/$f" "$EDITOR_DIR/$f"
-    done
-    echo "✓ Shared editor helpers symlinked into $EDITOR_DIR"
-fi
+# Symlink the shared utils/ editor helpers (and the loc generator) into the
+# mod's Editor/ folder so they compile into <Mod>.Editor under namespace
+# CoreKeeperModUtils. Every mod uses these — the per-mod CLI*Helper sources
+# were removed once all mods migrated, so this is unconditional.
+EDITOR_DIR="$MIRROR/$MOD_NAME/Editor"
+mkdir -p "$EDITOR_DIR"
+for f in CLIBuildHelper.cs CLIPublishHelper.cs LocalizationGenerator.cs; do
+    ln -sfn "$UTILS_DIR_ABS/$f" "$EDITOR_DIR/$f"
+done
+echo "✓ Shared editor helpers symlinked into $EDITOR_DIR"
 
 echo "✓ Symlinks created in $ASSETS:"
 ls -la "$ASSETS/$MOD_NAME" "$ASSETS/$MOD_NAME.asset" \

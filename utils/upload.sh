@@ -2,8 +2,9 @@
 # utils/upload.sh — Publish a Core Keeper mod to mod.io via Unity batchmode.
 #
 # Shared by every Core Keeper mod under this directory. Refreshes the SDK
-# symlinks, then runs <MOD_NAME>.Editor.CLIPublishHelper.Publish, which
-# builds the mod and uploads it through the mod.io plugin.
+# symlinks, then runs CoreKeeperModUtils.CLIPublishHelper.Publish (the shared
+# helper, identified by MOD_NAME), which builds the mod and uploads it through
+# the mod.io plugin.
 #
 # Usage:
 #   utils/upload.sh [mod-repo-path] [--dry-run]
@@ -58,7 +59,7 @@ if timeout 600 "$UNITY_BIN" \
         -batchmode \
         -nographics \
         -projectPath "$SDK_PATH" \
-        -executeMethod "$([ "${USE_SHARED_EDITOR_HELPERS:-}" = "1" ] && echo CoreKeeperModUtils.CLIPublishHelper.Publish || echo "${MOD_NAME}.Editor.CLIPublishHelper.Publish")" \
+        -executeMethod CoreKeeperModUtils.CLIPublishHelper.Publish \
         -logFile -; then
     echo "✓ Publish complete."
 else

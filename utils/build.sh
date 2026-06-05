@@ -60,7 +60,7 @@ if "$UNITY_BIN" \
         -batchmode \
         -nographics \
         -projectPath "$SDK_PATH" \
-        -executeMethod "$([ "${USE_SHARED_EDITOR_HELPERS:-}" = "1" ] && echo CoreKeeperModUtils.CLIBuildHelper.Build || echo "${MOD_NAME}.Editor.CLIBuildHelper.Build")" \
+        -executeMethod CoreKeeperModUtils.CLIBuildHelper.Build \
         -logFile - \
         -quit; then
     echo "✓ Build complete."

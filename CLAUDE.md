@@ -271,20 +271,21 @@ removes a fake-ID local dev install from the CrossOver bottle.
 ### Shared editor helpers and localisation tooling
 
 The CLI editor helpers (`CLIBuildHelper`, `CLIPublishHelper`) and the
-`LocalizationGenerator` now live in `core_keeper/utils/` and are symlinked
-into a mod's `unity/<Mod>/Editor/` by `link.sh`, gated behind the per-mod
-`.envrc` flag `USE_SHARED_EDITOR_HELPERS=1`. When that flag is set,
-`build.sh` / `upload.sh` use the constants
+`LocalizationGenerator` live in `core_keeper/utils/` (namespace
+`CoreKeeperModUtils`) and are symlinked into a mod's `unity/<Mod>/Editor/` by
+`link.sh`. They are the **unconditional** build/publish path for every mod:
+`build.sh` / `upload.sh` always invoke
 `-executeMethod CoreKeeperModUtils.CLIBuildHelper.Build` /
-`...CLIPublishHelper.Publish` rather than the per-mod
-`<Mod>.Editor.CLIBuildHelper.Build` path.
+`...CLIPublishHelper.Publish`.
 
-**All three mods are migrated.** ItemChecklist was the pilot;
-`faster-talents` and `disable-durability` followed. Each sets
-`USE_SHARED_EDITOR_HELPERS=1` and adds `MOD_REPO_ROOT="$PWD"` (for the shared
-`CLIPublishHelper`'s CHANGELOG lookup); both followers ship no
-`localization.yaml`, so the loc generator is a no-op for them. No mod keeps
-per-mod `<Mod>.Editor.CLI*Helper` sources anymore.
+**All three mods use the shared helpers** — ItemChecklist was the pilot,
+`faster-talents` and `disable-durability` followed, and no mod keeps per-mod
+`<Mod>.Editor.CLI*Helper` sources anymore. Once the last mod migrated the
+former opt-in flag `USE_SHARED_EDITOR_HELPERS` was removed entirely (the
+per-mod fallback path it guarded pointed at sources that no longer exist).
+Each mod's `.envrc` still sets `MOD_REPO_ROOT="$PWD"` (the shared
+`CLIPublishHelper` reads it for the CHANGELOG lookup); the two non-localised
+mods ship no `localization.yaml`, so the loc generator is a no-op for them.
 
 Also in `utils/`:
 - **`ck-language-addresses.json`** — the CK language address→ISO table (13
