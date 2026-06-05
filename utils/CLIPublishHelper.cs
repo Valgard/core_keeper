@@ -128,6 +128,13 @@ namespace CoreKeeperModUtils
 
             var logo = AssetDatabase.LoadAssetAtPath<Texture2D>(_logoAssetPath);
             var summary = Environment.GetEnvironmentVariable("MOD_SUMMARY") ?? "";
+            // mod.io listing title: prefer the human display name ("Item
+            // Checklist") over the internal identity name ("ItemChecklist",
+            // which drives namespace/asmdef/dependency modName). Fall back to
+            // name when no displayName is set.
+            var displayName = string.IsNullOrEmpty(builder.metadata.displayName)
+                ? builder.metadata.name
+                : builder.metadata.displayName;
 
             if (modIo.modId == 0)
             {
@@ -147,7 +154,7 @@ namespace CoreKeeperModUtils
                 var token = ModIOUnity.GenerateCreationToken();
                 var details = new ModProfileDetails
                 {
-                    name = builder.metadata.name,
+                    name = displayName,
                     summary = summary,
                     logo = logo,
                     visible = false,
@@ -179,7 +186,7 @@ namespace CoreKeeperModUtils
                 var details = new ModProfileDetails
                 {
                     modId = new ModId(modIo.modId),
-                    name = builder.metadata.name,
+                    name = displayName,
                     summary = summary,
                 };
                 if (logo != null) details.logo = logo;
