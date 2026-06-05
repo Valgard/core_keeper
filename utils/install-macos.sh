@@ -14,10 +14,13 @@
 #
 # Required env vars (set in the mod's .envrc):
 #   MOD_INSTALL_PATH   Directory containing the built `$MOD_NAME/` folder.
-#   CK_GAME_VERSION    Core Keeper game version, written as the mod.io
-#                      compatibility tag (step 3). Without a matching tag the
+#   CK_GAME_VERSION    Space-separated list of one or more Core Keeper game
+#                      versions, each written as a mod.io compatibility tag
+#                      (step 3). Without a tag matching the running game the
 #                      loader rejects the mod as "not compatible with current
-#                      version".
+#                      version". A single version (e.g. "1.2.1.4") works as a
+#                      one-element list; add more to support multiple builds
+#                      (e.g. "1.2.1.2 1.2.1.4").
 #   MOD_NAME           The mod's PascalCase name (e.g. DisableDurability).
 #   MOD_NAME_ID        The mod's kebab-case id (e.g. disable-durability).
 #   MOD_SUMMARY        One-line mod summary, written into state.json.
@@ -127,7 +130,7 @@ jq --arg user "$USER_ID" \
    --arg name "$MOD_NAME" \
    --arg nameId "$MOD_NAME_ID" \
    --arg summary "$MOD_SUMMARY" \
-   --arg gameVersion "$CK_GAME_VERSION" \
+   --arg gameVersions "$CK_GAME_VERSION" \
    '
    (.existingUsers[$user].subscribedMods) |=
        (if index($modid) then . else . + [$modid] end)
@@ -147,7 +150,8 @@ jq --arg user "$USER_ID" \
            name: $name,
            name_id: $nameId,
            summary: $summary,
-           tags: [ { name: $gameVersion, date_added: "0" } ],
+           tags: ($gameVersions | split(" ") | map(select(length > 0))
+                  | map({ name: ., date_added: "0" })),
            modfile: { id: $modfileNum, mod_id: $modidNum }
        }
    }

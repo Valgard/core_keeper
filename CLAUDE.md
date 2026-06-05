@@ -76,8 +76,9 @@ The published mod.io listing does **not** read the manifest either: profile name
 ← `metadata.displayName` (fallback `metadata.name`) — so the human title
 "Item Checklist" can differ from the internal identity "ItemChecklist"; summary
 ← `MOD_SUMMARY` env, version + changelog ← `CHANGELOG.md`, modId ←
-`<Mod>_modio.asset`, version tag ← `CK_GAME_VERSION` env (all in
-`utils/CLIPublishHelper.cs`).
+`<Mod>_modio.asset`, version tag(s) ← `CK_GAME_VERSION` env — a
+**space-separated list** of one or more game versions, each published as its
+own compatibility tag (all in `utils/CLIPublishHelper.cs`).
 
 ### Runtime asmdef from the wizard
 The "Create New Mod" wizard emits the mod's runtime `.asmdef` already
@@ -147,6 +148,10 @@ the running game's version (e.g. `1.2.1.2`, read from `Game version: X` in
 modProfile.tags)`; with no matching tag it flags the mod "not compatible with
 current version" and shunts it into the main-menu warning dialog. Real mod.io
 mods carry these version tags — the fake install must replicate one.
+`install-macos.sh` builds this array from `CK_GAME_VERSION`, which is a
+**space-separated list** — set it to multiple versions (e.g.
+`"1.2.1.2 1.2.1.4"`) to make one local dev build loadable across several game
+builds; a single value is just a one-element list.
 
 `utils/install-macos.sh` writes all three locations and clears
 `…/Temp/Pugstorm/Core Keeper/ModLoader/<ModName>/` before launch (defensive

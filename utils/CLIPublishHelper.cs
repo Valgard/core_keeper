@@ -204,18 +204,23 @@ namespace CoreKeeperModUtils
 
         private static void EnsureTagThenUpload(ModSettings modIo)
         {
-            var gameVersion = Environment.GetEnvironmentVariable("CK_GAME_VERSION");
-            if (string.IsNullOrEmpty(gameVersion))
+            // CK_GAME_VERSION is a space-separated list of one or more game
+            // versions the mod is compatible with (e.g. "1.2.1.2 1.2.1.4").
+            // Each becomes a separate mod.io version tag.
+            var gameVersionsRaw = Environment.GetEnvironmentVariable("CK_GAME_VERSION");
+            var gameVersions = (gameVersionsRaw ?? string.Empty)
+                .Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            if (gameVersions.Length == 0)
             {
                 Fail("CK_GAME_VERSION not set"); return;
             }
-            ModIOUnity.AddTags(new ModId(modIo.modId), new[] { gameVersion }, tagRes =>
+            ModIOUnity.AddTags(new ModId(modIo.modId), gameVersions, tagRes =>
             {
                 if (!tagRes.Succeeded())
                 {
                     Debug.LogWarning($"[CLIPublishHelper] Could not add version "
-                        + $"tag '{gameVersion}': {tagRes.message}. Verify the "
-                        + "exact tag value on the mod.io website.");
+                        + $"tag(s) '{string.Join(", ", gameVersions)}': {tagRes.message}. "
+                        + "Verify the exact tag value(s) on the mod.io website.");
                 }
                 Upload(modIo);
             });
