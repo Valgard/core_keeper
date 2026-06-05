@@ -55,13 +55,29 @@ Linux Editors only; neither loads on macOS. Fix: enable
 `OS: AnyOS`. One-time per SDK clone — see
 `disable-durability/docs/research/macos-sdk-steamworks-fix.md`.
 
-### Manifest editor fields
-The SDK's mod-settings Editor UI is unreliable for two manifest fields:
-- `displayName` cannot be set through the Editor — edit `ModManifest.json`
-  directly.
-- Choosing "Client and Server" for `requiredOn` writes `-1` ("Everything"),
-  not the intended value. Set `requiredOn: 3` (ClientAndServer) directly in
-  the file.
+### Manifest fields — edit the `.asset`, not `ModManifest.json`
+A mod's `ModManifest.json` is **build-generated** from its ModBuilderSettings
+`.asset` (`unity/<Mod>/<Mod>.asset`, the `ModMetadata` block: `name`,
+`displayName`, `requiredOn`, `dependencies`, …). The build writes the real
+manifest (with computed file GUIDs + AssetBundle entries) into the output dir;
+the loader reads *that* via `JsonUtility.FromJson<ModMetadata>`. A hand-authored
+repo `ModManifest.json` is the **wrong schema** (`name_id`/`version`/
+`modDependencies` keys are silently ignored on load) and is read by nothing —
+do **not** keep one. So edit manifest fields directly in the `.asset` YAML's
+`metadata:` block:
+- The SDK mod-settings Editor UI is unreliable for `displayName` (cannot be set
+  through the GUI) and `requiredOn` (choosing "Client and Server" writes `-1`
+  / "Everything"). Set `displayName:` and `requiredOn: 3` (ClientAndServer)
+  directly in the `.asset`.
+- Mod dependencies (e.g. CoreLib) live in the `.asset`'s `dependencies:` list
+  (`- modName: CoreLib` / `required: 1`) and flow into the built manifest.
+
+The published mod.io listing does **not** read the manifest either: profile name
+← `metadata.displayName` (fallback `metadata.name`) — so the human title
+"Item Checklist" can differ from the internal identity "ItemChecklist"; summary
+← `MOD_SUMMARY` env, version + changelog ← `CHANGELOG.md`, modId ←
+`<Mod>_modio.asset`, version tag ← `CK_GAME_VERSION` env (all in
+`utils/CLIPublishHelper.cs`).
 
 ### Runtime asmdef from the wizard
 The "Create New Mod" wizard emits the mod's runtime `.asmdef` already
