@@ -279,8 +279,11 @@ into a mod's `unity/<Mod>/Editor/` by `link.sh`, gated behind the per-mod
 `...CLIPublishHelper.Publish` rather than the per-mod
 `<Mod>.Editor.CLIBuildHelper.Build` path.
 
-**ItemChecklist is the pilot.** `disable-durability` and `faster-talents`
-still use their per-mod `<Mod>.Editor.*` helpers and migrate later.
+**ItemChecklist was the pilot; `faster-talents` is migrated too** (it sets
+`USE_SHARED_EDITOR_HELPERS=1`, ships no `localization.yaml` so the loc
+generator is a no-op, and adds `MOD_REPO_ROOT="$PWD"` for the shared
+`CLIPublishHelper`'s CHANGELOG lookup). `disable-durability` still uses its
+per-mod `<Mod>.Editor.*` helpers and migrates later.
 
 Also in `utils/`:
 - **`ck-language-addresses.json`** — the CK language address→ISO table (13
