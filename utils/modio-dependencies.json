@@ -3,6 +3,10 @@
         {
             "modName": "CoreLib",
             "modId": 3177992
+        },
+        {
+            "modName": "SimpleCraftingPoolExtender",
+            "modId": 6119747
         }
     ]
 }
