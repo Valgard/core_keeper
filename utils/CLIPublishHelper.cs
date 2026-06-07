@@ -298,6 +298,24 @@ namespace CoreKeeperModUtils
         private static string Normalize(string s) =>
             (s ?? string.Empty).Replace(" ", string.Empty).ToLowerInvariant();
 
+        // Insert spaces before each uppercase letter that follows a lowercase
+        // one, mapping our PascalCase loader names to the Title-Case display
+        // names used on mod.io. "CoreLib" → "Core Lib", "SimpleCraftingPool­
+        // Extender" → "Simple Crafting Pool Extender". Single-word names with
+        // no internal capital pass through unchanged.
+        private static string SplitCamelCase(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return s ?? string.Empty;
+            var sb = new System.Text.StringBuilder(s.Length + 8);
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (i > 0 && char.IsUpper(s[i]) && char.IsLower(s[i - 1]))
+                    sb.Append(' ');
+                sb.Append(s[i]);
+            }
+            return sb.ToString();
+        }
+
         // Returns true if the caller may continue (optional dep skipped); for a
         // required dep it calls Fail() (which exits) and returns false. The
         // .asset 'required' flag is NOT sent to mod.io (the API has no such
@@ -344,8 +362,10 @@ namespace CoreKeeperModUtils
             }
             var dep = deps[index];
 
-            // 1. Cache hit.
-            var hit = map.entries.Find(e => e.modName == dep.modName);
+            // 1. Cache hit. Case-insensitive so a `.asset`-side casing drift
+            // (e.g. "Corelib" vs the cached "CoreLib") still resolves.
+            var hit = map.entries.Find(e =>
+                string.Equals(e.modName, dep.modName, StringComparison.OrdinalIgnoreCase));
             if (hit != null)
             {
                 resolved.Add(hit.modId);
@@ -357,10 +377,22 @@ namespace CoreKeeperModUtils
             // mod.io rejects a filter without pagination params (error 20201);
             // page size 100 is the API max and the first page suffices for an
             // exact name match.
+            //
+            // mod.io's `name` field stores the Mod's display name literally
+            // ("Simple Crafting Pool Extender"); our `.asset`-dependency
+            // carries the Loader identity ("SimpleCraftingPoolExtender",
+            // PascalCase). Passing dep.modName verbatim therefore finds
+            // nothing for any mod whose display name diverges from the
+            // Loader name. CamelCase-split bridges the convention: "CoreLib"
+            // stays unchanged (display = "CoreLib"), and
+            // "SimpleCraftingPoolExtender" becomes "Simple Crafting Pool
+            // Extender" — which matches the mod.io display string. The
+            // Normalize() step below still maps candidates and dep.modName
+            // back to the same identity for the eventual exact-match.
             var filter = new SearchFilter();
             filter.SetPageIndex(0);
             filter.SetPageSize(100);
-            filter.AddSearchPhrase(dep.modName);
+            filter.AddSearchPhrase(SplitCamelCase(dep.modName));
             ModIOUnity.GetMods(filter, page =>
             {
                 if (!page.result.Succeeded())
