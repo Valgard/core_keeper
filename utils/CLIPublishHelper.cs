@@ -297,6 +297,103 @@ namespace CoreKeeperModUtils
         private static string Normalize(string s) =>
             (s ?? string.Empty).Replace(" ", string.Empty).ToLowerInvariant();
 
+        // Returns true if the caller may continue (optional dep skipped); for a
+        // required dep it calls Fail() (which exits) and returns false. The
+        // .asset 'required' flag is NOT sent to mod.io (the API has no such
+        // field) — it is reused here purely as the failure-severity threshold.
+        private static bool HandleUnresolved(ModMetadata.Dependency dep, string reason)
+        {
+            if (dep.required)
+            {
+                Fail($"Required dependency '{dep.modName}' could not be resolved "
+                    + $"to a mod.io id: {reason}. Add it to {_depsMapPath} manually "
+                    + "and re-run.");
+                return false;
+            }
+            Debug.LogWarning($"[CLIPublishHelper] Optional dependency "
+                + $"'{dep.modName}' could not be resolved: {reason}. Skipping.");
+            return true;
+        }
+
+        private static void EnsureDependenciesThenTag(ModSettings modIo)
+        {
+            var deps = _builder.metadata.dependencies;
+            if (deps == null || deps.Count == 0)
+            {
+                // No declared dependencies: still sync, so any stale mod.io
+                // dependency gets removed.
+                SyncDependencies(modIo, new List<long>());
+                return;
+            }
+            var map = LoadDepMap();
+            ResolveNext(modIo, deps, 0, map, new List<long>());
+        }
+
+        // Resolution is callback-based per cache miss, so it runs sequentially
+        // (resolve one, continue in its callback). On the last index it hands the
+        // resolved ID list to SyncDependencies.
+        private static void ResolveNext(ModSettings modIo,
+            List<ModMetadata.Dependency> deps, int index, DepMap map,
+            List<long> resolved)
+        {
+            if (index >= deps.Count)
+            {
+                SyncDependencies(modIo, resolved);
+                return;
+            }
+            var dep = deps[index];
+
+            // 1. Cache hit.
+            var hit = map.entries.Find(e => e.modName == dep.modName);
+            if (hit != null)
+            {
+                resolved.Add(hit.modId);
+                ResolveNext(modIo, deps, index + 1, map, resolved);
+                return;
+            }
+
+            // 2. Cache miss: live search (read-only; allowed in dry-run).
+            var filter = new SearchFilter();
+            filter.AddSearchPhrase(dep.modName);
+            ModIOUnity.GetMods(filter, page =>
+            {
+                if (!page.result.Succeeded())
+                {
+                    if (!HandleUnresolved(dep, $"GetMods failed: {page.result.message}"))
+                        return;
+                    ResolveNext(modIo, deps, index + 1, map, resolved);
+                    return;
+                }
+
+                var profiles = page.value.modProfiles ?? new ModProfile[0];
+                var matches = new List<ModProfile>();
+                foreach (var p in profiles)
+                    if (Normalize(p.name) == Normalize(dep.modName))
+                        matches.Add(p);
+
+                if (matches.Count == 1)
+                {
+                    long id = matches[0].id;
+                    resolved.Add(id);
+                    map.entries.Add(new DepMapEntry { modName = dep.modName, modId = id });
+                    SaveDepMap(map);
+                    Debug.Log($"[CLIPublishHelper] Resolved dependency "
+                        + $"'{dep.modName}' -> mod.io id {id} (cached).");
+                    ResolveNext(modIo, deps, index + 1, map, resolved);
+                    return;
+                }
+
+                var candidates = string.Join(", ",
+                    Array.ConvertAll(profiles, p => $"{p.id}:{p.name}"));
+                var reason = matches.Count == 0
+                    ? $"no exact name match among [{candidates}]"
+                    : $"ambiguous: {matches.Count} name matches among [{candidates}]";
+                if (!HandleUnresolved(dep, reason))
+                    return;
+                ResolveNext(modIo, deps, index + 1, map, resolved);
+            });
+        }
+
         private static void Succeed()
         {
             Debug.Log("[CLIPublishHelper] Done.");
