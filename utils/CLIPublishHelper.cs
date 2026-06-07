@@ -354,7 +354,12 @@ namespace CoreKeeperModUtils
             }
 
             // 2. Cache miss: live search (read-only; allowed in dry-run).
+            // mod.io rejects a filter without pagination params (error 20201);
+            // page size 100 is the API max and the first page suffices for an
+            // exact name match.
             var filter = new SearchFilter();
+            filter.SetPageIndex(0);
+            filter.SetPageSize(100);
             filter.AddSearchPhrase(dep.modName);
             ModIOUnity.GetMods(filter, page =>
             {
