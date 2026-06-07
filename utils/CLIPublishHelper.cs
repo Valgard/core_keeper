@@ -394,6 +394,92 @@ namespace CoreKeeperModUtils
             });
         }
 
+        private static void SyncDependencies(ModSettings modIo, List<long> target)
+        {
+            // A not-yet-created profile (dry-run) has no id to sync against.
+            if (_dryRun && modIo.modId == 0)
+            {
+                Debug.Log("[CLIPublishHelper] dry run: profile not yet created; "
+                    + $"would set dependencies [{string.Join(",", target)}] after "
+                    + "creation.");
+                Succeed();
+                return;
+            }
+
+            var modId = new ModId(modIo.modId);
+            ModIOUnity.GetModDependencies(modId, depRes =>
+            {
+                var current = new List<long>();
+                if (depRes.result.Succeeded() && depRes.value != null)
+                {
+                    foreach (var d in depRes.value) current.Add(d.modId);
+                }
+                else if (!depRes.result.Succeeded())
+                {
+                    Debug.LogWarning("[CLIPublishHelper] GetModDependencies failed: "
+                        + $"{depRes.result.message}. Assuming none currently set.");
+                }
+
+                var toAdd = target.FindAll(id => !current.Contains(id));
+                var toRemove = current.FindAll(id => !target.Contains(id));
+                Debug.Log($"[CLIPublishHelper] Dependency sync plan: "
+                    + $"+[{string.Join(",", toAdd)}] -[{string.Join(",", toRemove)}]");
+
+                if (_dryRun)
+                {
+                    Debug.Log("[CLIPublishHelper] dry run: skipping dependency "
+                        + "add/remove calls.");
+                    Succeed();
+                    return;
+                }
+                ApplyAdds(modIo, modId, toAdd, toRemove);
+            });
+        }
+
+        private static void ApplyAdds(ModSettings modIo, ModId modId,
+            List<long> toAdd, List<long> toRemove)
+        {
+            if (toAdd.Count == 0)
+            {
+                ApplyRemoves(modIo, modId, toRemove);
+                return;
+            }
+            var ids = toAdd.ConvertAll(id => new ModId(id));
+            ModIOUnity.AddDependenciesToMod(modId, ids, res =>
+            {
+                if (!res.Succeeded())
+                {
+                    Fail($"AddDependenciesToMod failed: {res.message}");
+                    return;
+                }
+                Debug.Log($"[CLIPublishHelper] Added dependencies "
+                    + $"[{string.Join(",", toAdd)}].");
+                ApplyRemoves(modIo, modId, toRemove);
+            });
+        }
+
+        private static void ApplyRemoves(ModSettings modIo, ModId modId,
+            List<long> toRemove)
+        {
+            if (toRemove.Count == 0)
+            {
+                EnsureTagThenUpload(modIo);
+                return;
+            }
+            var ids = toRemove.ConvertAll(id => new ModId(id));
+            ModIOUnity.RemoveDependenciesFromMod(modId, ids, res =>
+            {
+                if (!res.Succeeded())
+                {
+                    Fail($"RemoveDependenciesFromMod failed: {res.message}");
+                    return;
+                }
+                Debug.Log($"[CLIPublishHelper] Removed dependencies "
+                    + $"[{string.Join(",", toRemove)}].");
+                EnsureTagThenUpload(modIo);
+            });
+        }
+
         private static void Succeed()
         {
             Debug.Log("[CLIPublishHelper] Done.");
