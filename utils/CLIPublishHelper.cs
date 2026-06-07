@@ -122,6 +122,7 @@ namespace CoreKeeperModUtils
             var modIo = AssetDatabase.LoadAssetAtPath<ModSettings>(_modIoSettingsPath);
             var builder = AssetDatabase.LoadAssetAtPath<ModBuilderSettings>(_settingsPath);
             if (builder == null) { Fail($"No ModBuilderSettings at {_settingsPath}"); return; }
+            _builder = builder;
             if (modIo == null)
             {
                 modIo = ScriptableObject.CreateInstance<ModSettings>();
@@ -147,7 +148,7 @@ namespace CoreKeeperModUtils
                     Debug.Log("[CLIPublishHelper] dry run: would create a new "
                               + "mod profile."
                               + (logo == null ? " (no logo asset yet)" : ""));
-                    Succeed();
+                    EnsureDependenciesThenTag(modIo);
                     return;
                 }
                 if (logo == null)
@@ -175,7 +176,7 @@ namespace CoreKeeperModUtils
                     AssetDatabase.SaveAssets();
                     Debug.Log($"[CLIPublishHelper] Created mod.io profile, "
                               + $"id={modIo.modId}");
-                    EnsureTagThenUpload(modIo);
+                    EnsureDependenciesThenTag(modIo);
                 });
             }
             else
@@ -184,7 +185,7 @@ namespace CoreKeeperModUtils
                 {
                     Debug.Log($"[CLIPublishHelper] dry run: would update profile "
                               + $"{modIo.modId} and upload v{_version}.");
-                    Succeed();
+                    EnsureDependenciesThenTag(modIo);
                     return;
                 }
                 var details = new ModProfileDetails
@@ -201,7 +202,7 @@ namespace CoreKeeperModUtils
                         Fail($"EditModProfile failed: {edited.message}");
                         return;
                     }
-                    EnsureTagThenUpload(modIo);
+                    EnsureDependenciesThenTag(modIo);
                 });
             }
         }
