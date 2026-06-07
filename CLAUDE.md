@@ -11,8 +11,8 @@ machine — change it only when an insight is genuinely mod-agnostic.
 - `CoreKeeperModSDK/` — the Pugstorm SDK clone, **shared** by every mod. Its
   own git repo. Mods do not vendor a private SDK copy.
 - `<mod-name>/` — one directory per mod, each its own git repo. Currently:
-  `disable-durability/`, `faster-talents/`, `item-checklist/`, and
-  `caveling-divining-rod/`.
+  `disable-durability/`, `faster-talents/`, `item-checklist/`,
+  `caveling-divining-rod/`, and `simple-crafting-pool-extender/`.
 
 A mod keeps **every file the Unity Editor generates for it** — `.cs`
 sources, `.asmdef`s, the ModBuilderSettings `.asset`, and all `.meta` GUID
@@ -322,6 +322,45 @@ REST client — `utils/upload.sh` invokes a per-mod Editor class
 - **Async batchmode:** the mod.io calls are asynchronous, so `upload.sh`
   invokes Unity **without `-quit`** and `CLIPublishHelper` calls
   `EditorApplication.Exit` itself; a `timeout` guards a hung run.
+
+### Mod dependencies → mod.io platform dependencies
+
+On publish, `CLIPublishHelper` syncs the `.asset`'s `metadata.dependencies`
+list (e.g. `CoreLib`) to the mod's **mod.io platform** dependency list
+(`AddDependenciesToMod` / `RemoveDependenciesFromMod`) — a separate concern
+from the loader-side `ModManifest.json` dependencies (which stay the loader's
+source of truth). The step runs between the profile create/edit and the
+modfile upload, so an unresolvable required dependency aborts before anything
+is uploaded.
+
+- **modName → ModId resolution.** The `.asset` references a dependency by its
+  loader **name** (`CoreLib`); the mod.io API needs a numeric **ModId**. A
+  self-populating cache `utils/modio-dependencies.json` (`{modName → modId}`,
+  versioned) bridges this; its path is passed via the `.envrc` var
+  `MODIO_DEPS_MAP` (set only by mods that declare dependencies). On a cache
+  miss the helper runs a `GetMods` search (pagination params are **required** —
+  `SetPageIndex`/`SetPageSize`, else error 20201), accepts the ID only on a
+  single normalised-name match (case/space-insensitive), and writes it back to
+  the cache (allowed even in `--dry-run`).
+- **Failure severity follows the `.asset` `required` flag** (which is *not*
+  transmitted to mod.io — the API has no per-dependency required attribute):
+  an unresolvable **required** dependency aborts the publish; an unresolvable
+  **optional** one logs a warning and is skipped.
+- **Full sync, not additive:** the helper diffs the resolved target set against
+  `GetModDependencies` and both adds missing and removes extra, so the mod.io
+  list mirrors the `.asset` exactly. `--dry-run` logs the plan and skips the
+  add/remove calls.
+
+> ⚠️ Known build gotcha: the shared `CLIPublishHelper`/`CLIBuildHelper` compile
+> into **every** linked mod's `<Mod>.Editor` assembly, so the class exists in
+> several assemblies and `-executeMethod` runs the alphabetically-first one
+> (`CavelingDiviningRod.Editor`). Because Unity's AssetDatabase does **not**
+> detect edits to a symlink *target*, only the currently-built mod's symlinks
+> are refreshed per build — the other mods' editor assemblies keep a **stale**
+> compiled copy of the shared helper, and `-executeMethod` may run that stale
+> copy. After editing a shared helper, re-link **all** mods (run `link.sh` for
+> each) so every editor assembly recompiles from the current source before
+> relying on a publish/build run.
 
 ### The three mod IDs
 
