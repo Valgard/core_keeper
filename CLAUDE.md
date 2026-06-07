@@ -11,7 +11,8 @@ machine — change it only when an insight is genuinely mod-agnostic.
 - `CoreKeeperModSDK/` — the Pugstorm SDK clone, **shared** by every mod. Its
   own git repo. Mods do not vendor a private SDK copy.
 - `<mod-name>/` — one directory per mod, each its own git repo. Currently:
-  `disable-durability/` and `faster-talents/`.
+  `disable-durability/`, `faster-talents/`, `item-checklist/`, and
+  `caveling-divining-rod/`.
 
 A mod keeps **every file the Unity Editor generates for it** — `.cs`
 sources, `.asmdef`s, the ModBuilderSettings `.asset`, and all `.meta` GUID
@@ -278,14 +279,17 @@ The CLI editor helpers (`CLIBuildHelper`, `CLIPublishHelper`) and the
 `-executeMethod CoreKeeperModUtils.CLIBuildHelper.Build` /
 `...CLIPublishHelper.Publish`.
 
-**All three mods use the shared helpers** — ItemChecklist was the pilot,
-`faster-talents` and `disable-durability` followed, and no mod keeps per-mod
-`<Mod>.Editor.CLI*Helper` sources anymore. Once the last mod migrated the
-former opt-in flag `USE_SHARED_EDITOR_HELPERS` was removed entirely (the
-per-mod fallback path it guarded pointed at sources that no longer exist).
-Each mod's `.envrc` still sets `MOD_REPO_ROOT="$PWD"` (the shared
-`CLIPublishHelper` reads it for the CHANGELOG lookup); the two non-localised
-mods ship no `localization.yaml`, so the loc generator is a no-op for them.
+**Every mod uses the shared helpers.** ItemChecklist was the pilot;
+`faster-talents` and `disable-durability` were migrated; `caveling-divining-rod`
+(added later) was set up on the pattern from the start. No mod keeps per-mod
+`<Mod>.Editor.CLI*Helper` sources. Once the last opt-in mod had migrated the
+former flag `USE_SHARED_EDITOR_HELPERS` was removed entirely (its per-mod
+fallback path pointed at sources that no longer exist) — the helpers are now
+unconditional. Each mod's `.envrc` sets `MOD_REPO_ROOT="$PWD"` (the shared
+`CLIPublishHelper` reads it for the CHANGELOG lookup). The localised mods
+(`item-checklist`, `caveling-divining-rod`) also set `LOC_YAML` / `LOC_OUT` /
+`LOC_TABLE`; the others ship no `localization.yaml`, so the loc generator is a
+no-op for them.
 
 Also in `utils/`:
 - **`ck-language-addresses.json`** — the CK language address→ISO table (13
