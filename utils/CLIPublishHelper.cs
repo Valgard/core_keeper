@@ -5,6 +5,7 @@
 // profile and upload a modfile. mod.io calls are async, so upload.sh omits
 // -quit and this class calls EditorApplication.Exit on every path.
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 using ModIO;
@@ -26,6 +27,8 @@ namespace CoreKeeperModUtils
         private static string _version;
         private static string _changelog;
         private static string _buildDir;
+        private static ModBuilderSettings _builder;
+        private static string _depsMapPath;
 
         public static void Publish()
         {
@@ -38,6 +41,7 @@ namespace CoreKeeperModUtils
                 _logoAssetPath = $"Assets/{_modName}/Editor/logo.png";
 
                 _dryRun = Environment.GetEnvironmentVariable("PUBLISH_DRY_RUN") == "1";
+                _depsMapPath = Environment.GetEnvironmentVariable("MODIO_DEPS_MAP");
 
                 var repoRoot = Environment.GetEnvironmentVariable("MOD_REPO_ROOT");
                 if (string.IsNullOrEmpty(repoRoot)) { Fail("MOD_REPO_ROOT not set"); return; }
@@ -247,6 +251,51 @@ namespace CoreKeeperModUtils
                 Succeed();
             });
         }
+
+        // ---- mod.io dependency sync (from the .asset metadata.dependencies) ----
+
+        // JsonUtility cannot (de)serialise dictionaries, so the cache is a list
+        // of {modName, modId} entries rather than a flat {name: id} object.
+        [Serializable]
+        private class DepMapEntry { public string modName; public long modId; }
+
+        [Serializable]
+        private class DepMap { public List<DepMapEntry> entries = new List<DepMapEntry>(); }
+
+        private static DepMap LoadDepMap()
+        {
+            if (string.IsNullOrEmpty(_depsMapPath) || !File.Exists(_depsMapPath))
+                return new DepMap();
+            try
+            {
+                return JsonUtility.FromJson<DepMap>(File.ReadAllText(_depsMapPath))
+                       ?? new DepMap();
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[CLIPublishHelper] Could not read deps map "
+                    + $"{_depsMapPath}: {e.Message}. Treating as empty.");
+                return new DepMap();
+            }
+        }
+
+        // Persisting a newly-resolved ID is allowed even in dry-run (it is a
+        // harmless local-file write that saves the network call on the real run).
+        private static void SaveDepMap(DepMap map)
+        {
+            if (string.IsNullOrEmpty(_depsMapPath))
+            {
+                Debug.LogWarning("[CLIPublishHelper] MODIO_DEPS_MAP not set — "
+                    + "resolved dependency ID not cached.");
+                return;
+            }
+            File.WriteAllText(_depsMapPath, JsonUtility.ToJson(map, prettyPrint: true));
+        }
+
+        // Case-insensitive, whitespace-insensitive name comparison key, so the
+        // loader identity "CoreLib" matches a mod.io title "Core Lib".
+        private static string Normalize(string s) =>
+            (s ?? string.Empty).Replace(" ", string.Empty).ToLowerInvariant();
 
         private static void Succeed()
         {
