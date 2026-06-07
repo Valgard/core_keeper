@@ -31,6 +31,15 @@ namespace CoreKeeperModUtils
                 if (string.IsNullOrEmpty(exportPath)) { Fail("MOD_INSTALL_PATH not set"); return; }
                 Directory.CreateDirectory(exportPath);
 
+                // Refresh + recursive-import: cheap insurance against stale
+                // SourceAssetDB state. Note: if FindAssets still returns 0 for
+                // a freshly-symlinked mod folder, the SourceAssetDB itself is
+                // taub and only a `rm -rf Library/SourceAssetDB` triggers a
+                // full reindex. See docs / project memory.
+                AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+                AssetDatabase.ImportAsset(settings.modPath,
+                    ImportAssetOptions.ImportRecursive | ImportAssetOptions.ForceSynchronousImport);
+
                 Debug.Log($"[CLIBuildHelper] Building {modName} → {exportPath}");
                 ModBuilder.BuildMod(settings, exportPath, ok =>
                 {
