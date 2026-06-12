@@ -70,3 +70,29 @@ def load_pixaki(path):
                 uid = os.path.basename(n)[:-4]
                 drawings[uid] = Image.open(io.BytesIO(z.read(n))).convert("RGBA")
     return doc, drawings
+
+
+def _normalize(layer, drawings):
+    """Return an RGBA image of exactly (layer.w, layer.h), top-left anchored."""
+    src = drawings[layer.drawing_id]
+    if src.size == (layer.w, layer.h):
+        return src
+    canvas = Image.new("RGBA", (layer.w, layer.h), (0, 0, 0, 0))
+    canvas.alpha_composite(src, (0, 0))
+    return canvas
+
+
+def pixel_key(img):
+    return hashlib.sha1(img.tobytes()).hexdigest() + f"_{img.width}x{img.height}"
+
+
+def dedup(layers, drawings):
+    """Return (distinct: list[(key, img, w, h)], name_to_key: dict)."""
+    distinct = {}
+    name_to_key = {}
+    for layer in layers:
+        img = _normalize(layer, drawings)
+        key = pixel_key(img)
+        distinct.setdefault(key, (key, img, layer.w, layer.h))
+        name_to_key[layer.name] = key
+    return list(distinct.values()), name_to_key
