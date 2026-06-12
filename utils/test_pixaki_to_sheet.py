@@ -60,3 +60,13 @@ def test_internalid_is_deterministic_and_size_disambiguated():
     # deterministic id from final name
     assert p.internal_id("Icon Sort Asc 8x8") == p.internal_id("Icon Sort Asc 8x8")
     assert p.internal_id("Icon Sort Asc 8x8") != p.internal_id("Icon Sort Asc 6x6")
+
+
+def test_pack_places_without_overlap_and_bottom_left_rects():
+    sprites = [("a", None, 8, 8), ("b", None, 6, 6), ("c", None, 4, 8)]
+    placements, sheet_w, sheet_h = p.pack(sprites, sheet_w=20, gutter=2)
+    for key, x, y, w, h in placements:
+        assert 0 <= x and x + w <= sheet_w
+        assert 0 <= y and y + h <= sheet_h
+    # unique positions, all three placed
+    assert len({(x, y) for (_, x, y, _, _) in placements}) == 3

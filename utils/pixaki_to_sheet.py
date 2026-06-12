@@ -113,3 +113,20 @@ def internal_id(name):
     """Stable signed-32-bit int from the final sprite name."""
     digest = hashlib.sha1(name.encode("utf-8")).digest()
     return int.from_bytes(digest[:4], "little", signed=True)
+
+
+def pack(sprites, sheet_w=128, gutter=2):
+    """sprites: list of (key, img_or_None, w, h) in the caller's deterministic order.
+    Returns (placements: list of (key, x, y_bottomleft, w, h), sheet_w, sheet_h)."""
+    cur_x, row_h, top = gutter, 0, gutter
+    placed_top = []     # (key, x, top, w, h)
+    for key, _img, w, h in sprites:
+        if cur_x + w + gutter > sheet_w:
+            top += row_h + gutter
+            cur_x, row_h = gutter, 0
+        placed_top.append((key, cur_x, top, w, h))
+        cur_x += w + gutter
+        row_h = max(row_h, h)
+    sheet_h = top + row_h + gutter
+    placements = [(key, x, sheet_h - t - h, w, h) for (key, x, t, w, h) in placed_top]
+    return placements, sheet_w, sheet_h
