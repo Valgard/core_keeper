@@ -222,3 +222,59 @@ def render_meta(template_meta_path, new_guid, placements_named):
         f"{name_table}"
     )
     return head + sheet + tail
+
+
+def build_sheet(pixaki_path, out_png, template_meta):
+    """Build the sheet PNG + .meta. Returns (mapping name->internalID, guid)."""
+    doc, drawings = load_pixaki(pixaki_path)
+    layers = collect_layers(doc, EXCLUDE_TOP)
+    distinct, name_to_key = dedup(layers, drawings)
+    # base name per key = first layer that produced it (recompute the key per
+    # layer; name_to_key is lossy when one name maps to several distinct keys,
+    # e.g. the 8x8/6x6 sort-icon size pairs)
+    key_base = {}
+    for layer in layers:
+        key = pixel_key(_normalize(layer, drawings))
+        key_base.setdefault(key, layer.name)
+    items = [(k, img, w, h, key_base[k]) for (k, img, w, h) in distinct]
+    names = assign_names(items)                       # {key: final_name}
+    items.sort(key=lambda it: names[it[0]])           # deterministic order
+    placements, sw, sh = pack([(k, img, w, h) for (k, img, w, h, _) in items])
+    img_by_key = {k: img for (k, img, w, h, _) in items}
+    sheet = Image.new("RGBA", (sw, sh), (0, 0, 0, 0))
+    placed_named = []
+    for key, x, y_bl, w, h in placements:
+        top = sh - y_bl - h
+        sheet.alpha_composite(img_by_key[key], (x, top))
+        nm = names[key]
+        placed_named.append(dict(
+            name=nm, internal_id=internal_id(nm),
+            x=x, y=y_bl, w=w, h=h,
+            border=border_for(key_base[key], w, h),   # BASE name, not disambiguated
+        ))
+    sheet.save(out_png)
+    new_guid = hashlib.sha1(out_png.encode()).hexdigest()[:32]
+    with open(out_png + ".meta", "w") as f:
+        f.write(render_meta(template_meta, new_guid, placed_named))
+    mapping = {s["name"]: s["internal_id"] for s in placed_named}
+    return mapping, new_guid
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("pixaki")
+    ap.add_argument("out_png")
+    ap.add_argument("--meta-template", required=True)
+    ap.add_argument("--mapping-out", default=None)
+    a = ap.parse_args()
+    mapping, guid = build_sheet(a.pixaki, a.out_png, a.meta_template)
+    if a.mapping_out:
+        with open(a.mapping_out, "w") as f:
+            json.dump({"guid": guid, "name_to_internal_id": mapping}, f, indent=1)
+    print(f"sheet guid {guid}, {len(mapping)} distinct sprites")
+    for nm in sorted(mapping):
+        print(f"  {nm}: {mapping[nm]}")
+
+
+if __name__ == "__main__":
+    main()
