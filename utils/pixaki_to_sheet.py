@@ -130,3 +130,95 @@ def pack(sprites, sheet_w=128, gutter=2):
     sheet_h = top + row_h + gutter
     placements = [(key, x, sheet_h - t - h, w, h) for (key, x, t, w, h) in placed_top]
     return placements, sheet_w, sheet_h
+
+
+# Base names that are 9-sliced chrome (default border {1,1,1,1} unless overridden).
+SLICED = {
+    "Entry Background", "Entry Toggled", "Entry Selected", "Field Background",
+    "Dropdown Background", "Button Background", "Panel", "Rarity Border",
+    "Scrollbar Background", "Scrollbar Handler", "Scrollbar Highlight", "Scrollbar Selector",
+}
+# (base_name, w, h) -> explicit border, overriding the SLICED default.
+BORDER_OVERRIDE = {
+    ("Window", 16, 16): (4, 4, 4, 4),
+    ("Entry Background", 8, 1): (1, 0, 1, 0),   # option divider, horizontal-only
+}
+
+
+def border_for(name, w, h):
+    """Border (left, bottom, right, top) for a sprite given its BASE name + size."""
+    if (name, w, h) in BORDER_OVERRIDE:
+        return BORDER_OVERRIDE[(name, w, h)]
+    if name in SLICED:
+        return (1, 1, 1, 1)
+    return (0, 0, 0, 0)   # icons, caret, checkbox glyphs = simple
+
+
+def _sprite_id(name):
+    """Deterministic 32-hex per-sub-sprite spriteID (Unity's 128-bit handle)."""
+    return hashlib.md5(name.encode("utf-8")).hexdigest()
+
+
+def _sprite_block(s):
+    left, bot, right, top = s["border"]
+    return (
+        "    - serializedVersion: 2\n"
+        f"      name: {s['name']}\n"
+        "      rect:\n"
+        "        serializedVersion: 2\n"
+        f"        x: {s['x']}\n"
+        f"        y: {s['y']}\n"
+        f"        width: {s['w']}\n"
+        f"        height: {s['h']}\n"
+        "      alignment: 0\n"
+        "      pivot: {x: 0.5, y: 0.5}\n"
+        f"      border: {{x: {left}, y: {bot}, z: {right}, w: {top}}}\n"
+        "      customData: \n"
+        "      outline: []\n"
+        "      physicsShape: []\n"
+        "      tessellationDetail: 0\n"
+        "      bones: []\n"
+        f"      spriteID: {_sprite_id(s['name'])}\n"
+        f"      internalID: {s['internal_id']}\n"
+        "      vertices: []\n"
+        "      indices: \n"
+        "      edges: []\n"
+        "      weights: []\n"
+    )
+
+
+def render_meta(template_meta_path, new_guid, placements_named):
+    """Reuse the template header/tail verbatim; replace guid + the whole
+    spriteSheet block. placements_named: list of dict(name, internal_id, x, y,
+    w, h, border)."""
+    import re
+    tpl = open(template_meta_path).read()
+    head, rest = tpl.split("  spriteSheet:\n", 1)
+    _, tail = rest.split("  mipmapLimitGroupName:", 1)
+    tail = "  mipmapLimitGroupName:" + tail
+    head = re.sub(r"^guid: [0-9a-f]{32}", f"guid: {new_guid}", head, count=1, flags=re.M)
+    ordered = sorted(placements_named, key=lambda s: s["name"])
+    sprites = "".join(_sprite_block(s) for s in ordered)
+    name_table = "".join(f"      {s['name']}: {s['internal_id']}\n" for s in ordered)
+    sheet = (
+        "  spriteSheet:\n"
+        "    serializedVersion: 2\n"
+        "    sprites:\n"
+        f"{sprites}"
+        "    outline: []\n"
+        "    customData: \n"
+        "    physicsShape: []\n"
+        "    bones: []\n"
+        "    spriteID: 5e97eb03825dee720800000000000000\n"
+        "    internalID: 0\n"
+        "    vertices: []\n"
+        "    indices: \n"
+        "    edges: []\n"
+        "    weights: []\n"
+        "    secondaryTextures: []\n"
+        "    spriteCustomMetadata:\n"
+        "      entries: []\n"
+        "    nameFileIdTable:\n"
+        f"{name_table}"
+    )
+    return head + sheet + tail

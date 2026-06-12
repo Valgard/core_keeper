@@ -70,3 +70,41 @@ def test_pack_places_without_overlap_and_bottom_left_rects():
         assert 0 <= y and y + h <= sheet_h
     # unique positions, all three placed
     assert len({(x, y) for (_, x, y, _, _) in placements}) == 3
+
+
+def test_border_table_defaults():
+    # 9-slice chrome gets a border; icons/caret get none. Called with the BASE name.
+    assert p.border_for("Entry Background", 8, 8) == (1, 1, 1, 1)
+    assert p.border_for("Entry Background", 8, 1) == (1, 0, 1, 0)   # divider: horizontal-only
+    assert p.border_for("Window", 16, 16) == (4, 4, 4, 4)
+    assert p.border_for("Icon Sort", 8, 8) == (0, 0, 0, 0)         # icon: simple
+    assert p.border_for("Caret", 2, 8) == (0, 0, 0, 0)
+
+
+def test_render_meta_replaces_guid_and_sprites(tmp_path):
+    template = (
+        "fileFormatVersion: 2\n"
+        "guid: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+        "TextureImporter:\n"
+        "  spriteMode: 2\n"
+        "  spriteSheet:\n"
+        "    serializedVersion: 2\n"
+        "    sprites:\n"
+        "    - serializedVersion: 2\n"
+        "      name: old_sprite\n"
+        "    nameFileIdTable:\n"
+        "      old_sprite: 123\n"
+        "  mipmapLimitGroupName: \n"
+        "  userData: \n"
+    )
+    tf = tmp_path / "tpl.png.meta"
+    tf.write_text(template)
+    placed = [dict(name="Window", internal_id=42, x=2, y=2, w=16, h=16, border=(4, 4, 4, 4))]
+    out = p.render_meta(str(tf), "b" * 32, placed)
+    assert "guid: " + "b" * 32 in out
+    assert "name: Window" in out
+    assert "internalID: 42" in out
+    assert "      Window: 42" in out                  # nameFileIdTable entry
+    assert "old_sprite" not in out                    # old sprites replaced
+    assert "  mipmapLimitGroupName: " in out          # tail preserved
+    assert "border: {x: 4, y: 4, z: 4, w: 4}" in out
