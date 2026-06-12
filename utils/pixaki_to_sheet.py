@@ -96,3 +96,20 @@ def dedup(layers, drawings):
         distinct.setdefault(key, (key, img, layer.w, layer.h))
         name_to_key[layer.name] = key
     return list(distinct.values()), name_to_key
+
+
+def assign_names(items):
+    """items: list of (key, img_or_None, w, h, base_name).
+    Returns {key: final_name}; appends ' WxH' when a base name repeats."""
+    from collections import Counter
+    base_counts = Counter(base for (_, _, _, _, base) in items)
+    out = {}
+    for key, _img, w, h, base in items:
+        out[key] = f"{base} {w}x{h}" if base_counts[base] > 1 else base
+    return out
+
+
+def internal_id(name):
+    """Stable signed-32-bit int from the final sprite name."""
+    digest = hashlib.sha1(name.encode("utf-8")).digest()
+    return int.from_bytes(digest[:4], "little", signed=True)

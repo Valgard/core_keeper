@@ -46,3 +46,17 @@ def test_dedup_collapses_identical_pixels():
     assert len(distinct) == 2           # A/B collapse, C separate
     assert name_to_key["X"] == name_to_key["Y"]
     assert name_to_key["Z"] != name_to_key["X"]
+
+
+def test_internalid_is_deterministic_and_size_disambiguated():
+    # two distinct sprites share a base name but differ in size -> unique names
+    items = [("k8", None, 8, 8, "Icon Sort Asc"), ("k6", None, 6, 6, "Icon Sort Asc")]
+    named = p.assign_names(items)
+    assert len(set(named.values())) == 2          # unique
+    assert set(named.values()) == {"Icon Sort Asc 8x8", "Icon Sort Asc 6x6"}
+    # a non-repeating base name stays bare
+    solo = p.assign_names([("k", None, 8, 8, "Window")])
+    assert solo["k"] == "Window"
+    # deterministic id from final name
+    assert p.internal_id("Icon Sort Asc 8x8") == p.internal_id("Icon Sort Asc 8x8")
+    assert p.internal_id("Icon Sort Asc 8x8") != p.internal_id("Icon Sort Asc 6x6")
