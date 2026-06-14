@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# core_keeper/.envrc.example — tracked template for the shared, machine-level
+# environment inherited by EVERY Core Keeper mod.
+#
+# Copy to .envrc and adjust the ABSOLUTE machine paths marked "ADJUST". The
+# real .envrc is gitignored; this .envrc.example is committed (via the
+# `!/.envrc.example` allowlist line in .gitignore).
+#
+#   cp .envrc.example .envrc   # then edit the ADJUST lines
+#   direnv allow               # here, and once in each mod dir
+#
+# Each mod's .envrc inherits this file via direnv's source_up_if_exists (with a
+# manual `source ../.envrc` fallback), so these shared values live here ONCE
+# rather than duplicated per mod. Paths are absolute because source_up does not
+# change $PWD.
+
+# --- Machine paths (ADJUST per machine) -------------------------------------
+
+# Unity Editor binary — MUST be Unity 6000.0.59f2 (pinned in the SDK's
+# ProjectVersion.txt). Canonical macOS Unity Hub location; ADJUST if yours differs.
+export UNITY_BIN="/Applications/Unity/Hub/Editor/6000.0.59f2/Unity.app/Contents/MacOS/Unity"
+
+# Cloned Pugstorm CoreKeeperModSDK (the one shared clone). ADJUST to your
+# absolute checkout path — the SDK symlinks (utils/link.sh) encode absolute paths.
+export SDK_PATH="/path/to/core_keeper/CoreKeeperModSDK"
+
+# macOS only — CrossOver bottle that holds Core Keeper. install-macos.sh uses
+# this default if unset; override only for a non-default bottle name.
+# export CK_BOTTLE_PATH="$HOME/Library/Application Support/CrossOver/Bottles/Core Keeper"
+
+# --- Shared defaults (a mod's own .envrc may override) ----------------------
+
+# Default Core Keeper game version → mod.io compatibility tag(s). Match to your
+# installed game (Player.log "Game version: X"). Space-separated for multiple
+# (e.g. "1.2.1.2 1.2.1.4"). A mod's .envrc may override this for older builds.
+export CK_GAME_VERSION="1.2.1.4"
+
+# --- Shared utils/ data files (ADJUST the absolute prefix) ------------------
+
+export MODIO_DEPS_MAP="/path/to/core_keeper/utils/modio-dependencies.json"
+export LOC_TABLE="/path/to/core_keeper/utils/ck-language-addresses.json"
+
+# --- Project-local PATH additions -------------------------------------------
+
+# ilspycmd (.NET global tool) is not on macOS PATH by default. Harmless unused.
+export PATH="$HOME/.dotnet/tools:$PATH"

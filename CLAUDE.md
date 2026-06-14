@@ -236,14 +236,44 @@ All mods build through one shared copy of the build scripts in
 `core_keeper/utils/` — `build.sh`, `link.sh`, `install-macos.sh`,
 `upload.sh`, `uninstall-macos.sh`. The scripts
 are mod-agnostic: each mod supplies its identity through `export`s in its own
-`.envrc` (`MOD_NAME`, `MOD_NAME_ID`, `MOD_SUMMARY`, `FAKE_MOD_ID`) alongside
-the machine paths (`UNITY_BIN`, `SDK_PATH`, `MOD_INSTALL_PATH`,
-`CK_GAME_VERSION`). To build a mod, `source` its `.envrc` and run
-`../utils/build.sh` from the mod repo root:
+`.envrc` (`MOD_NAME`, `MOD_NAME_ID`, `MOD_SUMMARY`, `FAKE_MOD_ID`,
+`MOD_INSTALL_PATH`). The scripts read everything from the environment and
+never `source` anything themselves; they guard with `set -euo pipefail` +
+`: "${VAR:?…}"`, so a missing variable aborts with a clear message.
+
+### `.envrc` inheritance chain (parent → mod)
+
+The machine-level shared values — `UNITY_BIN`, `SDK_PATH`, the
+`CK_GAME_VERSION` default, `MODIO_DEPS_MAP`, `LOC_TABLE`, and the `ilspycmd`
+PATH entry — live **once** in a gitignored `core_keeper/.envrc` (template:
+the tracked `core_keeper/.envrc.example`, allowlisted via `!/.envrc.example`).
+Each mod's `.envrc` inherits them and adds only its identity:
+
+```bash
+# top of every mod's .envrc
+if command -v source_up_if_exists >/dev/null 2>&1; then
+    source_up_if_exists          # direnv: walk up to core_keeper/.envrc
+elif [ -f ../.envrc ]; then
+    source ../.envrc             # manual `source .envrc` fallback
+fi
+```
+
+Both load paths work: under **direnv** (hooked in the shell) `cd <mod>` loads
+the mod `.envrc`, whose `source_up_if_exists` pulls in `core_keeper/.envrc` —
+no manual `source` needed (`cd <mod> && ../utils/build.sh`). Without direnv,
+the documented `source .envrc && ../utils/build.sh` still works via the
+`source ../.envrc` fallback. Paths in `core_keeper/.envrc` must be **absolute**
+— `source_up` sources it without changing `$PWD` (which stays the mod dir).
+A mod whose `.envrc` exports `CK_GAME_VERSION` after the inherit block
+overrides the parent default (e.g. `disable-durability` / `faster-talents`
+stay pinned to `1.2.1.2`). Each new/edited `.envrc` needs one `direnv allow`.
+
+To build a mod, run `../utils/build.sh` from the mod repo root (with direnv
+the env is already loaded; otherwise `source .envrc` first):
 
 ```bash
 cd <mod-name>
-source .envrc
+source .envrc        # only needed without direnv; direnv auto-loads on cd
 ../utils/build.sh
 ```
 
@@ -302,9 +332,10 @@ Also in `utils/`:
   generator can be reused by any mod that adopts the shared-helper pattern.
 
 `core_keeper/` is itself a git repo, but its `.gitignore` tracks only
-`utils/`, this `CLAUDE.md`, and `.tool-versions` — the mod repos and the SDK
-clone are independent repos and are deliberately ignored so they are not
-embedded.
+`utils/`, this `CLAUDE.md`, `.tool-versions`, and `.envrc.example` — the mod
+repos and the SDK clone are independent repos and are deliberately ignored so
+they are not embedded. The real `core_keeper/.envrc` (machine paths) is
+gitignored; only its `.envrc.example` template is tracked.
 
 ## mod.io publishing (applies to every mod)
 
