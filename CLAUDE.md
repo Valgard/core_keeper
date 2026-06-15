@@ -277,6 +277,11 @@ source .envrc        # only needed without direnv; direnv auto-loads on cd
 ../utils/build.sh
 ```
 
+When building from a **git worktree** (`REPO_ROOT/.worktrees/<branch>`, two
+levels below the mod root), the shared scripts are reached via
+`../../../utils/build.sh` (three levels up: `<branch>` → `.worktrees` →
+`<mod>` → `core_keeper/utils`), not the normal mod-root `../utils/build.sh`.
+
 `build.sh` refreshes the SDK symlinks (`link.sh`), runs a Unity batchmode
 build via `-executeMethod` (`<MOD_NAME>.Editor.CLIBuildHelper.Build`), then on
 macOS auto-runs `install-macos.sh` to place the fresh build into the
