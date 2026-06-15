@@ -11,8 +11,9 @@ machine — change it only when an insight is genuinely mod-agnostic.
 - `CoreKeeperModSDK/` — the Pugstorm SDK clone, **shared** by every mod. Its
   own git repo. Mods do not vendor a private SDK copy.
 - `<mod-name>/` — one directory per mod, each its own git repo. Currently:
-  `disable-durability/`, `faster-talents/`, `item-checklist/`,
-  `caveling-divining-rod/`, and `simple-crafting-pool-extender/`.
+  `disable-durability/`, `faster-talents/`, `faster-pet-talents/`,
+  `item-checklist/`, `caveling-divining-rod/`, and
+  `simple-crafting-pool-extender/`.
 
 A mod keeps **every file the Unity Editor generates for it** — `.cs`
 sources, `.asmdef`s, the ModBuilderSettings `.asset`, and all `.meta` GUID
