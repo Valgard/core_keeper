@@ -138,11 +138,48 @@ SLICED = {
     "Dropdown Background", "Button Background", "Panel", "Rarity Border",
     "Scrollbar Background", "Scrollbar Handler", "Scrollbar Highlight", "Scrollbar Selector",
 }
-# (base_name, w, h) -> explicit border, overriding the SLICED default.
+# (base_name, final_w, final_h) -> explicit border, overriding the SLICED default.
+# Folds back the user's manual Sprite-Editor border tweaks so a re-generate
+# reproduces the hand-tuned sheet.
 BORDER_OVERRIDE = {
     ("Window", 16, 16): (4, 4, 4, 4),
-    ("Entry Background", 8, 1): (1, 0, 1, 0),   # option divider, horizontal-only
+    ("Entry Selected", 8, 8): (3, 3, 3, 3),       # corner selection marker (3px L-corners)
+    ("Scrollbar Selector", 4, 8): (1, 3, 1, 3),   # vertical 3px ends
+    ("Caret", 2, 8): (0, 1, 0, 1),                # 1px top/bottom only
+    ("Checkbox empty", 6, 6): (1, 1, 1, 1),       # thin box frame
 }
+
+# Manual Sprite-Editor renames, folded back in. Keyed by the auto-disambiguated
+# name (base + ' WxH'); applied AFTER naming so the size-disambiguation of
+# same-named layers stays intact. The internalID follows the FINAL name (the
+# prefab refs were updated to match — see docs).
+RENAME = {
+    "Entry Background 8x1": "Option Background 8x8",
+    "Panel": "Option Panel",
+}
+# Pad a sub-cell layer up to its full grid cell, anchoring the drawn content.
+# Keyed by the disambiguated (pre-rename) name. The option separator is a 1px
+# line drawn at the bottom of an 8x8 grid cell (the sprites live on a notional
+# grid; this one is sub-cell and must be padded to the cell for 9-slicing).
+PAD = {
+    "Entry Background 8x1": (8, 8, "bottom"),
+    # Unknown-item icon: pad the 6x11 "?" up to a 16x16 icon slot (item icons are
+    # 16x16), placed at offset (left 5, top 3) -> horizontally centred, top-biased.
+    "Unknown Object": (16, 16, (5, 3)),
+}
+
+
+def _pad(img, target_w, target_h, anchor):
+    """Return img on a transparent target_w x target_h canvas. anchor is
+    'bottom' (centred x, bottom y), a (left, top) offset tuple, or top-left."""
+    canvas = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
+    if anchor == "bottom":
+        canvas.alpha_composite(img, ((target_w - img.width) // 2, target_h - img.height))
+    elif isinstance(anchor, tuple):
+        canvas.alpha_composite(img, anchor)
+    else:  # top-left
+        canvas.alpha_composite(img, (0, 0))
+    return canvas
 
 
 def border_for(name, w, h):
@@ -224,8 +261,9 @@ def render_meta(template_meta_path, new_guid, placements_named):
     return head + sheet + tail
 
 
-def build_sheet(pixaki_path, out_png, template_meta):
-    """Build the sheet PNG + .meta. Returns (mapping name->internalID, guid)."""
+def build_sheet(pixaki_path, out_png, template_meta, guid=None):
+    """Build the sheet PNG + .meta. Returns (mapping name->internalID, guid).
+    guid: force the sheet GUID (so prefab refs stay valid); else derive from path."""
     doc, drawings = load_pixaki(pixaki_path)
     layers = collect_layers(doc, EXCLUDE_TOP)
     distinct, name_to_key = dedup(layers, drawings)
@@ -237,10 +275,20 @@ def build_sheet(pixaki_path, out_png, template_meta):
         key = pixel_key(_normalize(layer, drawings))
         key_base.setdefault(key, layer.name)
     items = [(k, img, w, h, key_base[k]) for (k, img, w, h) in distinct]
-    names = assign_names(items)                       # {key: final_name}
+    names = assign_names(items)                       # {key: disambiguated name}
+    # Fold in manual Sprite-Editor edits: pad sub-cell sprites up to their grid
+    # cell (PAD, keyed by disambiguated name), then apply renames (RENAME).
+    # internalID follows the FINAL (renamed) name.
+    img_by_key, size_by_key = {}, {}
+    for (k, img, w, h, _) in items:
+        if names[k] in PAD:
+            tw, th, anchor = PAD[names[k]]
+            img = _pad(img, tw, th, anchor)
+            w, h = tw, th
+        img_by_key[k], size_by_key[k] = img, (w, h)
+    names = {k: RENAME.get(v, v) for k, v in names.items()}
     items.sort(key=lambda it: names[it[0]])           # deterministic order
-    placements, sw, sh = pack([(k, img, w, h) for (k, img, w, h, _) in items])
-    img_by_key = {k: img for (k, img, w, h, _) in items}
+    placements, sw, sh = pack([(k, img_by_key[k], *size_by_key[k]) for (k, _, _, _, _) in items])
     sheet = Image.new("RGBA", (sw, sh), (0, 0, 0, 0))
     placed_named = []
     for key, x, y_bl, w, h in placements:
@@ -250,10 +298,10 @@ def build_sheet(pixaki_path, out_png, template_meta):
         placed_named.append(dict(
             name=nm, internal_id=internal_id(nm),
             x=x, y=y_bl, w=w, h=h,
-            border=border_for(key_base[key], w, h),   # BASE name, not disambiguated
+            border=border_for(key_base[key], w, h),   # BASE name + final size
         ))
     sheet.save(out_png)
-    new_guid = hashlib.sha1(out_png.encode()).hexdigest()[:32]
+    new_guid = guid or hashlib.sha1(out_png.encode()).hexdigest()[:32]
     with open(out_png + ".meta", "w") as f:
         f.write(render_meta(template_meta, new_guid, placed_named))
     mapping = {s["name"]: s["internal_id"] for s in placed_named}
@@ -266,8 +314,9 @@ def main():
     ap.add_argument("out_png")
     ap.add_argument("--meta-template", required=True)
     ap.add_argument("--mapping-out", default=None)
+    ap.add_argument("--guid", default=None, help="force sheet GUID (else derived from out path)")
     a = ap.parse_args()
-    mapping, guid = build_sheet(a.pixaki, a.out_png, a.meta_template)
+    mapping, guid = build_sheet(a.pixaki, a.out_png, a.meta_template, guid=a.guid)
     if a.mapping_out:
         with open(a.mapping_out, "w") as f:
             json.dump({"guid": guid, "name_to_internal_id": mapping}, f, indent=1)

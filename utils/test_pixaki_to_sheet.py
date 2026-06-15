@@ -73,12 +73,25 @@ def test_pack_places_without_overlap_and_bottom_left_rects():
 
 
 def test_border_table_defaults():
-    # 9-slice chrome gets a border; icons/caret get none. Called with the BASE name.
+    # 9-slice chrome gets a border; icons get none. Called with the BASE name + final size.
     assert p.border_for("Entry Background", 8, 8) == (1, 1, 1, 1)
-    assert p.border_for("Entry Background", 8, 1) == (1, 0, 1, 0)   # divider: horizontal-only
     assert p.border_for("Window", 16, 16) == (4, 4, 4, 4)
     assert p.border_for("Icon Sort", 8, 8) == (0, 0, 0, 0)         # icon: simple
-    assert p.border_for("Caret", 2, 8) == (0, 0, 0, 0)
+    # manual Sprite-Editor border tweaks folded back into BORDER_OVERRIDE:
+    assert p.border_for("Entry Selected", 8, 8) == (3, 3, 3, 3)
+    assert p.border_for("Scrollbar Selector", 4, 8) == (1, 3, 1, 3)
+    assert p.border_for("Caret", 2, 8) == (0, 1, 0, 1)
+    assert p.border_for("Checkbox empty", 6, 6) == (1, 1, 1, 1)
+
+
+def test_pad_bottom_anchor():
+    # the option separator: a 1px line padded up to its 8x8 grid cell, at the bottom
+    from PIL import Image
+    line = Image.new("RGBA", (8, 1), (255, 255, 255, 255))
+    out = p._pad(line, 8, 8, "bottom")
+    assert out.size == (8, 8)
+    assert out.getpixel((0, 7))[3] == 255   # line at the bottom row
+    assert out.getpixel((0, 0))[3] == 0     # transparent on top
 
 
 def test_render_meta_replaces_guid_and_sprites(tmp_path):
