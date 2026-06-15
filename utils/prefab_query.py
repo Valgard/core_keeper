@@ -15,6 +15,7 @@ CLI:
   prefab_query.py <prefab> dump-go <Name>     # a GameObject's components + children (+ sprites)
   prefab_query.py <prefab> names              # all named GameObjects (name -> fileID)
   prefab_query.py <prefab> sprite <fileID>    # the m_Sprite of a SpriteRenderer fileID
+  prefab_query.py <prefab> tree [Name]        # GO parent/child hierarchy (from Name, else all roots)
 """
 import re
 import sys
@@ -89,6 +90,31 @@ def children(objs, go_fid):
     return out
 
 
+def roots(objs):
+    """GameObject fileIDs whose transform has no parent (m_Father fileID 0)."""
+    out = []
+    for fid, (cid, body) in objs.items():
+        if cid != "1" or not body:
+            continue
+        t = transform_of(objs, fid)
+        if not t:
+            continue
+        father = objs[t][1]["Transform"].get("m_Father", {}).get("fileID")
+        if str(father) == "0":
+            out.append(fid)
+    return out
+
+
+def print_tree(objs, fid, depth=0):
+    cid, body = objs.get(fid, (None, None))
+    go = (body or {}).get("GameObject", {}) if body else {}
+    name = go.get("m_Name") or "(unnamed)"
+    mark = "" if go.get("m_IsActive", 1) else "  [inactive]"
+    print("  " * depth + f"- {name}{mark}")
+    for cgo in children(objs, fid):
+        print_tree(objs, cgo, depth + 1)
+
+
 def sprite_of(objs, go_fid):
     """The m_Sprite guid:fileID of the SpriteRenderer on this GO, if any."""
     for c in components(objs, go_fid):
@@ -134,6 +160,16 @@ def main():
         dump_go(objs, sys.argv[3])
     elif cmd == "sprite":
         print(sprite_of(objs, sys.argv[3]))
+    elif cmd == "tree":
+        if len(sys.argv) > 3:
+            fid = find_go(objs, sys.argv[3])
+            if not fid:
+                print(f"GameObject '{sys.argv[3]}' not found")
+                return
+            print_tree(objs, fid)
+        else:
+            for r in roots(objs):
+                print_tree(objs, r)
     else:
         print("unknown command", cmd)
 
