@@ -10,3 +10,8 @@ __pycache__
 !/.envrc.example
 !/CLAUDE.md
 !/utils/
+!/README.md
+!/docs/
+/docs/*
+!/docs/macos-crossover-loader.md
+!/docs/publishing.md
