@@ -38,6 +38,12 @@ absolute paths, so they dangle after a worktree switch or repo move;
   Files" must be run once.
 - The Unity Editor **locks the project** — it must be closed during any
   `-batchmode` build.
+- **While the user is actively in the Unity Editor, do NOT edit or write files**
+  in the mod or SDK tree — restrict to read-only inspection (`prefab_query.py`,
+  `grep`/Read). Concurrent file writes collide with the Editor's own saves /
+  reserialization (it may overwrite or be clobbered by the assistant's edit).
+  Wait until the user closes the Editor and confirms ("done") before making any
+  file mutation.
 - **`corekeeper-patch` applied to the installed game's `PugMod.Loader.dll`** —
   required on macOS / CrossOver hosts. Two IL patches: (Patch 1) fixes the
   Wine `Directory.Delete` failure on stale `ModLoader/<ModName>/Scripts/`,
@@ -125,6 +131,14 @@ surfaces, and CrossOver/Wine specifics — see @docs/macos-crossover-loader.md.
 The shared `utils/` build/publish scripts and the `.envrc` inheritance chain
 are documented in `README.md` (§ Build & install). Human-facing build/publish
 instructions live there.
+
+- **Concurrent build/publish locks the shared SDK project for every session.**
+  All mods share one `CoreKeeperModSDK` clone, so any session's batchmode
+  build/publish takes the SDK project lock (`UnityLockfile`). If a build aborts
+  on a held lock, another session's `build.sh`/`upload.sh` is running — **wait
+  for the lock to release (poll), do NOT kill it.** A killed mid-flight
+  `CLIPublishHelper.Publish` can leave the mod.io profile/modfile partially
+  uploaded; the `timeout 600` wrapper already bounds a genuinely hung run.
 
 ## mod.io publishing (applies to every mod)
 
