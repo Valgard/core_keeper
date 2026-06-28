@@ -7,6 +7,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Text.RegularExpressions;
 using ModIO;
 using PugMod;
@@ -26,6 +27,7 @@ namespace CoreKeeperModUtils
         private static bool _dryRun;
         private static string _version;
         private static string _changelog;
+        private static string _descriptionHtml;
         private static string _buildDir;
         private static ModBuilderSettings _builder;
         private static string _depsMapPath;
@@ -56,6 +58,18 @@ namespace CoreKeeperModUtils
                 {
                     Fail("CHANGELOG.md has no '## [x.y.z]' entry"); return;
                 }
+
+                // Optional mod.io profile description from modio-description.md
+                // (Markdown -> HTML; mod.io's description field is HTML). An
+                // absent file leaves the existing mod.io description untouched.
+                var descPath = Path.Combine(repoRoot, "modio-description.md");
+                _descriptionHtml = File.Exists(descPath)
+                    ? MarkdownToHtml(File.ReadAllText(descPath))
+                    : "";
+                if (string.IsNullOrEmpty(_descriptionHtml))
+                    Debug.Log("[CLIPublishHelper] no modio-description.md — "
+                              + "leaving the mod.io description unchanged.");
+
                 Debug.Log($"[CLIPublishHelper] {_modName} v{_version}"
                           + (_dryRun ? " (dry run)" : ""));
 
@@ -96,6 +110,72 @@ namespace CoreKeeperModUtils
                 ? content.Substring(bodyStart, next.Index)
                 : content.Substring(bodyStart)).Trim();
             return true;
+        }
+
+        /// <summary>
+        /// Minimal Markdown -> HTML for mod.io profile descriptions. Covers the
+        /// constructs the mod-family descriptions use: #/##/### headings,
+        /// - bullet lists, --- horizontal rules, blank-line paragraphs, and
+        /// inline **bold** / *italic* / `code`. Text is HTML-escaped first.
+        /// </summary>
+        public static string MarkdownToHtml(string md)
+        {
+            if (string.IsNullOrEmpty(md)) return "";
+            var lines = md.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+            var sb = new StringBuilder();
+            var para = new List<string>();
+            bool inList = false;
+
+            void FlushPara()
+            {
+                if (para.Count == 0) return;
+                sb.Append("<p>").Append(Inline(string.Join(" ", para))).Append("</p>\n");
+                para.Clear();
+            }
+            void CloseList()
+            {
+                if (inList) { sb.Append("</ul>\n"); inList = false; }
+            }
+
+            foreach (var raw in lines)
+            {
+                var t = raw.Trim();
+                if (t.Length == 0) { FlushPara(); CloseList(); continue; }
+                if (t == "---" || t == "***" || t == "___")
+                {
+                    FlushPara(); CloseList(); sb.Append("<hr>\n"); continue;
+                }
+                var h = Regex.Match(t, @"^(#{1,4})\s+(.*)$");
+                if (h.Success)
+                {
+                    FlushPara(); CloseList();
+                    int level = h.Groups[1].Value.Length;
+                    sb.Append($"<h{level}>").Append(Inline(h.Groups[2].Value))
+                      .Append($"</h{level}>\n");
+                    continue;
+                }
+                var li = Regex.Match(t, @"^[-*+]\s+(.*)$");
+                if (li.Success)
+                {
+                    FlushPara();
+                    if (!inList) { sb.Append("<ul>\n"); inList = true; }
+                    sb.Append("<li>").Append(Inline(li.Groups[1].Value)).Append("</li>\n");
+                    continue;
+                }
+                CloseList();
+                para.Add(t);
+            }
+            FlushPara(); CloseList();
+            return sb.ToString().Trim();
+        }
+
+        private static string Inline(string text)
+        {
+            var s = text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+            s = Regex.Replace(s, @"\*\*(.+?)\*\*", "<strong>$1</strong>");
+            s = Regex.Replace(s, @"\*(.+?)\*", "<em>$1</em>");
+            s = Regex.Replace(s, @"`(.+?)`", "<code>$1</code>");
+            return s;
         }
 
         private static void OnBuilt()
@@ -164,6 +244,8 @@ namespace CoreKeeperModUtils
                     logo = logo,
                     visible = false,
                 };
+                if (!string.IsNullOrEmpty(_descriptionHtml))
+                    details.description = _descriptionHtml;
                 ModIOUnity.CreateModProfile(token, details, created =>
                 {
                     if (!created.result.Succeeded())
@@ -195,6 +277,8 @@ namespace CoreKeeperModUtils
                     summary = summary,
                 };
                 if (logo != null) details.logo = logo;
+                if (!string.IsNullOrEmpty(_descriptionHtml))
+                    details.description = _descriptionHtml;
                 ModIOUnity.EditModProfile(details, edited =>
                 {
                     if (!edited.Succeeded())
