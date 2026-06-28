@@ -51,11 +51,15 @@ sibling's style (e.g. `../faster-pet-talents/README.md` and
   `ModConfig.cs` knob where relevant), a `## Compatibility` section (EULA +
   client/server + dependencies), and a `## Build & install` section pointing at
   the shared `../utils/build.sh` / `../utils/upload.sh`.
-- **`modio-description.md`** — player-facing mod.io listing. A bold hook line, a
-  short intro, a `**What it does**` bullet list in player terms, a `**Good to
-  know**` caveats list, a `**Requirements**` list (Core Keeper; "install on both
-  client and server" if multiplayer-required), and the
-  `_Personal-use, non-commercial (Core Keeper EULA)._` footer.
+- **`modio-description.md`** — player-facing mod.io listing, in the unified
+  house format: a `# <displayName>` H1, a bold one-line tagline, a short intro
+  paragraph, then either `## What it does` / `## Good to know` / `## Requirements`
+  sections (feature-rich mod) or a few prose paragraphs (a simple mod may skip
+  the sections), a `---` rule, and the shared italic footer **verbatim**:
+  `*Built with the official Pugstorm Core Keeper Mod SDK. Personal-use, non-commercial (Core Keeper EULA). Not affiliated with or endorsed by Pugstorm.*`
+  Requirements always note "install on both client and server" for a
+  multiplayer-required mod. (The headings/rules match the Markdown subset
+  `CLIPublishHelper` converts to HTML for the mod.io profile.)
 
 Draft from what the user told you the mod does; confirm specifics you're unsure
 of rather than inventing mechanics.
