@@ -30,14 +30,37 @@ It writes the full tree (ModBuilderSettings `.asset`, runtime/Editor `.asmdef`s
 with live-scanned game DLLs, all `.meta` with fresh GUIDs, `_modio.asset` with
 modId 0, the IMod bootstrap, `.envrc`/`.envrc.example`/`.gitignore`/`CHANGELOG`,
 a placeholder `logo.png`), then `git init` + `link.sh`. It deliberately omits
-the Harmony patch class, `ModConfig.cs`, and `CLAUDE.md` (→ `/init`) — write
-those next, during the actual modding.
+the Harmony patch class, `ModConfig.cs`, `CLAUDE.md` (→ `/init`), and the prose
+docs `README.md` / `modio-description.md` — you author the docs next (see
+below), and write the patch + config during the actual modding.
 
 ## Before running
 - The Unity **Editor must be closed** — any file write or build collides with
   the Editor's own saves/reserialization.
 
 ## After running
+
+**1. Author the two prose docs.** The generator omits these on purpose — a
+static template would be dead prose, but you (the LLM) write them well from the
+mod's actual purpose. Create both in the mod root, in English, matching a
+sibling's style (e.g. `../faster-pet-talents/README.md` and
+`../faster-pet-talents/modio-description.md`):
+
+- **`README.md`** — developer-facing. `# <displayName>` title, one bold
+  one-liner, then a short what-and-how paragraph (name the patch target /
+  `ModConfig.cs` knob where relevant), a `## Compatibility` section (EULA +
+  client/server + dependencies), and a `## Build & install` section pointing at
+  the shared `../utils/build.sh` / `../utils/upload.sh`.
+- **`modio-description.md`** — player-facing mod.io listing. A bold hook line, a
+  short intro, a `**What it does**` bullet list in player terms, a `**Good to
+  know**` caveats list, a `**Requirements**` list (Core Keeper; "install on both
+  client and server" if multiplayer-required), and the
+  `_Personal-use, non-commercial (Core Keeper EULA)._` footer.
+
+Draft from what the user told you the mod does; confirm specifics you're unsure
+of rather than inventing mechanics.
+
+**2. Build:**
 ```bash
 cd <kebab-name> && source .envrc && ../utils/build.sh
 ```
