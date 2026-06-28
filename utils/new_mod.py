@@ -453,7 +453,8 @@ export MOD_SUMMARY="{summary}"
 export FAKE_MOD_ID="{fake_mod_id}"
 
 # ModBuilder output staging dir (build.sh → install-macos.sh copies onward).
-export MOD_INSTALL_PATH="$HOME/Library/Caches/{kebab}-build/"
+# MOD_INSTALL_BASE_PATH is inherited from the parent core_keeper/.envrc above.
+export MOD_INSTALL_PATH="$MOD_INSTALL_BASE_PATH/$MOD_NAME_ID-build"
 
 # Repo root, read by the shared CLIPublishHelper to locate CHANGELOG.md.
 export MOD_REPO_ROOT="$PWD"
