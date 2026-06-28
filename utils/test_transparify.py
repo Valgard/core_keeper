@@ -1,4 +1,5 @@
-"""Unit tests for transparify.py — white/black difference matting."""
+"""Unit tests for transparify.py — a faithful port of transparify.app's
+white/black difference matting (Euclidean-distance alpha + un-premultiply)."""
 import pytest
 from PIL import Image
 
@@ -16,13 +17,13 @@ def _close(actual, expected, tol=2):
 
 
 def test_opaque_pixel_keeps_colour_at_full_alpha():
-    # F visible identically on both backgrounds => alpha 255, colour = F.
+    # Identical on both backgrounds => distance 0 => alpha 255, colour = F.
     out = t.difference_matte(_solid((200, 100, 50)), _solid((200, 100, 50)))
     _close(out.getpixel((0, 0)), (200, 100, 50, 255))
 
 
 def test_fully_transparent_pixel():
-    # white-on-white, black-on-black => alpha 0.
+    # white-on-white, black-on-black => max distance => alpha 0.
     out = t.difference_matte(_solid((255, 255, 255)), _solid((0, 0, 0)))
     _close(out.getpixel((0, 0)), (0, 0, 0, 0))
 
@@ -37,6 +38,14 @@ def test_white_glow_recovers_partial_alpha():
     # A pure-white glow at a=0.4: black=0.4*255=102, white stays 255.
     out = t.difference_matte(_solid((255, 255, 255)), _solid((102, 102, 102)))
     _close(out.getpixel((0, 0)), (255, 255, 255, 102), tol=2)
+
+
+def test_below_threshold_zeroes_colour():
+    # W=(255,255,255), B=(2,2,2) => a ~ 0.008 < 0.01: colour forced to 0,
+    # alpha kept (round(255*a) ~ 2) — matches transparify's u>0.01 colour gate.
+    out = t.difference_matte(_solid((255, 255, 255)), _solid((2, 2, 2))).getpixel((0, 0))
+    assert out[:3] == (0, 0, 0)
+    assert out[3] <= 3
 
 
 def test_output_is_rgba_same_size():
