@@ -124,8 +124,15 @@ namespace CoreKeeperModUtils
             var lines = md.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
             var sb = new StringBuilder();
             var para = new List<string>();
+            var item = new List<string>();
             bool inList = false;
 
+            void FlushItem()
+            {
+                if (item.Count == 0) return;
+                sb.Append("<li>").Append(Inline(string.Join(" ", item))).Append("</li>\n");
+                item.Clear();
+            }
             void FlushPara()
             {
                 if (para.Count == 0) return;
@@ -134,6 +141,7 @@ namespace CoreKeeperModUtils
             }
             void CloseList()
             {
+                FlushItem();
                 if (inList) { sb.Append("</ul>\n"); inList = false; }
             }
 
@@ -158,11 +166,17 @@ namespace CoreKeeperModUtils
                 if (li.Success)
                 {
                     FlushPara();
+                    FlushItem();
                     if (!inList) { sb.Append("<ul>\n"); inList = true; }
-                    sb.Append("<li>").Append(Inline(li.Groups[1].Value)).Append("</li>\n");
+                    item.Add(li.Groups[1].Value);
                     continue;
                 }
-                CloseList();
+                // Lazy continuation: a non-empty, marker-less line belongs to the
+                // open block (its list item, or otherwise the current paragraph).
+                // The mod-family descriptions soft-wrap long list items and
+                // paragraphs purely to keep source lines short; without this they
+                // would split the <li> and prematurely close the <ul>.
+                if (inList) { item.Add(t); continue; }
                 para.Add(t);
             }
             FlushPara(); CloseList();
