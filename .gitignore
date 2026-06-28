@@ -15,3 +15,6 @@ __pycache__
 /docs/*
 !/docs/macos-crossover-loader.md
 !/docs/publishing.md
+!/.claude/
+/.claude/*
+!/.claude/skills
