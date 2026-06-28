@@ -28,12 +28,16 @@ export SDK_PATH="/path/to/core_keeper/CoreKeeperModSDK"
 # this default if unset; override only for a non-default bottle name.
 # export CK_BOTTLE_PATH="$HOME/Library/Application Support/CrossOver/Bottles/Core Keeper"
 
+# Base directory for each mod's build-output staging dir. A mod's .envrc sets
+# MOD_INSTALL_PATH="$MOD_INSTALL_BASE_PATH/$MOD_NAME_ID-build".
+export MOD_INSTALL_BASE_PATH="$HOME/Library/Caches"
+
 # --- Shared defaults (a mod's own .envrc may override) ----------------------
 
-# Default Core Keeper game version → mod.io compatibility tag(s). Match to your
-# installed game (Player.log "Game version: X"). Space-separated for multiple
-# (e.g. "1.2.1.2 1.2.1.4"). A mod's .envrc may override this for older builds.
-export CK_GAME_VERSION="1.2.1.4"
+# Core Keeper game versions → mod.io compatibility tags for ALL mods. Single
+# canonical list — mods do NOT override CK_GAME_VERSION; keep it in sync here as
+# new game builds ship. Space-separated; each value becomes its own mod.io tag.
+export CK_GAME_VERSION="1.2.1.5 1.2.1.4 1.2.1.3 1.2.1.0 1.2.0.7 1.2.0.6 1.2.0.5 1.2.0.4 1.2.0.3"
 
 # --- Shared utils/ data files (ADJUST the absolute prefix) ------------------
 
