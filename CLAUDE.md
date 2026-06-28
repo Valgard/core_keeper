@@ -109,6 +109,14 @@ personal-use mods, at the cost of whatever the safety checks guarded.
 A DOTS system whose `OnUpdate` is Burst-compiled cannot be intercepted by
 Harmony. Call `BurstDisabler.DisableBurstForSystem<TSystem>()` in
 `IMod.Init()` to move the system off Burst *before* the patch needs to bind.
+This works for **both** `SystemBase` (`OnUpdate()`) and `ISystem` structs
+(`OnUpdate(ref SystemState)` — the prefix binds with no "Undefined target
+method"; verified in `faster-talents`/`faster-pet-talents`). To scale an ECS
+value that flows from a (possibly Burst) producer into a Burst-consumed
+component/buffer, don't patch the managed producer — Burst callers bypass the
+IL patch — but Burst-disable the **consumer** system and pre-inflate the
+pending component data in its `OnUpdate` prefix (see the
+`reference_ck_xp_grant_architecture` memory).
 
 ### IMod lifecycle
 `IMod` (namespace `PugMod`) has five methods: `EarlyInit`, `Init`,
