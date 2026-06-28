@@ -152,6 +152,77 @@ instructions live there.
 
 Publishing flow, dependency sync, and the three mod IDs — see @docs/publishing.md.
 
+## Logo / branding (family style)
+
+Every mod ships a square mod.io profile logo at `unity/<Mod>/Editor/logo.png`,
+and they all share one deliberate visual identity — match it for any new mod.
+
+**Shared DNA (all seven existing logos):**
+- A single, centred **hero object in teal / petrol-green** with **gold / brass
+  accents** and a thick dark outline — hand-painted "sticker" concept-art,
+  **not** pixel-art.
+- A warm **golden radial glow** behind the subject and scattered **4-point
+  sparkles**.
+- Square (1:1), 1024².
+
+**Per-mod "gesture":** each logo adds one small gold sub-symbol that hints at
+the mod's purpose — reuse arrow-ring (reusable-cattle-box), infinity on crossed
+tools (disable-durability), checkmarks + "?" (item-checklist), fanned cards +
+"+" (simple-crafting-pool-extender), star + cubes (faster-talents), paw + cube
+(faster-pet-talents), crossed rods + orb (caveling-divining-rod). Invent a
+fitting gesture for the new mod rather than copying one.
+
+**Generation workflow** — the `generate_images.py` script from the **blogs**
+repo's `editorial-workflow` skill (Gemini "Nano Banana Pro"; `GEMINI_API_KEY`
+comes from the blogs repo's `.envrc`; run via `uv run`). Three stages produce
+the transparent `Editor/logo.png`:
+
+1. **White candidates.** Generate ~4 candidates on a **plain white background**.
+   Pass **two polished sibling logos as `-ref`** (palette + style anchors, e.g.
+   reusable-cattle-box + caveling-divining-rod) and describe the **form** in the
+   prompt. Output lands in `<mod>/sources/logo-white-{N}.jpeg`.
+   ```bash
+   cd <blogs-repo> && source .envrc        # exports GEMINI_API_KEY
+   uv run .claude/skills/editorial-workflow/generate_images.py \
+     --article-dir <mod-repo> --name logo-white -ar 1:1 -r 1K -c 4 \
+     -ref <siblingA>/Editor/logo.png -ref <siblingB>/Editor/logo.png \
+     "<hand-painted CK-sticker prompt: hero object + teal/gold + golden glow + \
+       4-point sparkles + plain white background>"
+   ```
+2. **Black versions — NATIVE, not matted.** For each chosen white candidate,
+   re-run with **that white image as `-ref`** and a minimal prompt ("replace the
+   white background with pure black #000000; keep everything else unchanged"),
+   `--name logo-black --start-index N --count 1` → `logo-black-{N}.jpeg`.
+3. **Transparify.** Feed the matching **white + black pair** to transparify.app
+   (the human does this); save the transparent result as
+   `unity/<Mod>/Editor/logo.png`.
+
+**Candidate file naming** (in `<mod>/sources/`, adopted from the sibling mods —
+lowercase `logo`, a space before the index, `.jpeg` for the candidates):
+- `logo <N> - white background.jpeg` — white candidate N
+- `logo <N> - black background.jpeg` — black candidate N
+- `logo <N>.png` — that candidate's transparify (transparent) result
+
+`generate_images.py` emits `<name>-<N>.<ext>` (e.g. `logo-white-1.jpeg`);
+**rename** to the convention above after generating. The chosen candidate's
+`logo <N>.png` is then copied to `unity/<Mod>/Editor/logo.png`.
+
+**Why these choices:**
+- **Native black, never matting.** The glow is rendered *against white*, so its
+  semi-transparent pixels are already blended with white — mechanically swapping
+  the background to black leaves a flat/beige halo (tried, user-rejected).
+  Re-rendering on black *natively* produces a correct gold-into-black glow.
+- **A white + black *pair* for transparify.** transparify derives the alpha and
+  true colour from the per-pixel difference `P_white − P_black`, which only
+  works when the **foreground is identical** in both — hence the black pass takes
+  the white image as its reference to keep the subject matching (verified: no
+  ghosting on the resulting pairs).
+- **Two sibling logos as references** keep the new logo inside the family DNA
+  (palette, outline weight, glow, sparkle treatment); the prompt carries only
+  the new form.
+
+Background / history: the `project_corekeeper_mod_logo_pipeline` memory.
+
 ## Conventions
 
 - **Personal-use, non-commercial only** (Pugstorm EULA).
