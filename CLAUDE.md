@@ -193,9 +193,21 @@ the transparent `Editor/logo.png`:
    re-run with **that white image as `-ref`** and a minimal prompt ("replace the
    white background with pure black #000000; keep everything else unchanged"),
    `--name logo-black --start-index N --count 1` → `logo-black-{N}.jpeg`.
-3. **Transparify.** Feed the matching **white + black pair** to transparify.app
-   (the human does this); save the transparent result as
-   `unity/<Mod>/Editor/logo.png`.
+3. **Transparify (local, scriptable).** Run `utils/transparify.py` on the
+   matching white + black pair to recover the transparent PNG; copy the chosen
+   candidate to `unity/<Mod>/Editor/logo.png`.
+   ```bash
+   python3 utils/transparify.py \
+     -w "<mod>/sources/logo 3 - white background.jpeg" \
+     -b "<mod>/sources/logo 3 - black background.jpeg" \
+     -o "<mod>/sources/logo 3.png"
+   ```
+   `utils/transparify.py` is a faithful **1:1 port** of transparify.app's
+   client-side algorithm (transparify.app has **no API**): alpha is one minus the
+   normalised Euclidean white↔black distance, colour is un-premultiplied (`B/a`)
+   above a `0.01` alpha threshold. Validated against transparify.app's own output
+   — **alpha bit-identical**, RGB within JPEG-decoder noise. Pure Pillow (no
+   numpy); tested in `utils/test_transparify.py`.
 
 **Candidate file naming** (in `<mod>/sources/`, adopted from the sibling mods —
 lowercase `logo`, a space before the index, `.jpeg` for the candidates):
