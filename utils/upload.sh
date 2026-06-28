@@ -7,7 +7,12 @@
 # the mod.io plugin.
 #
 # Usage:
-#   utils/upload.sh [mod-repo-path] [--dry-run]
+#   utils/upload.sh [mod-repo-path] [--dry-run] [--profile-only]
+#
+# --profile-only updates just the mod.io profile (description, name, summary,
+# logo) via EditModProfile — no build, no version tags, no dependency sync, no
+# modfile upload. Use it to push an edited modio-description.md without cutting
+# a new release.
 #
 # Required env vars (set in the mod's .envrc):
 #   UNITY_BIN, SDK_PATH, MOD_NAME, CK_GAME_VERSION, MOD_SUMMARY
@@ -25,9 +30,11 @@ set -euo pipefail
 
 REPO_ROOT="$PWD"
 DRY_RUN=0
+PROFILE_ONLY=0
 for arg in "$@"; do
     case "$arg" in
         --dry-run) DRY_RUN=1 ;;
+        --profile-only) PROFILE_ONLY=1 ;;
         *) REPO_ROOT="$arg" ;;
     esac
 done
@@ -50,8 +57,9 @@ fi
 # The CLIPublishHelper reads these from the environment.
 export MOD_REPO_ROOT="$REPO_ROOT"
 [ "$DRY_RUN" = "1" ] && export PUBLISH_DRY_RUN=1
+[ "$PROFILE_ONLY" = "1" ] && export PUBLISH_PROFILE_ONLY=1
 
-echo "Publishing $MOD_NAME to mod.io${PUBLISH_DRY_RUN:+ (dry run)}..."
+echo "Publishing $MOD_NAME to mod.io${PUBLISH_PROFILE_ONLY:+ (profile only)}${PUBLISH_DRY_RUN:+ (dry run)}..."
 
 # No -quit: CLIPublishHelper drives async mod.io calls and exits itself.
 # timeout guards against a hung network call.

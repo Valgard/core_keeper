@@ -25,6 +25,7 @@ namespace CoreKeeperModUtils
         private static string _logoAssetPath;
 
         private static bool _dryRun;
+        private static bool _profileOnly;
         private static string _version;
         private static string _changelog;
         private static string _descriptionHtml;
@@ -43,6 +44,7 @@ namespace CoreKeeperModUtils
                 _logoAssetPath = $"Assets/{_modName}/Editor/logo.png";
 
                 _dryRun = Environment.GetEnvironmentVariable("PUBLISH_DRY_RUN") == "1";
+                _profileOnly = Environment.GetEnvironmentVariable("PUBLISH_PROFILE_ONLY") == "1";
                 _depsMapPath = Environment.GetEnvironmentVariable("MODIO_DEPS_MAP");
 
                 var repoRoot = Environment.GetEnvironmentVariable("MOD_REPO_ROOT");
@@ -75,6 +77,19 @@ namespace CoreKeeperModUtils
 
                 var settings = AssetDatabase.LoadAssetAtPath<ModBuilderSettings>(_settingsPath);
                 if (settings == null) { Fail($"No ModBuilderSettings at {_settingsPath}"); return; }
+
+                // Profile-only: just refresh the mod.io profile (description,
+                // name, summary, logo) via EditModProfile — no build, no version
+                // tags, no dependency sync, no modfile upload. Used to push
+                // edited modio-description.md without cutting a new release.
+                if (_profileOnly)
+                {
+                    Debug.Log("[CLIPublishHelper] profile-only: skipping build, "
+                              + "tags, dependency sync and modfile upload; "
+                              + "updating the mod.io profile only.");
+                    OnBuilt();
+                    return;
+                }
 
                 _buildDir = Path.Combine(Application.temporaryCachePath,
                     Guid.NewGuid().ToString());
@@ -237,6 +252,12 @@ namespace CoreKeeperModUtils
 
             if (modIo.modId == 0)
             {
+                if (_profileOnly)
+                {
+                    Fail("profile-only needs an existing published mod, but "
+                         + $"{_modName} has no modId yet. Run a normal publish "
+                         + "first."); return;
+                }
                 if (_dryRun)
                 {
                     Debug.Log("[CLIPublishHelper] dry run: would create a new "
@@ -279,9 +300,19 @@ namespace CoreKeeperModUtils
             {
                 if (_dryRun)
                 {
-                    Debug.Log($"[CLIPublishHelper] dry run: would update profile "
-                              + $"{modIo.modId} and upload v{_version}.");
-                    EnsureDependenciesThenTag(modIo);
+                    if (_profileOnly)
+                    {
+                        Debug.Log("[CLIPublishHelper] dry run (profile-only): "
+                                  + $"would update the description of profile "
+                                  + $"{modIo.modId}; no modfile upload.");
+                        Succeed();
+                    }
+                    else
+                    {
+                        Debug.Log("[CLIPublishHelper] dry run: would update "
+                                  + $"profile {modIo.modId} and upload v{_version}.");
+                        EnsureDependenciesThenTag(modIo);
+                    }
                     return;
                 }
                 var details = new ModProfileDetails
@@ -298,6 +329,14 @@ namespace CoreKeeperModUtils
                     if (!edited.Succeeded())
                     {
                         Fail($"EditModProfile failed: {edited.message}");
+                        return;
+                    }
+                    if (_profileOnly)
+                    {
+                        Debug.Log("[CLIPublishHelper] profile-only: updated the "
+                                  + $"description of {_modName} (modId "
+                                  + $"{modIo.modId}). No modfile uploaded.");
+                        Succeed();
                         return;
                     }
                     EnsureDependenciesThenTag(modIo);
