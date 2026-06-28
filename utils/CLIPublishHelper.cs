@@ -172,7 +172,11 @@ namespace CoreKeeperModUtils
                 if (h.Success)
                 {
                     FlushPara(); CloseList();
-                    int level = h.Groups[1].Value.Length;
+                    // mod.io's description renderer drops <h1> (only h2+ render),
+                    // so shift every heading down one level: '# Title' -> <h2>,
+                    // '## Section' -> <h3>, ... (capped at <h6>). The source
+                    // modio-description.md keeps its clean '# H1' house format.
+                    int level = Math.Min(h.Groups[1].Value.Length + 1, 6);
                     sb.Append($"<h{level}>").Append(Inline(h.Groups[2].Value))
                       .Append($"</h{level}>\n");
                     continue;
