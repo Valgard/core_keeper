@@ -94,3 +94,28 @@ def test_refresh_ids_end_to_end(tmp_path):
 def test_refresh_ids_missing_decompile(tmp_path):
     with pytest.raises(SystemExit):
         pq.refresh_ids(str(tmp_path / "absent"), str(tmp_path / "ids.json"))
+
+
+def test_comp_label_resolves_and_falls_back(monkeypatch):
+    monkeypatch.setattr(pq, "SCRIPT_FILEID", {"1873953792": "PugText"})
+    objs = {
+        "10": (
+            "114",
+            {"MonoBehaviour": {"m_Script": {"fileID": 1873953792, "guid": "abc123"}}},
+        ),
+        "11": (
+            "114",
+            {"MonoBehaviour": {"m_Script": {"fileID": 999, "guid": "deadbeefcafe"}}},
+        ),
+    }
+    assert pq.comp_label(objs, "10") == "PugText"
+    assert pq.comp_label(objs, "11") == "MonoBehaviour[deadbeef]"
+
+
+def test_generated_json_covers_known_repo_ids():
+    ids = pq._load_script_ids()
+    assert ids.get("1873953792") == "PugText"
+    assert ids.get("197547074") == "UIScrollWindow"
+    assert ids.get("1139742956") == "PugTextEffectMenuOption"
+    assert ids.get("-1334111655") == "InheritPlacementFromUIComponent"
+    assert ids.get("1793966478") == "PugTextEffectJuicyAppear"

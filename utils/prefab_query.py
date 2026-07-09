@@ -17,6 +17,7 @@ CLI:
   prefab_query.py <prefab> sprite <fileID>    # the m_Sprite of a SpriteRenderer fileID
   prefab_query.py <prefab> tree [Name]        # GO hierarchy + component types + active flag
   prefab_query.py <prefab> verify             # orphans / broken m_Script / dangling refs (exit 1 if any)
+  prefab_query.py refresh-ids                 # regenerate ck-script-ids.json from the decompile
 """
 
 import glob
@@ -33,34 +34,6 @@ CLASS = {  # the handful of Unity class IDs this project authors
     "65": "BoxCollider",
     "114": "MonoBehaviour",
     "212": "SpriteRenderer",
-}
-# Core Keeper game-DLL scripts, keyed by the m_Script fileID — a stable,
-# install-independent hash of the class: the first 4 bytes (LE, signed int32) of
-# MD4("s\0\0\0" + namespace + className). All of these live in the global
-# namespace. Values were derived by that hash and cross-checked against the
-# classes' actual placement in this repo's prefabs. Mod scripts all share fileID
-# 11500000 and are told apart by guid instead, so they fall back to a short guid
-# in comp_label. To add more: hash the class name (see the
-# script-fileid-derivation memory) — do NOT eyeball it.
-SCRIPT_FILEID = {
-    # Text
-    "1873953792": "PugText",
-    "1139742956": "PugTextEffectMenuOption",
-    "1793966478": "PugTextEffectJuicyAppear",
-    # Layout / structure
-    "-2136513284": "LinearLayoutUIComponent",
-    "-601971722": "WrapperUIComponent",
-    "-1334111655": "InheritPlacementFromUIComponent",
-    # Scrolling
-    "197547074": "UIScrollWindow",
-    "-277093456": "ScrollBar",
-    "-1490357010": "ScrollBarHandle",
-    # UI elements / misc
-    "-685432232": "BlockingUIElement",
-    "-1087151945": "CharacterMarkBlinker",
-    # Item / object authoring (non-UI; appears in item prefabs)
-    "244469479": "InventoryItemAuthoring",
-    "318086258": "ObjectAuthoring",
 }
 _HEADER = re.compile(r"!u!(-?\d+)\s+&(-?\d+)")
 
@@ -224,6 +197,20 @@ def refresh_ids(decomp_dir, out_path):
     removed = len(set(old) - set(mapping))
     print(f"wrote {out_path}: {len(mapping)} types (+{added} -{removed})")
     return mapping
+
+
+# Core Keeper game-DLL script fileID -> class name, loaded from the committed
+# snapshot. Regenerate with `prefab_query.py refresh-ids` (needs the decompile;
+# see the script-fileid-derivation memory). Mod-own scripts all share fileID
+# 11500000 and are told apart by guid, so they fall back to a short guid in
+# comp_label.
+SCRIPT_FILEID = _load_script_ids()
+if not SCRIPT_FILEID:
+    print(
+        "prefab_query: no ck-script-ids.json — run 'refresh-ids'; "
+        "MonoBehaviours will show as a short guid",
+        file=sys.stderr,
+    )
 
 
 def load(path):
