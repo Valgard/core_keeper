@@ -19,6 +19,8 @@ CLI:
   prefab_query.py <prefab> verify             # orphans / broken m_Script / dangling refs (exit 1 if any)
 """
 
+import glob
+import os
 import re
 import struct
 import sys
@@ -132,6 +134,44 @@ def is_component(name, base_of, _seen=None):
     _seen.add(name)
     base = base_of[name]
     return bool(base) and is_component(base, base_of, _seen)
+
+
+_NS_RE = re.compile(r"^\s*namespace\s+([A-Za-z_][\w.]*)")
+_DECL_RE = re.compile(
+    r"^\s*(?:\[[^\]]*\]\s*)*"
+    r"(?:public|internal|private|protected|sealed|abstract|static|partial|unsafe|new|\s)*"
+    r"\bclass\s+([A-Za-z_]\w*)(?:<[^>]*>)?"
+    r"(?:\s*:\s*([A-Za-z_][\w.]*))?"
+)
+
+
+def parse_decompile(decomp_dir):
+    """Scan *.decompiled.cs -> (base_of, ns_of). Tracks the current namespace
+    via brace depth; records each class's first base token and namespace."""
+    base_of, ns_of = {}, {}
+    for path in sorted(glob.glob(os.path.join(decomp_dir, "*.decompiled.cs"))):
+        stack, depth, pending = [], 0, None
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                m = _NS_RE.match(line)
+                if m:
+                    pending = m.group(1)
+                d = _DECL_RE.match(line)
+                if d:
+                    name = d.group(1)
+                    cur_ns = stack[-1][0] if stack else ""
+                    base_of.setdefault(name, d.group(2))
+                    ns_of.setdefault(name, cur_ns)
+                for _ in range(line.count("{")):
+                    depth += 1
+                    if pending is not None:
+                        stack.append((pending, depth))
+                        pending = None
+                for _ in range(line.count("}")):
+                    if stack and stack[-1][1] == depth:
+                        stack.pop()
+                    depth -= 1
+    return base_of, ns_of
 
 
 def load(path):

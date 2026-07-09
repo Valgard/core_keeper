@@ -30,3 +30,23 @@ def test_is_component_transitive():
     assert pq.is_component("Loose", base_of) is False
     assert pq.is_component("A", base_of) is False
     assert pq.is_component("Unknown", base_of) is False
+
+
+def test_parse_decompile_namespace_and_base(tmp_path):
+    (tmp_path / "Fake.decompiled.cs").write_text(
+        "namespace Foo {\n"
+        "  public class Widget : MonoBehaviour {\n"
+        "  }\n"
+        "  public sealed class Helper {\n"
+        "  }\n"
+        "}\n"
+        "public class Global : Widget, IThing {\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    base_of, ns_of = pq.parse_decompile(str(tmp_path))
+    assert base_of["Widget"] == "MonoBehaviour"
+    assert base_of["Helper"] is None
+    assert base_of["Global"] == "Widget"
+    assert ns_of["Widget"] == "Foo"
+    assert ns_of["Global"] == ""
