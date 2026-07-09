@@ -119,6 +119,21 @@ def fileid(name, namespace=""):
     return struct.unpack("<i", _md4(data)[:4])[0]
 
 
+_SCRIPT_ROOTS = frozenset({"MonoBehaviour", "ScriptableObject"})
+
+
+def is_component(name, base_of, _seen=None):
+    """True iff name transitively derives from MonoBehaviour/ScriptableObject."""
+    if name in _SCRIPT_ROOTS:
+        return True
+    _seen = _seen if _seen is not None else set()
+    if name in _seen or name not in base_of:
+        return False
+    _seen.add(name)
+    base = base_of[name]
+    return bool(base) and is_component(base, base_of, _seen)
+
+
 def load(path):
     """Return {fileID(str): (classID(str), body(dict))}."""
     text = open(path).read()
