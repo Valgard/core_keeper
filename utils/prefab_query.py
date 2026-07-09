@@ -15,7 +15,8 @@ CLI:
   prefab_query.py <prefab> dump-go <Name>     # a GameObject's components + children (+ sprites)
   prefab_query.py <prefab> names              # all named GameObjects (name -> fileID)
   prefab_query.py <prefab> sprite <fileID>    # the m_Sprite of a SpriteRenderer fileID
-  prefab_query.py <prefab> tree [Name]        # GO parent/child hierarchy (from Name, else all roots)
+  prefab_query.py <prefab> tree [Name]        # GO hierarchy + component types + active flag
+  prefab_query.py <prefab> verify             # orphans / broken m_Script / dangling refs (exit 1 if any)
 """
 import re
 import sys
@@ -25,7 +26,17 @@ CLASS = {  # the handful of Unity class IDs this project authors
     "1": "GameObject", "4": "Transform", "65": "BoxCollider",
     "114": "MonoBehaviour", "212": "SpriteRenderer",
 }
-_HEADER = re.compile(r"!u!(\d+)\s+&(\d+)")
+# Common Core Keeper UI MonoBehaviour scripts, keyed by the m_Script fileID (a stable
+# per-class hash in the game assembly). Mod scripts all share fileID 11500000 and are
+# distinguished by guid instead, so they fall back to a short guid in comp_label.
+SCRIPT_FILEID = {
+    "1873953792": "PugText",
+    "-2136513284": "LinearLayoutUIComponent",
+    "-601971722": "WrapperUIComponent",
+    "-1334111655": "UIScrollWindow",
+    "1793966478": "PugTextEffectMenuOption",
+}
+_HEADER = re.compile(r"!u!(-?\d+)\s+&(-?\d+)")
 
 
 def load(path):
@@ -85,8 +96,12 @@ def children(objs, go_fid):
     out = []
     for k in kids:
         ct = str(k["fileID"])
-        cgo = str(objs[ct][1]["Transform"]["m_GameObject"]["fileID"])
-        out.append(cgo)
+        node = objs.get(ct)
+        if not node or not node[1]:
+            continue  # dangling child transform — skip (verify reports it separately)
+        cgo = node[1].get("Transform", {}).get("m_GameObject", {}).get("fileID")
+        if cgo is not None:
+            out.append(str(cgo))
     return out
 
 
@@ -105,12 +120,25 @@ def roots(objs):
     return out
 
 
+def comp_label(objs, comp_fid):
+    """Human-readable type for a component fileID: the Unity class name, or for a
+    MonoBehaviour the resolved CK script name (else a short guid)."""
+    cid, body = objs.get(comp_fid, (None, None))
+    if cid != "114":
+        return CLASS.get(cid, f"class{cid}")
+    sc = (body or {}).get("MonoBehaviour", {}).get("m_Script", {}) if body else {}
+    return SCRIPT_FILEID.get(str(sc.get("fileID"))) or f"MonoBehaviour[{str(sc.get('guid', ''))[:8]}]"
+
+
 def print_tree(objs, fid, depth=0):
     cid, body = objs.get(fid, (None, None))
     go = (body or {}).get("GameObject", {}) if body else {}
     name = go.get("m_Name") or "(unnamed)"
     mark = "" if go.get("m_IsActive", 1) else "  [inactive]"
-    print("  " * depth + f"- {name}{mark}")
+    comps = [comp_label(objs, c) for c in components(objs, fid)
+             if objs.get(c, (None,))[0] != "4"]  # skip the implicit Transform
+    ctext = f"  :: {', '.join(comps)}" if comps else ""
+    print("  " * depth + f"- {name}{mark}{ctext}")
     for cgo in children(objs, fid):
         print_tree(objs, cgo, depth + 1)
 
@@ -147,6 +175,65 @@ def dump_go(objs, name):
         print(f"    - {go_name(objs, cgo) or '(?)':18} sprite={sprite_of(objs, cgo)}")
 
 
+def verify(objs):
+    """Integrity checks: orphan GameObjects (unreachable from any root), broken
+    m_Script refs (fileID 0), and dangling component/child fileIDs (referenced but
+    absent from the file). Prints findings; returns the problem count (0 == clean)."""
+    problems = 0
+
+    # 1. Reachability from root transforms (children() already skips dangling refs).
+    reachable = set()
+    stack = list(roots(objs))
+    while stack:
+        go = stack.pop()
+        if go in reachable:
+            continue
+        reachable.add(go)
+        stack.extend(children(objs, go))
+    orphans = [fid for fid, (cid, body) in objs.items()
+               if cid == "1" and body and fid not in reachable]
+    if orphans:
+        print(f"ORPHAN GameObjects (unreachable from any root): {len(orphans)}")
+        for fid in orphans:
+            print(f"  - {go_name(objs, fid) or '(unnamed)'}  (fileID {fid})")
+        problems += len(orphans)
+
+    # 2. Broken MonoBehaviour script references.
+    broken = [fid for fid, (cid, body) in objs.items()
+              if cid == "114" and body
+              and str((body.get("MonoBehaviour") or {}).get("m_Script", {}).get("fileID")) == "0"]
+    if broken:
+        print(f"BROKEN script refs (m_Script fileID 0): {len(broken)}")
+        for fid in broken:
+            print(f"  - MonoBehaviour fileID {fid}")
+        problems += len(broken)
+
+    # 3. Dangling references: component / m_Children fileIDs not present in the file.
+    dangling = []
+    for fid, (cid, body) in objs.items():
+        if not body:
+            continue
+        if cid == "1":
+            for c in body["GameObject"].get("m_Component", []):
+                cf = str(c["component"]["fileID"])
+                if cf != "0" and cf not in objs:
+                    dangling.append((fid, "component", cf))
+        elif cid == "4":
+            for k in body["Transform"].get("m_Children") or []:
+                kf = str(k["fileID"])
+                if kf != "0" and kf not in objs:
+                    dangling.append((fid, "m_Children", kf))
+    if dangling:
+        print(f"DANGLING references (fileID absent from file): {len(dangling)}")
+        for owner, kind, ref in dangling:
+            print(f"  - {kind} {ref}  <- referenced by fileID {owner}")
+        problems += len(dangling)
+
+    if problems == 0:
+        print("OK — no orphans, broken script refs, or dangling references.")
+    return problems
+
+
 def main():
     path, cmd = sys.argv[1], sys.argv[2]
     objs = load(path)
@@ -170,6 +257,8 @@ def main():
         else:
             for r in roots(objs):
                 print_tree(objs, r)
+    elif cmd == "verify":
+        sys.exit(1 if verify(objs) else 0)
     else:
         print("unknown command", cmd)
 
