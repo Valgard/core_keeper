@@ -18,23 +18,45 @@ CLI:
   prefab_query.py <prefab> tree [Name]        # GO hierarchy + component types + active flag
   prefab_query.py <prefab> verify             # orphans / broken m_Script / dangling refs (exit 1 if any)
 """
+
 import re
 import sys
 import yaml
 
 CLASS = {  # the handful of Unity class IDs this project authors
-    "1": "GameObject", "4": "Transform", "65": "BoxCollider",
-    "114": "MonoBehaviour", "212": "SpriteRenderer",
+    "1": "GameObject",
+    "4": "Transform",
+    "65": "BoxCollider",
+    "114": "MonoBehaviour",
+    "212": "SpriteRenderer",
 }
-# Common Core Keeper UI MonoBehaviour scripts, keyed by the m_Script fileID (a stable
-# per-class hash in the game assembly). Mod scripts all share fileID 11500000 and are
-# distinguished by guid instead, so they fall back to a short guid in comp_label.
+# Core Keeper game-DLL scripts, keyed by the m_Script fileID — a stable,
+# install-independent hash of the class: the first 4 bytes (LE, signed int32) of
+# MD4("s\0\0\0" + namespace + className). All of these live in the global
+# namespace. Values were derived by that hash and cross-checked against the
+# classes' actual placement in this repo's prefabs. Mod scripts all share fileID
+# 11500000 and are told apart by guid instead, so they fall back to a short guid
+# in comp_label. To add more: hash the class name (see the
+# script-fileid-derivation memory) — do NOT eyeball it.
 SCRIPT_FILEID = {
+    # Text
     "1873953792": "PugText",
+    "1139742956": "PugTextEffectMenuOption",
+    "1793966478": "PugTextEffectJuicyAppear",
+    # Layout / structure
     "-2136513284": "LinearLayoutUIComponent",
     "-601971722": "WrapperUIComponent",
-    "-1334111655": "UIScrollWindow",
-    "1793966478": "PugTextEffectMenuOption",
+    "-1334111655": "InheritPlacementFromUIComponent",
+    # Scrolling
+    "197547074": "UIScrollWindow",
+    "-277093456": "ScrollBar",
+    "-1490357010": "ScrollBarHandle",
+    # UI elements / misc
+    "-685432232": "BlockingUIElement",
+    "-1087151945": "CharacterMarkBlinker",
+    # Item / object authoring (non-UI; appears in item prefabs)
+    "244469479": "InventoryItemAuthoring",
+    "318086258": "ObjectAuthoring",
 }
 _HEADER = re.compile(r"!u!(-?\d+)\s+&(-?\d+)")
 
@@ -77,7 +99,9 @@ def find_go(objs, name):
 
 def components(objs, go_fid):
     cid, body = objs[go_fid]
-    return [str(c["component"]["fileID"]) for c in body["GameObject"].get("m_Component", [])]
+    return [
+        str(c["component"]["fileID"]) for c in body["GameObject"].get("m_Component", [])
+    ]
 
 
 def transform_of(objs, go_fid):
@@ -127,7 +151,10 @@ def comp_label(objs, comp_fid):
     if cid != "114":
         return CLASS.get(cid, f"class{cid}")
     sc = (body or {}).get("MonoBehaviour", {}).get("m_Script", {}) if body else {}
-    return SCRIPT_FILEID.get(str(sc.get("fileID"))) or f"MonoBehaviour[{str(sc.get('guid', ''))[:8]}]"
+    return (
+        SCRIPT_FILEID.get(str(sc.get("fileID")))
+        or f"MonoBehaviour[{str(sc.get('guid', ''))[:8]}]"
+    )
 
 
 def print_tree(objs, fid, depth=0):
@@ -135,8 +162,11 @@ def print_tree(objs, fid, depth=0):
     go = (body or {}).get("GameObject", {}) if body else {}
     name = go.get("m_Name") or "(unnamed)"
     mark = "" if go.get("m_IsActive", 1) else "  [inactive]"
-    comps = [comp_label(objs, c) for c in components(objs, fid)
-             if objs.get(c, (None,))[0] != "4"]  # skip the implicit Transform
+    comps = [
+        comp_label(objs, c)
+        for c in components(objs, fid)
+        if objs.get(c, (None,))[0] != "4"
+    ]  # skip the implicit Transform
     ctext = f"  :: {', '.join(comps)}" if comps else ""
     print("  " * depth + f"- {name}{mark}{ctext}")
     for cgo in children(objs, fid):
@@ -162,7 +192,7 @@ def dump_go(objs, name):
     go = body["GameObject"]
     print(f"{name}  (fileID {fid})  active={go.get('m_IsActive')}")
     for c in components(objs, fid):
-        ccid = objs.get(c, ('?',))[0]
+        ccid = objs.get(c, ("?",))[0]
         line = f"  - {CLASS.get(ccid, ccid)}"
         if ccid == "212":
             line += f"   sprite={sprite_of(objs, fid)}"
@@ -190,8 +220,11 @@ def verify(objs):
             continue
         reachable.add(go)
         stack.extend(children(objs, go))
-    orphans = [fid for fid, (cid, body) in objs.items()
-               if cid == "1" and body and fid not in reachable]
+    orphans = [
+        fid
+        for fid, (cid, body) in objs.items()
+        if cid == "1" and body and fid not in reachable
+    ]
     if orphans:
         print(f"ORPHAN GameObjects (unreachable from any root): {len(orphans)}")
         for fid in orphans:
@@ -199,9 +232,14 @@ def verify(objs):
         problems += len(orphans)
 
     # 2. Broken MonoBehaviour script references.
-    broken = [fid for fid, (cid, body) in objs.items()
-              if cid == "114" and body
-              and str((body.get("MonoBehaviour") or {}).get("m_Script", {}).get("fileID")) == "0"]
+    broken = [
+        fid
+        for fid, (cid, body) in objs.items()
+        if cid == "114"
+        and body
+        and str((body.get("MonoBehaviour") or {}).get("m_Script", {}).get("fileID"))
+        == "0"
+    ]
     if broken:
         print(f"BROKEN script refs (m_Script fileID 0): {len(broken)}")
         for fid in broken:
