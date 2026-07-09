@@ -1,6 +1,7 @@
 import os
 import sys
 
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import prefab_query as pq  # noqa: E402
@@ -50,3 +51,18 @@ def test_parse_decompile_namespace_and_base(tmp_path):
     assert base_of["Global"] == "Widget"
     assert ns_of["Widget"] == "Foo"
     assert ns_of["Global"] == ""
+
+
+def test_build_script_ids_components_only():
+    base_of = {"Comp": "MonoBehaviour", "Plain": None, "Helper": "Plain"}
+    ns_of = {"Comp": "", "Plain": "", "Helper": ""}
+    result = pq.build_script_ids(base_of, ns_of)
+    assert result == {str(pq.fileid("Comp")): "Comp"}
+
+
+def test_build_script_ids_collision_raises(monkeypatch):
+    base_of = {"Foo": "MonoBehaviour", "Bar": "MonoBehaviour"}
+    ns_of = {"Foo": "", "Bar": ""}
+    monkeypatch.setattr(pq, "fileid", lambda name, namespace="": 42)
+    with pytest.raises(ValueError, match="collision"):
+        pq.build_script_ids(base_of, ns_of)

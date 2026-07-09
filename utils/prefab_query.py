@@ -174,6 +174,24 @@ def parse_decompile(decomp_dir):
     return base_of, ns_of
 
 
+def build_script_ids(base_of, ns_of):
+    """{str(fileID): className} for MonoBehaviour/ScriptableObject-derived types.
+    Raises ValueError listing every colliding pair on a hash collision."""
+    out, collisions = {}, []
+    for name in sorted(base_of):
+        if not is_component(name, base_of):
+            continue
+        fid = str(fileid(name, ns_of.get(name, "")))
+        if fid in out:
+            collisions.append((fid, out[fid], name))
+        else:
+            out[fid] = name
+    if collisions:
+        body = "\n".join(f"  {fid}: {a} vs {b}" for fid, a, b in collisions)
+        raise ValueError(f"fileID hash collisions:\n{body}")
+    return out
+
+
 def load(path):
     """Return {fileID(str): (classID(str), body(dict))}."""
     text = open(path).read()
