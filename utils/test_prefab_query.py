@@ -34,7 +34,7 @@ def test_is_component_transitive():
     assert pq.is_component("Unknown", base_of) is False
 
 
-def test_parse_decompile_namespace_and_base(tmp_path):
+def test_parse_decompile_collects_decls(tmp_path):
     (tmp_path / "Fake.decompiled.cs").write_text(
         "namespace Foo {\n"
         "  public class Widget : MonoBehaviour {\n"
@@ -46,27 +46,43 @@ def test_parse_decompile_namespace_and_base(tmp_path):
         "}\n",
         encoding="utf-8",
     )
-    base_of, ns_of = pq.parse_decompile(str(tmp_path))
-    assert base_of["Widget"] == "MonoBehaviour"
-    assert base_of["Helper"] is None
-    assert base_of["Global"] == "Widget"
-    assert ns_of["Widget"] == "Foo"
-    assert ns_of["Global"] == ""
+    decls = pq.parse_decompile(str(tmp_path))
+    assert ("Foo", "Widget", "MonoBehaviour") in decls
+    assert ("Foo", "Helper", None) in decls
+    assert ("", "Global", "Widget") in decls
 
 
 def test_build_script_ids_components_only():
-    base_of = {"Comp": "MonoBehaviour", "Plain": None, "Helper": "Plain"}
-    ns_of = {"Comp": "", "Plain": "", "Helper": ""}
-    result = pq.build_script_ids(base_of, ns_of)
+    decls = [
+        ("", "Comp", "MonoBehaviour"),
+        ("", "Plain", None),
+        ("", "Helper", "Plain"),
+    ]
+    result = pq.build_script_ids(decls)
     assert result == {str(pq.fileid("Comp")): "Comp"}
 
 
+def test_build_script_ids_same_name_different_namespace():
+    # Both are components (different namespaces -> different fileIDs) => both kept.
+    # A non-component sharing the name (base None) is excluded, not confused with
+    # the component variant.
+    decls = [
+        ("NsA", "Runner", "MonoBehaviour"),
+        ("NsB", "Runner", "MonoBehaviour"),
+        ("NsC", "Runner", None),  # not a component -> dropped, no false positive
+    ]
+    result = pq.build_script_ids(decls)
+    assert result == {
+        str(pq.fileid("Runner", "NsA")): "Runner",
+        str(pq.fileid("Runner", "NsB")): "Runner",
+    }
+
+
 def test_build_script_ids_collision_raises(monkeypatch):
-    base_of = {"Foo": "MonoBehaviour", "Bar": "MonoBehaviour"}
-    ns_of = {"Foo": "", "Bar": ""}
+    decls = [("", "Foo", "MonoBehaviour"), ("", "Bar", "MonoBehaviour")]
     monkeypatch.setattr(pq, "fileid", lambda name, namespace="": 42)
     with pytest.raises(ValueError, match="collision"):
-        pq.build_script_ids(base_of, ns_of)
+        pq.build_script_ids(decls)
 
 
 def test_load_script_ids_missing(tmp_path):

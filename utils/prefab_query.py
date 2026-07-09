@@ -120,9 +120,12 @@ _DECL_RE = re.compile(
 
 
 def parse_decompile(decomp_dir):
-    """Scan *.decompiled.cs -> (base_of, ns_of). Tracks the current namespace
-    via brace depth; records each class's first base token and namespace."""
-    base_of, ns_of = {}, {}
+    """Scan *.decompiled.cs -> list of (namespace, className, baseToken). Tracks
+    the current namespace via brace depth; baseToken is the class's first base
+    (base class or interface) or None. Same-named classes in different namespaces
+    are kept as SEPARATE entries — not deduplicated — so build_script_ids emits
+    each one's fileID and the collision guard sees every declaration."""
+    decls = []
     for path in sorted(glob.glob(os.path.join(decomp_dir, "*.decompiled.cs"))):
         stack, depth, pending = [], 0, None
         with open(path, encoding="utf-8", errors="replace") as fh:
@@ -132,10 +135,8 @@ def parse_decompile(decomp_dir):
                     pending = m.group(1)
                 d = _DECL_RE.match(line)
                 if d:
-                    name = d.group(1)
                     cur_ns = stack[-1][0] if stack else ""
-                    base_of.setdefault(name, d.group(2))
-                    ns_of.setdefault(name, cur_ns)
+                    decls.append((cur_ns, d.group(1), d.group(2)))
                 for _ in range(line.count("{")):
                     depth += 1
                     if pending is not None:
@@ -145,19 +146,26 @@ def parse_decompile(decomp_dir):
                     if stack and stack[-1][1] == depth:
                         stack.pop()
                     depth -= 1
-    return base_of, ns_of
+    return decls
 
 
-def build_script_ids(base_of, ns_of):
-    """{str(fileID): className} for MonoBehaviour/ScriptableObject-derived types.
-    Raises ValueError listing every colliding pair on a hash collision."""
+def build_script_ids(decls):
+    """{str(fileID): className} for the MonoBehaviour/ScriptableObject-derived
+    classes among decls (a list of (namespace, name, base)). Each class is
+    classified by ITS OWN base, so a non-component that merely shares a simple
+    name with a component is excluded. Raises ValueError listing every colliding
+    pair if two distinct classes hash to the same fileID."""
+    base_of = {}
+    for _ns, name, base in decls:
+        base_of.setdefault(name, base)
     out, collisions = {}, []
-    for name in sorted(base_of):
-        if not is_component(name, base_of):
+    for ns, name, base in decls:
+        if not is_component(base, base_of):
             continue
-        fid = str(fileid(name, ns_of.get(name, "")))
+        fid = str(fileid(name, ns))
         if fid in out:
-            collisions.append((fid, out[fid], name))
+            if out[fid] != name:
+                collisions.append((fid, out[fid], name))
         else:
             out[fid] = name
     if collisions:
@@ -186,8 +194,7 @@ def refresh_ids(decomp_dir, out_path):
         raise SystemExit(
             f"decompile dir not found: {decomp_dir} (set CK_DECOMPILE_DIR)"
         )
-    base_of, ns_of = parse_decompile(decomp_dir)
-    mapping = build_script_ids(base_of, ns_of)
+    mapping = build_script_ids(parse_decompile(decomp_dir))
     old = _load_script_ids(out_path)
     ordered = dict(sorted(mapping.items(), key=lambda kv: kv[1]))
     with open(out_path, "w", encoding="utf-8") as fh:
