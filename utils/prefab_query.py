@@ -20,6 +20,7 @@ CLI:
 """
 
 import re
+import struct
 import sys
 import yaml
 
@@ -59,6 +60,63 @@ SCRIPT_FILEID = {
     "318086258": "ObjectAuthoring",
 }
 _HEADER = re.compile(r"!u!(-?\d+)\s+&(-?\d+)")
+
+
+def _md4(msg):
+    """Pure-Python MD4 (RFC 1320) — OpenSSL 3 disables hashlib's md4."""
+
+    def lrot(x, n):
+        x &= 0xFFFFFFFF
+        return ((x << n) | (x >> (32 - n))) & 0xFFFFFFFF
+
+    ml = len(msg) * 8
+    msg = msg + b"\x80"
+    while len(msg) % 64 != 56:
+        msg += b"\x00"
+    msg += struct.pack("<Q", ml)
+
+    a, b, c, d = 0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476
+    for off in range(0, len(msg), 64):
+        X = list(struct.unpack("<16I", msg[off : off + 64]))
+        aa, bb, cc, dd = a, b, c, d
+
+        def F(x, y, z):
+            return (x & y) | (~x & z)
+
+        def G(x, y, z):
+            return (x & y) | (x & z) | (y & z)
+
+        def H(x, y, z):
+            return x ^ y ^ z
+
+        for i in (0, 4, 8, 12):
+            a = lrot(a + F(b, c, d) + X[i], 3)
+            d = lrot(d + F(a, b, c) + X[i + 1], 7)
+            c = lrot(c + F(d, a, b) + X[i + 2], 11)
+            b = lrot(b + F(c, d, a) + X[i + 3], 19)
+        for i in (0, 1, 2, 3):
+            a = lrot(a + G(b, c, d) + X[i] + 0x5A827999, 3)
+            d = lrot(d + G(a, b, c) + X[i + 4] + 0x5A827999, 5)
+            c = lrot(c + G(d, a, b) + X[i + 8] + 0x5A827999, 9)
+            b = lrot(b + G(c, d, a) + X[i + 12] + 0x5A827999, 13)
+        for i in (0, 2, 1, 3):
+            a = lrot(a + H(b, c, d) + X[i] + 0x6ED9EBA1, 3)
+            d = lrot(d + H(a, b, c) + X[i + 8] + 0x6ED9EBA1, 9)
+            c = lrot(c + H(d, a, b) + X[i + 4] + 0x6ED9EBA1, 11)
+            b = lrot(b + H(c, d, a) + X[i + 12] + 0x6ED9EBA1, 15)
+
+        a = (a + aa) & 0xFFFFFFFF
+        b = (b + bb) & 0xFFFFFFFF
+        c = (c + cc) & 0xFFFFFFFF
+        d = (d + dd) & 0xFFFFFFFF
+    return struct.pack("<4I", a, b, c, d)
+
+
+def fileid(name, namespace=""):
+    """Unity script fileID: signed int32 of the first 4 bytes of
+    MD4("s\\0\\0\\0" + namespace + className)."""
+    data = b"s\x00\x00\x00" + (namespace + name).encode("utf-8")
+    return struct.unpack("<i", _md4(data)[:4])[0]
 
 
 def load(path):
