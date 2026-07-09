@@ -207,7 +207,7 @@ the transparent `Editor/logo.png`:
    normalised Euclidean white↔black distance, colour is un-premultiplied (`B/a`)
    above a `0.01` alpha threshold. Validated against transparify.app's own output
    — **alpha bit-identical**, RGB within JPEG-decoder noise. Pure Pillow (no
-   numpy); tested in `utils/test_transparify.py`.
+   numpy); tested in `utils/tests/test_transparify.py`.
 
 **Candidate file naming** (in `<mod>/sources/`, adopted from the sibling mods —
 lowercase `logo`, a space before the index, `.jpeg` for the candidates):

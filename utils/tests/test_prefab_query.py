@@ -1,11 +1,7 @@
 import json
-import os
-import sys
 
+import prefab_query as pq
 import pytest
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import prefab_query as pq  # noqa: E402
 
 
 def test_fileid_known_anchors():
