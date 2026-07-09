@@ -89,6 +89,12 @@ def test_load_script_ids_missing(tmp_path):
     assert pq._load_script_ids(str(tmp_path / "nope.json")) == {}
 
 
+def test_load_script_ids_corrupt(tmp_path):
+    bad = tmp_path / "corrupt.json"
+    bad.write_text("{ not valid json", encoding="utf-8")
+    assert pq._load_script_ids(str(bad)) == {}
+
+
 def test_refresh_ids_end_to_end(tmp_path):
     decomp = tmp_path / "decomp"
     decomp.mkdir()

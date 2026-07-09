@@ -180,11 +180,13 @@ _IDS_PATH = os.path.join(
 
 
 def _load_script_ids(path=_IDS_PATH):
-    """Load the {fileID: className} map; {} if the file is absent."""
+    """Load the {fileID: className} map; {} if the file is absent or unreadable.
+    Tolerating a corrupt file lets `refresh-ids` overwrite it instead of every
+    command tracebacking at import."""
     try:
         with open(path, encoding="utf-8") as fh:
             return json.load(fh)
-    except FileNotFoundError:
+    except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
 
@@ -214,8 +216,8 @@ def refresh_ids(decomp_dir, out_path):
 SCRIPT_FILEID = _load_script_ids()
 if not SCRIPT_FILEID:
     print(
-        "prefab_query: no ck-script-ids.json — run 'refresh-ids'; "
-        "MonoBehaviours will show as a short guid",
+        "prefab_query: ck-script-ids.json missing or unreadable — run "
+        "'refresh-ids'; MonoBehaviours will show as a short guid",
         file=sys.stderr,
     )
 
