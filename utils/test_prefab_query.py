@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 
@@ -66,3 +67,30 @@ def test_build_script_ids_collision_raises(monkeypatch):
     monkeypatch.setattr(pq, "fileid", lambda name, namespace="": 42)
     with pytest.raises(ValueError, match="collision"):
         pq.build_script_ids(base_of, ns_of)
+
+
+def test_load_script_ids_missing(tmp_path):
+    assert pq._load_script_ids(str(tmp_path / "nope.json")) == {}
+
+
+def test_refresh_ids_end_to_end(tmp_path):
+    decomp = tmp_path / "decomp"
+    decomp.mkdir()
+    (decomp / "Fake.decompiled.cs").write_text(
+        "namespace Foo {\n"
+        "  public class Widget : MonoBehaviour {\n"
+        "  }\n"
+        "  public class Helper {\n"
+        "  }\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "ids.json"
+    mapping = pq.refresh_ids(str(decomp), str(out))
+    assert mapping == {str(pq.fileid("Widget", "Foo")): "Widget"}
+    assert json.loads(out.read_text(encoding="utf-8")) == mapping
+
+
+def test_refresh_ids_missing_decompile(tmp_path):
+    with pytest.raises(SystemExit):
+        pq.refresh_ids(str(tmp_path / "absent"), str(tmp_path / "ids.json"))

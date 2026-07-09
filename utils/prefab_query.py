@@ -20,6 +20,7 @@ CLI:
 """
 
 import glob
+import json
 import os
 import re
 import struct
@@ -190,6 +191,39 @@ def build_script_ids(base_of, ns_of):
         body = "\n".join(f"  {fid}: {a} vs {b}" for fid, a, b in collisions)
         raise ValueError(f"fileID hash collisions:\n{body}")
     return out
+
+
+_IDS_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "ck-script-ids.json"
+)
+
+
+def _load_script_ids(path=_IDS_PATH):
+    """Load the {fileID: className} map; {} if the file is absent."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    except FileNotFoundError:
+        return {}
+
+
+def refresh_ids(decomp_dir, out_path):
+    """Regenerate out_path from the decompile; return the new mapping."""
+    if not os.path.isdir(decomp_dir):
+        raise SystemExit(
+            f"decompile dir not found: {decomp_dir} (set CK_DECOMPILE_DIR)"
+        )
+    base_of, ns_of = parse_decompile(decomp_dir)
+    mapping = build_script_ids(base_of, ns_of)
+    old = _load_script_ids(out_path)
+    ordered = dict(sorted(mapping.items(), key=lambda kv: kv[1]))
+    with open(out_path, "w", encoding="utf-8") as fh:
+        json.dump(ordered, fh, indent=2, ensure_ascii=False)
+        fh.write("\n")
+    added = len(set(mapping) - set(old))
+    removed = len(set(old) - set(mapping))
+    print(f"wrote {out_path}: {len(mapping)} types (+{added} -{removed})")
+    return mapping
 
 
 def load(path):
@@ -404,6 +438,13 @@ def verify(objs):
 
 
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "refresh-ids":
+        decomp = os.environ.get(
+            "CK_DECOMPILE_DIR",
+            os.path.expanduser("~/Projects/checkouts/CoreKeeperDecompile"),
+        )
+        refresh_ids(decomp, _IDS_PATH)
+        return
     path, cmd = sys.argv[1], sys.argv[2]
     objs = load(path)
     if cmd == "names":
