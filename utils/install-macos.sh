@@ -164,6 +164,23 @@ mv "$STATE_JSON.tmp" "$STATE_JSON"
 
 rm -rf "$MODLOADER_CACHE"
 
+# --- 5. Force a fresh localization export ------------------------------------
+# Core Keeper accumulates every mod's loc terms into the game-wide
+# localization/Localization.csv (its I2 Localization source) first-write-wins:
+# a rebuilt bundle with a CHANGED loc value does NOT refresh the stale row (the
+# fake dev build keeps modfile id "1", so nothing ever triggers a re-export and
+# the old text keeps rendering, even after a cold start). Deleting the CSV makes
+# CK rebuild it in full — game + every installed mod — from the current
+# TextDataBlocks on next launch, so edited loc values take immediately. It is a
+# regenerable cache (verified: every row is I2 " [new]"; a real mod.io update,
+# with a new modfile id, is unaffected). Only for loc-shipping mods; no-op if
+# the CSV is absent.
+LOC_CSV="$CK_BOTTLE_PATH/drive_c/Program Files (x86)/Steam/steamapps/common/Core Keeper/localization/Localization.csv"
+if [ -n "${LOC_OUT:-}" ] && [ -f "$LOC_CSV" ]; then
+    rm -f "$LOC_CSV"
+    echo "  Cleared Localization.csv — CK rebuilds it (game + all mods) on next launch."
+fi
+
 echo "✓ Install complete."
 echo
 echo "  Next: launch Core Keeper. Do NOT open the in-game Mod menu — that"
