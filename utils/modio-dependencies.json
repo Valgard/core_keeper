@@ -7,6 +7,10 @@
         {
             "modName": "SimpleCraftingPoolExtender",
             "modId": 6119747
+        },
+        {
+            "modName": "ModSettingsMenu",
+            "modId": 6211950
         }
     ]
 }
