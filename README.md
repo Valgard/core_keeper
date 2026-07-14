@@ -37,9 +37,10 @@ no manual `source` needed (`cd <mod> && ../utils/build.sh`). Without direnv,
 the documented `source .envrc && ../utils/build.sh` still works via the
 `source ../.envrc` fallback. Paths in `core_keeper/.envrc` must be **absolute**
 — `source_up` sources it without changing `$PWD` (which stays the mod dir).
-A mod whose `.envrc` exports `CK_GAME_VERSION` after the inherit block
-overrides the parent default (e.g. `disable-durability` / `faster-talents`
-stay pinned to `1.2.1.2`). Each new/edited `.envrc` needs one `direnv allow`.
+`CK_GAME_VERSION` is kept as one canonical list in `core_keeper/.envrc`; mods
+inherit it and do **not** override it (a mod's `.envrc` exporting its own value
+after the inherit block would win, but none currently do — keep the list in
+sync in the parent `.envrc`). Each new/edited `.envrc` needs one `direnv allow`.
 
 To build a mod, run `../utils/build.sh` from the mod repo root (with direnv
 the env is already loaded; otherwise `source .envrc` first):
@@ -94,10 +95,10 @@ The CLI editor helpers (`CLIBuildHelper`, `CLIPublishHelper`) and the
 former flag `USE_SHARED_EDITOR_HELPERS` was removed entirely (its per-mod
 fallback path pointed at sources that no longer exist) — the helpers are now
 unconditional. Each mod's `.envrc` sets `MOD_REPO_ROOT="$PWD"` (the shared
-`CLIPublishHelper` reads it for the CHANGELOG lookup). The localised mods
-(`item-checklist`, `caveling-divining-rod`) also set `LOC_YAML` / `LOC_OUT` /
-`LOC_TABLE`; the others ship no `localization.yaml`, so the loc generator is a
-no-op for them.
+`CLIPublishHelper` reads it for the CHANGELOG lookup). Every mod except
+`simple-crafting-pool-extender` is localised and also sets `LOC_YAML` /
+`LOC_OUT` / `LOC_TABLE`; that one ships no `localization.yaml`, so the loc
+generator is a no-op for it.
 
 Also in `utils/`:
 - **`ck-language-addresses.json`** — the CK language address→ISO table (13
@@ -105,9 +106,9 @@ Also in `utils/`:
   `LanguageDataBlock`s are runtime-only and are not enumerable through the SDK
   editor API at build time. Required by `LocalizationGenerator`.
 - **`LocalizationGenerator.cs`** — reads a mod's
-  `Localization/localization.yaml` and templates raw `.asset` YAML for each
-  language (Option II: raw asset templating). Used by ItemChecklist; the same
-  generator can be reused by any mod that adopts the shared-helper pattern.
+  `localization/localization.yaml` and templates raw `.asset` YAML for each
+  language (Option II: raw asset templating). Used by every localised mod (all
+  but `simple-crafting-pool-extender`); ItemChecklist was the pilot.
 
 `core_keeper/` is itself a git repo, but its `.gitignore` tracks only
 `utils/`, this `CLAUDE.md`, `.tool-versions`, and `.envrc.example` — the mod

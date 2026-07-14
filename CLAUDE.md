@@ -11,8 +11,9 @@ machine — change it only when an insight is genuinely mod-agnostic.
 - `CoreKeeperModSDK/` — the Pugstorm SDK clone, **shared** by every mod. Its
   own git repo. Mods do not vendor a private SDK copy.
 - `<mod-name>/` — one directory per mod, each its own git repo. Currently:
-  `disable-durability/`, `faster-talents/`, `faster-pet-talents/`,
-  `item-checklist/`, `caveling-divining-rod/`, and
+  `caveling-divining-rod/`, `disable-durability/`, `faster-pet-talents/`,
+  `faster-talents/`, `item-checklist/`, `mod-settings-menu/`,
+  `rebalance-key-crafting/`, `reusable-cattle-box/`, and
   `simple-crafting-pool-extender/`.
 
 A mod keeps **every file the Unity Editor generates for it** — `.cs`
@@ -44,14 +45,19 @@ absolute paths, so they dangle after a worktree switch or repo move;
   reserialization (it may overwrite or be clobbered by the assistant's edit).
   Wait until the user closes the Editor and confirms ("done") before making any
   file mutation.
-- **`corekeeper-patch` applied to the installed game's `PugMod.Loader.dll`** —
-  required on macOS / CrossOver hosts. Two IL patches: (Patch 1) fixes the
-  Wine `Directory.Delete` failure on stale `ModLoader/<ModName>/Scripts/`,
-  (Patch 2) forces `CultureInfo.DefaultThreadCurrentUICulture =
-  InvariantCulture` so Roslyn doesn't fail compiles by chasing the missing
-  `de-DE` satellite assembly. Every Core Keeper update reverts the DLL to
-  stock — re-apply after each update. Rationale + canonical commands in
-  the `corekeeper-roslyn-locale-bug` memory.
+- **`corekeeper-patch` applied to the installed game DLLs** — required on
+  macOS / CrossOver hosts. Six IL patches across three DLLs. In
+  `PugMod.Loader.dll`: (Patch 1) fixes the Wine `Directory.Delete` failure on
+  stale `ModLoader/<ModName>/Scripts/`, (Patch 2) forces
+  `CultureInfo.DefaultThreadCurrentUICulture = InvariantCulture` so Roslyn
+  doesn't fail compiles by chasing the missing `de-DE` satellite assembly. In
+  `Pug.Other.dll`: (Patch 3) a direct-write fallback for the Wine initial-save
+  regression, (Patches 4–5) rewrite `StandaloneFilesystem.DeleteDirectory` /
+  `Delete` to a Wine-safe iterate-and-delete. In `modio.UnityPlugin.dll`:
+  (Patch 6) the same delete rewrite for `SystemIOWrapper.DeleteDirectory`.
+  Every Core Keeper update reverts all three DLLs to stock — re-apply after
+  each update. Rationale + canonical commands in the
+  `corekeeper-roslyn-locale-bug` memory.
 
 ## SDK quirks (apply to every mod)
 
@@ -157,7 +163,7 @@ Publishing flow, dependency sync, and the three mod IDs — see @docs/publishing
 Every mod ships a square mod.io profile logo at `unity/<Mod>/Editor/logo.png`,
 and they all share one deliberate visual identity — match it for any new mod.
 
-**Shared DNA (all seven existing logos):**
+**Shared DNA (all nine existing logos):**
 - A single, centred **hero object in teal / petrol-green** with **gold / brass
   accents** and a thick dark outline — hand-painted "sticker" concept-art,
   **not** pixel-art.
@@ -169,8 +175,9 @@ and they all share one deliberate visual identity — match it for any new mod.
 the mod's purpose — reuse arrow-ring (reusable-cattle-box), infinity on crossed
 tools (disable-durability), checkmarks + "?" (item-checklist), fanned cards +
 "+" (simple-crafting-pool-extender), star + cubes (faster-talents), paw + cube
-(faster-pet-talents), crossed rods + orb (caveling-divining-rod). Invent a
-fitting gesture for the new mod rather than copying one.
+(faster-pet-talents), crossed rods + orb (caveling-divining-rod), gear +
+toggle-slider (mod-settings-menu), ornate gemmed key (rebalance-key-crafting).
+Invent a fitting gesture for the new mod rather than copying one.
 
 **Generation workflow** — the `generate_images.py` script from the **blogs**
 repo's `editorial-workflow` skill (Gemini "Nano Banana Pro"; `GEMINI_API_KEY`
