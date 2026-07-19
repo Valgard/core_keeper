@@ -144,6 +144,8 @@ SLICED = {
 BORDER_OVERRIDE = {
     ("Window", 16, 16): (4, 4, 4, 4),
     ("Entry Selected", 8, 8): (3, 3, 3, 3),       # corner selection marker (3px L-corners)
+    ("Entry Toggled", 10, 10): (4, 4, 4, 4),      # Iter-40 ItemRow tracked marker: 10x10, 4px L-corner brackets
+
     ("Scrollbar Selector", 4, 8): (1, 3, 1, 3),   # vertical 3px ends
     ("Caret", 2, 8): (0, 1, 0, 1),                # 1px top/bottom only
     ("Checkbox empty", 6, 6): (1, 1, 1, 1),       # thin box frame
@@ -156,6 +158,12 @@ BORDER_OVERRIDE = {
 RENAME = {
     "Entry Background 8x1": "Option Background 8x8",
     "Panel": "Option Panel",
+    # Iter-40: the ItemRow tracked-marker is a NEW 10x10 toggled frame, distinct from the
+    # existing 8x8 "Entry Toggled" (which keeps its name + internalID 853627131, used elsewhere).
+    # Both Pixaki layers are named "Entry Toggled"; assign_names size-disambiguates them, then
+    # these renames give the 8x8 back its original name and the 10x10 its own sprite name.
+    "Entry Toggled 8x8": "Entry Toggled",
+    "Entry Toggled 10x10": "ItemRow Entry Toggled",
 }
 # Pad a sub-cell layer up to its full grid cell, anchoring the drawn content.
 # Keyed by the disambiguated (pre-rename) name. The option separator is a 1px
