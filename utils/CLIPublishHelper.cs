@@ -91,6 +91,15 @@ namespace CoreKeeperModUtils
                     return;
                 }
 
+                // Regenerate native TextDataBlock loc assets from localization.yaml
+                // before the bundle build, mirroring CLIBuildHelper.Build — the
+                // publish path must never ship the stale Generated/ assets that
+                // happen to be on disk (that shipped 1.3.0 without the Iter-40
+                // tracker-tooltip terms). No-op when LOC_YAML/LOC_OUT are unset,
+                // and skipped above for --profile-only (no build). See the
+                // reference_ck_mod_loc_csv_persistence project memory.
+                LocalizationGenerator.GenerateFromEnv();
+
                 _buildDir = Path.Combine(Application.temporaryCachePath,
                     Guid.NewGuid().ToString());
                 Directory.CreateDirectory(_buildDir);
