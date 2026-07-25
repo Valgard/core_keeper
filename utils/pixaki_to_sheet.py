@@ -131,8 +131,13 @@ def assign_names(items):
     return out
 
 
-def internal_id(name):
-    """Stable signed-32-bit int from the final sprite name."""
+def internal_id(name, pins=None):
+    """Stable signed-32-bit int from the final sprite name.
+
+    If pins is provided and contains name, return pins[name].
+    Otherwise, return SHA1(name) as a signed 32-bit int."""
+    if pins and name in pins:
+        return pins[name]
     digest = hashlib.sha1(name.encode("utf-8")).digest()
     return int.from_bytes(digest[:4], "little", signed=True)
 

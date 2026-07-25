@@ -123,6 +123,12 @@ def test_render_meta_replaces_guid_and_sprites(tmp_path):
     assert "border: {x: 4, y: 4, z: 4, w: 4}" in out
 
 
+def test_internal_id_pinning():
+    assert p.internal_id("Arrow", {"Arrow": 100007}) == 100007      # pinned wins
+    assert p.internal_id("Arrow") == p.internal_id("Arrow", {})     # unpinned == hash
+    assert p.internal_id("Other", {"Arrow": 100007}) == p.internal_id("Other")
+
+
 def test_load_config_normalizes_and_defaults(tmp_path):
     (tmp_path / "s.pixaki").write_bytes(b"x")
     (tmp_path / "s.json").write_text(
