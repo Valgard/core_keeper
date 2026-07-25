@@ -294,8 +294,11 @@ def build_sheet(pixaki_path, out_png, template_meta=None, guid=None):
         ))
     sheet.save(out_png)
     new_guid = guid or cfg["guid"] or hashlib.sha1(out_png.encode()).hexdigest()[:32]
+    # Render (which READS template_meta) BEFORE opening the output for write: an in-place regen
+    # defaults template_meta to out_png+".meta", so opening it "w" first would truncate the template.
+    meta_text = render_meta(template_meta, new_guid, placed_named)
     with open(out_png + ".meta", "w") as f:
-        f.write(render_meta(template_meta, new_guid, placed_named))
+        f.write(meta_text)
     mapping = {s["name"]: s["internal_id"] for s in placed_named}
     return mapping, new_guid
 

@@ -142,3 +142,28 @@ def test_load_config_normalizes_and_defaults(tmp_path):
     import pytest
     with pytest.raises(FileNotFoundError):
         p.load_config(str(tmp_path / "missing.pixaki"))
+
+
+def test_build_sheet_in_place_template_not_truncated(tmp_path):
+    """Regression: in-place regen defaults --meta-template to <out>.meta; the
+    template must be READ before the output .meta is opened-for-write (truncated)."""
+    import zipfile, json, io
+    doc = {"sprites": [{
+        "cels": [{"identifier": "D1", "frame": [[0, 0], [4, 4]]}],
+        "layers": [{"name": "Icon", "clips": [{"itemIdentifier": "D1"}], "isVisible": True}],
+    }]}
+    pixaki = tmp_path / "s.pixaki"
+    with zipfile.ZipFile(pixaki, "w") as z:
+        z.writestr("document.json", json.dumps(doc))
+        bio = io.BytesIO(); Image.new("RGBA", (4, 4), (255, 0, 0, 255)).save(bio, "PNG")
+        z.writestr("images/drawings/D1.png", bio.getvalue())
+    (tmp_path / "s.json").write_text("{}")
+    out = tmp_path / "s.png"
+    (tmp_path / "s.png.meta").write_text(
+        "fileFormatVersion: 2\nguid: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+        "TextureImporter:\n  spriteMode: 2\n  spriteSheet:\n    serializedVersion: 2\n"
+        "    sprites:\n    nameFileIdTable:\n  mipmapLimitGroupName: \n  userData: \n")
+    p.build_sheet(str(pixaki), str(out))              # in-place: template defaults to s.png.meta
+    meta = (tmp_path / "s.png.meta").read_text()
+    assert "name: Icon" in meta                        # the sprite was written
+    assert "  mipmapLimitGroupName: " in meta          # the template tail survived (not truncated)
