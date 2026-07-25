@@ -72,16 +72,13 @@ def test_pack_places_without_overlap_and_bottom_left_rects():
     assert len({(x, y) for (_, x, y, _, _) in placements}) == 3
 
 
-def test_border_table_defaults():
-    # 9-slice chrome gets a border; icons get none. Called with the BASE name + final size.
-    assert p.border_for("Entry Background", 8, 8) == (1, 1, 1, 1)
-    assert p.border_for("Window", 16, 16) == (4, 4, 4, 4)
-    assert p.border_for("Icon Sort", 8, 8) == (0, 0, 0, 0)         # icon: simple
-    # manual Sprite-Editor border tweaks folded back into BORDER_OVERRIDE:
-    assert p.border_for("Entry Selected", 8, 8) == (3, 3, 3, 3)
-    assert p.border_for("Scrollbar Selector", 4, 8) == (1, 3, 1, 3)
-    assert p.border_for("Caret", 2, 8) == (0, 1, 0, 1)
-    assert p.border_for("Checkbox empty", 6, 6) == (1, 1, 1, 1)
+def test_border_for_reads_config():
+    sliced = {"Entry Background"}
+    ov = {("Window", 16, 16): (4, 4, 4, 4), ("Caret", 2, 8): (0, 1, 0, 1)}
+    assert p.border_for("Entry Background", 8, 8, sliced, ov) == (1, 1, 1, 1)
+    assert p.border_for("Window", 16, 16, sliced, ov) == (4, 4, 4, 4)
+    assert p.border_for("Icon Sort", 8, 8, sliced, ov) == (0, 0, 0, 0)
+    assert p.border_for("Caret", 2, 8, sliced, ov) == (0, 1, 0, 1)
 
 
 def test_pad_bottom_anchor():
