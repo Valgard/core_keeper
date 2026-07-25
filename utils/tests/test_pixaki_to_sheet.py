@@ -121,3 +121,21 @@ def test_render_meta_replaces_guid_and_sprites(tmp_path):
     assert "old_sprite" not in out                    # old sprites replaced
     assert "  mipmapLimitGroupName: " in out          # tail preserved
     assert "border: {x: 4, y: 4, z: 4, w: 4}" in out
+
+
+def test_load_config_normalizes_and_defaults(tmp_path):
+    (tmp_path / "s.pixaki").write_bytes(b"x")
+    (tmp_path / "s.json").write_text(
+        '{"exclude":["Bg"],"sliced":["Panel"],'
+        '"borderOverride":[{"name":"Window","w":16,"h":16,"border":[4,4,4,4]}],'
+        '"pad":{"Sep":{"w":8,"h":8,"anchor":"bottom"},"Ico":{"w":16,"h":16,"anchor":[5,3]}},'
+        '"internalIds":{"Arrow":100007}}')
+    c = p.load_config(str(tmp_path / "s.pixaki"))
+    assert c["exclude"] == {"Bg"} and c["sliced"] == {"Panel"}
+    assert c["borderOverride"][("Window", 16, 16)] == (4, 4, 4, 4)
+    assert c["pad"]["Sep"] == (8, 8, "bottom") and c["pad"]["Ico"] == (16, 16, (5, 3))
+    assert c["internalIds"] == {"Arrow": 100007}
+    assert c["sheetWidth"] == 128 and c["gutter"] == 2 and c["guid"] is None   # defaults
+    import pytest
+    with pytest.raises(FileNotFoundError):
+        p.load_config(str(tmp_path / "missing.pixaki"))

@@ -19,6 +19,28 @@ from PIL import Image
 
 EXCLUDE_TOP = {"Outsorted", "Background", "Search Field Complete", "Dropdown Complete"}
 
+_CONFIG_DEFAULTS = {"exclude": [], "sliced": [], "borderOverride": [],
+                    "rename": {}, "pad": {}, "internalIds": {},
+                    "sheetWidth": 128, "gutter": 2, "guid": None}
+
+
+def load_config(pixaki_path):
+    """Load the sibling <name>.json sprite-def config for a .pixaki file.
+
+    Missing keys fall back to _CONFIG_DEFAULTS; a missing .json raises
+    FileNotFoundError."""
+    cfg_path = os.path.splitext(pixaki_path)[0] + ".json"
+    if not os.path.exists(cfg_path):
+        raise FileNotFoundError(f"sprite-def config not found next to the .pixaki: {cfg_path}")
+    data = json.load(open(cfg_path))
+    c = dict(_CONFIG_DEFAULTS); c.update(data)
+    c["exclude"] = set(c["exclude"])
+    c["sliced"] = set(c["sliced"])
+    c["borderOverride"] = {(b["name"], b["w"], b["h"]): tuple(b["border"]) for b in c["borderOverride"]}
+    c["pad"] = {k: (v["w"], v["h"], (tuple(v["anchor"]) if isinstance(v["anchor"], list) else v["anchor"]))
+                for k, v in c["pad"].items()}
+    return c
+
 
 @dataclass
 class Layer:
