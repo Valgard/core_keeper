@@ -1,0 +1,6 @@
+# This repo's tracked C# lives only in utils/ (the shared Unity editor helpers).
+# Everything else under core_keeper/ belongs to a different git repo — the nine
+# mod repos and the Pugstorm SDK clone, whose sources must not be reformatted
+# from here. CSharpier does not read .gitignore, so mirror its allowlist shape.
+/*
+!/utils/

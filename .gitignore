@@ -8,6 +8,9 @@ __pycache__
 !/.gitignore
 !/.tool-versions
 !/.envrc.example
+!/.csharpierrc
+!/.csharpierignore
+!/.pre-commit-config.yaml
 !/CLAUDE.md
 !/utils/
 !/README.md
@@ -22,3 +25,8 @@ __pycache__
 !/.claude/
 /.claude/*
 !/.claude/skills
+# Track ONLY the dotnet tool manifest inside .config/ (CSharpier version pin)
+# — same three-line idiom as docs/ and .claude/ above.
+!/.config/
+/.config/*
+!/.config/dotnet-tools.json

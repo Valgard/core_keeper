@@ -1,0 +1,20 @@
+repos:
+    - repo: https://github.com/astral-sh/ruff-pre-commit
+      rev: v0.16.0
+      hooks:
+          - id: ruff-format
+            args: [--check, --exit-non-zero-on-fix]
+            stages:
+                - pre-commit
+                - pre-push
+
+    - repo: local
+      hooks:
+          - id: csharpier
+            name: csharpier
+            entry: dotnet csharpier check
+            language: system
+            files: \.cs$
+            stages:
+                - pre-commit
+                - pre-push
