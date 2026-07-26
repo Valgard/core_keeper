@@ -28,8 +28,11 @@
 #                      distinct per mod or their mods/<id>_1/ folders collide.
 #
 # Optional env vars:
-#   CK_BOTTLE_PATH     CrossOver bottle path. Defaults to the standard
-#                      "Core Keeper" bottle.
+#   CK_BOTTLE_NAME     CrossOver bottle name (the folder under .../Bottles/).
+#                      Defaults to "Core Keeper".
+#   CK_BOTTLE_PATH     Full CrossOver bottle path. Overrides CK_BOTTLE_NAME;
+#                      defaults to the standard bottles dir + CK_BOTTLE_NAME.
+#   CK_WINE_USER       Wine username inside the bottle. Defaults to "crossover".
 #
 # Idempotent — safe to re-run after each build.
 #
@@ -52,16 +55,17 @@ FAKE_MODFILE_ID="1"        # Pugstorm uses this as the cached modfile version.
 
 # --- Resolve bottle path and derive loader paths -----------------------------
 
-CK_BOTTLE_PATH="${CK_BOTTLE_PATH:-$HOME/Library/Application Support/CrossOver/Bottles/Core Keeper}"
+CK_BOTTLE_NAME="${CK_BOTTLE_NAME:-Core Keeper}"
+CK_BOTTLE_PATH="${CK_BOTTLE_PATH:-$HOME/Library/Application Support/CrossOver/Bottles/$CK_BOTTLE_NAME}"
 
 if [ ! -d "$CK_BOTTLE_PATH" ]; then
     echo "ERROR: CrossOver bottle not found at:" >&2
     echo "       $CK_BOTTLE_PATH" >&2
-    echo "       Set CK_BOTTLE_PATH in .envrc if your bottle has a different name." >&2
+    echo "       Set CK_BOTTLE_NAME (or CK_BOTTLE_PATH for a non-standard location) in .envrc." >&2
     exit 1
 fi
 
-WINE_USER="crossover"   # CrossOver's default Wine username; adjust if your bottle differs.
+WINE_USER="${CK_WINE_USER:-crossover}"   # CrossOver's default Wine username; override via CK_WINE_USER.
 
 SRC="$MOD_INSTALL_PATH/$MOD_NAME"
 MODIO_BASE="$CK_BOTTLE_PATH/drive_c/users/Public/mod.io/$GAME_ID"

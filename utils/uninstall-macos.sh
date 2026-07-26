@@ -13,8 +13,11 @@
 #                      install-macos.sh).
 #
 # Optional env vars:
-#   CK_BOTTLE_PATH     CrossOver bottle path. Defaults to the standard
-#                      "Core Keeper" bottle.
+#   CK_BOTTLE_NAME     CrossOver bottle name (the folder under .../Bottles/).
+#                      Defaults to "Core Keeper".
+#   CK_BOTTLE_PATH     Full CrossOver bottle path. Overrides CK_BOTTLE_NAME;
+#                      defaults to the standard bottles dir + CK_BOTTLE_NAME.
+#   CK_WINE_USER       Wine username inside the bottle. Defaults to "crossover".
 
 set -euo pipefail
 
@@ -28,9 +31,10 @@ FAKE_MODFILE_ID="1"        # Pugstorm uses this as the cached modfile version.
 
 # --- Resolve bottle path and derive loader paths -----------------------------
 
-CK_BOTTLE_PATH="${CK_BOTTLE_PATH:-$HOME/Library/Application Support/CrossOver/Bottles/Core Keeper}"
+CK_BOTTLE_NAME="${CK_BOTTLE_NAME:-Core Keeper}"
+CK_BOTTLE_PATH="${CK_BOTTLE_PATH:-$HOME/Library/Application Support/CrossOver/Bottles/$CK_BOTTLE_NAME}"
 
-WINE_USER="crossover"   # CrossOver's default Wine username; adjust if your bottle differs.
+WINE_USER="${CK_WINE_USER:-crossover}"   # CrossOver's default Wine username; override via CK_WINE_USER.
 
 MODIO_BASE="$CK_BOTTLE_PATH/drive_c/users/Public/mod.io/$GAME_ID"
 MODIO_DST="$MODIO_BASE/mods/${FAKE_MOD_ID}_${FAKE_MODFILE_ID}"

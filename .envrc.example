@@ -24,9 +24,13 @@ export UNITY_BIN="/Applications/Unity/Hub/Editor/6000.0.59f2/Unity.app/Contents/
 # absolute checkout path — the SDK symlinks (utils/link.sh) encode absolute paths.
 export SDK_PATH="/path/to/core_keeper/CoreKeeperModSDK"
 
-# macOS only — CrossOver bottle that holds Core Keeper. install-macos.sh uses
-# this default if unset; override only for a non-default bottle name.
+# macOS only — CrossOver bottle that holds Core Keeper. The install/uninstall
+# scripts use these defaults if unset. Set CK_BOTTLE_NAME for a differently
+# named bottle in the standard location, CK_BOTTLE_PATH for a non-standard
+# location (overrides CK_BOTTLE_NAME), or CK_WINE_USER for a non-default user.
+# export CK_BOTTLE_NAME="Core Keeper"
 # export CK_BOTTLE_PATH="$HOME/Library/Application Support/CrossOver/Bottles/Core Keeper"
+# export CK_WINE_USER="crossover"
 
 # Base directory for each mod's build-output staging dir. A mod's .envrc sets
 # MOD_INSTALL_PATH="$MOD_INSTALL_BASE_PATH/$MOD_NAME_ID-build".
