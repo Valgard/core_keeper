@@ -154,6 +154,39 @@ instructions live there.
   `CLIPublishHelper.Publish` can leave the mod.io profile/modfile partially
   uploaded; the `timeout 600` wrapper already bounds a genuinely hung run.
 
+## Formatting gate (every repo)
+
+Every repo under this directory — the nine mod repos and `core_keeper` itself —
+carries the same CSharpier gate. `README.md` (§ Formatting gate) holds the
+human-facing setup; what matters when editing code here:
+
+- **The gate blocks, it does not rewrite.** `.pre-commit-config.yaml` runs
+  `dotnet csharpier check` over staged `.cs` at `pre-commit` **and** `pre-push`,
+  so a rejected commit needs `dotnet csharpier format .` and a retry — nothing
+  is ever reformatted behind an edit. `core_keeper` adds `ruff format --check`
+  for the Python in `utils/`.
+- **`printWidth: 160`** in each repo's `.csharpierrc` — deliberate, not a
+  leftover. Do not "correct" it to the CSharpier default of 100.
+- **The formatting diff is not printWidth-driven.** CSharpier also splits
+  single-line `if (x) y;`, collapses column-aligned trailing comments to a
+  single space, and moves binary operators to the start of the continuation
+  line. Above ~140 it increasingly *joins* deliberately wrapped constructs. For
+  a line that must keep its shape, use `// csharpier-ignore`.
+- **`pre-commit install` refuses to run while `core.hooksPath` is set**
+  ("Cowardly refusing to install hooks"), even when that path merely points at
+  the repo's own `.git/hooks`. Two mod repos had it set that way; the fix is
+  `git config --unset-all core.hooksPath`.
+- **`dotnet new tool-manifest` writes `dotnet-tools.json` into the repo root**
+  under .NET 10, not into `.config/`. Move it to `.config/dotnet-tools.json`;
+  `dotnet tool restore` accepts either location.
+- **Never run a formatter from `core_keeper/` without its ignore file.** The SDK
+  clone (~2,900 foreign `.cs`) and all nine mod repos sit inside it as separate
+  repos, so a bare `csharpier format .` would rewrite them all. The parent's
+  `.csharpierignore` is an allowlist (`/*` + `!/utils/`) for exactly that
+  reason; `ruff` needs no counterpart because it honours `.gitignore`.
+- `pre-commit` itself is pinned once in the parent `.tool-versions`; asdf
+  resolves it for the mod subdirectories by walking up.
+
 ## mod.io publishing (applies to every mod)
 
 Publishing flow, dependency sync, and the three mod IDs — see @docs/publishing.md.

@@ -110,8 +110,42 @@ Also in `utils/`:
   language (Option II: raw asset templating). Used by every localised mod (all
   but `simple-crafting-pool-extender`); ItemChecklist was the pilot.
 
-`core_keeper/` is itself a git repo, but its `.gitignore` tracks only
-`utils/`, this `CLAUDE.md`, `.tool-versions`, and `.envrc.example` — the mod
-repos and the SDK clone are independent repos and are deliberately ignored so
-they are not embedded. The real `core_keeper/.envrc` (machine paths) is
-gitignored; only its `.envrc.example` template is tracked.
+`core_keeper/` is itself a git repo, but its `.gitignore` is an allowlist: it
+tracks only the shared, machine-agnostic files — `utils/`, the docs
+(`CLAUDE.md`, `README.md`, the two notes under `docs/`), the tooling config
+(`.tool-versions`, `.envrc.example`, `.csharpierrc`, `.csharpierignore`,
+`.pre-commit-config.yaml`, `.config/dotnet-tools.json`) and `.claude/skills`.
+The mod repos and the SDK clone are independent repos and are deliberately
+ignored so they are not embedded. The real `core_keeper/.envrc` (machine
+paths) is gitignored; only its `.envrc.example` template is tracked.
+
+## Formatting gate
+
+Every repo here — the nine mod repos and `core_keeper` itself — runs a
+formatting gate as a `pre-commit` **and** `pre-push` hook. It **checks and
+blocks**; it never rewrites files behind your back. C# goes through
+**CSharpier**, pinned per repo in `.config/dotnet-tools.json` with
+`printWidth: 160` in `.csharpierrc`; in `core_keeper` the Python in `utils/`
+additionally goes through **`ruff format`**.
+
+A fresh clone needs two one-time commands:
+
+```bash
+dotnet tool restore                                          # pinned CSharpier
+pre-commit install --hook-type pre-commit --hook-type pre-push
+```
+
+When a commit is rejected, format and retry — the hook tells you which files
+it rejected:
+
+```bash
+dotnet csharpier format .        # C#
+uvx ruff format .                # Python (core_keeper only)
+git add -u && git commit …
+```
+
+Both formatters are scoped to the repo they run in. In `core_keeper` that
+needs care, because the SDK clone and all nine mod repos sit inside it as
+separate repos: `.csharpierignore` mirrors the `.gitignore` allowlist shape
+(`/*` plus `!/utils/`) so a full-tree run cannot reach foreign sources. `ruff`
+needs no equivalent, as it honours `.gitignore` itself.
