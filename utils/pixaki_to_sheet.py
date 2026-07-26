@@ -1,18 +1,24 @@
 """Generate a Core Keeper mod sprite sheet (PNG + .meta) from a Pixaki file.
 
-Iter-12 of the ItemChecklist mod: replaces the Item-Browser placeholder sprites
-with original pixel art authored in Pixaki. Extracts the visible named layers,
-dedups them by pixel hash, packs them into one sheet, and emits a Unity
-sprite-sheet .png.meta with deterministic internalIDs.
+Extracts the visible named layers of a .pixaki, dedups them by pixel hash, packs
+them into one sheet, and emits a Unity sprite-sheet .png.meta with deterministic
+internalIDs. Per-mod sprite definitions — excludes, renames, padding, sliced
+borders, border overrides, pinned internalIDs, sheet width/gutter/GUID — live in
+a sibling <name>.json beside the <name>.pixaki (see load_config); a missing .json
+is a hard error.
 
 Usage:
-    python3 pixaki_to_sheet.py <file.pixaki> <out.png> --meta-template <ui_classic.png.meta>
+    python3 pixaki_to_sheet.py <file.pixaki> <out.png> [--meta-template <tpl.png.meta>]
+
+--meta-template defaults to <out.png>.meta, so an in-place regen reuses the
+existing meta as its own header/tail template.
 """
 import json
 import zipfile
 import io
 import hashlib
 import argparse
+import copy
 import os
 from dataclasses import dataclass
 from PIL import Image
@@ -30,8 +36,9 @@ def load_config(pixaki_path):
     cfg_path = os.path.splitext(pixaki_path)[0] + ".json"
     if not os.path.exists(cfg_path):
         raise FileNotFoundError(f"sprite-def config not found next to the .pixaki: {cfg_path}")
-    data = json.load(open(cfg_path))
-    c = dict(_CONFIG_DEFAULTS); c.update(data)
+    with open(cfg_path) as f:
+        data = json.load(f)
+    c = copy.deepcopy(_CONFIG_DEFAULTS); c.update(data)
     c["exclude"] = set(c["exclude"])
     c["sliced"] = set(c["sliced"])
     c["borderOverride"] = {(b["name"], b["w"], b["h"]): tuple(b["border"]) for b in c["borderOverride"]}
@@ -138,6 +145,32 @@ def internal_id(name, pins=None):
         return pins[name]
     digest = hashlib.sha1(name.encode("utf-8")).digest()
     return int.from_bytes(digest[:4], "little", signed=True)
+
+
+def _validate_pins(pins, placed_named):
+    """Fail loud on a mis-authored internalIds config, BEFORE any file is written.
+
+    Two silent failures the pin feature would otherwise hide, each surfacing only
+    as a wrong icon in-game (never at build time), so both raise here:
+      * a pin key matching no produced sprite (a typo) — the sprite silently
+        falls back to its hash id, so the pin never takes effect;
+      * two sprites resolving to the same internalID (a copy-paste collision, or
+        a pin clashing with another name's hash) — an ambiguous Unity fileID that
+        mis-resolves prefab sprite references."""
+    final_names = {s["name"] for s in placed_named}
+    unused = sorted(k for k in pins if k not in final_names)
+    if unused:
+        raise ValueError(
+            f"internalIds pins match no produced sprite (typo?): {unused}; "
+            f"produced names are {sorted(final_names)}")
+    seen = {}
+    for s in placed_named:
+        iid = s["internal_id"]
+        if iid in seen:
+            raise ValueError(
+                f"duplicate internalID {iid} for '{seen[iid]}' and '{s['name']}' "
+                f"— internalIds pins collide")
+        seen[iid] = s["name"]
 
 
 def pack(sprites, sheet_w=128, gutter=2):
@@ -292,6 +325,7 @@ def build_sheet(pixaki_path, out_png, template_meta=None, guid=None):
             x=x, y=y_bl, w=w, h=h,
             border=border_for(key_base[key], w, h, cfg["sliced"], cfg["borderOverride"]),
         ))
+    _validate_pins(cfg["internalIds"], placed_named)   # fail loud before any write
     sheet.save(out_png)
     new_guid = guid or cfg["guid"] or hashlib.sha1(out_png.encode()).hexdigest()[:32]
     # Render (which READS template_meta) BEFORE opening the output for write: an in-place regen

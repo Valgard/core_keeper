@@ -167,3 +167,42 @@ def test_build_sheet_in_place_template_not_truncated(tmp_path):
     meta = (tmp_path / "s.png.meta").read_text()
     assert "name: Icon" in meta                        # the sprite was written
     assert "  mipmapLimitGroupName: " in meta          # the template tail survived (not truncated)
+
+
+def _write_two_sprite_pixaki(tmp_path, cfg_json):
+    """A .pixaki with two DISTINCT sprites named 'Icon' and 'Icon2', plus a
+    sibling s.json holding cfg_json. Returns the .pixaki path."""
+    import zipfile, json, io
+    doc = {"sprites": [{
+        "cels": [{"identifier": "D1", "frame": [[0, 0], [4, 4]]},
+                 {"identifier": "D2", "frame": [[0, 0], [4, 4]]}],
+        "layers": [{"name": "Icon", "clips": [{"itemIdentifier": "D1"}], "isVisible": True},
+                   {"name": "Icon2", "clips": [{"itemIdentifier": "D2"}], "isVisible": True}],
+    }]}
+    pixaki = tmp_path / "s.pixaki"
+    with zipfile.ZipFile(pixaki, "w") as z:
+        z.writestr("document.json", json.dumps(doc))
+        for did, color in (("D1", (255, 0, 0, 255)), ("D2", (0, 255, 0, 255))):  # distinct pixels
+            bio = io.BytesIO(); Image.new("RGBA", (4, 4), color).save(bio, "PNG")
+            z.writestr(f"images/drawings/{did}.png", bio.getvalue())
+    (tmp_path / "s.json").write_text(cfg_json)
+    return pixaki
+
+
+def test_validate_pins_rejects_collision(tmp_path):
+    """Two sprites pinned to the SAME internalID would emit an ambiguous Unity
+    fileID; the build must fail loud (before writing) rather than ship it."""
+    import pytest
+    pixaki = _write_two_sprite_pixaki(tmp_path, '{"internalIds":{"Icon":5,"Icon2":5}}')
+    with pytest.raises(ValueError, match="duplicate internalID"):
+        p.build_sheet(str(pixaki), str(tmp_path / "s.png"))
+    assert not (tmp_path / "s.png").exists()           # nothing written on failure
+
+
+def test_validate_pins_rejects_unused_pin(tmp_path):
+    """A pin key that matches no produced sprite (a typo) silently no-ops the
+    pin; the build must fail loud so the typo can't ship a hash-id sprite."""
+    import pytest
+    pixaki = _write_two_sprite_pixaki(tmp_path, '{"internalIds":{"Iconnn":5}}')
+    with pytest.raises(ValueError, match="match no produced sprite"):
+        p.build_sheet(str(pixaki), str(tmp_path / "s.png"))
