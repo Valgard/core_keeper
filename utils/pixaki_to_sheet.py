@@ -13,6 +13,7 @@ Usage:
 --meta-template defaults to <out.png>.meta, so an in-place regen reuses the
 existing meta as its own header/tail template.
 """
+
 import json
 import zipfile
 import io
@@ -23,9 +24,17 @@ import os
 from dataclasses import dataclass
 from PIL import Image
 
-_CONFIG_DEFAULTS = {"exclude": [], "sliced": [], "borderOverride": [],
-                    "rename": {}, "pad": {}, "internalIds": {},
-                    "sheetWidth": 128, "gutter": 2, "guid": None}
+_CONFIG_DEFAULTS = {
+    "exclude": [],
+    "sliced": [],
+    "borderOverride": [],
+    "rename": {},
+    "pad": {},
+    "internalIds": {},
+    "sheetWidth": 128,
+    "gutter": 2,
+    "guid": None,
+}
 
 
 def load_config(pixaki_path):
@@ -35,15 +44,26 @@ def load_config(pixaki_path):
     FileNotFoundError."""
     cfg_path = os.path.splitext(pixaki_path)[0] + ".json"
     if not os.path.exists(cfg_path):
-        raise FileNotFoundError(f"sprite-def config not found next to the .pixaki: {cfg_path}")
+        raise FileNotFoundError(
+            f"sprite-def config not found next to the .pixaki: {cfg_path}"
+        )
     with open(cfg_path) as f:
         data = json.load(f)
-    c = copy.deepcopy(_CONFIG_DEFAULTS); c.update(data)
+    c = copy.deepcopy(_CONFIG_DEFAULTS)
+    c.update(data)
     c["exclude"] = set(c["exclude"])
     c["sliced"] = set(c["sliced"])
-    c["borderOverride"] = {(b["name"], b["w"], b["h"]): tuple(b["border"]) for b in c["borderOverride"]}
-    c["pad"] = {k: (v["w"], v["h"], (tuple(v["anchor"]) if isinstance(v["anchor"], list) else v["anchor"]))
-                for k, v in c["pad"].items()}
+    c["borderOverride"] = {
+        (b["name"], b["w"], b["h"]): tuple(b["border"]) for b in c["borderOverride"]
+    }
+    c["pad"] = {
+        k: (
+            v["w"],
+            v["h"],
+            (tuple(v["anchor"]) if isinstance(v["anchor"], list) else v["anchor"]),
+        )
+        for k, v in c["pad"].items()
+    }
     return c
 
 
@@ -59,8 +79,11 @@ def collect_layers(doc, exclude_top):
     """Return the visible, named, drawing-bearing layers, skipping the
     excluded top-level groups and any hidden layer."""
     sp = doc["sprites"][0]
-    cel_size = {c["identifier"]: tuple(c["frame"][1])
-                for c in sp.get("cels", []) if c.get("frame")}
+    cel_size = {
+        c["identifier"]: tuple(c["frame"][1])
+        for c in sp.get("cels", [])
+        if c.get("frame")
+    }
     out = []
 
     def walk(node, top_excluded):
@@ -129,6 +152,7 @@ def assign_names(items):
     """items: list of (key, img_or_None, w, h, base_name).
     Returns {key: final_name}; appends ' WxH' when a base name repeats."""
     from collections import Counter
+
     base_counts = Counter(base for (_, _, _, _, base) in items)
     out = {}
     for key, _img, w, h, base in items:
@@ -162,14 +186,16 @@ def _validate_pins(pins, placed_named):
     if unused:
         raise ValueError(
             f"internalIds pins match no produced sprite (typo?): {unused}; "
-            f"produced names are {sorted(final_names)}")
+            f"produced names are {sorted(final_names)}"
+        )
     seen = {}
     for s in placed_named:
         iid = s["internal_id"]
         if iid in seen:
             raise ValueError(
                 f"duplicate internalID {iid} for '{seen[iid]}' and '{s['name']}' "
-                f"— internalIds pins collide")
+                f"— internalIds pins collide"
+            )
         seen[iid] = s["name"]
 
 
@@ -177,7 +203,7 @@ def pack(sprites, sheet_w=128, gutter=2):
     """sprites: list of (key, img_or_None, w, h) in the caller's deterministic order.
     Returns (placements: list of (key, x, y_bottomleft, w, h), sheet_w, sheet_h)."""
     cur_x, row_h, top = gutter, 0, gutter
-    placed_top = []     # (key, x, top, w, h)
+    placed_top = []  # (key, x, top, w, h)
     for key, _img, w, h in sprites:
         if cur_x + w + gutter > sheet_w:
             top += row_h + gutter
@@ -195,7 +221,9 @@ def _pad(img, target_w, target_h, anchor):
     'bottom' (centred x, bottom y), a (left, top) offset tuple, or top-left."""
     canvas = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
     if anchor == "bottom":
-        canvas.alpha_composite(img, ((target_w - img.width) // 2, target_h - img.height))
+        canvas.alpha_composite(
+            img, ((target_w - img.width) // 2, target_h - img.height)
+        )
     elif isinstance(anchor, tuple):
         canvas.alpha_composite(img, anchor)
     else:  # top-left
@@ -209,7 +237,7 @@ def border_for(name, w, h, sliced, border_override):
         return border_override[(name, w, h)]
     if name in sliced:
         return (1, 1, 1, 1)
-    return (0, 0, 0, 0)   # icons, caret, checkbox glyphs = simple
+    return (0, 0, 0, 0)  # icons, caret, checkbox glyphs = simple
 
 
 def _sprite_id(name):
@@ -250,11 +278,14 @@ def render_meta(template_meta_path, new_guid, placements_named):
     spriteSheet block. placements_named: list of dict(name, internal_id, x, y,
     w, h, border)."""
     import re
+
     tpl = open(template_meta_path).read()
     head, rest = tpl.split("  spriteSheet:\n", 1)
     _, tail = rest.split("  mipmapLimitGroupName:", 1)
     tail = "  mipmapLimitGroupName:" + tail
-    head = re.sub(r"^guid: [0-9a-f]{32}", f"guid: {new_guid}", head, count=1, flags=re.M)
+    head = re.sub(
+        r"^guid: [0-9a-f]{32}", f"guid: {new_guid}", head, count=1, flags=re.M
+    )
     ordered = sorted(placements_named, key=lambda s: s["name"])
     sprites = "".join(_sprite_block(s) for s in ordered)
     name_table = "".join(f"      {s['name']}: {s['internal_id']}\n" for s in ordered)
@@ -299,33 +330,44 @@ def build_sheet(pixaki_path, out_png, template_meta=None, guid=None):
         key = pixel_key(_normalize(layer, drawings))
         key_base.setdefault(key, layer.name)
     items = [(k, img, w, h, key_base[k]) for (k, img, w, h) in distinct]
-    names = assign_names(items)                       # {key: disambiguated name}
+    names = assign_names(items)  # {key: disambiguated name}
     # Fold in manual Sprite-Editor edits: pad sub-cell sprites up to their grid
     # cell (cfg["pad"], keyed by disambiguated name), then apply renames
     # (cfg["rename"]). internalID follows the FINAL (renamed) name.
     img_by_key, size_by_key = {}, {}
-    for (k, img, w, h, _) in items:
+    for k, img, w, h, _ in items:
         if names[k] in cfg["pad"]:
             tw, th, anchor = cfg["pad"][names[k]]
             img = _pad(img, tw, th, anchor)
             w, h = tw, th
         img_by_key[k], size_by_key[k] = img, (w, h)
     names = {k: cfg["rename"].get(v, v) for k, v in names.items()}
-    items.sort(key=lambda it: names[it[0]])           # deterministic order
-    placements, sw, sh = pack([(k, img_by_key[k], *size_by_key[k]) for (k, _, _, _, _) in items],
-                              sheet_w=cfg["sheetWidth"], gutter=cfg["gutter"])
+    items.sort(key=lambda it: names[it[0]])  # deterministic order
+    placements, sw, sh = pack(
+        [(k, img_by_key[k], *size_by_key[k]) for (k, _, _, _, _) in items],
+        sheet_w=cfg["sheetWidth"],
+        gutter=cfg["gutter"],
+    )
     sheet = Image.new("RGBA", (sw, sh), (0, 0, 0, 0))
     placed_named = []
     for key, x, y_bl, w, h in placements:
         top = sh - y_bl - h
         sheet.alpha_composite(img_by_key[key], (x, top))
         nm = names[key]
-        placed_named.append(dict(
-            name=nm, internal_id=internal_id(nm, cfg["internalIds"]),
-            x=x, y=y_bl, w=w, h=h,
-            border=border_for(key_base[key], w, h, cfg["sliced"], cfg["borderOverride"]),
-        ))
-    _validate_pins(cfg["internalIds"], placed_named)   # fail loud before any write
+        placed_named.append(
+            dict(
+                name=nm,
+                internal_id=internal_id(nm, cfg["internalIds"]),
+                x=x,
+                y=y_bl,
+                w=w,
+                h=h,
+                border=border_for(
+                    key_base[key], w, h, cfg["sliced"], cfg["borderOverride"]
+                ),
+            )
+        )
+    _validate_pins(cfg["internalIds"], placed_named)  # fail loud before any write
     sheet.save(out_png)
     new_guid = guid or cfg["guid"] or hashlib.sha1(out_png.encode()).hexdigest()[:32]
     # Render (which READS template_meta) BEFORE opening the output for write: an in-place regen
@@ -343,7 +385,9 @@ def main():
     ap.add_argument("out_png")
     ap.add_argument("--meta-template", default=None)
     ap.add_argument("--mapping-out", default=None)
-    ap.add_argument("--guid", default=None, help="force sheet GUID (else derived from out path)")
+    ap.add_argument(
+        "--guid", default=None, help="force sheet GUID (else derived from out path)"
+    )
     a = ap.parse_args()
     mapping, guid = build_sheet(a.pixaki, a.out_png, a.meta_template, guid=a.guid)
     if a.mapping_out:

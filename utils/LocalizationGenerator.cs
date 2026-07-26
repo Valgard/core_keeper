@@ -44,11 +44,13 @@ namespace CoreKeeperModUtils
 
         public static void Generate(string yamlPath, string outDir, string tablePath)
         {
-            if (!File.Exists(yamlPath)) throw new FileNotFoundException($"[LocGen] YAML not found: {yamlPath}");
-            if (!File.Exists(tablePath)) throw new FileNotFoundException($"[LocGen] address table not found: {tablePath}");
+            if (!File.Exists(yamlPath))
+                throw new FileNotFoundException($"[LocGen] YAML not found: {yamlPath}");
+            if (!File.Exists(tablePath))
+                throw new FileNotFoundException($"[LocGen] address table not found: {tablePath}");
 
-            var langs = LangTable.Load(tablePath);                       // ISO -> (low, high), + primary
-            var terms = LocYaml.Parse(File.ReadAllText(yamlPath));       // throws on U+2026 / U+2014
+            var langs = LangTable.Load(tablePath); // ISO -> (low, high), + primary
+            var terms = LocYaml.Parse(File.ReadAllText(yamlPath)); // throws on U+2026 / U+2014
 
             var scriptGuid = AssetDatabase.AssetPathToGUID(ScriptableDataDllPath);
             if (string.IsNullOrEmpty(scriptGuid))
@@ -57,7 +59,8 @@ namespace CoreKeeperModUtils
             // outDir is the mod's real unity/ path; it surfaces under the SDK's
             // Assets/ tree via link.sh's directory symlink, so File writes + an
             // AssetDatabase.Refresh() import the generated assets.
-            if (Directory.Exists(outDir)) Directory.Delete(outDir, true); // clean regen
+            if (Directory.Exists(outDir))
+                Directory.Delete(outDir, true); // clean regen
             Directory.CreateDirectory(outDir);
 
             foreach (var t in terms)
@@ -116,16 +119,17 @@ namespace CoreKeeperModUtils
         private static string BuildMeta(LocTerm t)
         {
             var guid = DeterministicGuid("meta:" + t.Namespace + "/" + t.Leaf);
-            return "fileFormatVersion: 2\n" +
-                   $"guid: {guid}\n" +
-                   "NativeFormatImporter:\n  externalObjects: {}\n  mainObjectFileID: 11400000\n" +
-                   "  userData: \n  assetBundleName: \n  assetBundleVariant: \n";
+            return "fileFormatVersion: 2\n"
+                + $"guid: {guid}\n"
+                + "NativeFormatImporter:\n  externalObjects: {}\n  mainObjectFileID: 11400000\n"
+                + "  userData: \n  assetBundleName: \n  assetBundleVariant: \n";
         }
 
         // Single-quote non-empty values (handles leading '{', ':' etc.); empty -> bare.
         private static string Yaml(string s)
         {
-            if (string.IsNullOrEmpty(s)) return "";
+            if (string.IsNullOrEmpty(s))
+                return "";
             return "'" + s.Replace("'", "''") + "'";
         }
 
@@ -140,10 +144,15 @@ namespace CoreKeeperModUtils
             var b = MD5.Create().ComputeHash(Encoding.UTF8.GetBytes(key));
             return BitConverter.ToString(b).Replace("-", "").ToLowerInvariant();
         }
-
     }
 
-    internal sealed class LangEntry { public string Iso; public long Low; public long High; public int Order; }
+    internal sealed class LangEntry
+    {
+        public string Iso;
+        public long Low;
+        public long High;
+        public int Order;
+    }
 
     internal sealed class LangTable
     {
@@ -156,7 +165,15 @@ namespace CoreKeeperModUtils
             // Minimal JSON read via Unity's JsonUtility wrapper types.
             var raw = File.ReadAllText(path);
             var parsed = JsonUtility.FromJson<Wrapper>(WrapForJsonUtility(raw));
-            var list = parsed.languages.Select(l => new LangEntry { Iso = l.iso, Low = l.low, High = l.high, Order = l.order }).ToList();
+            var list = parsed
+                .languages.Select(l => new LangEntry
+                {
+                    Iso = l.iso,
+                    Low = l.low,
+                    High = l.high,
+                    Order = l.order,
+                })
+                .ToList();
             return new LangTable
             {
                 Ordered = list.OrderBy(l => l.Order).ToList(),
@@ -170,13 +187,27 @@ namespace CoreKeeperModUtils
         // our file already has {"languages":[...]}, so pass through.
         private static string WrapForJsonUtility(string raw) => raw;
 
-        [Serializable] private class Wrapper { public Lang[] languages; }
-        [Serializable] private class Lang { public string iso; public long low; public long high; public int order; }
+        [Serializable]
+        private class Wrapper
+        {
+            public Lang[] languages;
+        }
+
+        [Serializable]
+        private class Lang
+        {
+            public string iso;
+            public long low;
+            public long high;
+            public int order;
+        }
     }
 
     internal sealed class LocTerm
     {
-        public string Namespace, Leaf, Hint = "";
+        public string Namespace,
+            Leaf,
+            Hint = "";
         public readonly Dictionary<string, (string Title, string Desc)> ByLang = new();
     }
 
@@ -185,38 +216,53 @@ namespace CoreKeeperModUtils
         public static List<LocTerm> Parse(string text)
         {
             var terms = new List<LocTerm>();
-            string ns = null; LocTerm cur = null; int lineNo = 0;
+            string ns = null;
+            LocTerm cur = null;
+            int lineNo = 0;
             foreach (var rawLine in text.Replace("\r", "").Split('\n'))
             {
                 lineNo++;
                 var line = StripComment(rawLine);
-                if (line.Trim().Length == 0) continue;
+                if (line.Trim().Length == 0)
+                    continue;
                 int indent = line.Length - line.TrimStart(' ').Length;
                 var body = line.Trim();
 
-                if (indent == 0) { ns = body.TrimEnd(':').Trim(); continue; }
-                if (ns == null) throw new Exception($"[LocGen] line {lineNo}: entry before any namespace");
+                if (indent == 0)
+                {
+                    ns = body.TrimEnd(':').Trim();
+                    continue;
+                }
+                if (ns == null)
+                    throw new Exception($"[LocGen] line {lineNo}: entry before any namespace");
 
                 if (indent == 2)
                 {
                     int c = body.IndexOf(':');
-                    if (c < 0) throw new Exception($"[LocGen] line {lineNo}: expected 'Leaf:'");
+                    if (c < 0)
+                        throw new Exception($"[LocGen] line {lineNo}: expected 'Leaf:'");
                     cur = new LocTerm { Namespace = ns, Leaf = body[..c].Trim() };
                     terms.Add(cur);
                     var rest = body[(c + 1)..].Trim();
                     var map = MapBody(rest);
-                    if (map != null) foreach (var kv in map) SetLang(cur, kv.Key, kv.Value, lineNo);
+                    if (map != null)
+                        foreach (var kv in map)
+                            SetLang(cur, kv.Key, kv.Value, lineNo);
                     continue;
                 }
                 if (indent == 4)
                 {
-                    if (cur == null) throw new Exception($"[LocGen] line {lineNo}: value before any term");
+                    if (cur == null)
+                        throw new Exception($"[LocGen] line {lineNo}: value before any term");
                     int c = body.IndexOf(':');
-                    if (c < 0) throw new Exception($"[LocGen] line {lineNo}: expected 'key: value'");
+                    if (c < 0)
+                        throw new Exception($"[LocGen] line {lineNo}: expected 'key: value'");
                     var k = body[..c].Trim();
                     var v = body[(c + 1)..].Trim();
-                    if (k == "hint") cur.Hint = Ascii(Unquote(v), lineNo);
-                    else SetLang(cur, k, v, lineNo);
+                    if (k == "hint")
+                        cur.Hint = Ascii(Unquote(v), lineNo);
+                    else
+                        SetLang(cur, k, v, lineNo);
                     continue;
                 }
                 throw new Exception($"[LocGen] line {lineNo}: unexpected indent {indent}");
@@ -235,8 +281,10 @@ namespace CoreKeeperModUtils
 
         private static string Ascii(string s, int lineNo)
         {
-            if (s.IndexOf('…') >= 0) throw new Exception($"[LocGen] line {lineNo}: U+2026 ellipsis forbidden (CK thinTiny font crashes — docs/gotchas.md). Use '...'.");
-            if (s.IndexOf('—') >= 0) throw new Exception($"[LocGen] line {lineNo}: U+2014 em-dash renders as hyphen (docs/gotchas.md). Use '-' or '--'.");
+            if (s.IndexOf('…') >= 0)
+                throw new Exception($"[LocGen] line {lineNo}: U+2026 ellipsis forbidden (CK thinTiny font crashes — docs/gotchas.md). Use '...'.");
+            if (s.IndexOf('—') >= 0)
+                throw new Exception($"[LocGen] line {lineNo}: U+2014 em-dash renders as hyphen (docs/gotchas.md). Use '-' or '--'.");
             return s;
         }
 
@@ -246,8 +294,10 @@ namespace CoreKeeperModUtils
             bool q = false;
             for (int i = 0; i < l.Length; i++)
             {
-                if (l[i] == '\'') q = !q;
-                if (l[i] == '#' && !q) return l[..i];
+                if (l[i] == '\'')
+                    q = !q;
+                if (l[i] == '#' && !q)
+                    return l[..i];
             }
             return l;
         }
@@ -255,20 +305,24 @@ namespace CoreKeeperModUtils
         private static string Unquote(string v)
         {
             v = v.Trim();
-            if (v.Length >= 2 && v[0] == '\'' && v[^1] == '\'') return v[1..^1].Replace("''", "'");
-            if (v.Length >= 2 && v[0] == '"' && v[^1] == '"') return v[1..^1];
+            if (v.Length >= 2 && v[0] == '\'' && v[^1] == '\'')
+                return v[1..^1].Replace("''", "'");
+            if (v.Length >= 2 && v[0] == '"' && v[^1] == '"')
+                return v[1..^1];
             return v;
         }
 
         private static Dictionary<string, string> MapBody(string v)
         {
             v = v.Trim();
-            if (v.Length < 2 || v[0] != '{' || v[^1] != '}') return null;
+            if (v.Length < 2 || v[0] != '{' || v[^1] != '}')
+                return null;
             var d = new Dictionary<string, string>();
             foreach (var part in SplitTop(v[1..^1]))
             {
                 int c = part.IndexOf(':');
-                if (c < 0) continue;
+                if (c < 0)
+                    continue;
                 d[part[..c].Trim()] = Unquote(part[(c + 1)..].Trim());
             }
             return d;
@@ -276,14 +330,22 @@ namespace CoreKeeperModUtils
 
         private static IEnumerable<string> SplitTop(string s)
         {
-            var sb = new StringBuilder(); bool q = false;
+            var sb = new StringBuilder();
+            bool q = false;
             foreach (var ch in s)
             {
-                if (ch == '\'') q = !q;
-                if (ch == ',' && !q) { yield return sb.ToString(); sb.Clear(); }
-                else sb.Append(ch);
+                if (ch == '\'')
+                    q = !q;
+                if (ch == ',' && !q)
+                {
+                    yield return sb.ToString();
+                    sb.Clear();
+                }
+                else
+                    sb.Append(ch);
             }
-            if (sb.Length > 0) yield return sb.ToString();
+            if (sb.Length > 0)
+                yield return sb.ToString();
         }
     }
 }

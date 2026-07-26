@@ -17,7 +17,11 @@ namespace CoreKeeperModUtils
             try
             {
                 var modName = Environment.GetEnvironmentVariable("MOD_NAME");
-                if (string.IsNullOrEmpty(modName)) { Fail("MOD_NAME not set"); return; }
+                if (string.IsNullOrEmpty(modName))
+                {
+                    Fail("MOD_NAME not set");
+                    return;
+                }
 
                 // Generate native TextDataBlock assets from localization.yaml first
                 // (no-op when LOC_YAML/LOC_OUT are unset).
@@ -25,10 +29,18 @@ namespace CoreKeeperModUtils
 
                 var settingsPath = $"Assets/{modName}.asset";
                 var settings = AssetDatabase.LoadAssetAtPath<ModBuilderSettings>(settingsPath);
-                if (settings == null) { Fail($"No ModBuilderSettings at {settingsPath}"); return; }
+                if (settings == null)
+                {
+                    Fail($"No ModBuilderSettings at {settingsPath}");
+                    return;
+                }
 
                 var exportPath = Environment.GetEnvironmentVariable("MOD_INSTALL_PATH");
-                if (string.IsNullOrEmpty(exportPath)) { Fail("MOD_INSTALL_PATH not set"); return; }
+                if (string.IsNullOrEmpty(exportPath))
+                {
+                    Fail("MOD_INSTALL_PATH not set");
+                    return;
+                }
                 Directory.CreateDirectory(exportPath);
 
                 // Refresh + recursive-import: cheap insurance against stale
@@ -37,15 +49,18 @@ namespace CoreKeeperModUtils
                 // taub and only a `rm -rf Library/SourceAssetDB` triggers a
                 // full reindex. See docs / project memory.
                 AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
-                AssetDatabase.ImportAsset(settings.modPath,
-                    ImportAssetOptions.ImportRecursive | ImportAssetOptions.ForceSynchronousImport);
+                AssetDatabase.ImportAsset(settings.modPath, ImportAssetOptions.ImportRecursive | ImportAssetOptions.ForceSynchronousImport);
 
                 Debug.Log($"[CLIBuildHelper] Building {modName} → {exportPath}");
-                ModBuilder.BuildMod(settings, exportPath, ok =>
-                {
-                    Debug.Log($"[CLIBuildHelper] Build {(ok ? "succeeded" : "FAILED")}");
-                    EditorApplication.Exit(ok ? 0 : 1);
-                });
+                ModBuilder.BuildMod(
+                    settings,
+                    exportPath,
+                    ok =>
+                    {
+                        Debug.Log($"[CLIBuildHelper] Build {(ok ? "succeeded" : "FAILED")}");
+                        EditorApplication.Exit(ok ? 0 : 1);
+                    }
+                );
             }
             catch (Exception e)
             {

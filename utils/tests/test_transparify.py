@@ -1,5 +1,6 @@
 """Unit tests for transparify.py — a faithful port of transparify.app's
 white/black difference matting (Euclidean-distance alpha + un-premultiply)."""
+
 import pytest
 from PIL import Image
 
@@ -43,7 +44,9 @@ def test_white_glow_recovers_partial_alpha():
 def test_below_threshold_zeroes_colour():
     # W=(255,255,255), B=(2,2,2) => a ~ 0.008 < 0.01: colour forced to 0,
     # alpha kept (round(255*a) ~ 2) — matches transparify's u>0.01 colour gate.
-    out = t.difference_matte(_solid((255, 255, 255)), _solid((2, 2, 2))).getpixel((0, 0))
+    out = t.difference_matte(_solid((255, 255, 255)), _solid((2, 2, 2))).getpixel(
+        (0, 0)
+    )
     assert out[:3] == (0, 0, 0)
     assert out[3] <= 3
 

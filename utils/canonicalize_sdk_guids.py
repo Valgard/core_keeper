@@ -20,6 +20,7 @@ Usage:
   canonicalize_sdk_guids.py check      # report drift vs snapshot (no changes)
   canonicalize_sdk_guids.py apply      # pin SDK DLL GUIDs to snapshot (new-mac setup)
 """
+
 import json
 import os
 import re
@@ -62,7 +63,9 @@ def main():
     missing = [k for k in want if k not in cur]
 
     if cmd == "check":
-        print(f"snapshot: {len(want)} DLLs | drifted: {len(drift)} | missing in SDK: {len(missing)}")
+        print(
+            f"snapshot: {len(want)} DLLs | drifted: {len(drift)} | missing in SDK: {len(missing)}"
+        )
         for k, (c, w) in list(drift.items())[:30]:
             print(f"  {k}: SDK={c} -> canonical={w}")
         if missing:
@@ -82,8 +85,12 @@ def main():
                 n += 1
         print(f"apply: pinned {n} DLL GUID(s) to canonical")
         if n:
-            print("NEXT: delete CoreKeeperModSDK/Library/SourceAssetDB (+ Bee, ScriptAssemblies)")
-            print("      then reopen the Editor so Unity reimports against the pinned GUIDs.")
+            print(
+                "NEXT: delete CoreKeeperModSDK/Library/SourceAssetDB (+ Bee, ScriptAssemblies)"
+            )
+            print(
+                "      then reopen the Editor so Unity reimports against the pinned GUIDs."
+            )
         return
 
     print(__doc__)

@@ -26,6 +26,7 @@ Usage:
                    --black "logo 3 - black background.jpeg" \\
                    --out   "logo 3.png"
 """
+
 import argparse
 import math
 
@@ -52,8 +53,7 @@ def difference_matte(
     white = white.convert("RGB")
     black = black.convert("RGB")
     if white.size != black.size:
-        raise ValueError(
-            f"white {white.size} and black {black.size} differ in size")
+        raise ValueError(f"white {white.size} and black {black.size} differ in size")
 
     wb = white.tobytes()
     kb = black.tobytes()
@@ -80,16 +80,27 @@ def difference_matte(
 def main() -> None:
     ap = argparse.ArgumentParser(
         description="Recover a transparent PNG from a white/black render pair "
-                    "(a local, faithful port of transparify.app).")
-    ap.add_argument("--white", "-w", required=True,
-                    help="path to the render on a pure WHITE background")
-    ap.add_argument("--black", "-b", required=True,
-                    help="path to the render on a pure BLACK background")
-    ap.add_argument("--out", "-o", required=True,
-                    help="output transparent PNG path")
-    ap.add_argument("--threshold", type=float, default=0.01,
-                    help="below this alpha a pixel's colour is zeroed "
-                         "(transparify.app uses 0.01)")
+        "(a local, faithful port of transparify.app)."
+    )
+    ap.add_argument(
+        "--white",
+        "-w",
+        required=True,
+        help="path to the render on a pure WHITE background",
+    )
+    ap.add_argument(
+        "--black",
+        "-b",
+        required=True,
+        help="path to the render on a pure BLACK background",
+    )
+    ap.add_argument("--out", "-o", required=True, help="output transparent PNG path")
+    ap.add_argument(
+        "--threshold",
+        type=float,
+        default=0.01,
+        help="below this alpha a pixel's colour is zeroed (transparify.app uses 0.01)",
+    )
     args = ap.parse_args()
 
     with Image.open(args.white) as white, Image.open(args.black) as black:

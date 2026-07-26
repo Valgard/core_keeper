@@ -17,6 +17,7 @@ Usage:
 Example:
     import_vanilla_prefab.py UISettings mod-settings-menu/unity/ModSettingsMenu/_vanilla_ref
 """
+
 import os
 import re
 import shutil
@@ -133,7 +134,7 @@ def main():
 
     to_copy = [start] + sorted(assets)
     for src in to_copy:
-        rel = src[len(RES) + 1:]
+        rel = src[len(RES) + 1 :]
         dst = os.path.join(dest, rel)
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copy2(src, dst)
@@ -145,7 +146,7 @@ def main():
     remapped_files = 0
     missing = {}
     for src in to_copy:
-        dst = os.path.join(dest, src[len(RES) + 1:])
+        dst = os.path.join(dest, src[len(RES) + 1 :])
         txt = open(dst, errors="ignore").read()
         n = 0
         for ar_g, sdk_g in remap.items():
@@ -164,8 +165,10 @@ def main():
     print(f"  files copied: {len(to_copy)} ({len(assets)} asset deps)")
     print(f"  script GUIDs remapped: {remapped_refs} refs in {remapped_files} files")
     if missing:
-        print(f"  WARNING: {len(missing)} referenced assemblies are NOT in the SDK "
-              f"(these will still be Missing Script):")
+        print(
+            f"  WARNING: {len(missing)} referenced assemblies are NOT in the SDK "
+            f"(these will still be Missing Script):"
+        )
         for asm, g in sorted(missing.items()):
             print(f"    - {asm} ({g})")
     else:

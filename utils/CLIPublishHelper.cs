@@ -38,7 +38,11 @@ namespace CoreKeeperModUtils
             try
             {
                 _modName = Environment.GetEnvironmentVariable("MOD_NAME");
-                if (string.IsNullOrEmpty(_modName)) { Fail("MOD_NAME not set"); return; }
+                if (string.IsNullOrEmpty(_modName))
+                {
+                    Fail("MOD_NAME not set");
+                    return;
+                }
                 _settingsPath = $"Assets/{_modName}.asset";
                 _modIoSettingsPath = $"Assets/{_modName}/Editor/{_modName}_modio.asset";
                 _logoAssetPath = $"Assets/{_modName}/Editor/logo.png";
@@ -48,35 +52,40 @@ namespace CoreKeeperModUtils
                 _depsMapPath = Environment.GetEnvironmentVariable("MODIO_DEPS_MAP");
 
                 var repoRoot = Environment.GetEnvironmentVariable("MOD_REPO_ROOT");
-                if (string.IsNullOrEmpty(repoRoot)) { Fail("MOD_REPO_ROOT not set"); return; }
+                if (string.IsNullOrEmpty(repoRoot))
+                {
+                    Fail("MOD_REPO_ROOT not set");
+                    return;
+                }
 
                 var changelogPath = Path.Combine(repoRoot, "CHANGELOG.md");
                 if (!File.Exists(changelogPath))
                 {
-                    Fail($"No CHANGELOG.md at {changelogPath}"); return;
+                    Fail($"No CHANGELOG.md at {changelogPath}");
+                    return;
                 }
-                if (!TryParseChangelog(File.ReadAllText(changelogPath),
-                        out _version, out _changelog))
+                if (!TryParseChangelog(File.ReadAllText(changelogPath), out _version, out _changelog))
                 {
-                    Fail("CHANGELOG.md has no '## [x.y.z]' entry"); return;
+                    Fail("CHANGELOG.md has no '## [x.y.z]' entry");
+                    return;
                 }
 
                 // Optional mod.io profile description from modio-description.md
                 // (Markdown -> HTML; mod.io's description field is HTML). An
                 // absent file leaves the existing mod.io description untouched.
                 var descPath = Path.Combine(repoRoot, "modio-description.md");
-                _descriptionHtml = File.Exists(descPath)
-                    ? MarkdownToHtml(File.ReadAllText(descPath))
-                    : "";
+                _descriptionHtml = File.Exists(descPath) ? MarkdownToHtml(File.ReadAllText(descPath)) : "";
                 if (string.IsNullOrEmpty(_descriptionHtml))
-                    Debug.Log("[CLIPublishHelper] no modio-description.md — "
-                              + "leaving the mod.io description unchanged.");
+                    Debug.Log("[CLIPublishHelper] no modio-description.md — " + "leaving the mod.io description unchanged.");
 
-                Debug.Log($"[CLIPublishHelper] {_modName} v{_version}"
-                          + (_dryRun ? " (dry run)" : ""));
+                Debug.Log($"[CLIPublishHelper] {_modName} v{_version}" + (_dryRun ? " (dry run)" : ""));
 
                 var settings = AssetDatabase.LoadAssetAtPath<ModBuilderSettings>(_settingsPath);
-                if (settings == null) { Fail($"No ModBuilderSettings at {_settingsPath}"); return; }
+                if (settings == null)
+                {
+                    Fail($"No ModBuilderSettings at {_settingsPath}");
+                    return;
+                }
 
                 // Profile-only: just refresh the mod.io profile (description,
                 // name, summary, logo) via EditModProfile — no build, no version
@@ -84,9 +93,9 @@ namespace CoreKeeperModUtils
                 // edited modio-description.md without cutting a new release.
                 if (_profileOnly)
                 {
-                    Debug.Log("[CLIPublishHelper] profile-only: skipping build, "
-                              + "tags, dependency sync and modfile upload; "
-                              + "updating the mod.io profile only.");
+                    Debug.Log(
+                        "[CLIPublishHelper] profile-only: skipping build, " + "tags, dependency sync and modfile upload; " + "updating the mod.io profile only."
+                    );
                     OnBuilt();
                     return;
                 }
@@ -100,39 +109,46 @@ namespace CoreKeeperModUtils
                 // reference_ck_mod_loc_csv_persistence project memory.
                 LocalizationGenerator.GenerateFromEnv();
 
-                _buildDir = Path.Combine(Application.temporaryCachePath,
-                    Guid.NewGuid().ToString());
+                _buildDir = Path.Combine(Application.temporaryCachePath, Guid.NewGuid().ToString());
                 Directory.CreateDirectory(_buildDir);
 
-                ModBuilder.BuildMod(settings, _buildDir, buildOk =>
-                {
-                    if (!buildOk) { Fail("Build failed"); return; }
-                    OnBuilt();
-                }, installInSubDirectory: false);
+                ModBuilder.BuildMod(
+                    settings,
+                    _buildDir,
+                    buildOk =>
+                    {
+                        if (!buildOk)
+                        {
+                            Fail("Build failed");
+                            return;
+                        }
+                        OnBuilt();
+                    },
+                    installInSubDirectory: false
+                );
             }
-            catch (Exception e) { Fail($"Exception: {e}"); }
+            catch (Exception e)
+            {
+                Fail($"Exception: {e}");
+            }
         }
 
         /// <summary>
         /// Extracts the topmost "## [x.y.z]" entry of a Keep-a-Changelog file:
         /// its version and the body text up to the next "## " header.
         /// </summary>
-        public static bool TryParseChangelog(string content, out string version,
-            out string changelog)
+        public static bool TryParseChangelog(string content, out string version, out string changelog)
         {
             version = null;
             changelog = null;
-            var header = Regex.Match(content,
-                @"^##\s*\[(\d+\.\d+\.\d+)\].*$", RegexOptions.Multiline);
-            if (!header.Success) return false;
+            var header = Regex.Match(content, @"^##\s*\[(\d+\.\d+\.\d+)\].*$", RegexOptions.Multiline);
+            if (!header.Success)
+                return false;
             version = header.Groups[1].Value;
 
             int bodyStart = header.Index + header.Length;
-            var next = Regex.Match(content.Substring(bodyStart),
-                @"^##\s", RegexOptions.Multiline);
-            changelog = (next.Success
-                ? content.Substring(bodyStart, next.Index)
-                : content.Substring(bodyStart)).Trim();
+            var next = Regex.Match(content.Substring(bodyStart), @"^##\s", RegexOptions.Multiline);
+            changelog = (next.Success ? content.Substring(bodyStart, next.Index) : content.Substring(bodyStart)).Trim();
             return true;
         }
 
@@ -144,7 +160,8 @@ namespace CoreKeeperModUtils
         /// </summary>
         public static string MarkdownToHtml(string md)
         {
-            if (string.IsNullOrEmpty(md)) return "";
+            if (string.IsNullOrEmpty(md))
+                return "";
             var lines = md.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
             var sb = new StringBuilder();
             var para = new List<string>();
@@ -153,41 +170,55 @@ namespace CoreKeeperModUtils
 
             void FlushItem()
             {
-                if (item.Count == 0) return;
+                if (item.Count == 0)
+                    return;
                 sb.Append("<li>").Append(Inline(string.Join(" ", item))).Append("</li>\n");
                 item.Clear();
             }
             void FlushPara()
             {
-                if (para.Count == 0) return;
+                if (para.Count == 0)
+                    return;
                 sb.Append("<p>").Append(Inline(string.Join(" ", para))).Append("</p>\n");
                 para.Clear();
             }
             void CloseList()
             {
                 FlushItem();
-                if (inList) { sb.Append("</ul>\n"); inList = false; }
+                if (inList)
+                {
+                    sb.Append("</ul>\n");
+                    inList = false;
+                }
             }
 
             foreach (var raw in lines)
             {
                 var t = raw.Trim();
-                if (t.Length == 0) { FlushPara(); CloseList(); continue; }
+                if (t.Length == 0)
+                {
+                    FlushPara();
+                    CloseList();
+                    continue;
+                }
                 if (t == "---" || t == "***" || t == "___")
                 {
-                    FlushPara(); CloseList(); sb.Append("<hr>\n"); continue;
+                    FlushPara();
+                    CloseList();
+                    sb.Append("<hr>\n");
+                    continue;
                 }
                 var h = Regex.Match(t, @"^(#{1,4})\s+(.*)$");
                 if (h.Success)
                 {
-                    FlushPara(); CloseList();
+                    FlushPara();
+                    CloseList();
                     // mod.io's description renderer drops <h1> (only h2+ render),
                     // so shift every heading down one level: '# Title' -> <h2>,
                     // '## Section' -> <h3>, ... (capped at <h6>). The source
                     // modio-description.md keeps its clean '# H1' house format.
                     int level = Math.Min(h.Groups[1].Value.Length + 1, 6);
-                    sb.Append($"<h{level}>").Append(Inline(h.Groups[2].Value))
-                      .Append($"</h{level}>\n");
+                    sb.Append($"<h{level}>").Append(Inline(h.Groups[2].Value)).Append($"</h{level}>\n");
                     continue;
                 }
                 var li = Regex.Match(t, @"^[-*+]\s+(.*)$");
@@ -195,7 +226,11 @@ namespace CoreKeeperModUtils
                 {
                     FlushPara();
                     FlushItem();
-                    if (!inList) { sb.Append("<ul>\n"); inList = true; }
+                    if (!inList)
+                    {
+                        sb.Append("<ul>\n");
+                        inList = true;
+                    }
                     item.Add(li.Groups[1].Value);
                     continue;
                 }
@@ -204,10 +239,15 @@ namespace CoreKeeperModUtils
                 // The mod-family descriptions soft-wrap long list items and
                 // paragraphs purely to keep source lines short; without this they
                 // would split the <li> and prematurely close the <ul>.
-                if (inList) { item.Add(t); continue; }
+                if (inList)
+                {
+                    item.Add(t);
+                    continue;
+                }
                 para.Add(t);
             }
-            FlushPara(); CloseList();
+            FlushPara();
+            CloseList();
             return sb.ToString().Trim();
         }
 
@@ -225,14 +265,17 @@ namespace CoreKeeperModUtils
             if (!ModIOUnity.IsInitialized())
             {
                 var init = ModIOUnity.InitializeForUser("PugModSDKUser");
-                if (!init.Succeeded()) { Fail("mod.io init failed"); return; }
+                if (!init.Succeeded())
+                {
+                    Fail("mod.io init failed");
+                    return;
+                }
             }
             ModIOUnity.IsAuthenticated(auth =>
             {
                 if (!auth.Succeeded())
                 {
-                    Fail("Not authenticated. Log in once via the SDK window's "
-                         + "'Log in' tab.");
+                    Fail("Not authenticated. Log in once via the SDK window's " + "'Log in' tab.");
                     return;
                 }
                 ResolveSettingsAndPublish();
@@ -243,7 +286,11 @@ namespace CoreKeeperModUtils
         {
             var modIo = AssetDatabase.LoadAssetAtPath<ModSettings>(_modIoSettingsPath);
             var builder = AssetDatabase.LoadAssetAtPath<ModBuilderSettings>(_settingsPath);
-            if (builder == null) { Fail($"No ModBuilderSettings at {_settingsPath}"); return; }
+            if (builder == null)
+            {
+                Fail($"No ModBuilderSettings at {_settingsPath}");
+                return;
+            }
             _builder = builder;
             if (modIo == null)
             {
@@ -259,23 +306,18 @@ namespace CoreKeeperModUtils
             // Checklist") over the internal identity name ("ItemChecklist",
             // which drives namespace/asmdef/dependency modName). Fall back to
             // name when no displayName is set.
-            var displayName = string.IsNullOrEmpty(builder.metadata.displayName)
-                ? builder.metadata.name
-                : builder.metadata.displayName;
+            var displayName = string.IsNullOrEmpty(builder.metadata.displayName) ? builder.metadata.name : builder.metadata.displayName;
 
             if (modIo.modId == 0)
             {
                 if (_profileOnly)
                 {
-                    Fail("profile-only needs an existing published mod, but "
-                         + $"{_modName} has no modId yet. Run a normal publish "
-                         + "first."); return;
+                    Fail("profile-only needs an existing published mod, but " + $"{_modName} has no modId yet. Run a normal publish " + "first.");
+                    return;
                 }
                 if (_dryRun)
                 {
-                    Debug.Log("[CLIPublishHelper] dry run: would create a new "
-                              + "mod profile."
-                              + (logo == null ? " (no logo asset yet)" : ""));
+                    Debug.Log("[CLIPublishHelper] dry run: would create a new " + "mod profile." + (logo == null ? " (no logo asset yet)" : ""));
                     EnsureDependenciesThenTag(modIo);
                     return;
                 }
@@ -294,20 +336,23 @@ namespace CoreKeeperModUtils
                 };
                 if (!string.IsNullOrEmpty(_descriptionHtml))
                     details.description = _descriptionHtml;
-                ModIOUnity.CreateModProfile(token, details, created =>
-                {
-                    if (!created.result.Succeeded())
+                ModIOUnity.CreateModProfile(
+                    token,
+                    details,
+                    created =>
                     {
-                        Fail($"CreateModProfile failed: {created.result.message}");
-                        return;
+                        if (!created.result.Succeeded())
+                        {
+                            Fail($"CreateModProfile failed: {created.result.message}");
+                            return;
+                        }
+                        modIo.modId = created.value;
+                        EditorUtility.SetDirty(modIo);
+                        AssetDatabase.SaveAssets();
+                        Debug.Log($"[CLIPublishHelper] Created mod.io profile, " + $"id={modIo.modId}");
+                        EnsureDependenciesThenTag(modIo);
                     }
-                    modIo.modId = created.value;
-                    EditorUtility.SetDirty(modIo);
-                    AssetDatabase.SaveAssets();
-                    Debug.Log($"[CLIPublishHelper] Created mod.io profile, "
-                              + $"id={modIo.modId}");
-                    EnsureDependenciesThenTag(modIo);
-                });
+                );
             }
             else
             {
@@ -315,15 +360,14 @@ namespace CoreKeeperModUtils
                 {
                     if (_profileOnly)
                     {
-                        Debug.Log("[CLIPublishHelper] dry run (profile-only): "
-                                  + $"would update the description of profile "
-                                  + $"{modIo.modId}; no modfile upload.");
+                        Debug.Log(
+                            "[CLIPublishHelper] dry run (profile-only): " + $"would update the description of profile " + $"{modIo.modId}; no modfile upload."
+                        );
                         Succeed();
                     }
                     else
                     {
-                        Debug.Log("[CLIPublishHelper] dry run: would update "
-                                  + $"profile {modIo.modId} and upload v{_version}.");
+                        Debug.Log("[CLIPublishHelper] dry run: would update " + $"profile {modIo.modId} and upload v{_version}.");
                         EnsureDependenciesThenTag(modIo);
                     }
                     return;
@@ -334,26 +378,30 @@ namespace CoreKeeperModUtils
                     name = displayName,
                     summary = summary,
                 };
-                if (logo != null) details.logo = logo;
+                if (logo != null)
+                    details.logo = logo;
                 if (!string.IsNullOrEmpty(_descriptionHtml))
                     details.description = _descriptionHtml;
-                ModIOUnity.EditModProfile(details, edited =>
-                {
-                    if (!edited.Succeeded())
+                ModIOUnity.EditModProfile(
+                    details,
+                    edited =>
                     {
-                        Fail($"EditModProfile failed: {edited.message}");
-                        return;
+                        if (!edited.Succeeded())
+                        {
+                            Fail($"EditModProfile failed: {edited.message}");
+                            return;
+                        }
+                        if (_profileOnly)
+                        {
+                            Debug.Log(
+                                "[CLIPublishHelper] profile-only: updated the " + $"description of {_modName} (modId " + $"{modIo.modId}). No modfile uploaded."
+                            );
+                            Succeed();
+                            return;
+                        }
+                        EnsureDependenciesThenTag(modIo);
                     }
-                    if (_profileOnly)
-                    {
-                        Debug.Log("[CLIPublishHelper] profile-only: updated the "
-                                  + $"description of {_modName} (modId "
-                                  + $"{modIo.modId}). No modfile uploaded.");
-                        Succeed();
-                        return;
-                    }
-                    EnsureDependenciesThenTag(modIo);
-                });
+                );
             }
         }
 
@@ -363,22 +411,28 @@ namespace CoreKeeperModUtils
             // versions the mod is compatible with (e.g. "1.2.1.2 1.2.1.4").
             // Each becomes a separate mod.io version tag.
             var gameVersionsRaw = Environment.GetEnvironmentVariable("CK_GAME_VERSION");
-            var gameVersions = (gameVersionsRaw ?? string.Empty)
-                .Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            var gameVersions = (gameVersionsRaw ?? string.Empty).Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
             if (gameVersions.Length == 0)
             {
-                Fail("CK_GAME_VERSION not set"); return;
+                Fail("CK_GAME_VERSION not set");
+                return;
             }
-            ModIOUnity.AddTags(new ModId(modIo.modId), gameVersions, tagRes =>
-            {
-                if (!tagRes.Succeeded())
+            ModIOUnity.AddTags(
+                new ModId(modIo.modId),
+                gameVersions,
+                tagRes =>
                 {
-                    Debug.LogWarning($"[CLIPublishHelper] Could not add version "
-                        + $"tag(s) '{string.Join(", ", gameVersions)}': {tagRes.message}. "
-                        + "Verify the exact tag value(s) on the mod.io website.");
+                    if (!tagRes.Succeeded())
+                    {
+                        Debug.LogWarning(
+                            $"[CLIPublishHelper] Could not add version "
+                                + $"tag(s) '{string.Join(", ", gameVersions)}': {tagRes.message}. "
+                                + "Verify the exact tag value(s) on the mod.io website."
+                        );
+                    }
+                    Upload(modIo);
                 }
-                Upload(modIo);
-            });
+            );
         }
 
         private static void Upload(ModSettings modIo)
@@ -390,17 +444,19 @@ namespace CoreKeeperModUtils
                 version = _version,
                 changelog = _changelog,
             };
-            ModIOUnity.UploadModfile(file, uploaded =>
-            {
-                if (!uploaded.Succeeded())
+            ModIOUnity.UploadModfile(
+                file,
+                uploaded =>
                 {
-                    Fail($"UploadModfile failed: {uploaded.message}");
-                    return;
+                    if (!uploaded.Succeeded())
+                    {
+                        Fail($"UploadModfile failed: {uploaded.message}");
+                        return;
+                    }
+                    Debug.Log($"[CLIPublishHelper] Uploaded {_modName} v{_version}. " + "Review and set the profile visible on mod.io.");
+                    Succeed();
                 }
-                Debug.Log($"[CLIPublishHelper] Uploaded {_modName} v{_version}. "
-                          + "Review and set the profile visible on mod.io.");
-                Succeed();
-            });
+            );
         }
 
         // ---- mod.io dependency sync (from the .asset metadata.dependencies) ----
@@ -408,10 +464,17 @@ namespace CoreKeeperModUtils
         // JsonUtility cannot (de)serialise dictionaries, so the cache is a list
         // of {modName, modId} entries rather than a flat {name: id} object.
         [Serializable]
-        private class DepMapEntry { public string modName; public long modId; }
+        private class DepMapEntry
+        {
+            public string modName;
+            public long modId;
+        }
 
         [Serializable]
-        private class DepMap { public List<DepMapEntry> entries = new List<DepMapEntry>(); }
+        private class DepMap
+        {
+            public List<DepMapEntry> entries = new List<DepMapEntry>();
+        }
 
         private static DepMap LoadDepMap()
         {
@@ -419,13 +482,11 @@ namespace CoreKeeperModUtils
                 return new DepMap();
             try
             {
-                return JsonUtility.FromJson<DepMap>(File.ReadAllText(_depsMapPath))
-                       ?? new DepMap();
+                return JsonUtility.FromJson<DepMap>(File.ReadAllText(_depsMapPath)) ?? new DepMap();
             }
             catch (Exception e)
             {
-                Debug.LogWarning($"[CLIPublishHelper] Could not read deps map "
-                    + $"{_depsMapPath}: {e.Message}. Treating as empty.");
+                Debug.LogWarning($"[CLIPublishHelper] Could not read deps map " + $"{_depsMapPath}: {e.Message}. Treating as empty.");
                 return new DepMap();
             }
         }
@@ -436,8 +497,7 @@ namespace CoreKeeperModUtils
         {
             if (string.IsNullOrEmpty(_depsMapPath))
             {
-                Debug.LogWarning("[CLIPublishHelper] MODIO_DEPS_MAP not set — "
-                    + "resolved dependency ID not cached.");
+                Debug.LogWarning("[CLIPublishHelper] MODIO_DEPS_MAP not set — " + "resolved dependency ID not cached.");
                 return;
             }
             File.WriteAllText(_depsMapPath, JsonUtility.ToJson(map, prettyPrint: true));
@@ -445,8 +505,7 @@ namespace CoreKeeperModUtils
 
         // Case-insensitive, whitespace-insensitive name comparison key, so the
         // loader identity "CoreLib" matches a mod.io title "Core Lib".
-        private static string Normalize(string s) =>
-            (s ?? string.Empty).Replace(" ", string.Empty).ToLowerInvariant();
+        private static string Normalize(string s) => (s ?? string.Empty).Replace(" ", string.Empty).ToLowerInvariant();
 
         // Insert spaces before each uppercase letter that follows a lowercase
         // one, mapping our PascalCase loader names to the Title-Case display
@@ -455,7 +514,8 @@ namespace CoreKeeperModUtils
         // no internal capital pass through unchanged.
         private static string SplitCamelCase(string s)
         {
-            if (string.IsNullOrEmpty(s)) return s ?? string.Empty;
+            if (string.IsNullOrEmpty(s))
+                return s ?? string.Empty;
             var sb = new System.Text.StringBuilder(s.Length + 8);
             for (int i = 0; i < s.Length; i++)
             {
@@ -474,13 +534,14 @@ namespace CoreKeeperModUtils
         {
             if (dep.required)
             {
-                Fail($"Required dependency '{dep.modName}' could not be resolved "
-                    + $"to a mod.io id: {reason}. Add it to {_depsMapPath} manually "
-                    + "and re-run.");
+                Fail(
+                    $"Required dependency '{dep.modName}' could not be resolved "
+                        + $"to a mod.io id: {reason}. Add it to {_depsMapPath} manually "
+                        + "and re-run."
+                );
                 return false;
             }
-            Debug.LogWarning($"[CLIPublishHelper] Optional dependency "
-                + $"'{dep.modName}' could not be resolved: {reason}. Skipping.");
+            Debug.LogWarning($"[CLIPublishHelper] Optional dependency " + $"'{dep.modName}' could not be resolved: {reason}. Skipping.");
             return true;
         }
 
@@ -501,9 +562,7 @@ namespace CoreKeeperModUtils
         // Resolution is callback-based per cache miss, so it runs sequentially
         // (resolve one, continue in its callback). On the last index it hands the
         // resolved ID list to SyncDependencies.
-        private static void ResolveNext(ModSettings modIo,
-            List<ModMetadata.Dependency> deps, int index, DepMap map,
-            List<long> resolved)
+        private static void ResolveNext(ModSettings modIo, List<ModMetadata.Dependency> deps, int index, DepMap map, List<long> resolved)
         {
             if (index >= deps.Count)
             {
@@ -514,8 +573,7 @@ namespace CoreKeeperModUtils
 
             // 1. Cache hit. Case-insensitive so a `.asset`-side casing drift
             // (e.g. "Corelib" vs the cached "CoreLib") still resolves.
-            var hit = map.entries.Find(e =>
-                string.Equals(e.modName, dep.modName, StringComparison.OrdinalIgnoreCase));
+            var hit = map.entries.Find(e => string.Equals(e.modName, dep.modName, StringComparison.OrdinalIgnoreCase));
             if (hit != null)
             {
                 resolved.Add(hit.modId);
@@ -543,43 +601,43 @@ namespace CoreKeeperModUtils
             filter.SetPageIndex(0);
             filter.SetPageSize(100);
             filter.AddSearchPhrase(SplitCamelCase(dep.modName));
-            ModIOUnity.GetMods(filter, page =>
-            {
-                if (!page.result.Succeeded())
+            ModIOUnity.GetMods(
+                filter,
+                page =>
                 {
-                    if (!HandleUnresolved(dep, $"GetMods failed: {page.result.message}"))
+                    if (!page.result.Succeeded())
+                    {
+                        if (!HandleUnresolved(dep, $"GetMods failed: {page.result.message}"))
+                            return;
+                        ResolveNext(modIo, deps, index + 1, map, resolved);
+                        return;
+                    }
+
+                    var profiles = page.value.modProfiles ?? new ModProfile[0];
+                    var matches = new List<ModProfile>();
+                    foreach (var p in profiles)
+                        if (Normalize(p.name) == Normalize(dep.modName))
+                            matches.Add(p);
+
+                    if (matches.Count == 1)
+                    {
+                        long id = matches[0].id;
+                        resolved.Add(id);
+                        map.entries.Add(new DepMapEntry { modName = dep.modName, modId = id });
+                        SaveDepMap(map);
+                        Debug.Log($"[CLIPublishHelper] Resolved dependency " + $"'{dep.modName}' -> mod.io id {id} (cached).");
+                        ResolveNext(modIo, deps, index + 1, map, resolved);
+                        return;
+                    }
+
+                    var candidates = string.Join(", ", Array.ConvertAll(profiles, p => $"{p.id}:{p.name}"));
+                    var reason =
+                        matches.Count == 0 ? $"no exact name match among [{candidates}]" : $"ambiguous: {matches.Count} name matches among [{candidates}]";
+                    if (!HandleUnresolved(dep, reason))
                         return;
                     ResolveNext(modIo, deps, index + 1, map, resolved);
-                    return;
                 }
-
-                var profiles = page.value.modProfiles ?? new ModProfile[0];
-                var matches = new List<ModProfile>();
-                foreach (var p in profiles)
-                    if (Normalize(p.name) == Normalize(dep.modName))
-                        matches.Add(p);
-
-                if (matches.Count == 1)
-                {
-                    long id = matches[0].id;
-                    resolved.Add(id);
-                    map.entries.Add(new DepMapEntry { modName = dep.modName, modId = id });
-                    SaveDepMap(map);
-                    Debug.Log($"[CLIPublishHelper] Resolved dependency "
-                        + $"'{dep.modName}' -> mod.io id {id} (cached).");
-                    ResolveNext(modIo, deps, index + 1, map, resolved);
-                    return;
-                }
-
-                var candidates = string.Join(", ",
-                    Array.ConvertAll(profiles, p => $"{p.id}:{p.name}"));
-                var reason = matches.Count == 0
-                    ? $"no exact name match among [{candidates}]"
-                    : $"ambiguous: {matches.Count} name matches among [{candidates}]";
-                if (!HandleUnresolved(dep, reason))
-                    return;
-                ResolveNext(modIo, deps, index + 1, map, resolved);
-            });
+            );
         }
 
         private static void SyncDependencies(ModSettings modIo, List<long> target)
@@ -587,45 +645,45 @@ namespace CoreKeeperModUtils
             // A not-yet-created profile (dry-run) has no id to sync against.
             if (_dryRun && modIo.modId == 0)
             {
-                Debug.Log("[CLIPublishHelper] dry run: profile not yet created; "
-                    + $"would set dependencies [{string.Join(",", target)}] after "
-                    + "creation.");
+                Debug.Log(
+                    "[CLIPublishHelper] dry run: profile not yet created; " + $"would set dependencies [{string.Join(",", target)}] after " + "creation."
+                );
                 Succeed();
                 return;
             }
 
             var modId = new ModId(modIo.modId);
-            ModIOUnity.GetModDependencies(modId, depRes =>
-            {
-                var current = new List<long>();
-                if (depRes.result.Succeeded() && depRes.value != null)
+            ModIOUnity.GetModDependencies(
+                modId,
+                depRes =>
                 {
-                    foreach (var d in depRes.value) current.Add(d.modId);
-                }
-                else if (!depRes.result.Succeeded())
-                {
-                    Debug.LogWarning("[CLIPublishHelper] GetModDependencies failed: "
-                        + $"{depRes.result.message}. Assuming none currently set.");
-                }
+                    var current = new List<long>();
+                    if (depRes.result.Succeeded() && depRes.value != null)
+                    {
+                        foreach (var d in depRes.value)
+                            current.Add(d.modId);
+                    }
+                    else if (!depRes.result.Succeeded())
+                    {
+                        Debug.LogWarning("[CLIPublishHelper] GetModDependencies failed: " + $"{depRes.result.message}. Assuming none currently set.");
+                    }
 
-                var toAdd = target.FindAll(id => !current.Contains(id));
-                var toRemove = current.FindAll(id => !target.Contains(id));
-                Debug.Log($"[CLIPublishHelper] Dependency sync plan: "
-                    + $"+[{string.Join(",", toAdd)}] -[{string.Join(",", toRemove)}]");
+                    var toAdd = target.FindAll(id => !current.Contains(id));
+                    var toRemove = current.FindAll(id => !target.Contains(id));
+                    Debug.Log($"[CLIPublishHelper] Dependency sync plan: " + $"+[{string.Join(",", toAdd)}] -[{string.Join(",", toRemove)}]");
 
-                if (_dryRun)
-                {
-                    Debug.Log("[CLIPublishHelper] dry run: skipping dependency "
-                        + "add/remove calls.");
-                    Succeed();
-                    return;
+                    if (_dryRun)
+                    {
+                        Debug.Log("[CLIPublishHelper] dry run: skipping dependency " + "add/remove calls.");
+                        Succeed();
+                        return;
+                    }
+                    ApplyAdds(modIo, modId, toAdd, toRemove);
                 }
-                ApplyAdds(modIo, modId, toAdd, toRemove);
-            });
+            );
         }
 
-        private static void ApplyAdds(ModSettings modIo, ModId modId,
-            List<long> toAdd, List<long> toRemove)
+        private static void ApplyAdds(ModSettings modIo, ModId modId, List<long> toAdd, List<long> toRemove)
         {
             if (toAdd.Count == 0)
             {
@@ -633,21 +691,23 @@ namespace CoreKeeperModUtils
                 return;
             }
             var ids = toAdd.ConvertAll(id => new ModId(id));
-            ModIOUnity.AddDependenciesToMod(modId, ids, res =>
-            {
-                if (!res.Succeeded())
+            ModIOUnity.AddDependenciesToMod(
+                modId,
+                ids,
+                res =>
                 {
-                    Fail($"AddDependenciesToMod failed: {res.message}");
-                    return;
+                    if (!res.Succeeded())
+                    {
+                        Fail($"AddDependenciesToMod failed: {res.message}");
+                        return;
+                    }
+                    Debug.Log($"[CLIPublishHelper] Added dependencies " + $"[{string.Join(",", toAdd)}].");
+                    ApplyRemoves(modIo, modId, toRemove);
                 }
-                Debug.Log($"[CLIPublishHelper] Added dependencies "
-                    + $"[{string.Join(",", toAdd)}].");
-                ApplyRemoves(modIo, modId, toRemove);
-            });
+            );
         }
 
-        private static void ApplyRemoves(ModSettings modIo, ModId modId,
-            List<long> toRemove)
+        private static void ApplyRemoves(ModSettings modIo, ModId modId, List<long> toRemove)
         {
             if (toRemove.Count == 0)
             {
@@ -655,17 +715,20 @@ namespace CoreKeeperModUtils
                 return;
             }
             var ids = toRemove.ConvertAll(id => new ModId(id));
-            ModIOUnity.RemoveDependenciesFromMod(modId, ids, res =>
-            {
-                if (!res.Succeeded())
+            ModIOUnity.RemoveDependenciesFromMod(
+                modId,
+                ids,
+                res =>
                 {
-                    Fail($"RemoveDependenciesFromMod failed: {res.message}");
-                    return;
+                    if (!res.Succeeded())
+                    {
+                        Fail($"RemoveDependenciesFromMod failed: {res.message}");
+                        return;
+                    }
+                    Debug.Log($"[CLIPublishHelper] Removed dependencies " + $"[{string.Join(",", toRemove)}].");
+                    EnsureTagThenUpload(modIo);
                 }
-                Debug.Log($"[CLIPublishHelper] Removed dependencies "
-                    + $"[{string.Join(",", toRemove)}].");
-                EnsureTagThenUpload(modIo);
-            });
+            );
         }
 
         private static void Succeed()
