@@ -56,6 +56,13 @@ namespace CoreKeeperModUtils
             if (string.IsNullOrEmpty(scriptGuid))
                 throw new Exception($"[LocGen] could not resolve ScriptableData.dll guid at {ScriptableDataDllPath} — adjust the path for this SDK clone.");
 
+            // Stamped BEFORE the first write, so VerifyVisibleToUnity can tell assets
+            // this run produced from ones a previous (correct) build left behind. The
+            // slack absorbs any skew between DateTime.UtcNow and the filesystem's
+            // timestamp granularity: erring early only widens what counts as "fresh",
+            // whereas erring late would fail a perfectly good build.
+            var startedUtc = DateTime.UtcNow.AddSeconds(-5);
+
             // outDir is the mod's real unity/ path; it surfaces under the SDK's
             // Assets/ tree via link.sh's directory symlink, so File writes + an
             // AssetDatabase.Refresh() import the generated assets.
@@ -77,6 +84,66 @@ namespace CoreKeeperModUtils
             }
             AssetDatabase.Refresh();
             Debug.Log($"[LocGen] Generated {terms.Count} TextDataBlock terms into {outDir}");
+            VerifyVisibleToUnity(terms, outDir, startedUtc);
+        }
+
+        // Writing the files is not the same as getting them into the bundle, and the
+        // difference is invisible: ModBuilder packs what the AssetDatabase sees under
+        // Assets/<Mod>/, so assets written outside that tree are simply absent from
+        // the bundle, no step fails, and at runtime every term falls back to its raw
+        // key (Loc.T's `?? term` renders "ItemChecklist-General/Shown" instead of
+        // "128 shown").
+        //
+        // The way this happens in practice: LOC_OUT is derived from $PWD in the mod's
+        // .envrc, and .envrc is gitignored — so a build from a git worktree that has
+        // no .envrc of its own makes direnv walk up to the main repo's, where $PWD is
+        // the MAIN tree, while link.sh correctly symlinks the WORKTREE into the SDK.
+        // The generator then writes (and clean-deletes!) the main tree's assets and
+        // the worktree's bundle ships with none. Nothing in the environment is
+        // missing, so the "LOC_YAML/LOC_OUT not set" guard above never fires.
+        //
+        // So check the tree Unity actually packs, via Application.dataPath (= the
+        // project's Assets folder — no assumption about the process CWD). Opening a
+        // path under it follows link.sh's directory symlink at the OS level, so the
+        // question "did my write land in the tree being packed?" becomes a plain file
+        // test.
+        //
+        // Existence alone is NOT enough, and a first version of this check that only
+        // probed for a file was silent on exactly the failure it was written for: an
+        // earlier correct build leaves a full set of assets in the symlinked tree, so
+        // the probe found stale-but-present files. Hence the freshness stamp — assets
+        // older than this run were not produced by it.
+        private static void VerifyVisibleToUnity(List<LocTerm> terms, string outDir, DateTime startedUtc)
+        {
+            if (terms.Count == 0)
+                throw new Exception("[LocGen] parsed 0 terms from the localisation source — every term would fall back to its raw key in game.");
+
+            var modName = Environment.GetEnvironmentVariable("MOD_NAME");
+            if (string.IsNullOrEmpty(modName))
+            {
+                // Both CLI helpers fail on a missing MOD_NAME before they get here;
+                // a direct Generate() call has nothing to anchor the check to.
+                Debug.LogWarning("[LocGen] MOD_NAME not set — skipping the bundle-visibility check.");
+                return;
+            }
+
+            var relative = Path.Combine(modName, "Localization", "Generated", terms[0].Namespace, terms[0].Leaf + ".asset");
+            var packed = Path.Combine(Application.dataPath, relative);
+            var reason =
+                !File.Exists(packed) ? "no such file — the mod's Assets tree holds no generated localisation at all"
+                : File.GetLastWriteTimeUtc(packed) < startedUtc
+                    ? $"left over from an earlier build ({File.GetLastWriteTimeUtc(packed):u}, this run started {startedUtc:u})"
+                : null;
+            if (reason == null)
+                return;
+
+            throw new Exception(
+                $"[LocGen] wrote {terms.Count} terms to {outDir}, but Assets/{relative} is {reason}. "
+                    + "The bundle would ship without them and every term would render as its raw key in game "
+                    + "(e.g. \"ItemChecklist-General/Shown\" instead of \"128 shown\"). "
+                    + "LOC_OUT points at a different tree than the one link.sh symlinked into the SDK: a git "
+                    + "worktree needs its own .envrc (it is gitignored) plus `direnv allow` before the first build."
+            );
         }
 
         private static string BuildAsset(LocTerm t, LangTable langs, string scriptGuid)
