@@ -87,14 +87,19 @@ namespace CoreKeeperModUtils
                     return;
                 }
 
-                // Profile-only: just refresh the mod.io profile (description,
-                // name, summary, logo) via EditModProfile — no build, no version
-                // tags, no dependency sync, no modfile upload. Used to push
-                // edited modio-description.md without cutting a new release.
+                // Profile-only: refresh everything that is profile METADATA —
+                // description, name, summary, logo via EditModProfile, plus the
+                // dependency and tag sync — but no build and no modfile upload.
+                // Tags belong here because they describe the mod, not the
+                // release; that is what lets a published mod's tags be corrected
+                // without a pointless version bump. Used to push an edited
+                // modio-description.md or retag without cutting a new release.
                 if (_profileOnly)
                 {
                     Debug.Log(
-                        "[CLIPublishHelper] profile-only: skipping build, " + "tags, dependency sync and modfile upload; " + "updating the mod.io profile only."
+                        "[CLIPublishHelper] profile-only: skipping the build and "
+                            + "the modfile upload; updating the mod.io profile, "
+                            + "dependencies and tags only."
                     );
                     OnBuilt();
                     return;
@@ -363,7 +368,7 @@ namespace CoreKeeperModUtils
                         Debug.Log(
                             "[CLIPublishHelper] dry run (profile-only): " + $"would update the description of profile " + $"{modIo.modId}; no modfile upload."
                         );
-                        Succeed();
+                        EnsureDependenciesThenTag(modIo);
                     }
                     else
                     {
@@ -394,9 +399,11 @@ namespace CoreKeeperModUtils
                         if (_profileOnly)
                         {
                             Debug.Log(
-                                "[CLIPublishHelper] profile-only: updated the " + $"description of {_modName} (modId " + $"{modIo.modId}). No modfile uploaded."
+                                "[CLIPublishHelper] profile-only: updated the "
+                                    + $"description of {_modName} (modId "
+                                    + $"{modIo.modId}). Syncing dependencies and tags next; no modfile upload."
                             );
-                            Succeed();
+                            EnsureDependenciesThenTag(modIo);
                             return;
                         }
                         EnsureDependenciesThenTag(modIo);
@@ -405,34 +412,285 @@ namespace CoreKeeperModUtils
             }
         }
 
+        // ---- mod.io tag sync (four groups) ----
+
+        // The four Core Keeper tag groups this pipeline owns. Every tag on the
+        // mod that belongs to one of them is *synchronised* — surplus removed,
+        // missing added — while a tag from any other group (or from no group
+        // mod.io knows about) is left completely alone.
+        private const string TagGroupGameVersion = "Game Version";
+        private const string TagGroupType = "Type";
+        private const string TagGroupApplicationType = "Application Type";
+        private const string TagGroupAccessType = "Access Type";
+
+        // One synchronised group: the values we want on the mod, plus the diff
+        // against what mod.io currently has (filled in by SyncTags).
+        private class TagGroupPlan
+        {
+            public string group;
+            public List<string> desired;
+            public readonly List<string> toAdd = new List<string>();
+            public readonly List<string> toRemove = new List<string>();
+        }
+
         private static void EnsureTagThenUpload(ModSettings modIo)
         {
-            // CK_GAME_VERSION is a space-separated list of one or more game
-            // versions the mod is compatible with (e.g. "1.2.1.2 1.2.1.4").
-            // Each becomes a separate mod.io version tag.
+            // Four mod.io tag groups are synchronised rather than merely added
+            // to. Two are configured through the environment, two are derived
+            // from the ModBuilderSettings metadata so they can never drift from
+            // what the mod actually is:
+            //
+            //   Game Version      CK_GAME_VERSION — space-separated list of the
+            //                     game versions the mod is compatible with
+            //                     (e.g. "1.2.1.5 1.2.1.4"); one tag each.
+            //   Type              CK_MODIO_TYPE — PIPE-separated, because the
+            //                     values contain spaces ("Visual|Quality of Life").
+            //   Application Type  metadata.requiredOn ([Flags]: Client=1, Server=2).
+            //   Access Type       metadata.skipSafetyChecks (false -> "Script",
+            //                     true -> "Script (Elevated Access)"). "Asset" is
+            //                     never produced here — these are script mods, so
+            //                     a hand-set "Asset" tag is surplus and removed.
             var gameVersionsRaw = Environment.GetEnvironmentVariable("CK_GAME_VERSION");
-            var gameVersions = (gameVersionsRaw ?? string.Empty).Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-            if (gameVersions.Length == 0)
+            var gameVersions = new List<string>((gameVersionsRaw ?? string.Empty).Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries));
+            if (gameVersions.Count == 0)
             {
                 Fail("CK_GAME_VERSION not set");
                 return;
             }
-            ModIOUnity.AddTags(
-                new ModId(modIo.modId),
-                gameVersions,
-                tagRes =>
+
+            var types = new List<string>();
+            foreach (var raw in (Environment.GetEnvironmentVariable("CK_MODIO_TYPE") ?? string.Empty).Split('|'))
+            {
+                var value = raw.Trim();
+                if (value.Length > 0)
+                    types.Add(value);
+            }
+            if (types.Count == 0)
+            {
+                Fail("CK_MODIO_TYPE not set — pipe-separated mod.io 'Type' tags, " + "e.g. CK_MODIO_TYPE=\"Visual|Quality of Life\"");
+                return;
+            }
+
+            var appTypes = new List<string>();
+            var requiredOn = _builder.metadata.requiredOn;
+            if ((requiredOn & ModMetadata.ModExistsOn.Client) != 0)
+                appTypes.Add("Client");
+            if ((requiredOn & ModMetadata.ModExistsOn.Server) != 0)
+                appTypes.Add("Server");
+            if (appTypes.Count == 0)
+            {
+                Fail($"metadata.requiredOn is {requiredOn} in {_settingsPath} — set it " + "to 1 (Client), 2 (Server) or 3 (ClientAndServer).");
+                return;
+            }
+
+            var accessTypes = new List<string> { _builder.metadata.skipSafetyChecks ? "Script (Elevated Access)" : "Script" };
+
+            var plans = new List<TagGroupPlan>
+            {
+                new TagGroupPlan { group = TagGroupGameVersion, desired = gameVersions },
+                new TagGroupPlan { group = TagGroupType, desired = types },
+                new TagGroupPlan { group = TagGroupApplicationType, desired = appTypes },
+                new TagGroupPlan { group = TagGroupAccessType, desired = accessTypes },
+            };
+            SyncTags(modIo, plans);
+        }
+
+        private static void SyncTags(ModSettings modIo, List<TagGroupPlan> plans)
+        {
+            var modId = new ModId(modIo.modId);
+            ModIOUnity.GetTagCategories(catRes =>
+            {
+                if (!catRes.result.Succeeded() || catRes.value == null)
                 {
-                    if (!tagRes.Succeeded())
+                    FallBackToAdditiveTags(modIo, plans, $"GetTagCategories failed: {catRes.result.message}");
+                    return;
+                }
+
+                // Group membership comes from the live taxonomy, never from a
+                // hardcoded value list — the game keeps adding Game Version
+                // values, and a stale list would leave them stranded on the mod.
+                var groupValues = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+                foreach (var category in catRes.value)
+                {
+                    var values = new List<string>();
+                    foreach (var tag in category.tags ?? new Tag[0])
+                        values.Add(tag.name);
+                    groupValues[category.name ?? string.Empty] = values;
+                }
+
+                // A group missing from the live taxonomy means we cannot tell
+                // which of the mod's tags belong to it, so removing anything
+                // would be guesswork — degrade to additive instead.
+                foreach (var plan in plans)
+                {
+                    if (!groupValues.ContainsKey(plan.group))
+                    {
+                        FallBackToAdditiveTags(modIo, plans, $"mod.io reports no '{plan.group}' tag group " + $"(got [{string.Join(", ", groupValues.Keys)}])");
+                        return;
+                    }
+                }
+
+                // Validate BEFORE changing anything: mod.io accepts an unknown
+                // tag value and silently drops it, so a typo like "Quality of
+                // live" would otherwise just vanish without a trace.
+                foreach (var plan in plans)
+                {
+                    var valid = groupValues[plan.group];
+                    foreach (var value in plan.desired)
+                    {
+                        if (!valid.Contains(value))
+                        {
+                            Fail($"'{value}' is not a valid mod.io '{plan.group}' tag. " + $"Valid values: [{string.Join(", ", valid)}].");
+                            return;
+                        }
+                    }
+                }
+
+                ModIOUnity.GetMod(
+                    modId,
+                    modRes =>
+                    {
+                        if (!modRes.result.Succeeded())
+                        {
+                            FallBackToAdditiveTags(modIo, plans, $"GetMod failed: {modRes.result.message}");
+                            return;
+                        }
+
+                        // ModProfile.tags is a flat string[] of raw tag names
+                        // across every group (the plugin's ResponseTranslator
+                        // maps ModTagObject.name straight through), which is why
+                        // the groupValues lookup above is needed to tell them
+                        // apart. Nothing earlier in this run mutates tags, so a
+                        // ResponseCache hit here is still accurate.
+                        var current = new List<string>(modRes.value.tags ?? new string[0]);
+                        foreach (var plan in plans)
+                        {
+                            var valid = groupValues[plan.group];
+                            foreach (var value in plan.desired)
+                                if (!current.Contains(value))
+                                    plan.toAdd.Add(value);
+                            foreach (var value in current)
+                                if (valid.Contains(value) && !plan.desired.Contains(value))
+                                    plan.toRemove.Add(value);
+                        }
+                        LogTagPlan(plans);
+
+                        if (_dryRun)
+                        {
+                            Debug.Log("[CLIPublishHelper] dry run: skipping tag " + "add/remove calls.");
+                            Succeed();
+                            return;
+                        }
+                        ApplyTagAdds(modIo, modId, plans);
+                    }
+                );
+            });
+        }
+
+        // Could not establish what the mod currently carries: add the desired
+        // tags and remove nothing, so a read failure can never be mistaken for
+        // "the mod has no tags" and wipe the lot.
+        private static void FallBackToAdditiveTags(ModSettings modIo, List<TagGroupPlan> plans, string reason)
+        {
+            Debug.LogWarning($"[CLIPublishHelper] {reason}. Falling back to additive " + "tagging: adding the configured tags, removing nothing.");
+            foreach (var plan in plans)
+            {
+                plan.toAdd.Clear();
+                plan.toAdd.AddRange(plan.desired);
+                plan.toRemove.Clear();
+            }
+            LogTagPlan(plans);
+
+            if (_dryRun)
+            {
+                Debug.Log("[CLIPublishHelper] dry run: skipping tag add/remove calls.");
+                Succeed();
+                return;
+            }
+            ApplyTagAdds(modIo, new ModId(modIo.modId), plans);
+        }
+
+        private static void LogTagPlan(List<TagGroupPlan> plans)
+        {
+            foreach (var plan in plans)
+                Debug.Log($"[CLIPublishHelper] Tag sync plan [{plan.group}]: " + $"+[{string.Join(",", plan.toAdd)}] -[{string.Join(",", plan.toRemove)}]");
+        }
+
+        // Adds and removes are two separate mod.io calls, so they run in
+        // sequence: every group's adds in one call, then every group's removes,
+        // then the modfile upload. A tag call that fails only warns — a tagging
+        // hiccup must not abort an otherwise good release (existing behaviour).
+        private static void ApplyTagAdds(ModSettings modIo, ModId modId, List<TagGroupPlan> plans)
+        {
+            var toAdd = new List<string>();
+            foreach (var plan in plans)
+                toAdd.AddRange(plan.toAdd);
+            if (toAdd.Count == 0)
+            {
+                ApplyTagRemoves(modIo, modId, plans);
+                return;
+            }
+            ModIOUnity.AddTags(
+                modId,
+                toAdd.ToArray(),
+                res =>
+                {
+                    if (!res.Succeeded())
                     {
                         Debug.LogWarning(
-                            $"[CLIPublishHelper] Could not add version "
-                                + $"tag(s) '{string.Join(", ", gameVersions)}': {tagRes.message}. "
+                            $"[CLIPublishHelper] Could not add tag(s) "
+                                + $"'{string.Join(", ", toAdd)}': {res.message}. "
                                 + "Verify the exact tag value(s) on the mod.io website."
                         );
                     }
-                    Upload(modIo);
+                    else
+                    {
+                        Debug.Log($"[CLIPublishHelper] Added tags " + $"[{string.Join(",", toAdd)}].");
+                    }
+                    ApplyTagRemoves(modIo, modId, plans);
                 }
             );
+        }
+
+        private static void ApplyTagRemoves(ModSettings modIo, ModId modId, List<TagGroupPlan> plans)
+        {
+            var toRemove = new List<string>();
+            foreach (var plan in plans)
+                toRemove.AddRange(plan.toRemove);
+            if (toRemove.Count == 0)
+            {
+                FinishAfterTags(modIo);
+                return;
+            }
+            ModIOUnity.DeleteTags(
+                modId,
+                toRemove.ToArray(),
+                res =>
+                {
+                    if (!res.Succeeded())
+                        Debug.LogWarning($"[CLIPublishHelper] Could not remove tag(s) " + $"'{string.Join(", ", toRemove)}': {res.message}.");
+                    else
+                        Debug.Log($"[CLIPublishHelper] Removed tags " + $"[{string.Join(",", toRemove)}].");
+                    FinishAfterTags(modIo);
+                }
+            );
+        }
+
+        /// <summary>
+        /// The single point where the dependency+tag chain decides how to end. Tags are profile
+        /// metadata, not release content, so --profile-only syncs them and then stops here instead
+        /// of uploading a modfile — that is what lets an already-published mod's tags be corrected
+        /// without a pointless version bump.
+        /// </summary>
+        private static void FinishAfterTags(ModSettings modIo)
+        {
+            if (_profileOnly)
+            {
+                Debug.Log("[CLIPublishHelper] profile-only: dependencies and tags synced. " + "No modfile uploaded.");
+                Succeed();
+                return;
+            }
+            Upload(modIo);
         }
 
         private static void Upload(ModSettings modIo)
@@ -674,8 +932,11 @@ namespace CoreKeeperModUtils
 
                     if (_dryRun)
                     {
+                        // Skip the writes but carry on into the tag sync, so a
+                        // dry run prints the full plan (dependencies *and*
+                        // tags); its own _dryRun branch ends the run there.
                         Debug.Log("[CLIPublishHelper] dry run: skipping dependency " + "add/remove calls.");
-                        Succeed();
+                        EnsureTagThenUpload(modIo);
                         return;
                     }
                     ApplyAdds(modIo, modId, toAdd, toRemove);

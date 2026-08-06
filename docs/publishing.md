@@ -45,6 +45,35 @@ is uploaded.
   list mirrors the `.asset` exactly. `--dry-run` logs the plan and skips the
   add/remove calls.
 
+### mod.io tags — four synchronised groups
+
+On publish, `CLIPublishHelper` **synchronises** (not merely adds) the mod's tags
+in four of Core Keeper's mod.io tag groups. The desired set per group is diffed
+against what `GetMod` reports the mod currently carries, and the surplus is
+deleted. Tags outside these four groups are never touched.
+
+| Group | Desired set from |
+|---|---|
+| `Game Version` | `CK_GAME_VERSION` — **space**-separated (one canonical list in the parent `.envrc`) |
+| `Type` | `CK_MODIO_TYPE` — **pipe**-separated, because the values contain spaces (`Visual\|Quality of Life`) |
+| `Application Type` | derived from the `.asset`'s `metadata.requiredOn` (`Client`=1, `Server`=2, both=3) |
+| `Access Type` | derived from `metadata.skipSafetyChecks` (`false` → `Script`, `true` → `Script (Elevated Access)`) |
+
+- **Group membership comes from the live API** (`GetTagCategories`), never a
+  hardcoded value list — the game keeps adding `Game Version` values.
+- **Configured values are validated before anything is changed.** mod.io accepts
+  an unknown tag value and silently drops it, so a typo (`Quality of live`)
+  aborts the publish with a message naming the bad value and the group's valid
+  values, rather than vanishing.
+- **A read failure degrades to additive, never to "remove everything".** If
+  `GetTagCategories` or `GetMod` fails (or a group is missing from the live
+  taxonomy), the helper logs a warning, adds the desired tags and removes
+  nothing.
+- The plan is logged per group before acting
+  (`Tag sync plan [Type]: +[…] -[…]`); `--dry-run` logs it and stops there.
+- `Asset` is never produced — these are script mods — so a hand-set `Asset` tag
+  is treated as surplus and removed.
+
 > ⚠️ Known build gotcha: the shared `CLIPublishHelper`/`CLIBuildHelper` compile
 > into **every** linked mod's `<Mod>.Editor` assembly, so the class exists in
 > several assemblies and `-executeMethod` runs the alphabetically-first one

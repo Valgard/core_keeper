@@ -10,7 +10,7 @@ All mods build through one shared copy of the build scripts in
 `upload.sh`, `uninstall-macos.sh`. The scripts
 are mod-agnostic: each mod supplies its identity through `export`s in its own
 `.envrc` (`MOD_NAME`, `MOD_NAME_ID`, `MOD_SUMMARY`, `FAKE_MOD_ID`,
-`MOD_INSTALL_PATH`). The scripts read everything from the environment and
+`MOD_INSTALL_PATH`, `CK_MODIO_TYPE`). The scripts read everything from the environment and
 never `source` anything themselves; they guard with `set -euo pipefail` +
 `: "${VAR:?…}"`, so a missing variable aborts with a clear message.
 
