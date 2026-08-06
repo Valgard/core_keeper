@@ -81,8 +81,29 @@ do **not** keep one. So edit manifest fields directly in the `.asset` YAML's
 `metadata:` block:
 - The SDK mod-settings Editor UI is unreliable for `displayName` (cannot be set
   through the GUI) and `requiredOn` (choosing "Client and Server" writes `-1`
-  / "Everything"). Set `displayName:` and `requiredOn: 3` (ClientAndServer)
-  directly in the `.asset`.
+  / "Everything"). Set both directly in the `.asset` YAML.
+- **`requiredOn` is a `[Flags]` enum — pick it per mod, do NOT default to `3`.**
+  `ModExistsOn { None = 0, Client = 1, Server = 2, ClientAndServer = 3 }`
+  (`PugMod.SDK`). The checks are **crossed**, which is the counter-intuitive part:
+  the **Server** flag makes the *client* demand the mod on the server
+  (`NetworkClientStartSystem`, Pug.Other ~124928), and the **Client** flag makes
+  the *server* demand it on the client (`ModInfoRpcSystem`, ~125929).
+  - The cost of an over-broad value is real: joining a server that lacks a
+    `Server`-flagged mod raises `Menu/ModMissingServerDialogue` offering only
+    "disable the mod (+ restart)" or "cancel the connection" (~124940-124978) —
+    a hard block, not a warning. With a fake-ID dev build (`modId <= 0`) the
+    disable option is not even offered. A mod without the flag is dropped from
+    the check list entirely (`localMods.RemoveAt`) and never interferes.
+  - **The question to ask: does the SERVER need this mod for it to work?**
+    `1` (Client) for read-only HUD/UI mods — they must not block joining unmodded
+    servers. `2` (Server) for a mod with no client side at all (world/spawn/
+    simulation changes with no UI; none of this family's mods are like that yet).
+    `3` only when both sides genuinely need it: new items, recipe or database
+    changes, server-authoritative inventory/XP logic, or a framework whose
+    consumers may run server-side.
+  - Corrected on 2026-08-06 for `player-coordinates-hud`, `item-checklist` and
+    `simple-crafting-pool-extender`, which had inherited a blanket `3` from an
+    earlier version of this very bullet and were needlessly blocking joins.
 - Mod dependencies (e.g. CoreLib) live in the `.asset`'s `dependencies:` list
   (`- modName: CoreLib` / `required: 1`) and flow into the built manifest.
 
