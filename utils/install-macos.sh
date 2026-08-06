@@ -6,11 +6,25 @@
 # Pugstorm's mod loader fails to extract Scripts/ from locally built mods
 # under Wine (a `\\?\C:\…` long-path bug in RemoveDirectoryRecursive). Mods
 # from mod.io load via a different codepath that avoids the bug. This script
-# makes a locally built mod look mod.io-installed by populating three places:
+# makes a locally built mod look mod.io-installed.
 #
-#   1. mod.io/<game_id>/mods/<mod_id>_<modfile_id>/   (extracted)
+# Five places are touched — three written, two cleared. uninstall-macos.sh is
+# the mirror and has to cover every one of them, so keep both in sync: an entry
+# missing from this list is an entry the mirror will not handle. That is exactly
+# how the Localization.csv clear (5) went missing from the uninstaller.
+#
+#   written:
+#   1. mod.io/<game_id>/mods/<mod_id>_<modfile_id>/                (extracted)
 #   2. <Temp>/Pugstorm/Core Keeper/<game_id>/<mod_id>_<modfile_id>.zip (cache)
 #   3. mod.io/<game_id>/state.json — subscribedMods + mods.<mod_id> entry
+#
+#   cleared (regenerable caches; the uninstaller clears both as well):
+#   4. <Temp>/Pugstorm/Core Keeper/ModLoader/<MOD_NAME>/
+#   5. <game>/localization/Localization.csv — loc-shipping mods only (LOC_OUT)
+#
+# Plus state.json.macos-backup: written once on the first ever run, then never
+# refreshed or removed. It is a snapshot of the pre-first-install state, not a
+# rollback for the current one — deliberately left behind by the uninstaller.
 #
 # Required env vars (set in the mod's .envrc):
 #   MOD_INSTALL_PATH   Directory containing the built `$MOD_NAME/` folder.
