@@ -18,6 +18,8 @@
 #   CK_BOTTLE_PATH     Full CrossOver bottle path. Overrides CK_BOTTLE_NAME;
 #                      defaults to the standard bottles dir + CK_BOTTLE_NAME.
 #   CK_WINE_USER       Wine username inside the bottle. Defaults to "crossover".
+#   LOC_OUT            Presence marks the mod as loc-shipping and enables step 3
+#                      (the Localization.csv clear). Same gate as install-macos.sh.
 
 set -euo pipefail
 
@@ -64,6 +66,24 @@ if [ -f "$STATE_JSON" ]; then
     echo "  Removed $FAKE_MOD_ID from $STATE_JSON"
 else
     echo "  No state.json — nothing to unsubscribe."
+fi
+
+# --- 3. Force a fresh localization export ------------------------------------
+# The mirror of install-macos.sh step 5, and needed for the same reason: Core
+# Keeper accumulates every mod's loc terms into the game-wide
+# localization/Localization.csv (its I2 Localization source) first-write-wins,
+# and renders from that CSV rather than from the mod's AssetBundle. Removing a
+# mod leaves its rows behind, which bites in exactly the transition this script
+# exists for — swapping a dev build for the published mod. Any term whose value
+# CHANGED in between would keep rendering the dev-era text, because the row
+# already exists (NEW terms are additive and unaffected). Deleting the CSV makes
+# CK rebuild it in full — game + every remaining mod — from the current
+# TextDataBlocks on next launch. It is a regenerable cache. Only for
+# loc-shipping mods; no-op if the CSV is absent.
+LOC_CSV="$CK_BOTTLE_PATH/drive_c/Program Files (x86)/Steam/steamapps/common/Core Keeper/localization/Localization.csv"
+if [ -n "${LOC_OUT:-}" ] && [ -f "$LOC_CSV" ]; then
+    rm -f "$LOC_CSV"
+    echo "  Cleared Localization.csv — CK rebuilds it (game + all mods) on next launch."
 fi
 
 echo "✓ Uninstall complete."
