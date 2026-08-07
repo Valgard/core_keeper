@@ -233,19 +233,22 @@ tools (disable-durability), checkmarks + "?" (item-checklist), fanned cards +
 toggle-slider (mod-settings-menu), ornate gemmed key (rebalance-key-crafting).
 Invent a fitting gesture for the new mod rather than copying one.
 
-**Generation workflow** — the `generate_images.py` script from the **blogs**
-repo's `editorial-workflow` skill (Gemini "Nano Banana Pro"; `GEMINI_API_KEY`
-comes from the blogs repo's `.envrc`; run via `uv run`). Three stages produce
-the transparent `Editor/logo.png`:
+**Generation workflow** — the global `image-generation` skill
+(`~/.claude/skills/image-generation/`, Gemini "Nano Banana Pro"). Both of its
+scripts are PEP-723 `uv` scripts that resolve their own dependencies, so `uv run
+<script>` is all they need; `GEMINI_API_KEY` still comes from the **blogs** repo's
+`.envrc`, the only place it is defined. The skill documents the generic
+white → black → transparify pipeline; below is only what is CK-specific about it.
+Three stages produce the transparent `Editor/logo.png`:
 
 1. **White candidates.** Generate ~4 candidates on a **plain white background**.
    Pass **two polished sibling logos as `-ref`** (palette + style anchors, e.g.
    reusable-cattle-box + caveling-divining-rod) and describe the **form** in the
    prompt. Output lands in `<mod>/sources/logo-white-{N}.jpeg`.
    ```bash
-   cd <blogs-repo> && source .envrc        # exports GEMINI_API_KEY
-   uv run .claude/skills/editorial-workflow/generate_images.py \
-     --article-dir <mod-repo> --name logo-white -ar 1:1 -r 1K -c 4 \
+   source <blogs-repo>/.envrc              # exports GEMINI_API_KEY
+   uv run ~/.claude/skills/image-generation/generate_images.py \
+     --out-dir <mod-repo>/sources --name logo-white -ar 1:1 -r 1K -c 4 \
      -ref <siblingA>/Editor/logo.png -ref <siblingB>/Editor/logo.png \
      "<hand-painted CK-sticker prompt: hero object + teal/gold + golden glow + \
        4-point sparkles + plain white background>"
@@ -254,21 +257,19 @@ the transparent `Editor/logo.png`:
    re-run with **that white image as `-ref`** and a minimal prompt ("replace the
    white background with pure black #000000; keep everything else unchanged"),
    `--name logo-black --start-index N --count 1` → `logo-black-{N}.jpeg`.
-3. **Transparify (local, scriptable).** Run `utils/transparify.py` on the
+3. **Transparify (local, scriptable).** Run the skill's `transparify.py` on the
    matching white + black pair to recover the transparent PNG; copy the chosen
    candidate to `unity/<Mod>/Editor/logo.png`.
    ```bash
-   python3 utils/transparify.py \
+   uv run ~/.claude/skills/image-generation/transparify.py \
      -w "<mod>/sources/logo 3 - white background.jpeg" \
      -b "<mod>/sources/logo 3 - black background.jpeg" \
      -o "<mod>/sources/logo 3.png"
    ```
-   `utils/transparify.py` is a faithful **1:1 port** of transparify.app's
-   client-side algorithm (transparify.app has **no API**): alpha is one minus the
-   normalised Euclidean white↔black distance, colour is un-premultiplied (`B/a`)
-   above a `0.01` alpha threshold. Validated against transparify.app's own output
-   — **alpha bit-identical**, RGB within JPEG-decoder noise. Pure Pillow (no
-   numpy); tested in `utils/tests/test_transparify.py`.
+   A faithful **1:1 port** of transparify.app's client-side algorithm
+   (transparify.app has **no API**), validated against its own output — **alpha
+   bit-identical**, RGB within JPEG-decoder noise. The math and its rationale live
+   in the skill; it used to sit in this repo as `utils/transparify.py`.
 
 **Candidate file naming** (in `<mod>/sources/`, adopted from the sibling mods —
 lowercase `logo`, a space before the index, `.jpeg` for the candidates):
@@ -281,15 +282,11 @@ lowercase `logo`, a space before the index, `.jpeg` for the candidates):
 `logo <N>.png` is then copied to `unity/<Mod>/Editor/logo.png`.
 
 **Why these choices:**
-- **Native black, never matting.** The glow is rendered *against white*, so its
-  semi-transparent pixels are already blended with white — mechanically swapping
-  the background to black leaves a flat/beige halo (tried, user-rejected).
-  Re-rendering on black *natively* produces a correct gold-into-black glow.
-- **A white + black *pair* for transparify.** transparify derives the alpha and
-  true colour from the per-pixel difference `P_white − P_black`, which only
-  works when the **foreground is identical** in both — hence the black pass takes
-  the white image as its reference to keep the subject matching (verified: no
-  ghosting on the resulting pairs).
+- **Native black, never matting**, and **a white + black *pair* for transparify**
+  are properties of the pipeline itself — the skill explains both. Recorded here
+  because it was learned here: mechanically swapping the white background to black
+  leaves a flat/beige halo (tried, user-rejected) instead of a correct
+  gold-into-black glow, and the reference-chained pairs show no ghosting.
 - **Two sibling logos as references** keep the new logo inside the family DNA
   (palette, outline weight, glow, sparkle treatment); the prompt carries only
   the new form.
