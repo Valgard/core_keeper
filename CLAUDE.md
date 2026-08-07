@@ -236,9 +236,9 @@ Invent a fitting gesture for the new mod rather than copying one.
 **Generation workflow** — the global `image-generation` skill
 (`~/.claude/skills/image-generation/`, Gemini "Nano Banana Pro"). Both of its
 scripts are PEP-723 `uv` scripts that resolve their own dependencies, so `uv run
-<script>` is all they need; `GEMINI_API_KEY` is exported from `~/.zshrc` (moved
-there 2026-08-07 out of the blogs repo's `.envrc`), so an interactive shell already
-has it — no `source` step. The skill documents the generic
+<script>` is all they need; `GEMINI_API_KEY` is exported from `~/.zshenv` (moved
+there 2026-08-07 out of the blogs repo's `.envrc`), which every zsh reads, so there
+is no `source` step. The skill documents the generic
 white → black → transparify pipeline; below is only what is CK-specific about it.
 Three stages produce the transparent `Editor/logo.png`:
 
