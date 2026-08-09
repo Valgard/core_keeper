@@ -32,6 +32,16 @@ export SDK_PATH="/path/to/core_keeper/CoreKeeperModSDK"
 # export CK_BOTTLE_PATH="$HOME/Library/Application Support/CrossOver/Bottles/Core Keeper"
 # export CK_WINE_USER="crossover"
 
+# macOS only — dedicated server (utils/server.sh). All optional; the defaults
+# shown are what the script uses when unset. CK_SERVER_DIR defaults to the
+# server install inside CK_BOTTLE_PATH. See docs/dedicated-server.md.
+# export CK_SERVER_WORLD="0"           # world index 0-29
+# export CK_SERVER_PORT="27015"        # empty = Steam relay only, no direct connect
+# export CK_SERVER_PASSWORD=""         # empty = server generates one into GameInfo.txt
+# export CK_SERVER_MAXPLAYERS="8"
+# export CK_SERVER_PLATFORM="Steam"    # empty = allow all platforms (needs the crossplay privilege)
+# export CK_SERVER_DIR="$CK_BOTTLE_PATH/drive_c/Program Files (x86)/Steam/steamapps/common/Core Keeper Dedicated Server"
+
 # Base directory for each mod's build-output staging dir. A mod's .envrc sets
 # MOD_INSTALL_PATH="$MOD_INSTALL_BASE_PATH/$MOD_NAME_ID-build".
 export MOD_INSTALL_BASE_PATH="$HOME/Library/Caches"
