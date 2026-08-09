@@ -1,10 +1,10 @@
 #!/usr/bin/env -S dotnet --
 #:package Mono.Cecil@0.11.6
 
-using Mono.Cecil;
-using Mono.Cecil.Cil;
 using System.IO;
 using System.Linq;
+using Mono.Cecil;
+using Mono.Cecil.Cil;
 
 #nullable disable
 
@@ -18,31 +18,28 @@ using System.Linq;
 // ============================================================================
 
 const string DefaultGamePath =
-    "/Users/valgard/Library/Application Support/CrossOver/Bottles/Core Keeper/" +
-    "drive_c/Program Files (x86)/Steam/steamapps/common/Core Keeper";
+    "/Users/valgard/Library/Application Support/CrossOver/Bottles/Core Keeper/" + "drive_c/Program Files (x86)/Steam/steamapps/common/Core Keeper";
 
-const string LoaderTypeName   = "PugMod.Loader";
-const string FsTypeName       = "Pug.Platform.StandaloneFilesystem";
+const string LoaderTypeName = "PugMod.Loader";
+const string FsTypeName = "Pug.Platform.StandaloneFilesystem";
 const string ModioWrapperType = "ModIO.Implementation.Platform.SystemIOWrapper";
+
 // Name der vom Patcher injizierten Wine-safe Iter-and-Delete Helper-Methode in
 // SystemIOWrapper. Existenz dieser Methode = Patch-6-Marker (Idempotenz).
-const string ModioHelperName  = "CorekeeperWineSafeDeleteDir";
+const string ModioHelperName = "CorekeeperWineSafeDeleteDir";
 
 if (args.Length < 1 || (args[0] != "analyze" && args[0] != "apply"))
 {
-    Console.Error.WriteLine(
-        "Usage: corekeeper-patch <analyze|apply> [pfad-zum-spielverzeichnis]");
+    Console.Error.WriteLine("Usage: corekeeper-patch <analyze|apply> [pfad-zum-spielverzeichnis]");
     Console.Error.WriteLine();
-    Console.Error.WriteLine(
-        "  Spielverzeichnis = der Ordner MIT dem <Name>_Data-Unterordner, z.B.");
-    Console.Error.WriteLine(
-        "  '.../steamapps/common/Core Keeper Dedicated Server'.");
+    Console.Error.WriteLine("  Spielverzeichnis = der Ordner MIT dem <Name>_Data-Unterordner, z.B.");
+    Console.Error.WriteLine("  '.../steamapps/common/Core Keeper Dedicated Server'.");
     return 2;
 }
 
-string command  = args[0];
+string command = args[0];
 string gamePath = args.Length >= 2 ? args[1].TrimEnd('/') : DefaultGamePath;
-bool apply      = command == "apply";
+bool apply = command == "apply";
 
 // Frueher nahm das Tool den Pfad zu PugMod.Loader.dll — der Aufruf von damals
 // soll nicht stumm den Default patchen, sondern sagen was jetzt gemeint ist.
@@ -67,8 +64,8 @@ if (managedDir == null)
 }
 
 string loaderDll = Path.Combine(managedDir, "PugMod.Loader.dll");
-string otherDll  = Path.Combine(managedDir, "Pug.Other.dll");
-string modioDll  = Path.Combine(managedDir, "modio.UnityPlugin.dll");
+string otherDll = Path.Combine(managedDir, "Pug.Other.dll");
+string modioDll = Path.Combine(managedDir, "modio.UnityPlugin.dll");
 
 Console.WriteLine("corekeeper-patch");
 Console.WriteLine(new string('=', 52));
@@ -115,13 +112,10 @@ else
 Console.WriteLine();
 if (rcLoader != 0 || rcOther != 0 || rcModio != 0)
 {
-    Console.WriteLine("Status: UNVOLLSTÄNDIG — mindestens ein Patch wurde "
-        + "wegen unerwarteter DLL-Struktur übersprungen.");
+    Console.WriteLine("Status: UNVOLLSTÄNDIG — mindestens ein Patch wurde " + "wegen unerwarteter DLL-Struktur übersprungen.");
     return 1;
 }
-Console.WriteLine(apply
-    ? "Status: FERTIG — alle Patches im Soll-Zustand."
-    : "Status: ANALYSE — 'apply' wendet fehlende Patches an.");
+Console.WriteLine(apply ? "Status: FERTIG — alle Patches im Soll-Zustand." : "Status: ANALYSE — 'apply' wendet fehlende Patches an.");
 return 0;
 
 // ============================================================================
@@ -184,24 +178,18 @@ static int ProcessLoaderDll(string dllPath, bool apply)
     var resolver = new DefaultAssemblyResolver();
     resolver.AddSearchDirectory(Path.GetDirectoryName(dllPath));
 
-    using var module = ModuleDefinition.ReadModule(
-        dllPath, new ReaderParameters
-        {
-            ReadWrite = apply,
-            AssemblyResolver = resolver,
-        });
+    using var module = ModuleDefinition.ReadModule(dllPath, new ReaderParameters { ReadWrite = apply, AssemblyResolver = resolver });
 
     var type = module.GetType(LoaderTypeName);
     if (type == null)
     {
-        Console.Error.WriteLine("FEHLER: Typ " + LoaderTypeName
-            + " nicht gefunden — Spiel verändert? Kein Patch angewendet.");
+        Console.Error.WriteLine("FEHLER: Typ " + LoaderTypeName + " nicht gefunden — Spiel verändert? Kein Patch angewendet.");
         return 1;
     }
 
     bool anyChange = false;
     bool anyGameChanged = false;
-    bool allWereUnpatched = true;  // wird false bei BEREITS GEPATCHT / SPIEL VERÄNDERT
+    bool allWereUnpatched = true; // wird false bei BEREITS GEPATCHT / SPIEL VERÄNDERT
 
     // === Patch 1: Directory.Delete(string,bool) -> pop pop =================
     // The single recursive directory delete in PugMod.Loader fails under Wine
@@ -212,13 +200,13 @@ static int ProcessLoaderDll(string dllPath, bool apply)
         var hits = new List<(MethodDefinition Method, Instruction Insn)>();
         foreach (var m in type.Methods)
         {
-            if (!m.HasBody) continue;
+            if (!m.HasBody)
+                continue;
             foreach (var insn in m.Body.Instructions)
             {
                 if (insn.OpCode != OpCodes.Call && insn.OpCode != OpCodes.Callvirt)
                     continue;
-                if (insn.Operand is MethodReference mr
-                    && IsDirectoryDeleteStringBool(mr))
+                if (insn.Operand is MethodReference mr && IsDirectoryDeleteStringBool(mr))
                     hits.Add((m, insn));
             }
         }
@@ -233,14 +221,11 @@ static int ProcessLoaderDll(string dllPath, bool apply)
                 deleteCall.Operand = null;
                 il.InsertAfter(deleteCall, Instruction.Create(OpCodes.Pop));
                 anyChange = true;
-                Report(1, "Directory.Delete -> pop pop",
-                    "NICHT GEPATCHT -> GEPATCHT [OK]  (" + method.Name + ")");
+                Report(1, "Directory.Delete -> pop pop", "NICHT GEPATCHT -> GEPATCHT [OK]  (" + method.Name + ")");
             }
             else
             {
-                Report(1, "Directory.Delete -> pop pop",
-                    "NICHT GEPATCHT  (" + method.Name + ", IL 0x"
-                    + deleteCall.Offset.ToString("X4") + ")");
+                Report(1, "Directory.Delete -> pop pop", "NICHT GEPATCHT  (" + method.Name + ", IL 0x" + deleteCall.Offset.ToString("X4") + ")");
             }
         }
         else if (hits.Count == 0 && HasPopPopFingerprint(type))
@@ -252,11 +237,9 @@ static int ProcessLoaderDll(string dllPath, bool apply)
         {
             anyGameChanged = true;
             allWereUnpatched = false;
-            string why = hits.Count > 1
-                ? hits.Count + " Directory.Delete(string,bool)-Aufrufe gefunden"
-                : "kein Directory.Delete(string,bool) und kein pop-pop-Muster";
-            Report(1, "Directory.Delete -> pop pop",
-                "SPIEL VERÄNDERT — übersprungen (" + why + ")");
+            string why =
+                hits.Count > 1 ? hits.Count + " Directory.Delete(string,bool)-Aufrufe gefunden" : "kein Directory.Delete(string,bool) und kein pop-pop-Muster";
+            Report(1, "Directory.Delete -> pop pop", "SPIEL VERÄNDERT — übersprungen (" + why + ")");
         }
     }
 
@@ -268,24 +251,20 @@ static int ProcessLoaderDll(string dllPath, bool apply)
     // so Roslyn's later worker threads inherit it) makes Roslyn fall back to
     // the embedded English resources and never look up a satellite at all.
     {
-        var initMethods = type.Methods
-            .Where(m => m.Name == "Init" && m.HasBody).ToList();
+        var initMethods = type.Methods.Where(m => m.Name == "Init" && m.HasBody).ToList();
 
         if (initMethods.Count != 1)
         {
             anyGameChanged = true;
             allWereUnpatched = false;
-            Report(2, "Roslyn-Locale (InvariantCulture)",
-                "SPIEL VERÄNDERT — übersprungen (" + initMethods.Count
-                + " Methoden 'Init' mit Body, erwartet 1)");
+            Report(2, "Roslyn-Locale (InvariantCulture)", "SPIEL VERÄNDERT — übersprungen (" + initMethods.Count + " Methoden 'Init' mit Body, erwartet 1)");
         }
         else
         {
             var init = initMethods[0];
             bool already = init.Body.Instructions.Any(insn =>
-                (insn.OpCode == OpCodes.Call || insn.OpCode == OpCodes.Callvirt)
-                && insn.Operand is MethodReference mr
-                && IsSetDefaultThreadCurrentUICulture(mr));
+                (insn.OpCode == OpCodes.Call || insn.OpCode == OpCodes.Callvirt) && insn.Operand is MethodReference mr && IsSetDefaultThreadCurrentUICulture(mr)
+            );
 
             if (already)
             {
@@ -299,33 +278,23 @@ static int ProcessLoaderDll(string dllPath, bool apply)
                 // point at System.Private.CoreLib (a .NET 10 identity) which the
                 // game's Mono runtime does not have -> runtime TypeLoadException.
                 var corlib = module.TypeSystem.CoreLibrary;
-                var cultureInfo = new TypeReference(
-                    "System.Globalization", "CultureInfo", module, corlib);
+                var cultureInfo = new TypeReference("System.Globalization", "CultureInfo", module, corlib);
 
-                var getInvariant = new MethodReference(
-                    "get_InvariantCulture", cultureInfo, cultureInfo)
-                    { HasThis = false };
+                var getInvariant = new MethodReference("get_InvariantCulture", cultureInfo, cultureInfo) { HasThis = false };
 
-                var setDefaultUiCulture = new MethodReference(
-                    "set_DefaultThreadCurrentUICulture",
-                    module.TypeSystem.Void, cultureInfo) { HasThis = false };
-                setDefaultUiCulture.Parameters.Add(
-                    new ParameterDefinition(cultureInfo));
+                var setDefaultUiCulture = new MethodReference("set_DefaultThreadCurrentUICulture", module.TypeSystem.Void, cultureInfo) { HasThis = false };
+                setDefaultUiCulture.Parameters.Add(new ParameterDefinition(cultureInfo));
 
                 var il = init.Body.GetILProcessor();
                 var first = init.Body.Instructions[0];
-                il.InsertBefore(first,
-                    Instruction.Create(OpCodes.Call, getInvariant));
-                il.InsertBefore(first,
-                    Instruction.Create(OpCodes.Call, setDefaultUiCulture));
+                il.InsertBefore(first, Instruction.Create(OpCodes.Call, getInvariant));
+                il.InsertBefore(first, Instruction.Create(OpCodes.Call, setDefaultUiCulture));
                 anyChange = true;
-                Report(2, "Roslyn-Locale (InvariantCulture)",
-                    "NICHT GEPATCHT -> GEPATCHT [OK]  (Init)");
+                Report(2, "Roslyn-Locale (InvariantCulture)", "NICHT GEPATCHT -> GEPATCHT [OK]  (Init)");
             }
             else
             {
-                Report(2, "Roslyn-Locale (InvariantCulture)",
-                    "NICHT GEPATCHT  (Init)");
+                Report(2, "Roslyn-Locale (InvariantCulture)", "NICHT GEPATCHT  (Init)");
             }
         }
     }
@@ -360,24 +329,18 @@ static int ProcessOtherDll(string dllPath, bool apply)
     var resolver = new DefaultAssemblyResolver();
     resolver.AddSearchDirectory(Path.GetDirectoryName(dllPath));
 
-    using var module = ModuleDefinition.ReadModule(
-        dllPath, new ReaderParameters
-        {
-            ReadWrite = apply,
-            AssemblyResolver = resolver,
-        });
+    using var module = ModuleDefinition.ReadModule(dllPath, new ReaderParameters { ReadWrite = apply, AssemblyResolver = resolver });
 
     var fsType = module.GetType(FsTypeName);
     if (fsType == null)
     {
-        Console.Error.WriteLine("FEHLER: Typ " + FsTypeName
-            + " nicht gefunden — Spiel verändert? Kein Patch angewendet.");
+        Console.Error.WriteLine("FEHLER: Typ " + FsTypeName + " nicht gefunden — Spiel verändert? Kein Patch angewendet.");
         return 1;
     }
 
     bool anyChange = false;
     bool anyGameChanged = false;
-    bool allWereUnpatched = true;  // siehe Kommentar in ProcessLoaderDll
+    bool allWereUnpatched = true; // siehe Kommentar in ProcessLoaderDll
 
     // === Patch 3: Initial-Save direct-write fallback ========================
     // In CK 1.2.1.3 schreibt Pugs atomic-rename Save-Pfad (temp .pugtmp ->
@@ -400,21 +363,26 @@ static int ProcessOtherDll(string dllPath, bool apply)
     // verlieren Atomic-Rename-Safety (kein .pugbackup mehr für überschriebene
     // Original-Files) — akzeptiert für die Hypothesen-Verifikation.
     {
-        var writeMethods = fsType.Methods.Where(m =>
-            m.Name == "Write" && m.HasBody
-            && m.Parameters.Count == 3
-            && m.Parameters[0].ParameterType.FullName == "System.String"
-            && m.Parameters[1].ParameterType.FullName == "System.String"
-            && m.Parameters[2].ParameterType.FullName == "System.Byte[]"
-        ).ToList();
+        var writeMethods = fsType
+            .Methods.Where(m =>
+                m.Name == "Write"
+                && m.HasBody
+                && m.Parameters.Count == 3
+                && m.Parameters[0].ParameterType.FullName == "System.String"
+                && m.Parameters[1].ParameterType.FullName == "System.String"
+                && m.Parameters[2].ParameterType.FullName == "System.Byte[]"
+            )
+            .ToList();
 
         if (writeMethods.Count != 1)
         {
             anyGameChanged = true;
             allWereUnpatched = false;
-            Report(3, "Save direct-write fallback",
-                "SPIEL VERÄNDERT — übersprungen (" + writeMethods.Count
-                + " Write(string,string,byte[]) gefunden, erwartet 1)");
+            Report(
+                3,
+                "Save direct-write fallback",
+                "SPIEL VERÄNDERT — übersprungen (" + writeMethods.Count + " Write(string,string,byte[]) gefunden, erwartet 1)"
+            );
         }
         else
         {
@@ -430,14 +398,11 @@ static int ProcessOtherDll(string dllPath, bool apply)
             {
                 ApplyDirectWriteFallback(write, module);
                 anyChange = true;
-                Report(3, "Save direct-write fallback",
-                    "NICHT GEPATCHT -> GEPATCHT [OK]  (" + write.Name + ")");
+                Report(3, "Save direct-write fallback", "NICHT GEPATCHT -> GEPATCHT [OK]  (" + write.Name + ")");
             }
             else
             {
-                Report(3, "Save direct-write fallback",
-                    "NICHT GEPATCHT  (" + write.Name + ", IL 0x"
-                    + write.Body.Instructions[0].Offset.ToString("X4") + ")");
+                Report(3, "Save direct-write fallback", "NICHT GEPATCHT  (" + write.Name + ", IL 0x" + write.Body.Instructions[0].Offset.ToString("X4") + ")");
             }
         }
     }
@@ -476,19 +441,17 @@ static int ProcessOtherDll(string dllPath, bool apply)
     // tatsächlich rotiert, kein no-op-Verzicht.
     {
         // fsType (StandaloneFilesystem) ist schon oben für Patch 3 geladen.
-        var deleteMethods = fsType.Methods.Where(m =>
-            m.Name == "DeleteDirectory" && m.HasBody
-            && m.Parameters.Count == 1
-            && m.Parameters[0].ParameterType.FullName == "System.String"
-        ).ToList();
+        var deleteMethods = fsType
+            .Methods.Where(m =>
+                m.Name == "DeleteDirectory" && m.HasBody && m.Parameters.Count == 1 && m.Parameters[0].ParameterType.FullName == "System.String"
+            )
+            .ToList();
 
         if (deleteMethods.Count != 1)
         {
             anyGameChanged = true;
             allWereUnpatched = false;
-            Report(4, "DeleteDirectory rewrite",
-                "SPIEL VERÄNDERT — übersprungen (" + deleteMethods.Count
-                + " DeleteDirectory(string) gefunden, erwartet 1)");
+            Report(4, "DeleteDirectory rewrite", "SPIEL VERÄNDERT — übersprungen (" + deleteMethods.Count + " DeleteDirectory(string) gefunden, erwartet 1)");
         }
         else
         {
@@ -502,14 +465,11 @@ static int ProcessOtherDll(string dllPath, bool apply)
             {
                 ApplyDeleteDirectoryRewrite(dd, module);
                 anyChange = true;
-                Report(4, "DeleteDirectory rewrite",
-                    "NICHT GEPATCHT -> GEPATCHT [OK]  (DeleteDirectory body replaced)");
+                Report(4, "DeleteDirectory rewrite", "NICHT GEPATCHT -> GEPATCHT [OK]  (DeleteDirectory body replaced)");
             }
             else
             {
-                Report(4, "DeleteDirectory rewrite",
-                    "NICHT GEPATCHT  (DeleteDirectory, Stock-Body "
-                    + dd.Body.Instructions.Count + " Instructions)");
+                Report(4, "DeleteDirectory rewrite", "NICHT GEPATCHT  (DeleteDirectory, Stock-Body " + dd.Body.Instructions.Count + " Instructions)");
             }
         }
     }
@@ -544,19 +504,15 @@ static int ProcessOtherDll(string dllPath, bool apply)
     // Nebeneffekt: beseitigt die .pugbackup-Orphans, die Pug beim UI-Delete
     // sonst liegen lässt.
     {
-        var delMethods = fsType.Methods.Where(m =>
-            m.Name == "Delete" && m.HasBody
-            && m.Parameters.Count == 1
-            && m.Parameters[0].ParameterType.FullName == "System.String"
-        ).ToList();
+        var delMethods = fsType
+            .Methods.Where(m => m.Name == "Delete" && m.HasBody && m.Parameters.Count == 1 && m.Parameters[0].ParameterType.FullName == "System.String")
+            .ToList();
 
         if (delMethods.Count != 1)
         {
             anyGameChanged = true;
             allWereUnpatched = false;
-            Report(5, "Delete(string) hard-delete",
-                "SPIEL VERÄNDERT — übersprungen (" + delMethods.Count
-                + " Delete(string) gefunden, erwartet 1)");
+            Report(5, "Delete(string) hard-delete", "SPIEL VERÄNDERT — übersprungen (" + delMethods.Count + " Delete(string) gefunden, erwartet 1)");
         }
         else
         {
@@ -570,14 +526,11 @@ static int ProcessOtherDll(string dllPath, bool apply)
             {
                 ApplyDeleteRewrite(del, module);
                 anyChange = true;
-                Report(5, "Delete(string) hard-delete",
-                    "NICHT GEPATCHT -> GEPATCHT [OK]  (Delete body replaced)");
+                Report(5, "Delete(string) hard-delete", "NICHT GEPATCHT -> GEPATCHT [OK]  (Delete body replaced)");
             }
             else
             {
-                Report(5, "Delete(string) hard-delete",
-                    "NICHT GEPATCHT  (Delete, Stock-Body "
-                    + del.Body.Instructions.Count + " Instructions)");
+                Report(5, "Delete(string) hard-delete", "NICHT GEPATCHT  (Delete, Stock-Body " + del.Body.Instructions.Count + " Instructions)");
             }
         }
     }
@@ -624,9 +577,8 @@ static void ApplyDirectWriteFallback(MethodDefinition write, ModuleDefinition mo
     // TryStart.Offset = outermost; Cecil ordnet Handler inner-first,
     // FirstOrDefault gibt sonst den Phase-1-Inner-Catch zurück, der den
     // falschen Code-Pfad guarded).
-    var outerCatch = write.Body.ExceptionHandlers
-        .Where(h => h.HandlerType == ExceptionHandlerType.Catch
-            && h.CatchType?.FullName == "System.IO.IOException")
+    var outerCatch = write
+        .Body.ExceptionHandlers.Where(h => h.HandlerType == ExceptionHandlerType.Catch && h.CatchType?.FullName == "System.IO.IOException")
         .OrderBy(h => h.TryStart.Offset)
         .FirstOrDefault();
     if (outerCatch == null)
@@ -639,19 +591,16 @@ static void ApplyDirectWriteFallback(MethodDefinition write, ModuleDefinition mo
 
     // Refs aufbauen
     var rel2Abs = write.DeclaringType.Methods.Single(m =>
-        m.Name == "Rel2Abs"
-        && m.Parameters.Count == 1
-        && m.Parameters[0].ParameterType.FullName == "System.String");
+        m.Name == "Rel2Abs" && m.Parameters.Count == 1 && m.Parameters[0].ParameterType.FullName == "System.String"
+    );
 
     var corlib = module.TypeSystem.CoreLibrary;
-    var fileType = new TypeReference("System.IO", "File",   module, corlib);
-    var exType   = new TypeReference("System",    "Exception", module, corlib);
+    var fileType = new TypeReference("System.IO", "File", module, corlib);
+    var exType = new TypeReference("System", "Exception", module, corlib);
 
-    var writeAllBytesRef = new MethodReference(
-        "WriteAllBytes", module.TypeSystem.Void, fileType) { HasThis = false };
+    var writeAllBytesRef = new MethodReference("WriteAllBytes", module.TypeSystem.Void, fileType) { HasThis = false };
     writeAllBytesRef.Parameters.Add(new ParameterDefinition(module.TypeSystem.String));
-    writeAllBytesRef.Parameters.Add(
-        new ParameterDefinition(new ArrayType(module.TypeSystem.Byte)));
+    writeAllBytesRef.Parameters.Add(new ParameterDefinition(new ArrayType(module.TypeSystem.Byte)));
 
     // Instruktionen für nested try-catch:
     //   try {
@@ -662,33 +611,31 @@ static void ApplyDirectWriteFallback(MethodDefinition write, ModuleDefinition mo
     //     pop
     //     leave.s existingLeave
     //   }
-    var iLoadThis    = Instruction.Create(OpCodes.Ldarg_0);
-    var iLoadPath    = Instruction.Create(OpCodes.Ldarg_2);
+    var iLoadThis = Instruction.Create(OpCodes.Ldarg_0);
+    var iLoadPath = Instruction.Create(OpCodes.Ldarg_2);
     var iCallRel2Abs = Instruction.Create(OpCodes.Call, rel2Abs);
-    var iLoadData    = Instruction.Create(OpCodes.Ldarg_3);
+    var iLoadData = Instruction.Create(OpCodes.Ldarg_3);
     var iCallWriteAll = Instruction.Create(OpCodes.Call, writeAllBytesRef);
-    var iTryLeave    = Instruction.Create(OpCodes.Leave, existingLeave);
-    var iCatchPop    = Instruction.Create(OpCodes.Pop);
-    var iCatchLeave  = Instruction.Create(OpCodes.Leave, existingLeave);
+    var iTryLeave = Instruction.Create(OpCodes.Leave, existingLeave);
+    var iCatchPop = Instruction.Create(OpCodes.Pop);
+    var iCatchLeave = Instruction.Create(OpCodes.Leave, existingLeave);
 
-    Instruction[] toInsert = new[]
-    {
-        iLoadThis, iLoadPath, iCallRel2Abs, iLoadData, iCallWriteAll,
-        iTryLeave,
-        iCatchPop, iCatchLeave,
-    };
-    foreach (var insn in toInsert) il.InsertBefore(existingLeave, insn);
+    Instruction[] toInsert = new[] { iLoadThis, iLoadPath, iCallRel2Abs, iLoadData, iCallWriteAll, iTryLeave, iCatchPop, iCatchLeave };
+    foreach (var insn in toInsert)
+        il.InsertBefore(existingLeave, insn);
 
     // Nested Exception-Handler — komplett innerhalb des bestehenden Outer-Catch.
     // CIL-Verifier-konform: nested handler region ⊆ outer handler region.
-    write.Body.ExceptionHandlers.Add(new ExceptionHandler(ExceptionHandlerType.Catch)
-    {
-        TryStart     = iLoadThis,
-        TryEnd       = iCatchPop,
-        HandlerStart = iCatchPop,
-        HandlerEnd   = existingLeave,
-        CatchType    = module.ImportReference(exType)
-    });
+    write.Body.ExceptionHandlers.Add(
+        new ExceptionHandler(ExceptionHandlerType.Catch)
+        {
+            TryStart = iLoadThis,
+            TryEnd = iCatchPop,
+            HandlerStart = iCatchPop,
+            HandlerEnd = existingLeave,
+            CatchType = module.ImportReference(exType),
+        }
+    );
 }
 
 // ============================================================================
@@ -720,10 +667,12 @@ static void WriteDll(string dllPath, ModuleDefinition module, bool allWereUnpatc
         }
         else
         {
-            Console.WriteLine("WARNUNG: kein Backup vorhanden + Live-DLL bereits "
-                + "teil-gepatcht → kein zuverlässiger Backup erstellbar. "
-                + "Empfehlung: Steam-Verify und apply erneut laufen lassen, "
-                + "damit ein Stock-Backup angelegt werden kann.");
+            Console.WriteLine(
+                "WARNUNG: kein Backup vorhanden + Live-DLL bereits "
+                    + "teil-gepatcht → kein zuverlässiger Backup erstellbar. "
+                    + "Empfehlung: Steam-Verify und apply erneut laufen lassen, "
+                    + "damit ein Stock-Backup angelegt werden kann."
+            );
         }
     }
     else if (allWereUnpatched)
@@ -737,20 +686,17 @@ static void WriteDll(string dllPath, ModuleDefinition module, bool allWereUnpatc
 
         File.Copy(dllPath, backup, overwrite: true);
 
-        string sizeDelta = oldSize == newSize
-            ? "Größe identisch"
-            : oldSize + " -> " + newSize + " bytes";
-        string mtimeNote = oldMtime.Date == newMtime.Date
-            ? "selbes Datum"
-            : oldMtime.ToString("yyyy-MM-dd") + " -> " + newMtime.ToString("yyyy-MM-dd");
-        Console.WriteLine("Backup aktualisiert (" + sizeDelta + ", " + mtimeNote
-            + "): " + Path.GetFileName(backup));
+        string sizeDelta = oldSize == newSize ? "Größe identisch" : oldSize + " -> " + newSize + " bytes";
+        string mtimeNote = oldMtime.Date == newMtime.Date ? "selbes Datum" : oldMtime.ToString("yyyy-MM-dd") + " -> " + newMtime.ToString("yyyy-MM-dd");
+        Console.WriteLine("Backup aktualisiert (" + sizeDelta + ", " + mtimeNote + "): " + Path.GetFileName(backup));
     }
     else
     {
-        Console.WriteLine("Backup existiert, Live-DLL teil-gepatcht — Backup "
-            + "nicht refreshable aus Live-Stand. Falls als veraltet bekannt: "
-            + "manuell löschen, Steam-Verify, apply erneut.");
+        Console.WriteLine(
+            "Backup existiert, Live-DLL teil-gepatcht — Backup "
+                + "nicht refreshable aus Live-Stand. Falls als veraltet bekannt: "
+                + "manuell löschen, Steam-Verify, apply erneut."
+        );
     }
 
     module.Write();
@@ -769,8 +715,7 @@ static bool IsDirectoryDeleteStringBool(MethodReference mr) =>
     && mr.Parameters[1].ParameterType.FullName == "System.Boolean";
 
 static bool IsSetDefaultThreadCurrentUICulture(MethodReference mr) =>
-    mr.DeclaringType.FullName == "System.Globalization.CultureInfo"
-    && mr.Name == "set_DefaultThreadCurrentUICulture";
+    mr.DeclaringType.FullName == "System.Globalization.CultureInfo" && mr.Name == "set_DefaultThreadCurrentUICulture";
 
 // Patch-4-Fingerprint: nach Body-Replacement ruft DeleteDirectory u.a.
 // Directory.GetFiles oder File.Delete auf — beides ist im Stock-Body nicht
@@ -800,36 +745,37 @@ static bool HasIterAndDeleteFingerprint(MethodDefinition dd)
 static void ApplyDeleteDirectoryRewrite(MethodDefinition dd, ModuleDefinition module)
 {
     var corlib = module.TypeSystem.CoreLibrary;
-    var stringT  = module.TypeSystem.String;
-    var intT     = module.TypeSystem.Int32;
-    var boolT    = module.TypeSystem.Boolean;
-    var voidT    = module.TypeSystem.Void;
+    var stringT = module.TypeSystem.String;
+    var intT = module.TypeSystem.Int32;
+    var boolT = module.TypeSystem.Boolean;
+    var voidT = module.TypeSystem.Void;
     var stringArr = new ArrayType(stringT);
 
     // Type-Refs gegen die game-eigene mscorlib bauen (nicht aus .NET 10
     // typeof importieren — Mono-Runtime hätte einen TypeLoadException).
-    var dirType   = new TypeReference("System.IO", "Directory", module, corlib);
-    var fileType  = new TypeReference("System.IO", "File",      module, corlib);
-    var soType    = new TypeReference("System.IO", "SearchOption", module, corlib) { IsValueType = true };
-    var excType   = new TypeReference("System",    "Exception", module, corlib);
+    var dirType = new TypeReference("System.IO", "Directory", module, corlib);
+    var fileType = new TypeReference("System.IO", "File", module, corlib);
+    var soType = new TypeReference("System.IO", "SearchOption", module, corlib) { IsValueType = true };
+    var excType = new TypeReference("System", "Exception", module, corlib);
 
     MethodReference Mref(TypeReference owner, string name, TypeReference ret, bool hasThis, params TypeReference[] ps)
     {
         var mr = new MethodReference(name, ret, owner) { HasThis = hasThis };
-        foreach (var p in ps) mr.Parameters.Add(new ParameterDefinition(p));
+        foreach (var p in ps)
+            mr.Parameters.Add(new ParameterDefinition(p));
         return mr;
     }
 
-    var getFiles      = Mref(dirType,  "GetFiles",       stringArr, false, stringT, stringT, soType);
-    var getDirs       = Mref(dirType,  "GetDirectories", stringArr, false, stringT, stringT, soType);
-    var dirDelete     = Mref(dirType,  "Delete",         voidT,     false, stringT, boolT);
-    var fileDelete    = Mref(fileType, "Delete",         voidT,     false, stringT);
-    var stringLength  = Mref(stringT,  "get_Length",     intT,      true);
+    var getFiles = Mref(dirType, "GetFiles", stringArr, false, stringT, stringT, soType);
+    var getDirs = Mref(dirType, "GetDirectories", stringArr, false, stringT, stringT, soType);
+    var dirDelete = Mref(dirType, "Delete", voidT, false, stringT, boolT);
+    var fileDelete = Mref(fileType, "Delete", voidT, false, stringT);
+    var stringLength = Mref(stringT, "get_Length", intT, true);
 
     // Rel2Abs sitzt im selben Type — direct member-lookup.
     var rel2Abs = dd.DeclaringType.Methods.Single(m =>
-        m.Name == "Rel2Abs" && m.Parameters.Count == 1
-        && m.Parameters[0].ParameterType.FullName == "System.String");
+        m.Name == "Rel2Abs" && m.Parameters.Count == 1 && m.Parameters[0].ParameterType.FullName == "System.String"
+    );
 
     // Body neu aufbauen
     dd.Body.Instructions.Clear();
@@ -837,27 +783,38 @@ static void ApplyDeleteDirectoryRewrite(MethodDefinition dd, ModuleDefinition mo
     dd.Body.Variables.Clear();
     dd.Body.InitLocals = true;
 
-    var locAbs   = new VariableDefinition(stringT);    dd.Body.Variables.Add(locAbs);
-    var locFiles = new VariableDefinition(stringArr);  dd.Body.Variables.Add(locFiles);
-    var locDirs  = new VariableDefinition(stringArr);  dd.Body.Variables.Add(locDirs);
-    var locI     = new VariableDefinition(intT);       dd.Body.Variables.Add(locI);
-    var locJ     = new VariableDefinition(intT);       dd.Body.Variables.Add(locJ);
-    var locTmp   = new VariableDefinition(stringT);    dd.Body.Variables.Add(locTmp);
+    var locAbs = new VariableDefinition(stringT);
+    dd.Body.Variables.Add(locAbs);
+    var locFiles = new VariableDefinition(stringArr);
+    dd.Body.Variables.Add(locFiles);
+    var locDirs = new VariableDefinition(stringArr);
+    dd.Body.Variables.Add(locDirs);
+    var locI = new VariableDefinition(intT);
+    dd.Body.Variables.Add(locI);
+    var locJ = new VariableDefinition(intT);
+    dd.Body.Variables.Add(locJ);
+    var locTmp = new VariableDefinition(stringT);
+    dd.Body.Variables.Add(locTmp);
 
     var il = dd.Body.GetILProcessor();
 
     // Hilfsmethode zum stable-emit (gibt die Instruction zurück, falls als Label gebraucht)
-    Instruction Emit(OpCode op) { var i = Instruction.Create(op); il.Append(i); return i; }
+    Instruction Emit(OpCode op)
+    {
+        var i = Instruction.Create(op);
+        il.Append(i);
+        return i;
+    }
     Instruction EmitOp(OpCode op, object operand)
     {
         Instruction i = operand switch
         {
             VariableDefinition v => Instruction.Create(op, v),
-            MethodReference m    => Instruction.Create(op, m),
-            string s             => Instruction.Create(op, s),
-            Instruction t        => Instruction.Create(op, t),
-            int n                => Instruction.Create(op, n),
-            _ => throw new InvalidOperationException("operand type unsupported: " + operand.GetType())
+            MethodReference m => Instruction.Create(op, m),
+            string s => Instruction.Create(op, s),
+            Instruction t => Instruction.Create(op, t),
+            int n => Instruction.Create(op, n),
+            _ => throw new InvalidOperationException("operand type unsupported: " + operand.GetType()),
         };
         il.Append(i);
         return i;
@@ -1006,26 +963,27 @@ static void ApplyDeleteDirectoryRewrite(MethodDefinition dd, ModuleDefinition mo
     il.Append(endRet);
 
     // ExceptionHandler: try [tryStart..catchStart) catch [catchStart..endRet)
-    dd.Body.ExceptionHandlers.Add(new ExceptionHandler(ExceptionHandlerType.Catch)
-    {
-        TryStart     = tryStart,
-        TryEnd       = catchStart,
-        HandlerStart = catchStart,
-        HandlerEnd   = endRet,
-        CatchType    = excType,
-    });
+    dd.Body.ExceptionHandlers.Add(
+        new ExceptionHandler(ExceptionHandlerType.Catch)
+        {
+            TryStart = tryStart,
+            TryEnd = catchStart,
+            HandlerStart = catchStart,
+            HandlerEnd = endRet,
+            CatchType = excType,
+        }
+    );
 }
 
 static bool HasPopPopFingerprint(TypeDefinition t)
 {
     foreach (var m in t.Methods)
     {
-        if (!m.HasBody) continue;
+        if (!m.HasBody)
+            continue;
         foreach (var insn in m.Body.Instructions)
         {
-            if (insn.OpCode == OpCodes.Ldc_I4_1
-                && insn.Next?.OpCode == OpCodes.Pop
-                && insn.Next.Next?.OpCode == OpCodes.Pop)
+            if (insn.OpCode == OpCodes.Ldc_I4_1 && insn.Next?.OpCode == OpCodes.Pop && insn.Next.Next?.OpCode == OpCodes.Pop)
                 return true;
         }
     }
@@ -1040,10 +998,12 @@ static bool HasDirectWriteFingerprint(MethodDefinition write)
 {
     foreach (var insn in write.Body.Instructions)
     {
-        if ((insn.OpCode == OpCodes.Call || insn.OpCode == OpCodes.Callvirt)
+        if (
+            (insn.OpCode == OpCodes.Call || insn.OpCode == OpCodes.Callvirt)
             && insn.Operand is MethodReference mr
             && mr.DeclaringType.FullName == "System.IO.File"
-            && mr.Name == "WriteAllBytes")
+            && mr.Name == "WriteAllBytes"
+        )
         {
             return true;
         }
@@ -1059,15 +1019,17 @@ static bool HasHardDeleteFingerprint(MethodDefinition del)
 {
     foreach (var insn in del.Body.Instructions)
     {
-        if ((insn.OpCode == OpCodes.Call || insn.OpCode == OpCodes.Callvirt)
+        if (
+            (insn.OpCode == OpCodes.Call || insn.OpCode == OpCodes.Callvirt)
             && insn.Operand is MethodReference mr
             && mr.DeclaringType.FullName == "System.IO.File"
-            && mr.Name == "Move")
+            && mr.Name == "Move"
+        )
         {
-            return false;   // File.Move präsent -> noch Stock
+            return false; // File.Move präsent -> noch Stock
         }
     }
-    return true;            // kein File.Move -> bereits Hard-Delete
+    return true; // kein File.Move -> bereits Hard-Delete
 }
 
 // IL-Generation für Patch 5: Body von StandaloneFilesystem.Delete(string)
@@ -1080,50 +1042,58 @@ static bool HasHardDeleteFingerprint(MethodDefinition del)
 //     } catch (Exception) { }
 static void ApplyDeleteRewrite(MethodDefinition del, ModuleDefinition module)
 {
-    var corlib  = module.TypeSystem.CoreLibrary;
+    var corlib = module.TypeSystem.CoreLibrary;
     var stringT = module.TypeSystem.String;
-    var boolT   = module.TypeSystem.Boolean;
-    var voidT   = module.TypeSystem.Void;
+    var boolT = module.TypeSystem.Boolean;
+    var voidT = module.TypeSystem.Void;
 
-    var fileType = new TypeReference("System.IO", "File",      module, corlib);
-    var excType  = new TypeReference("System",    "Exception", module, corlib);
+    var fileType = new TypeReference("System.IO", "File", module, corlib);
+    var excType = new TypeReference("System", "Exception", module, corlib);
 
     MethodReference Mref(TypeReference owner, string name, TypeReference ret, bool hasThis, params TypeReference[] ps)
     {
         var mr = new MethodReference(name, ret, owner) { HasThis = hasThis };
-        foreach (var p in ps) mr.Parameters.Add(new ParameterDefinition(p));
+        foreach (var p in ps)
+            mr.Parameters.Add(new ParameterDefinition(p));
         return mr;
     }
 
-    var fileExists = Mref(fileType, "Exists", boolT,    false, stringT);
-    var fileDelete = Mref(fileType, "Delete", voidT,    false, stringT);
-    var strConcat  = Mref(stringT,  "Concat", stringT,  false, stringT, stringT);
+    var fileExists = Mref(fileType, "Exists", boolT, false, stringT);
+    var fileDelete = Mref(fileType, "Delete", voidT, false, stringT);
+    var strConcat = Mref(stringT, "Concat", stringT, false, stringT, stringT);
 
     // Rel2Abs sitzt im selben Type — direct member-lookup (instance method).
     var rel2Abs = del.DeclaringType.Methods.Single(m =>
-        m.Name == "Rel2Abs" && m.Parameters.Count == 1
-        && m.Parameters[0].ParameterType.FullName == "System.String");
+        m.Name == "Rel2Abs" && m.Parameters.Count == 1 && m.Parameters[0].ParameterType.FullName == "System.String"
+    );
 
     del.Body.Instructions.Clear();
     del.Body.ExceptionHandlers.Clear();
     del.Body.Variables.Clear();
     del.Body.InitLocals = true;
 
-    var locAbs = new VariableDefinition(stringT); del.Body.Variables.Add(locAbs);
-    var locBak = new VariableDefinition(stringT); del.Body.Variables.Add(locBak);
+    var locAbs = new VariableDefinition(stringT);
+    del.Body.Variables.Add(locAbs);
+    var locBak = new VariableDefinition(stringT);
+    del.Body.Variables.Add(locBak);
 
     var il = del.Body.GetILProcessor();
-    Instruction Emit(OpCode op) { var i = Instruction.Create(op); il.Append(i); return i; }
+    Instruction Emit(OpCode op)
+    {
+        var i = Instruction.Create(op);
+        il.Append(i);
+        return i;
+    }
     Instruction EmitOp(OpCode op, object operand)
     {
         Instruction i = operand switch
         {
             VariableDefinition v => Instruction.Create(op, v),
-            MethodReference m    => Instruction.Create(op, m),
-            string s             => Instruction.Create(op, s),
-            Instruction t        => Instruction.Create(op, t),
-            int n                => Instruction.Create(op, n),
-            _ => throw new InvalidOperationException("operand type unsupported: " + operand.GetType())
+            MethodReference m => Instruction.Create(op, m),
+            string s => Instruction.Create(op, s),
+            Instruction t => Instruction.Create(op, t),
+            int n => Instruction.Create(op, n),
+            _ => throw new InvalidOperationException("operand type unsupported: " + operand.GetType()),
         };
         il.Append(i);
         return i;
@@ -1140,14 +1110,14 @@ static void ApplyDeleteRewrite(MethodDefinition del, ModuleDefinition module)
     // === if (File.Exists(abs)) File.Delete(abs); ===
     EmitOp(OpCodes.Ldloc, locAbs);
     EmitOp(OpCodes.Call, fileExists);
-    var bakStart = Instruction.Create(OpCodes.Ldarg_0);  // erste Insn der bak-Berechnung
+    var bakStart = Instruction.Create(OpCodes.Ldarg_0); // erste Insn der bak-Berechnung
     EmitOp(OpCodes.Brfalse, bakStart);
     EmitOp(OpCodes.Ldloc, locAbs);
     EmitOp(OpCodes.Call, fileDelete);
 
     // === bak = this.Rel2Abs(path + ".pugbackup"); ===
-    il.Append(bakStart);             // ldarg.0 (this für Rel2Abs)
-    Emit(OpCodes.Ldarg_1);           // path
+    il.Append(bakStart); // ldarg.0 (this für Rel2Abs)
+    Emit(OpCodes.Ldarg_1); // path
     EmitOp(OpCodes.Ldstr, ".pugbackup");
     EmitOp(OpCodes.Call, strConcat);
     EmitOp(OpCodes.Call, rel2Abs);
@@ -1160,7 +1130,7 @@ static void ApplyDeleteRewrite(MethodDefinition del, ModuleDefinition module)
     EmitOp(OpCodes.Brfalse, afterBakDelete);
     EmitOp(OpCodes.Ldloc, locBak);
     EmitOp(OpCodes.Call, fileDelete);
-    il.Append(afterBakDelete);       // leave END (try-Block-Exit)
+    il.Append(afterBakDelete); // leave END (try-Block-Exit)
 
     // === catch (Exception) { pop; leave END } ===
     var catchStart = Instruction.Create(OpCodes.Pop);
@@ -1170,14 +1140,16 @@ static void ApplyDeleteRewrite(MethodDefinition del, ModuleDefinition module)
     // === ret ===
     il.Append(endRet);
 
-    del.Body.ExceptionHandlers.Add(new ExceptionHandler(ExceptionHandlerType.Catch)
-    {
-        TryStart     = tryStart,
-        TryEnd       = catchStart,
-        HandlerStart = catchStart,
-        HandlerEnd   = endRet,
-        CatchType    = excType,
-    });
+    del.Body.ExceptionHandlers.Add(
+        new ExceptionHandler(ExceptionHandlerType.Catch)
+        {
+            TryStart = tryStart,
+            TryEnd = catchStart,
+            HandlerStart = catchStart,
+            HandlerEnd = endRet,
+            CatchType = excType,
+        }
+    );
 }
 
 // ============================================================================
@@ -1212,18 +1184,12 @@ static int ProcessModioDll(string dllPath, bool apply)
     var resolver = new DefaultAssemblyResolver();
     resolver.AddSearchDirectory(Path.GetDirectoryName(dllPath));
 
-    using var module = ModuleDefinition.ReadModule(
-        dllPath, new ReaderParameters
-        {
-            ReadWrite = apply,
-            AssemblyResolver = resolver,
-        });
+    using var module = ModuleDefinition.ReadModule(dllPath, new ReaderParameters { ReadWrite = apply, AssemblyResolver = resolver });
 
     var wrapperType = module.GetType(ModioWrapperType);
     if (wrapperType == null)
     {
-        Console.Error.WriteLine("FEHLER: Typ " + ModioWrapperType
-            + " nicht gefunden — modio verändert? Kein Patch angewendet.");
+        Console.Error.WriteLine("FEHLER: Typ " + ModioWrapperType + " nicht gefunden — modio verändert? Kein Patch angewendet.");
         return 1;
     }
 
@@ -1234,11 +1200,11 @@ static int ProcessModioDll(string dllPath, bool apply)
     {
         bool helperPresent = wrapperType.Methods.Any(m => m.Name == ModioHelperName);
 
-        var ddMethods = wrapperType.Methods.Where(m =>
-            m.Name == "DeleteDirectory" && m.IsStatic && m.HasBody
-            && m.Parameters.Count == 1
-            && m.Parameters[0].ParameterType.FullName == "System.String"
-        ).ToList();
+        var ddMethods = wrapperType
+            .Methods.Where(m =>
+                m.Name == "DeleteDirectory" && m.IsStatic && m.HasBody && m.Parameters.Count == 1 && m.Parameters[0].ParameterType.FullName == "System.String"
+            )
+            .ToList();
 
         if (helperPresent)
         {
@@ -1249,39 +1215,40 @@ static int ProcessModioDll(string dllPath, bool apply)
         {
             anyGameChanged = true;
             allWereUnpatched = false;
-            Report(6, "modio DeleteDirectory rewrite",
-                "SPIEL VERÄNDERT — übersprungen (" + ddMethods.Count
-                + " static DeleteDirectory(string) gefunden, erwartet 1)");
+            Report(
+                6,
+                "modio DeleteDirectory rewrite",
+                "SPIEL VERÄNDERT — übersprungen (" + ddMethods.Count + " static DeleteDirectory(string) gefunden, erwartet 1)"
+            );
         }
         else
         {
             var dd = ddMethods[0];
-            var hits = dd.Body.Instructions.Where(insn =>
-                (insn.OpCode == OpCodes.Call || insn.OpCode == OpCodes.Callvirt)
-                && insn.Operand is MethodReference mr
-                && IsDirectoryDeleteStringBool(mr)).ToList();
+            var hits = dd
+                .Body.Instructions.Where(insn =>
+                    (insn.OpCode == OpCodes.Call || insn.OpCode == OpCodes.Callvirt) && insn.Operand is MethodReference mr && IsDirectoryDeleteStringBool(mr)
+                )
+                .ToList();
 
             if (hits.Count != 1 || hits[0].Previous?.OpCode != OpCodes.Ldc_I4_1)
             {
                 anyGameChanged = true;
                 allWereUnpatched = false;
-                Report(6, "modio DeleteDirectory rewrite",
-                    "SPIEL VERÄNDERT — übersprungen (" + hits.Count
-                    + " Directory.Delete(string,bool) mit ldc.i4.1-Prefix, erwartet 1)");
+                Report(
+                    6,
+                    "modio DeleteDirectory rewrite",
+                    "SPIEL VERÄNDERT — übersprungen (" + hits.Count + " Directory.Delete(string,bool) mit ldc.i4.1-Prefix, erwartet 1)"
+                );
             }
             else if (apply)
             {
                 ApplyModioDeleteDirectoryRewrite(dd, wrapperType, hits[0], module);
                 anyChange = true;
-                Report(6, "modio DeleteDirectory rewrite",
-                    "NICHT GEPATCHT -> GEPATCHT [OK]  (Directory.Delete -> "
-                    + ModioHelperName + ")");
+                Report(6, "modio DeleteDirectory rewrite", "NICHT GEPATCHT -> GEPATCHT [OK]  (Directory.Delete -> " + ModioHelperName + ")");
             }
             else
             {
-                Report(6, "modio DeleteDirectory rewrite",
-                    "NICHT GEPATCHT  (DeleteDirectory, Directory.Delete @ IL 0x"
-                    + hits[0].Offset.ToString("X4") + ")");
+                Report(6, "modio DeleteDirectory rewrite", "NICHT GEPATCHT  (DeleteDirectory, Directory.Delete @ IL 0x" + hits[0].Offset.ToString("X4") + ")");
             }
         }
     }
@@ -1298,15 +1265,13 @@ static int ProcessModioDll(string dllPath, bool apply)
 // den injizierten Wine-safe Helper um. Stack vor dem Call: [path, true]. Der
 // Helper braucht nur [path], also wird der bool-Push (ldc.i4.1, vorab validiert)
 // entfernt und der Call-Operand ausgetauscht.
-static void ApplyModioDeleteDirectoryRewrite(
-    MethodDefinition dd, TypeDefinition wrapperType,
-    Instruction dirDeleteCall, ModuleDefinition module)
+static void ApplyModioDeleteDirectoryRewrite(MethodDefinition dd, TypeDefinition wrapperType, Instruction dirDeleteCall, ModuleDefinition module)
 {
     var helper = BuildWineSafeDeleteHelper(module);
     wrapperType.Methods.Add(helper);
 
     var il = dd.Body.GetILProcessor();
-    var boolPush = dirDeleteCall.Previous;   // ldc.i4.1 (recursive: true)
+    var boolPush = dirDeleteCall.Previous; // ldc.i4.1 (recursive: true)
     il.Remove(boolPush);
     dirDeleteCall.OpCode = OpCodes.Call;
     dirDeleteCall.Operand = helper;
@@ -1318,55 +1283,64 @@ static void ApplyModioDeleteDirectoryRewrite(
 // (modio's umgebender Handler fängt), terminiert mit ret.
 static MethodDefinition BuildWineSafeDeleteHelper(ModuleDefinition module)
 {
-    var corlib    = module.TypeSystem.CoreLibrary;
-    var stringT   = module.TypeSystem.String;
-    var intT      = module.TypeSystem.Int32;
-    var boolT     = module.TypeSystem.Boolean;
-    var voidT     = module.TypeSystem.Void;
+    var corlib = module.TypeSystem.CoreLibrary;
+    var stringT = module.TypeSystem.String;
+    var intT = module.TypeSystem.Int32;
+    var boolT = module.TypeSystem.Boolean;
+    var voidT = module.TypeSystem.Void;
     var stringArr = new ArrayType(stringT);
 
-    var dirType  = new TypeReference("System.IO", "Directory",    module, corlib);
-    var fileType = new TypeReference("System.IO", "File",         module, corlib);
-    var soType   = new TypeReference("System.IO", "SearchOption", module, corlib) { IsValueType = true };
+    var dirType = new TypeReference("System.IO", "Directory", module, corlib);
+    var fileType = new TypeReference("System.IO", "File", module, corlib);
+    var soType = new TypeReference("System.IO", "SearchOption", module, corlib) { IsValueType = true };
 
     MethodReference Mref(TypeReference owner, string name, TypeReference ret, bool hasThis, params TypeReference[] ps)
     {
         var mr = new MethodReference(name, ret, owner) { HasThis = hasThis };
-        foreach (var p in ps) mr.Parameters.Add(new ParameterDefinition(p));
+        foreach (var p in ps)
+            mr.Parameters.Add(new ParameterDefinition(p));
         return mr;
     }
 
-    var getFiles     = Mref(dirType,  "GetFiles",       stringArr, false, stringT, stringT, soType);
-    var getDirs      = Mref(dirType,  "GetDirectories", stringArr, false, stringT, stringT, soType);
-    var dirDelete    = Mref(dirType,  "Delete",         voidT,     false, stringT, boolT);
-    var fileDelete   = Mref(fileType, "Delete",         voidT,     false, stringT);
-    var stringLength = Mref(stringT,  "get_Length",     intT,      true);
+    var getFiles = Mref(dirType, "GetFiles", stringArr, false, stringT, stringT, soType);
+    var getDirs = Mref(dirType, "GetDirectories", stringArr, false, stringT, stringT, soType);
+    var dirDelete = Mref(dirType, "Delete", voidT, false, stringT, boolT);
+    var fileDelete = Mref(fileType, "Delete", voidT, false, stringT);
+    var stringLength = Mref(stringT, "get_Length", intT, true);
 
-    var helper = new MethodDefinition(ModioHelperName,
-        MethodAttributes.Private | MethodAttributes.Static | MethodAttributes.HideBySig,
-        voidT);
+    var helper = new MethodDefinition(ModioHelperName, MethodAttributes.Private | MethodAttributes.Static | MethodAttributes.HideBySig, voidT);
     helper.Parameters.Add(new ParameterDefinition("path", ParameterAttributes.None, stringT));
 
     var body = helper.Body;
     body.InitLocals = true;
-    var locFiles = new VariableDefinition(stringArr); body.Variables.Add(locFiles);
-    var locDirs  = new VariableDefinition(stringArr); body.Variables.Add(locDirs);
-    var locI     = new VariableDefinition(intT);      body.Variables.Add(locI);
-    var locJ     = new VariableDefinition(intT);      body.Variables.Add(locJ);
-    var locTmp   = new VariableDefinition(stringT);   body.Variables.Add(locTmp);
+    var locFiles = new VariableDefinition(stringArr);
+    body.Variables.Add(locFiles);
+    var locDirs = new VariableDefinition(stringArr);
+    body.Variables.Add(locDirs);
+    var locI = new VariableDefinition(intT);
+    body.Variables.Add(locI);
+    var locJ = new VariableDefinition(intT);
+    body.Variables.Add(locJ);
+    var locTmp = new VariableDefinition(stringT);
+    body.Variables.Add(locTmp);
 
     var il = body.GetILProcessor();
-    Instruction Emit(OpCode op) { var i = Instruction.Create(op); il.Append(i); return i; }
+    Instruction Emit(OpCode op)
+    {
+        var i = Instruction.Create(op);
+        il.Append(i);
+        return i;
+    }
     Instruction EmitOp(OpCode op, object operand)
     {
         Instruction i = operand switch
         {
             VariableDefinition v => Instruction.Create(op, v),
-            MethodReference m    => Instruction.Create(op, m),
-            string s             => Instruction.Create(op, s),
-            Instruction t        => Instruction.Create(op, t),
-            int n                => Instruction.Create(op, n),
-            _ => throw new InvalidOperationException("operand type unsupported: " + operand.GetType())
+            MethodReference m => Instruction.Create(op, m),
+            string s => Instruction.Create(op, s),
+            Instruction t => Instruction.Create(op, t),
+            int n => Instruction.Create(op, n),
+            _ => throw new InvalidOperationException("operand type unsupported: " + operand.GetType()),
         };
         il.Append(i);
         return i;
