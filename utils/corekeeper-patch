@@ -1,0 +1,1425 @@
+#!/usr/bin/env -S dotnet --
+#:package Mono.Cecil@0.11.6
+
+using Mono.Cecil;
+using Mono.Cecil.Cil;
+using System.Linq;
+
+#nullable disable
+
+// ============================================================================
+// Default-Pfade in der CrossOver-Bottle. args[1] überschreibt nur den Pfad zu
+// PugMod.Loader.dll — Pug.Other.dll bleibt am Default (per Edit dieser Konstante
+// anpassbar).
+// ============================================================================
+
+const string ManagedDir =
+    "/Users/valgard/Library/Application Support/CrossOver/Bottles/Core Keeper/" +
+    "drive_c/Program Files (x86)/Steam/steamapps/common/Core Keeper/" +
+    "CoreKeeper_Data/Managed";
+
+const string DefaultLoaderDll = ManagedDir + "/PugMod.Loader.dll";
+const string LoaderTypeName   = "PugMod.Loader";
+
+const string DefaultOtherDll  = ManagedDir + "/Pug.Other.dll";
+const string FsTypeName       = "Pug.Platform.StandaloneFilesystem";
+
+const string DefaultModioDll  = ManagedDir + "/modio.UnityPlugin.dll";
+const string ModioWrapperType = "ModIO.Implementation.Platform.SystemIOWrapper";
+// Name der vom Patcher injizierten Wine-safe Iter-and-Delete Helper-Methode in
+// SystemIOWrapper. Existenz dieser Methode = Patch-6-Marker (Idempotenz).
+const string ModioHelperName  = "CorekeeperWineSafeDeleteDir";
+
+if (args.Length < 1 || (args[0] != "analyze" && args[0] != "apply"))
+{
+    Console.Error.WriteLine(
+        "Usage: corekeeper-patch <analyze|apply> [pfad-zu-PugMod.Loader.dll]");
+    return 2;
+}
+
+string command   = args[0];
+string loaderDll = args.Length >= 2 ? args[1] : DefaultLoaderDll;
+string otherDll  = DefaultOtherDll;
+string modioDll  = DefaultModioDll;
+bool apply       = command == "apply";
+
+Console.WriteLine("corekeeper-patch");
+Console.WriteLine(new string('=', 52));
+
+int rcLoader = ProcessLoaderDll(loaderDll, apply);
+
+// Pug.Other.dll-Pipeline (Patch 3 + 4) ist via Env-Var
+// COREKEEPER_PATCH_SKIP_3=1 komplett deaktivierbar — Notfall-Skip, falls
+// einer der Patches in einer zukünftigen CK-Version Probleme macht und
+// Patch-1+2 (PugMod.Loader.dll) trotzdem laufen sollen.
+int rcOther = 0;
+if (Environment.GetEnvironmentVariable("COREKEEPER_PATCH_SKIP_3") == "1")
+{
+    Console.WriteLine();
+    Console.WriteLine("DLL: " + otherDll);
+    Console.WriteLine();
+    Console.WriteLine("Patch 3  Save direct-write fallback        ÜBERSPRUNGEN (COREKEEPER_PATCH_SKIP_3=1)");
+    Console.WriteLine("Patch 4  DeleteDirectory rewrite           ÜBERSPRUNGEN (COREKEEPER_PATCH_SKIP_3=1)");
+}
+else
+{
+    rcOther = ProcessOtherDll(otherDll, apply);
+}
+
+// modio.UnityPlugin.dll-Pipeline (Patch 6) ist via Env-Var
+// COREKEEPER_PATCH_SKIP_MODIO=1 deaktivierbar — separater Notfall-Skip, da
+// modio eine eigenständige Assembly ist (unabhängig von Patch 1-5).
+int rcModio = 0;
+if (Environment.GetEnvironmentVariable("COREKEEPER_PATCH_SKIP_MODIO") == "1")
+{
+    Console.WriteLine();
+    Console.WriteLine("DLL: " + modioDll);
+    Console.WriteLine();
+    Console.WriteLine("Patch 6  modio DeleteDirectory rewrite     ÜBERSPRUNGEN (COREKEEPER_PATCH_SKIP_MODIO=1)");
+}
+else
+{
+    rcModio = ProcessModioDll(modioDll, apply);
+}
+
+Console.WriteLine();
+if (rcLoader != 0 || rcOther != 0 || rcModio != 0)
+{
+    Console.WriteLine("Status: UNVOLLSTÄNDIG — mindestens ein Patch wurde "
+        + "wegen unerwarteter DLL-Struktur übersprungen.");
+    return 1;
+}
+Console.WriteLine(apply
+    ? "Status: FERTIG — alle Patches im Soll-Zustand."
+    : "Status: ANALYSE — 'apply' wendet fehlende Patches an.");
+return 0;
+
+// ============================================================================
+// PugMod.Loader.dll — Patch 1 (Directory.Delete) + Patch 2 (InvariantCulture)
+// ============================================================================
+static int ProcessLoaderDll(string dllPath, bool apply)
+{
+    Console.WriteLine();
+    Console.WriteLine("DLL: " + dllPath);
+    Console.WriteLine();
+
+    if (!File.Exists(dllPath))
+    {
+        Console.Error.WriteLine("FEHLER: DLL nicht gefunden.");
+        return 1;
+    }
+
+    // Resolver muss das Managed/-Dir kennen, sonst scheitert module.Write() für
+    // DLLs mit Cross-Assembly-Type-Refs (Pug.Other -> Pug.Base etc.) während
+    // der Metadata-Build-Phase.
+    var resolver = new DefaultAssemblyResolver();
+    resolver.AddSearchDirectory(Path.GetDirectoryName(dllPath));
+
+    using var module = ModuleDefinition.ReadModule(
+        dllPath, new ReaderParameters
+        {
+            ReadWrite = apply,
+            AssemblyResolver = resolver,
+        });
+
+    var type = module.GetType(LoaderTypeName);
+    if (type == null)
+    {
+        Console.Error.WriteLine("FEHLER: Typ " + LoaderTypeName
+            + " nicht gefunden — Spiel verändert? Kein Patch angewendet.");
+        return 1;
+    }
+
+    bool anyChange = false;
+    bool anyGameChanged = false;
+    bool allWereUnpatched = true;  // wird false bei BEREITS GEPATCHT / SPIEL VERÄNDERT
+
+    // === Patch 1: Directory.Delete(string,bool) -> pop pop =================
+    // The single recursive directory delete in PugMod.Loader fails under Wine
+    // and aborts the whole mod-load pass. Replacing the call with two pops
+    // discards its two arguments, keeps the IL stack balanced, and does nothing
+    // else.
+    {
+        var hits = new List<(MethodDefinition Method, Instruction Insn)>();
+        foreach (var m in type.Methods)
+        {
+            if (!m.HasBody) continue;
+            foreach (var insn in m.Body.Instructions)
+            {
+                if (insn.OpCode != OpCodes.Call && insn.OpCode != OpCodes.Callvirt)
+                    continue;
+                if (insn.Operand is MethodReference mr
+                    && IsDirectoryDeleteStringBool(mr))
+                    hits.Add((m, insn));
+            }
+        }
+
+        if (hits.Count == 1)
+        {
+            var (method, deleteCall) = hits[0];
+            if (apply)
+            {
+                var il = method.Body.GetILProcessor();
+                deleteCall.OpCode = OpCodes.Pop;
+                deleteCall.Operand = null;
+                il.InsertAfter(deleteCall, Instruction.Create(OpCodes.Pop));
+                anyChange = true;
+                Report(1, "Directory.Delete -> pop pop",
+                    "NICHT GEPATCHT -> GEPATCHT [OK]  (" + method.Name + ")");
+            }
+            else
+            {
+                Report(1, "Directory.Delete -> pop pop",
+                    "NICHT GEPATCHT  (" + method.Name + ", IL 0x"
+                    + deleteCall.Offset.ToString("X4") + ")");
+            }
+        }
+        else if (hits.Count == 0 && HasPopPopFingerprint(type))
+        {
+            allWereUnpatched = false;
+            Report(1, "Directory.Delete -> pop pop", "BEREITS GEPATCHT");
+        }
+        else
+        {
+            anyGameChanged = true;
+            allWereUnpatched = false;
+            string why = hits.Count > 1
+                ? hits.Count + " Directory.Delete(string,bool)-Aufrufe gefunden"
+                : "kein Directory.Delete(string,bool) und kein pop-pop-Muster";
+            Report(1, "Directory.Delete -> pop pop",
+                "SPIEL VERÄNDERT — übersprungen (" + why + ")");
+        }
+    }
+
+    // === Patch 2: force InvariantCulture so Roslyn skips the satellite lookup
+    // Under the German Wine locale, Roslyn fetches a localized diagnostic
+    // string from a de-DE satellite assembly that the game does not ship -> the
+    // FileNotFoundException aborts the mod-load pass. Setting the process-wide
+    // default UI culture to Invariant in Loader.Init (before any compilation,
+    // so Roslyn's later worker threads inherit it) makes Roslyn fall back to
+    // the embedded English resources and never look up a satellite at all.
+    {
+        var initMethods = type.Methods
+            .Where(m => m.Name == "Init" && m.HasBody).ToList();
+
+        if (initMethods.Count != 1)
+        {
+            anyGameChanged = true;
+            allWereUnpatched = false;
+            Report(2, "Roslyn-Locale (InvariantCulture)",
+                "SPIEL VERÄNDERT — übersprungen (" + initMethods.Count
+                + " Methoden 'Init' mit Body, erwartet 1)");
+        }
+        else
+        {
+            var init = initMethods[0];
+            bool already = init.Body.Instructions.Any(insn =>
+                (insn.OpCode == OpCodes.Call || insn.OpCode == OpCodes.Callvirt)
+                && insn.Operand is MethodReference mr
+                && IsSetDefaultThreadCurrentUICulture(mr));
+
+            if (already)
+            {
+                allWereUnpatched = false;
+                Report(2, "Roslyn-Locale (InvariantCulture)", "BEREITS GEPATCHT");
+            }
+            else if (apply)
+            {
+                // Build the references manually against the MODULE's own corlib.
+                // Importing from the tool's .NET 10 typeof(CultureInfo) would
+                // point at System.Private.CoreLib (a .NET 10 identity) which the
+                // game's Mono runtime does not have -> runtime TypeLoadException.
+                var corlib = module.TypeSystem.CoreLibrary;
+                var cultureInfo = new TypeReference(
+                    "System.Globalization", "CultureInfo", module, corlib);
+
+                var getInvariant = new MethodReference(
+                    "get_InvariantCulture", cultureInfo, cultureInfo)
+                    { HasThis = false };
+
+                var setDefaultUiCulture = new MethodReference(
+                    "set_DefaultThreadCurrentUICulture",
+                    module.TypeSystem.Void, cultureInfo) { HasThis = false };
+                setDefaultUiCulture.Parameters.Add(
+                    new ParameterDefinition(cultureInfo));
+
+                var il = init.Body.GetILProcessor();
+                var first = init.Body.Instructions[0];
+                il.InsertBefore(first,
+                    Instruction.Create(OpCodes.Call, getInvariant));
+                il.InsertBefore(first,
+                    Instruction.Create(OpCodes.Call, setDefaultUiCulture));
+                anyChange = true;
+                Report(2, "Roslyn-Locale (InvariantCulture)",
+                    "NICHT GEPATCHT -> GEPATCHT [OK]  (Init)");
+            }
+            else
+            {
+                Report(2, "Roslyn-Locale (InvariantCulture)",
+                    "NICHT GEPATCHT  (Init)");
+            }
+        }
+    }
+
+    if (apply && anyChange)
+    {
+        WriteDll(dllPath, module, allWereUnpatched);
+    }
+
+    return anyGameChanged ? 1 : 0;
+}
+
+// ============================================================================
+// Pug.Other.dll — Patch 3 (Initial-Save direct-write fallback)
+//               + Patch 4 (DeleteDirectory rewrite — Iter-and-Delete)
+// ============================================================================
+static int ProcessOtherDll(string dllPath, bool apply)
+{
+    Console.WriteLine();
+    Console.WriteLine("DLL: " + dllPath);
+    Console.WriteLine();
+
+    if (!File.Exists(dllPath))
+    {
+        Console.Error.WriteLine("FEHLER: DLL nicht gefunden.");
+        return 1;
+    }
+
+    // Resolver muss das Managed/-Dir kennen, sonst scheitert module.Write() für
+    // DLLs mit Cross-Assembly-Type-Refs (Pug.Other -> Pug.Base etc.) während
+    // der Metadata-Build-Phase.
+    var resolver = new DefaultAssemblyResolver();
+    resolver.AddSearchDirectory(Path.GetDirectoryName(dllPath));
+
+    using var module = ModuleDefinition.ReadModule(
+        dllPath, new ReaderParameters
+        {
+            ReadWrite = apply,
+            AssemblyResolver = resolver,
+        });
+
+    var fsType = module.GetType(FsTypeName);
+    if (fsType == null)
+    {
+        Console.Error.WriteLine("FEHLER: Typ " + FsTypeName
+            + " nicht gefunden — Spiel verändert? Kein Patch angewendet.");
+        return 1;
+    }
+
+    bool anyChange = false;
+    bool anyGameChanged = false;
+    bool allWereUnpatched = true;  // siehe Kommentar in ProcessLoaderDll
+
+    // === Patch 3: Initial-Save direct-write fallback ========================
+    // In CK 1.2.1.3 schreibt Pugs atomic-rename Save-Pfad (temp .pugtmp ->
+    // File.Move/File.Replace -> Original) unter Wine bei Initial-Save (Original
+    // existiert noch nicht) gar nichts auf Disk. Die Welt/der Char verschwindet
+    // beim CK-Neustart komplett aus dem UI. Stack-Trace immer
+    // Pug.Platform.StandaloneFilesystem:Write -> FilesystemManager:WriteHandler;
+    // Error-Code -2147024896 = 0x80070000 = HRESULT_FROM_WIN32(ERROR_SUCCESS)
+    // (Wine-Quirk: File-API returnt FALSE ohne SetLastError).
+    //
+    // Patch injiziert am Anfang von Write(string,string,byte[]) einen
+    // **unconditional** Direct-Write-Versuch via File.WriteAllBytes. Frühere
+    // Variante hatte ein File.Exists-Guard, der unter Wine offenbar fälschlich
+    // 'true' für nicht-existente Slot-N-Files zurückgab und den Direct-Write
+    // damit übersprungen hat (siehe Test-Lauf 23. Mai: 13 Failures pre vs
+    // 12-13 post, alle auf .pugbackup-Pfaden, Patch v1 war faktisch ein
+    // No-Op). v2 verzichtet auf File.Exists und versucht den Direct-Write
+    // **immer**. Auf Erfolg: return. Auf IOException: Catch swallows, Fall-
+    // Through in die bestehende Atomic-Rename-Logik. Trade-off: Update-Saves
+    // verlieren Atomic-Rename-Safety (kein .pugbackup mehr für überschriebene
+    // Original-Files) — akzeptiert für die Hypothesen-Verifikation.
+    {
+        var writeMethods = fsType.Methods.Where(m =>
+            m.Name == "Write" && m.HasBody
+            && m.Parameters.Count == 3
+            && m.Parameters[0].ParameterType.FullName == "System.String"
+            && m.Parameters[1].ParameterType.FullName == "System.String"
+            && m.Parameters[2].ParameterType.FullName == "System.Byte[]"
+        ).ToList();
+
+        if (writeMethods.Count != 1)
+        {
+            anyGameChanged = true;
+            allWereUnpatched = false;
+            Report(3, "Save direct-write fallback",
+                "SPIEL VERÄNDERT — übersprungen (" + writeMethods.Count
+                + " Write(string,string,byte[]) gefunden, erwartet 1)");
+        }
+        else
+        {
+            var write = writeMethods[0];
+            bool already = HasDirectWriteFingerprint(write);
+
+            if (already)
+            {
+                allWereUnpatched = false;
+                Report(3, "Save direct-write fallback", "BEREITS GEPATCHT");
+            }
+            else if (apply)
+            {
+                ApplyDirectWriteFallback(write, module);
+                anyChange = true;
+                Report(3, "Save direct-write fallback",
+                    "NICHT GEPATCHT -> GEPATCHT [OK]  (" + write.Name + ")");
+            }
+            else
+            {
+                Report(3, "Save direct-write fallback",
+                    "NICHT GEPATCHT  (" + write.Name + ", IL 0x"
+                    + write.Body.Instructions[0].Offset.ToString("X4") + ")");
+            }
+        }
+    }
+
+    // === Patch 4: DeleteDirectory rewrite (Iter-and-Delete) =================
+    // CK 1.2.1.4 ruft FilesystemManager.Backup() → BackupFolder() → mehrere
+    // DeleteDirectory- und CopyDirectory-Calls auf, die alle über
+    // StandaloneFilesystem.DeleteDirectory bzw. -.CopyDirectory laufen.
+    //
+    // StandaloneFilesystem.DeleteDirectory(path) ruft im Stock-Body nur
+    // Directory.Delete(Rel2Abs(path), true) auf. Unter Unity-Mono in Wine ist
+    // genau dieser recursive-true-Pfad broken (mscorlib's
+    // PathInternal.EnsureExtendedPrefix stellt \\?\ aggressiv voran,
+    // FindFirstFileExW-basiertes RemoveDirectoryRecursive wirft IOException).
+    // Empirisch verifiziert (csc-compiled Wine-Test 2026-05-27):
+    //  - File.Delete(single file)           : OK
+    //  - Directory.Delete(empty, false)     : OK
+    //  - Directory.EnumerateFiles/GetFiles  : OK
+    //  - Directory.GetDirectories           : OK
+    //  - Iter-and-Delete (this Patch's Alg) : OK auf CK-mirror Pfaden
+    // Single-File-/Single-Dir-APIs nutzen unter Wine andere Code-Pfade als
+    // RemoveDirectoryRecursive und sind nicht broken.
+    //
+    // Body-Rewrite ersetzt den ganzen Method-Körper durch:
+    //     string abs = Rel2Abs(path);
+    //     try {
+    //         foreach file in GetFiles(abs, "*", AllDirectories): File.Delete(file)
+    //         dirs = GetDirectories(abs, "*", AllDirectories)
+    //         Bubble-sort dirs descending by string-length (deepest first)
+    //         foreach dir in dirs: Directory.Delete(dir, false)
+    //         Directory.Delete(abs, false)
+    //     } catch { swallow }
+    //
+    // Effekt: Alle DeleteDirectory-Caller (BackupFolder × 2, UI-Welt-Löschen,
+    // Mod-Cleanup, etc.) nutzen den Wine-kompatiblen Code-Pfad. Backups werden
+    // tatsächlich rotiert, kein no-op-Verzicht.
+    {
+        // fsType (StandaloneFilesystem) ist schon oben für Patch 3 geladen.
+        var deleteMethods = fsType.Methods.Where(m =>
+            m.Name == "DeleteDirectory" && m.HasBody
+            && m.Parameters.Count == 1
+            && m.Parameters[0].ParameterType.FullName == "System.String"
+        ).ToList();
+
+        if (deleteMethods.Count != 1)
+        {
+            anyGameChanged = true;
+            allWereUnpatched = false;
+            Report(4, "DeleteDirectory rewrite",
+                "SPIEL VERÄNDERT — übersprungen (" + deleteMethods.Count
+                + " DeleteDirectory(string) gefunden, erwartet 1)");
+        }
+        else
+        {
+            var dd = deleteMethods[0];
+            if (HasIterAndDeleteFingerprint(dd))
+            {
+                allWereUnpatched = false;
+                Report(4, "DeleteDirectory rewrite", "BEREITS GEPATCHT");
+            }
+            else if (apply)
+            {
+                ApplyDeleteDirectoryRewrite(dd, module);
+                anyChange = true;
+                Report(4, "DeleteDirectory rewrite",
+                    "NICHT GEPATCHT -> GEPATCHT [OK]  (DeleteDirectory body replaced)");
+            }
+            else
+            {
+                Report(4, "DeleteDirectory rewrite",
+                    "NICHT GEPATCHT  (DeleteDirectory, Stock-Body "
+                    + dd.Body.Instructions.Count + " Instructions)");
+            }
+        }
+    }
+
+    // === Patch 5: StandaloneFilesystem.Delete(string) rewrite ===============
+    // UI-Welt-Löschen läuft NICHT über DeleteDirectory (Patch 4), sondern
+    // datei-für-datei über StandaloneFilesystem.Delete(string):
+    //   SaveSlotDeleteOption.DeleteSaveSlot -> SaveManager.RemoveWorld(id)
+    //     -> filesystemManager.Delete(File) -> StandaloneFilesystem.Delete(string)
+    //
+    // Stock-Body ist ein SOFT-Delete (kein echtes Löschen):
+    //     string src = Rel2Abs(path);
+    //     string bak = Rel2Abs(path + ".pugbackup");
+    //     if (File.Exists(bak)) File.Delete(bak);
+    //     File.Move(src, bak);          // <-- bricht unter Wine: 0x80070000
+    //
+    // File.Move (+ das File.Exists-Quirk) ist exakt die Wine-Fehlerklasse, die
+    // Patch 3 für Write behandelt — File.Move returnt FALSE ohne SetLastError,
+    // der Move scheitert, das Original bleibt liegen → die Welt erscheint weiter
+    // in der UI. Beweis im Player.log:
+    //   Delete failed: Erfolg : '...3.world.gzip.pugbackup' (-2147024896)
+    //     Pug.Platform.StandaloneFilesystem:Delete (string)
+    //
+    // Body-Rewrite ersetzt den Soft-Delete durch ein Wine-safes Hard-Delete:
+    //     string abs = Rel2Abs(path);
+    //     if (File.Exists(abs)) File.Delete(abs);
+    //     string bak = Rel2Abs(path + ".pugbackup");
+    //     if (File.Exists(bak)) File.Delete(bak);   // räumt .pugbackup-Orphan mit
+    //     catch (Exception) { }
+    // File.Delete(single file) ist laut Patch-4-Wine-Test verifiziert safe.
+    // Trade-off: kein Soft-Delete-"Papierkorb" mehr (unter Wine ohnehin kaputt);
+    // Nebeneffekt: beseitigt die .pugbackup-Orphans, die Pug beim UI-Delete
+    // sonst liegen lässt.
+    {
+        var delMethods = fsType.Methods.Where(m =>
+            m.Name == "Delete" && m.HasBody
+            && m.Parameters.Count == 1
+            && m.Parameters[0].ParameterType.FullName == "System.String"
+        ).ToList();
+
+        if (delMethods.Count != 1)
+        {
+            anyGameChanged = true;
+            allWereUnpatched = false;
+            Report(5, "Delete(string) hard-delete",
+                "SPIEL VERÄNDERT — übersprungen (" + delMethods.Count
+                + " Delete(string) gefunden, erwartet 1)");
+        }
+        else
+        {
+            var del = delMethods[0];
+            if (HasHardDeleteFingerprint(del))
+            {
+                allWereUnpatched = false;
+                Report(5, "Delete(string) hard-delete", "BEREITS GEPATCHT");
+            }
+            else if (apply)
+            {
+                ApplyDeleteRewrite(del, module);
+                anyChange = true;
+                Report(5, "Delete(string) hard-delete",
+                    "NICHT GEPATCHT -> GEPATCHT [OK]  (Delete body replaced)");
+            }
+            else
+            {
+                Report(5, "Delete(string) hard-delete",
+                    "NICHT GEPATCHT  (Delete, Stock-Body "
+                    + del.Body.Instructions.Count + " Instructions)");
+            }
+        }
+    }
+
+    if (apply && anyChange)
+    {
+        WriteDll(dllPath, module, allWereUnpatched);
+    }
+
+    return anyGameChanged ? 1 : 0;
+}
+
+// ============================================================================
+// IL-Injection für Patch 3 — In-Catch-Recovery (v3-Design)
+//
+// Konzeptuell:
+//
+//   public void Write(string name, string path, byte[] data)
+//   {
+//       try { ...bestehender 3-Schritt-Code... }
+//       catch (IOException ex3)
+//       {
+//           Debug.LogError("Write failed: " + ex3.Message + " ...");  // bestehend
+//
+//           // INJECTED: nested try-catch für Recovery via direct-write
+//           try { File.WriteAllBytes(Rel2Abs(path), data); }
+//           catch { /* swallow, original failure schon geloggt */ }
+//       }
+//   }
+//
+// Vorteile gegenüber v2:
+//   - Atomic-Rename-Safety für Updates BLEIBT — original-3-Schritt läuft
+//     zuerst, recovery nur bei tatsächlichem Failure.
+//   - Direct-write feuert nur bei broken Wine-Pfaden (Initial-Save), nicht
+//     bei jedem Schreibvorgang.
+//   - Catch-Type ist Exception (nicht IOException), damit auch Wine-spezifische
+//     Non-IO-Exceptions geschluckt werden.
+//
+static void ApplyDirectWriteFallback(MethodDefinition write, ModuleDefinition module)
+{
+    var il = write.Body.GetILProcessor();
+
+    // Bestehenden Outer-Catch finden (IOException-Handler mit kleinstem
+    // TryStart.Offset = outermost; Cecil ordnet Handler inner-first,
+    // FirstOrDefault gibt sonst den Phase-1-Inner-Catch zurück, der den
+    // falschen Code-Pfad guarded).
+    var outerCatch = write.Body.ExceptionHandlers
+        .Where(h => h.HandlerType == ExceptionHandlerType.Catch
+            && h.CatchType?.FullName == "System.IO.IOException")
+        .OrderBy(h => h.TryStart.Offset)
+        .FirstOrDefault();
+    if (outerCatch == null)
+        throw new Exception("Kein IOException-Catch-Handler in Write gefunden — Spiel verändert?");
+
+    // Letztes Instruction im Handler ist HandlerEnd.Previous. Sollte ein leave sein.
+    var existingLeave = outerCatch.HandlerEnd.Previous;
+    if (existingLeave.OpCode != OpCodes.Leave && existingLeave.OpCode != OpCodes.Leave_S)
+        throw new Exception("Erwartetes 'leave' am Catch-Handler-Ende, gefunden: " + existingLeave.OpCode);
+
+    // Refs aufbauen
+    var rel2Abs = write.DeclaringType.Methods.Single(m =>
+        m.Name == "Rel2Abs"
+        && m.Parameters.Count == 1
+        && m.Parameters[0].ParameterType.FullName == "System.String");
+
+    var corlib = module.TypeSystem.CoreLibrary;
+    var fileType = new TypeReference("System.IO", "File",   module, corlib);
+    var exType   = new TypeReference("System",    "Exception", module, corlib);
+
+    var writeAllBytesRef = new MethodReference(
+        "WriteAllBytes", module.TypeSystem.Void, fileType) { HasThis = false };
+    writeAllBytesRef.Parameters.Add(new ParameterDefinition(module.TypeSystem.String));
+    writeAllBytesRef.Parameters.Add(
+        new ParameterDefinition(new ArrayType(module.TypeSystem.Byte)));
+
+    // Instruktionen für nested try-catch:
+    //   try {
+    //     ldarg.0; ldarg.2; call Rel2Abs; ldarg.3; call WriteAllBytes
+    //     leave.s existingLeave
+    //   }
+    //   catch (Exception) {
+    //     pop
+    //     leave.s existingLeave
+    //   }
+    var iLoadThis    = Instruction.Create(OpCodes.Ldarg_0);
+    var iLoadPath    = Instruction.Create(OpCodes.Ldarg_2);
+    var iCallRel2Abs = Instruction.Create(OpCodes.Call, rel2Abs);
+    var iLoadData    = Instruction.Create(OpCodes.Ldarg_3);
+    var iCallWriteAll = Instruction.Create(OpCodes.Call, writeAllBytesRef);
+    var iTryLeave    = Instruction.Create(OpCodes.Leave, existingLeave);
+    var iCatchPop    = Instruction.Create(OpCodes.Pop);
+    var iCatchLeave  = Instruction.Create(OpCodes.Leave, existingLeave);
+
+    Instruction[] toInsert = new[]
+    {
+        iLoadThis, iLoadPath, iCallRel2Abs, iLoadData, iCallWriteAll,
+        iTryLeave,
+        iCatchPop, iCatchLeave,
+    };
+    foreach (var insn in toInsert) il.InsertBefore(existingLeave, insn);
+
+    // Nested Exception-Handler — komplett innerhalb des bestehenden Outer-Catch.
+    // CIL-Verifier-konform: nested handler region ⊆ outer handler region.
+    write.Body.ExceptionHandlers.Add(new ExceptionHandler(ExceptionHandlerType.Catch)
+    {
+        TryStart     = iLoadThis,
+        TryEnd       = iCatchPop,
+        HandlerStart = iCatchPop,
+        HandlerEnd   = existingLeave,
+        CatchType    = module.ImportReference(exType)
+    });
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+static void WriteDll(string dllPath, ModuleDefinition module, bool allWereUnpatched)
+{
+    // Backup-Logik:
+    // - allWereUnpatched=true heißt: die Live-DLL war vor diesem apply VOLL stock
+    //   (alle Patches dieser DLL waren NICHT GEPATCHT). Damit ist die aktuelle
+    //   Live-DLL eine gültige Stock-Referenz und der Backup darf aktualisiert
+    //   werden — insbesondere wichtig nach einem CK-Update, das die Live-DLL
+    //   ersetzt, während der alte Backup im Filesystem stehen bleibt.
+    // - allWereUnpatched=false heißt: mindestens ein Patch war bereits drin
+    //   (teil-gepatchte Live-DLL). Aus dieser DLL können wir nicht zuverlässig
+    //   Stock rekonstruieren, also Backup unangetastet lassen.
+    string backup = dllPath + ".prepatch-backup";
+    Console.WriteLine();
+
+    bool backupExists = File.Exists(backup);
+
+    if (!backupExists)
+    {
+        if (allWereUnpatched)
+        {
+            File.Copy(dllPath, backup);
+            Console.WriteLine("Backup angelegt: " + Path.GetFileName(backup));
+        }
+        else
+        {
+            Console.WriteLine("WARNUNG: kein Backup vorhanden + Live-DLL bereits "
+                + "teil-gepatcht → kein zuverlässiger Backup erstellbar. "
+                + "Empfehlung: Steam-Verify und apply erneut laufen lassen, "
+                + "damit ein Stock-Backup angelegt werden kann.");
+        }
+    }
+    else if (allWereUnpatched)
+    {
+        // Backup vorhanden UND Live-DLL ist stock — perfekter Moment, den
+        // Backup zu refreshen, falls er von einer früheren CK-Version stammt.
+        long oldSize = new FileInfo(backup).Length;
+        long newSize = new FileInfo(dllPath).Length;
+        DateTime oldMtime = File.GetLastWriteTime(backup);
+        DateTime newMtime = File.GetLastWriteTime(dllPath);
+
+        File.Copy(dllPath, backup, overwrite: true);
+
+        string sizeDelta = oldSize == newSize
+            ? "Größe identisch"
+            : oldSize + " -> " + newSize + " bytes";
+        string mtimeNote = oldMtime.Date == newMtime.Date
+            ? "selbes Datum"
+            : oldMtime.ToString("yyyy-MM-dd") + " -> " + newMtime.ToString("yyyy-MM-dd");
+        Console.WriteLine("Backup aktualisiert (" + sizeDelta + ", " + mtimeNote
+            + "): " + Path.GetFileName(backup));
+    }
+    else
+    {
+        Console.WriteLine("Backup existiert, Live-DLL teil-gepatcht — Backup "
+            + "nicht refreshable aus Live-Stand. Falls als veraltet bekannt: "
+            + "manuell löschen, Steam-Verify, apply erneut.");
+    }
+
+    module.Write();
+}
+
+static void Report(int n, string name, string status)
+{
+    Console.WriteLine("Patch " + n + "  " + name.PadRight(34) + status);
+}
+
+static bool IsDirectoryDeleteStringBool(MethodReference mr) =>
+    mr.DeclaringType.FullName == "System.IO.Directory"
+    && mr.Name == "Delete"
+    && mr.Parameters.Count == 2
+    && mr.Parameters[0].ParameterType.FullName == "System.String"
+    && mr.Parameters[1].ParameterType.FullName == "System.Boolean";
+
+static bool IsSetDefaultThreadCurrentUICulture(MethodReference mr) =>
+    mr.DeclaringType.FullName == "System.Globalization.CultureInfo"
+    && mr.Name == "set_DefaultThreadCurrentUICulture";
+
+// Patch-4-Fingerprint: nach Body-Replacement ruft DeleteDirectory u.a.
+// Directory.GetFiles oder File.Delete auf — beides ist im Stock-Body nicht
+// vorhanden (Stock ruft nur Directory.Delete(string, bool) auf). Ein Treffer
+// auf einen dieser zwei Calls ist ein zuverlässiger Patch-4-Marker.
+static bool HasIterAndDeleteFingerprint(MethodDefinition dd)
+{
+    foreach (var insn in dd.Body.Instructions)
+    {
+        if (insn.OpCode != OpCodes.Call && insn.OpCode != OpCodes.Callvirt)
+            continue;
+        if (insn.Operand is MethodReference mr)
+        {
+            if (mr.Name == "GetFiles" && mr.DeclaringType.FullName == "System.IO.Directory")
+                return true;
+            if (mr.Name == "Delete" && mr.DeclaringType.FullName == "System.IO.File")
+                return true;
+        }
+    }
+    return false;
+}
+
+// IL-Generation für Patch 4: Body von StandaloneFilesystem.DeleteDirectory(string)
+// komplett ersetzen durch Iter-and-Delete. Stock ist nur 6 Instructions
+// (ldarg.0, ldarg.1, call Rel2Abs, ldc.i4.1, call Directory.Delete, ret).
+// Neuer Body siehe Doku-Block in ProcessOtherDll.
+static void ApplyDeleteDirectoryRewrite(MethodDefinition dd, ModuleDefinition module)
+{
+    var corlib = module.TypeSystem.CoreLibrary;
+    var stringT  = module.TypeSystem.String;
+    var intT     = module.TypeSystem.Int32;
+    var boolT    = module.TypeSystem.Boolean;
+    var voidT    = module.TypeSystem.Void;
+    var stringArr = new ArrayType(stringT);
+
+    // Type-Refs gegen die game-eigene mscorlib bauen (nicht aus .NET 10
+    // typeof importieren — Mono-Runtime hätte einen TypeLoadException).
+    var dirType   = new TypeReference("System.IO", "Directory", module, corlib);
+    var fileType  = new TypeReference("System.IO", "File",      module, corlib);
+    var soType    = new TypeReference("System.IO", "SearchOption", module, corlib) { IsValueType = true };
+    var excType   = new TypeReference("System",    "Exception", module, corlib);
+
+    MethodReference Mref(TypeReference owner, string name, TypeReference ret, bool hasThis, params TypeReference[] ps)
+    {
+        var mr = new MethodReference(name, ret, owner) { HasThis = hasThis };
+        foreach (var p in ps) mr.Parameters.Add(new ParameterDefinition(p));
+        return mr;
+    }
+
+    var getFiles      = Mref(dirType,  "GetFiles",       stringArr, false, stringT, stringT, soType);
+    var getDirs       = Mref(dirType,  "GetDirectories", stringArr, false, stringT, stringT, soType);
+    var dirDelete     = Mref(dirType,  "Delete",         voidT,     false, stringT, boolT);
+    var fileDelete    = Mref(fileType, "Delete",         voidT,     false, stringT);
+    var stringLength  = Mref(stringT,  "get_Length",     intT,      true);
+
+    // Rel2Abs sitzt im selben Type — direct member-lookup.
+    var rel2Abs = dd.DeclaringType.Methods.Single(m =>
+        m.Name == "Rel2Abs" && m.Parameters.Count == 1
+        && m.Parameters[0].ParameterType.FullName == "System.String");
+
+    // Body neu aufbauen
+    dd.Body.Instructions.Clear();
+    dd.Body.ExceptionHandlers.Clear();
+    dd.Body.Variables.Clear();
+    dd.Body.InitLocals = true;
+
+    var locAbs   = new VariableDefinition(stringT);    dd.Body.Variables.Add(locAbs);
+    var locFiles = new VariableDefinition(stringArr);  dd.Body.Variables.Add(locFiles);
+    var locDirs  = new VariableDefinition(stringArr);  dd.Body.Variables.Add(locDirs);
+    var locI     = new VariableDefinition(intT);       dd.Body.Variables.Add(locI);
+    var locJ     = new VariableDefinition(intT);       dd.Body.Variables.Add(locJ);
+    var locTmp   = new VariableDefinition(stringT);    dd.Body.Variables.Add(locTmp);
+
+    var il = dd.Body.GetILProcessor();
+
+    // Hilfsmethode zum stable-emit (gibt die Instruction zurück, falls als Label gebraucht)
+    Instruction Emit(OpCode op) { var i = Instruction.Create(op); il.Append(i); return i; }
+    Instruction EmitOp(OpCode op, object operand)
+    {
+        Instruction i = operand switch
+        {
+            VariableDefinition v => Instruction.Create(op, v),
+            MethodReference m    => Instruction.Create(op, m),
+            string s             => Instruction.Create(op, s),
+            Instruction t        => Instruction.Create(op, t),
+            int n                => Instruction.Create(op, n),
+            _ => throw new InvalidOperationException("operand type unsupported: " + operand.GetType())
+        };
+        il.Append(i);
+        return i;
+    }
+
+    // === abs = this.Rel2Abs(path); === (markiert tryStart)
+    var tryStart = Emit(OpCodes.Ldarg_0);
+    Emit(OpCodes.Ldarg_1);
+    EmitOp(OpCodes.Call, rel2Abs);
+    EmitOp(OpCodes.Stloc, locAbs);
+
+    // === files = Directory.GetFiles(abs, "*", SearchOption.AllDirectories); ===
+    EmitOp(OpCodes.Ldloc, locAbs);
+    EmitOp(OpCodes.Ldstr, "*");
+    Emit(OpCodes.Ldc_I4_1);
+    EmitOp(OpCodes.Call, getFiles);
+    EmitOp(OpCodes.Stloc, locFiles);
+
+    // === for (i = 0; i < files.Length; i++) File.Delete(files[i]); ===
+    Emit(OpCodes.Ldc_I4_0);
+    EmitOp(OpCodes.Stloc, locI);
+    var loop1Test = Instruction.Create(OpCodes.Ldloc, locI);
+    EmitOp(OpCodes.Br, loop1Test);
+    var loop1Body = Instruction.Create(OpCodes.Ldloc, locFiles);
+    il.Append(loop1Body);
+    EmitOp(OpCodes.Ldloc, locI);
+    Emit(OpCodes.Ldelem_Ref);
+    EmitOp(OpCodes.Call, fileDelete);
+    EmitOp(OpCodes.Ldloc, locI);
+    Emit(OpCodes.Ldc_I4_1);
+    Emit(OpCodes.Add);
+    EmitOp(OpCodes.Stloc, locI);
+    il.Append(loop1Test);
+    EmitOp(OpCodes.Ldloc, locFiles);
+    Emit(OpCodes.Ldlen);
+    Emit(OpCodes.Conv_I4);
+    EmitOp(OpCodes.Blt, loop1Body);
+
+    // === dirs = Directory.GetDirectories(abs, "*", AllDirectories); ===
+    EmitOp(OpCodes.Ldloc, locAbs);
+    EmitOp(OpCodes.Ldstr, "*");
+    Emit(OpCodes.Ldc_I4_1);
+    EmitOp(OpCodes.Call, getDirs);
+    EmitOp(OpCodes.Stloc, locDirs);
+
+    // === Bubble-sort dirs descending by string-length =====================
+    // for (i = 0; i < dirs.Length; i++)
+    Emit(OpCodes.Ldc_I4_0);
+    EmitOp(OpCodes.Stloc, locI);
+    var sortOTest = Instruction.Create(OpCodes.Ldloc, locI);
+    EmitOp(OpCodes.Br, sortOTest);
+    var sortOBody = Instruction.Create(OpCodes.Ldloc, locI);
+    il.Append(sortOBody);
+    //   for (j = i + 1; j < dirs.Length; j++)
+    Emit(OpCodes.Ldc_I4_1);
+    Emit(OpCodes.Add);
+    EmitOp(OpCodes.Stloc, locJ);
+    var sortITest = Instruction.Create(OpCodes.Ldloc, locJ);
+    EmitOp(OpCodes.Br, sortITest);
+    var sortIBody = Instruction.Create(OpCodes.Ldloc, locDirs);
+    il.Append(sortIBody);
+    //     if (dirs[j].Length > dirs[i].Length) { swap }
+    EmitOp(OpCodes.Ldloc, locJ);
+    Emit(OpCodes.Ldelem_Ref);
+    EmitOp(OpCodes.Callvirt, stringLength);
+    EmitOp(OpCodes.Ldloc, locDirs);
+    EmitOp(OpCodes.Ldloc, locI);
+    Emit(OpCodes.Ldelem_Ref);
+    EmitOp(OpCodes.Callvirt, stringLength);
+    var sortINext = Instruction.Create(OpCodes.Ldloc, locJ);
+    EmitOp(OpCodes.Ble, sortINext);
+    //     tmp = dirs[i]
+    EmitOp(OpCodes.Ldloc, locDirs);
+    EmitOp(OpCodes.Ldloc, locI);
+    Emit(OpCodes.Ldelem_Ref);
+    EmitOp(OpCodes.Stloc, locTmp);
+    //     dirs[i] = dirs[j]
+    EmitOp(OpCodes.Ldloc, locDirs);
+    EmitOp(OpCodes.Ldloc, locI);
+    EmitOp(OpCodes.Ldloc, locDirs);
+    EmitOp(OpCodes.Ldloc, locJ);
+    Emit(OpCodes.Ldelem_Ref);
+    Emit(OpCodes.Stelem_Ref);
+    //     dirs[j] = tmp
+    EmitOp(OpCodes.Ldloc, locDirs);
+    EmitOp(OpCodes.Ldloc, locJ);
+    EmitOp(OpCodes.Ldloc, locTmp);
+    Emit(OpCodes.Stelem_Ref);
+    //   j++; goto sortITest
+    il.Append(sortINext);
+    Emit(OpCodes.Ldc_I4_1);
+    Emit(OpCodes.Add);
+    EmitOp(OpCodes.Stloc, locJ);
+    il.Append(sortITest);
+    EmitOp(OpCodes.Ldloc, locDirs);
+    Emit(OpCodes.Ldlen);
+    Emit(OpCodes.Conv_I4);
+    EmitOp(OpCodes.Blt, sortIBody);
+    // i++; goto sortOTest
+    EmitOp(OpCodes.Ldloc, locI);
+    Emit(OpCodes.Ldc_I4_1);
+    Emit(OpCodes.Add);
+    EmitOp(OpCodes.Stloc, locI);
+    il.Append(sortOTest);
+    EmitOp(OpCodes.Ldloc, locDirs);
+    Emit(OpCodes.Ldlen);
+    Emit(OpCodes.Conv_I4);
+    EmitOp(OpCodes.Blt, sortOBody);
+
+    // === for (i = 0; i < dirs.Length; i++) Directory.Delete(dirs[i], false); ===
+    Emit(OpCodes.Ldc_I4_0);
+    EmitOp(OpCodes.Stloc, locI);
+    var loop2Test = Instruction.Create(OpCodes.Ldloc, locI);
+    EmitOp(OpCodes.Br, loop2Test);
+    var loop2Body = Instruction.Create(OpCodes.Ldloc, locDirs);
+    il.Append(loop2Body);
+    EmitOp(OpCodes.Ldloc, locI);
+    Emit(OpCodes.Ldelem_Ref);
+    Emit(OpCodes.Ldc_I4_0);
+    EmitOp(OpCodes.Call, dirDelete);
+    EmitOp(OpCodes.Ldloc, locI);
+    Emit(OpCodes.Ldc_I4_1);
+    Emit(OpCodes.Add);
+    EmitOp(OpCodes.Stloc, locI);
+    il.Append(loop2Test);
+    EmitOp(OpCodes.Ldloc, locDirs);
+    Emit(OpCodes.Ldlen);
+    Emit(OpCodes.Conv_I4);
+    EmitOp(OpCodes.Blt, loop2Body);
+
+    // === Directory.Delete(abs, false); ===
+    EmitOp(OpCodes.Ldloc, locAbs);
+    Emit(OpCodes.Ldc_I4_0);
+    EmitOp(OpCodes.Call, dirDelete);
+
+    // === leave END (try-Block-Exit) ===
+    var endRet = Instruction.Create(OpCodes.Ret);
+    EmitOp(OpCodes.Leave, endRet);
+
+    // === catch (Exception) { pop; leave END } ===
+    var catchStart = Instruction.Create(OpCodes.Pop);
+    il.Append(catchStart);
+    EmitOp(OpCodes.Leave, endRet);
+
+    // === ret ===
+    il.Append(endRet);
+
+    // ExceptionHandler: try [tryStart..catchStart) catch [catchStart..endRet)
+    dd.Body.ExceptionHandlers.Add(new ExceptionHandler(ExceptionHandlerType.Catch)
+    {
+        TryStart     = tryStart,
+        TryEnd       = catchStart,
+        HandlerStart = catchStart,
+        HandlerEnd   = endRet,
+        CatchType    = excType,
+    });
+}
+
+static bool HasPopPopFingerprint(TypeDefinition t)
+{
+    foreach (var m in t.Methods)
+    {
+        if (!m.HasBody) continue;
+        foreach (var insn in m.Body.Instructions)
+        {
+            if (insn.OpCode == OpCodes.Ldc_I4_1
+                && insn.Next?.OpCode == OpCodes.Pop
+                && insn.Next.Next?.OpCode == OpCodes.Pop)
+                return true;
+        }
+    }
+    return false;
+}
+
+// Detect whether ANY Patch 3 variant (v1-debug / v2 / v3) is already applied:
+// Look for a call to File.WriteAllBytes anywhere in the Write method body.
+// Stock Pug.Other.dll's Write uses File.Create + FileStream.Write, not
+// File.WriteAllBytes, so presence of WriteAllBytes is a reliable patch marker.
+static bool HasDirectWriteFingerprint(MethodDefinition write)
+{
+    foreach (var insn in write.Body.Instructions)
+    {
+        if ((insn.OpCode == OpCodes.Call || insn.OpCode == OpCodes.Callvirt)
+            && insn.Operand is MethodReference mr
+            && mr.DeclaringType.FullName == "System.IO.File"
+            && mr.Name == "WriteAllBytes")
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Patch-5-Fingerprint: Stock StandaloneFilesystem.Delete(string) ruft File.Move
+// auf (Soft-Delete via Rename auf .pugbackup). Der Hard-Delete-Rewrite entfernt
+// File.Move vollständig. Abwesenheit von File.Move ist der zuverlässige Marker —
+// File.Delete/File.Exists kommen auch im Stock-Body vor und taugen nicht.
+static bool HasHardDeleteFingerprint(MethodDefinition del)
+{
+    foreach (var insn in del.Body.Instructions)
+    {
+        if ((insn.OpCode == OpCodes.Call || insn.OpCode == OpCodes.Callvirt)
+            && insn.Operand is MethodReference mr
+            && mr.DeclaringType.FullName == "System.IO.File"
+            && mr.Name == "Move")
+        {
+            return false;   // File.Move präsent -> noch Stock
+        }
+    }
+    return true;            // kein File.Move -> bereits Hard-Delete
+}
+
+// IL-Generation für Patch 5: Body von StandaloneFilesystem.Delete(string)
+// komplett ersetzen durch Wine-safes Hard-Delete:
+//     try {
+//         string abs = Rel2Abs(path);
+//         if (File.Exists(abs)) File.Delete(abs);
+//         string bak = Rel2Abs(path + ".pugbackup");
+//         if (File.Exists(bak)) File.Delete(bak);
+//     } catch (Exception) { }
+static void ApplyDeleteRewrite(MethodDefinition del, ModuleDefinition module)
+{
+    var corlib  = module.TypeSystem.CoreLibrary;
+    var stringT = module.TypeSystem.String;
+    var boolT   = module.TypeSystem.Boolean;
+    var voidT   = module.TypeSystem.Void;
+
+    var fileType = new TypeReference("System.IO", "File",      module, corlib);
+    var excType  = new TypeReference("System",    "Exception", module, corlib);
+
+    MethodReference Mref(TypeReference owner, string name, TypeReference ret, bool hasThis, params TypeReference[] ps)
+    {
+        var mr = new MethodReference(name, ret, owner) { HasThis = hasThis };
+        foreach (var p in ps) mr.Parameters.Add(new ParameterDefinition(p));
+        return mr;
+    }
+
+    var fileExists = Mref(fileType, "Exists", boolT,    false, stringT);
+    var fileDelete = Mref(fileType, "Delete", voidT,    false, stringT);
+    var strConcat  = Mref(stringT,  "Concat", stringT,  false, stringT, stringT);
+
+    // Rel2Abs sitzt im selben Type — direct member-lookup (instance method).
+    var rel2Abs = del.DeclaringType.Methods.Single(m =>
+        m.Name == "Rel2Abs" && m.Parameters.Count == 1
+        && m.Parameters[0].ParameterType.FullName == "System.String");
+
+    del.Body.Instructions.Clear();
+    del.Body.ExceptionHandlers.Clear();
+    del.Body.Variables.Clear();
+    del.Body.InitLocals = true;
+
+    var locAbs = new VariableDefinition(stringT); del.Body.Variables.Add(locAbs);
+    var locBak = new VariableDefinition(stringT); del.Body.Variables.Add(locBak);
+
+    var il = del.Body.GetILProcessor();
+    Instruction Emit(OpCode op) { var i = Instruction.Create(op); il.Append(i); return i; }
+    Instruction EmitOp(OpCode op, object operand)
+    {
+        Instruction i = operand switch
+        {
+            VariableDefinition v => Instruction.Create(op, v),
+            MethodReference m    => Instruction.Create(op, m),
+            string s             => Instruction.Create(op, s),
+            Instruction t        => Instruction.Create(op, t),
+            int n                => Instruction.Create(op, n),
+            _ => throw new InvalidOperationException("operand type unsupported: " + operand.GetType())
+        };
+        il.Append(i);
+        return i;
+    }
+
+    var endRet = Instruction.Create(OpCodes.Ret);
+
+    // === abs = this.Rel2Abs(path); === (markiert tryStart)
+    var tryStart = Emit(OpCodes.Ldarg_0);
+    Emit(OpCodes.Ldarg_1);
+    EmitOp(OpCodes.Call, rel2Abs);
+    EmitOp(OpCodes.Stloc, locAbs);
+
+    // === if (File.Exists(abs)) File.Delete(abs); ===
+    EmitOp(OpCodes.Ldloc, locAbs);
+    EmitOp(OpCodes.Call, fileExists);
+    var bakStart = Instruction.Create(OpCodes.Ldarg_0);  // erste Insn der bak-Berechnung
+    EmitOp(OpCodes.Brfalse, bakStart);
+    EmitOp(OpCodes.Ldloc, locAbs);
+    EmitOp(OpCodes.Call, fileDelete);
+
+    // === bak = this.Rel2Abs(path + ".pugbackup"); ===
+    il.Append(bakStart);             // ldarg.0 (this für Rel2Abs)
+    Emit(OpCodes.Ldarg_1);           // path
+    EmitOp(OpCodes.Ldstr, ".pugbackup");
+    EmitOp(OpCodes.Call, strConcat);
+    EmitOp(OpCodes.Call, rel2Abs);
+    EmitOp(OpCodes.Stloc, locBak);
+
+    // === if (File.Exists(bak)) File.Delete(bak); ===
+    EmitOp(OpCodes.Ldloc, locBak);
+    EmitOp(OpCodes.Call, fileExists);
+    var afterBakDelete = Instruction.Create(OpCodes.Leave, endRet);
+    EmitOp(OpCodes.Brfalse, afterBakDelete);
+    EmitOp(OpCodes.Ldloc, locBak);
+    EmitOp(OpCodes.Call, fileDelete);
+    il.Append(afterBakDelete);       // leave END (try-Block-Exit)
+
+    // === catch (Exception) { pop; leave END } ===
+    var catchStart = Instruction.Create(OpCodes.Pop);
+    il.Append(catchStart);
+    EmitOp(OpCodes.Leave, endRet);
+
+    // === ret ===
+    il.Append(endRet);
+
+    del.Body.ExceptionHandlers.Add(new ExceptionHandler(ExceptionHandlerType.Catch)
+    {
+        TryStart     = tryStart,
+        TryEnd       = catchStart,
+        HandlerStart = catchStart,
+        HandlerEnd   = endRet,
+        CatchType    = excType,
+    });
+}
+
+// ============================================================================
+// modio.UnityPlugin.dll — Patch 6 (SystemIOWrapper.DeleteDirectory rewrite)
+// ============================================================================
+// Mod-Löschen im In-Game-Mod-Menü läuft NICHT über Pug, sondern komplett in der
+// separaten modio.UnityPlugin.dll:
+//   ModManagement.TryUninstall -> DataStorage.TryDeleteInstalledMod
+//     -> SystemIOWrapper.DeleteDirectory(string) (static)
+//       -> Directory.Delete(path, recursive: true)   // <-- Wine-broken
+//
+// Das ist exakt derselbe rekursive-Delete-Bug, den Patch 4 in Pug.Other behebt —
+// nur in einer anderen Assembly, die Patch 4 nie berührt. Patch 6 injiziert eine
+// Wine-safe Iter-and-Delete Helper-Methode (CorekeeperWineSafeDeleteDir) in
+// SystemIOWrapper und biegt den einen Directory.Delete(string,bool)-Call in der
+// static DeleteDirectory auf diesen Helper um (bool-Argument wird entfernt).
+// modio's bestehender try/catch (IOException/UnauthorizedAccess/Exception) um den
+// Call herum bleibt erhalten — der Helper braucht daher kein eigenes Swallow und
+// echte Fehler werden weiterhin als modio-Result-Code gemeldet.
+static int ProcessModioDll(string dllPath, bool apply)
+{
+    Console.WriteLine();
+    Console.WriteLine("DLL: " + dllPath);
+    Console.WriteLine();
+
+    if (!File.Exists(dllPath))
+    {
+        Console.Error.WriteLine("FEHLER: DLL nicht gefunden.");
+        return 1;
+    }
+
+    var resolver = new DefaultAssemblyResolver();
+    resolver.AddSearchDirectory(Path.GetDirectoryName(dllPath));
+
+    using var module = ModuleDefinition.ReadModule(
+        dllPath, new ReaderParameters
+        {
+            ReadWrite = apply,
+            AssemblyResolver = resolver,
+        });
+
+    var wrapperType = module.GetType(ModioWrapperType);
+    if (wrapperType == null)
+    {
+        Console.Error.WriteLine("FEHLER: Typ " + ModioWrapperType
+            + " nicht gefunden — modio verändert? Kein Patch angewendet.");
+        return 1;
+    }
+
+    bool anyChange = false;
+    bool anyGameChanged = false;
+    bool allWereUnpatched = true;
+
+    {
+        bool helperPresent = wrapperType.Methods.Any(m => m.Name == ModioHelperName);
+
+        var ddMethods = wrapperType.Methods.Where(m =>
+            m.Name == "DeleteDirectory" && m.IsStatic && m.HasBody
+            && m.Parameters.Count == 1
+            && m.Parameters[0].ParameterType.FullName == "System.String"
+        ).ToList();
+
+        if (helperPresent)
+        {
+            allWereUnpatched = false;
+            Report(6, "modio DeleteDirectory rewrite", "BEREITS GEPATCHT");
+        }
+        else if (ddMethods.Count != 1)
+        {
+            anyGameChanged = true;
+            allWereUnpatched = false;
+            Report(6, "modio DeleteDirectory rewrite",
+                "SPIEL VERÄNDERT — übersprungen (" + ddMethods.Count
+                + " static DeleteDirectory(string) gefunden, erwartet 1)");
+        }
+        else
+        {
+            var dd = ddMethods[0];
+            var hits = dd.Body.Instructions.Where(insn =>
+                (insn.OpCode == OpCodes.Call || insn.OpCode == OpCodes.Callvirt)
+                && insn.Operand is MethodReference mr
+                && IsDirectoryDeleteStringBool(mr)).ToList();
+
+            if (hits.Count != 1 || hits[0].Previous?.OpCode != OpCodes.Ldc_I4_1)
+            {
+                anyGameChanged = true;
+                allWereUnpatched = false;
+                Report(6, "modio DeleteDirectory rewrite",
+                    "SPIEL VERÄNDERT — übersprungen (" + hits.Count
+                    + " Directory.Delete(string,bool) mit ldc.i4.1-Prefix, erwartet 1)");
+            }
+            else if (apply)
+            {
+                ApplyModioDeleteDirectoryRewrite(dd, wrapperType, hits[0], module);
+                anyChange = true;
+                Report(6, "modio DeleteDirectory rewrite",
+                    "NICHT GEPATCHT -> GEPATCHT [OK]  (Directory.Delete -> "
+                    + ModioHelperName + ")");
+            }
+            else
+            {
+                Report(6, "modio DeleteDirectory rewrite",
+                    "NICHT GEPATCHT  (DeleteDirectory, Directory.Delete @ IL 0x"
+                    + hits[0].Offset.ToString("X4") + ")");
+            }
+        }
+    }
+
+    if (apply && anyChange)
+    {
+        WriteDll(dllPath, module, allWereUnpatched);
+    }
+
+    return anyGameChanged ? 1 : 0;
+}
+
+// Biegt den Directory.Delete(string,bool)-Call der static DeleteDirectory auf
+// den injizierten Wine-safe Helper um. Stack vor dem Call: [path, true]. Der
+// Helper braucht nur [path], also wird der bool-Push (ldc.i4.1, vorab validiert)
+// entfernt und der Call-Operand ausgetauscht.
+static void ApplyModioDeleteDirectoryRewrite(
+    MethodDefinition dd, TypeDefinition wrapperType,
+    Instruction dirDeleteCall, ModuleDefinition module)
+{
+    var helper = BuildWineSafeDeleteHelper(module);
+    wrapperType.Methods.Add(helper);
+
+    var il = dd.Body.GetILProcessor();
+    var boolPush = dirDeleteCall.Previous;   // ldc.i4.1 (recursive: true)
+    il.Remove(boolPush);
+    dirDeleteCall.OpCode = OpCodes.Call;
+    dirDeleteCall.Operand = helper;
+}
+
+// Baut die static void CorekeeperWineSafeDeleteDir(string path)-Helper-Methode.
+// path ist hier bereits absolut (modio reicht absolute Pfade) — daher kein
+// Rel2Abs. Identischer Iter-and-Delete-Algorithmus wie Patch 4, ohne try/catch
+// (modio's umgebender Handler fängt), terminiert mit ret.
+static MethodDefinition BuildWineSafeDeleteHelper(ModuleDefinition module)
+{
+    var corlib    = module.TypeSystem.CoreLibrary;
+    var stringT   = module.TypeSystem.String;
+    var intT      = module.TypeSystem.Int32;
+    var boolT     = module.TypeSystem.Boolean;
+    var voidT     = module.TypeSystem.Void;
+    var stringArr = new ArrayType(stringT);
+
+    var dirType  = new TypeReference("System.IO", "Directory",    module, corlib);
+    var fileType = new TypeReference("System.IO", "File",         module, corlib);
+    var soType   = new TypeReference("System.IO", "SearchOption", module, corlib) { IsValueType = true };
+
+    MethodReference Mref(TypeReference owner, string name, TypeReference ret, bool hasThis, params TypeReference[] ps)
+    {
+        var mr = new MethodReference(name, ret, owner) { HasThis = hasThis };
+        foreach (var p in ps) mr.Parameters.Add(new ParameterDefinition(p));
+        return mr;
+    }
+
+    var getFiles     = Mref(dirType,  "GetFiles",       stringArr, false, stringT, stringT, soType);
+    var getDirs      = Mref(dirType,  "GetDirectories", stringArr, false, stringT, stringT, soType);
+    var dirDelete    = Mref(dirType,  "Delete",         voidT,     false, stringT, boolT);
+    var fileDelete   = Mref(fileType, "Delete",         voidT,     false, stringT);
+    var stringLength = Mref(stringT,  "get_Length",     intT,      true);
+
+    var helper = new MethodDefinition(ModioHelperName,
+        MethodAttributes.Private | MethodAttributes.Static | MethodAttributes.HideBySig,
+        voidT);
+    helper.Parameters.Add(new ParameterDefinition("path", ParameterAttributes.None, stringT));
+
+    var body = helper.Body;
+    body.InitLocals = true;
+    var locFiles = new VariableDefinition(stringArr); body.Variables.Add(locFiles);
+    var locDirs  = new VariableDefinition(stringArr); body.Variables.Add(locDirs);
+    var locI     = new VariableDefinition(intT);      body.Variables.Add(locI);
+    var locJ     = new VariableDefinition(intT);      body.Variables.Add(locJ);
+    var locTmp   = new VariableDefinition(stringT);   body.Variables.Add(locTmp);
+
+    var il = body.GetILProcessor();
+    Instruction Emit(OpCode op) { var i = Instruction.Create(op); il.Append(i); return i; }
+    Instruction EmitOp(OpCode op, object operand)
+    {
+        Instruction i = operand switch
+        {
+            VariableDefinition v => Instruction.Create(op, v),
+            MethodReference m    => Instruction.Create(op, m),
+            string s             => Instruction.Create(op, s),
+            Instruction t        => Instruction.Create(op, t),
+            int n                => Instruction.Create(op, n),
+            _ => throw new InvalidOperationException("operand type unsupported: " + operand.GetType())
+        };
+        il.Append(i);
+        return i;
+    }
+
+    // files = Directory.GetFiles(path, "*", AllDirectories);
+    Emit(OpCodes.Ldarg_0);
+    EmitOp(OpCodes.Ldstr, "*");
+    Emit(OpCodes.Ldc_I4_1);
+    EmitOp(OpCodes.Call, getFiles);
+    EmitOp(OpCodes.Stloc, locFiles);
+
+    // for (i=0; i<files.Length; i++) File.Delete(files[i]);
+    Emit(OpCodes.Ldc_I4_0);
+    EmitOp(OpCodes.Stloc, locI);
+    var loop1Test = Instruction.Create(OpCodes.Ldloc, locI);
+    EmitOp(OpCodes.Br, loop1Test);
+    var loop1Body = Instruction.Create(OpCodes.Ldloc, locFiles);
+    il.Append(loop1Body);
+    EmitOp(OpCodes.Ldloc, locI);
+    Emit(OpCodes.Ldelem_Ref);
+    EmitOp(OpCodes.Call, fileDelete);
+    EmitOp(OpCodes.Ldloc, locI);
+    Emit(OpCodes.Ldc_I4_1);
+    Emit(OpCodes.Add);
+    EmitOp(OpCodes.Stloc, locI);
+    il.Append(loop1Test);
+    EmitOp(OpCodes.Ldloc, locFiles);
+    Emit(OpCodes.Ldlen);
+    Emit(OpCodes.Conv_I4);
+    EmitOp(OpCodes.Blt, loop1Body);
+
+    // dirs = Directory.GetDirectories(path, "*", AllDirectories);
+    Emit(OpCodes.Ldarg_0);
+    EmitOp(OpCodes.Ldstr, "*");
+    Emit(OpCodes.Ldc_I4_1);
+    EmitOp(OpCodes.Call, getDirs);
+    EmitOp(OpCodes.Stloc, locDirs);
+
+    // Bubble-sort dirs descending by string-length (deepest first)
+    Emit(OpCodes.Ldc_I4_0);
+    EmitOp(OpCodes.Stloc, locI);
+    var sortOTest = Instruction.Create(OpCodes.Ldloc, locI);
+    EmitOp(OpCodes.Br, sortOTest);
+    var sortOBody = Instruction.Create(OpCodes.Ldloc, locI);
+    il.Append(sortOBody);
+    Emit(OpCodes.Ldc_I4_1);
+    Emit(OpCodes.Add);
+    EmitOp(OpCodes.Stloc, locJ);
+    var sortITest = Instruction.Create(OpCodes.Ldloc, locJ);
+    EmitOp(OpCodes.Br, sortITest);
+    var sortIBody = Instruction.Create(OpCodes.Ldloc, locDirs);
+    il.Append(sortIBody);
+    EmitOp(OpCodes.Ldloc, locJ);
+    Emit(OpCodes.Ldelem_Ref);
+    EmitOp(OpCodes.Callvirt, stringLength);
+    EmitOp(OpCodes.Ldloc, locDirs);
+    EmitOp(OpCodes.Ldloc, locI);
+    Emit(OpCodes.Ldelem_Ref);
+    EmitOp(OpCodes.Callvirt, stringLength);
+    var sortINext = Instruction.Create(OpCodes.Ldloc, locJ);
+    EmitOp(OpCodes.Ble, sortINext);
+    EmitOp(OpCodes.Ldloc, locDirs);
+    EmitOp(OpCodes.Ldloc, locI);
+    Emit(OpCodes.Ldelem_Ref);
+    EmitOp(OpCodes.Stloc, locTmp);
+    EmitOp(OpCodes.Ldloc, locDirs);
+    EmitOp(OpCodes.Ldloc, locI);
+    EmitOp(OpCodes.Ldloc, locDirs);
+    EmitOp(OpCodes.Ldloc, locJ);
+    Emit(OpCodes.Ldelem_Ref);
+    Emit(OpCodes.Stelem_Ref);
+    EmitOp(OpCodes.Ldloc, locDirs);
+    EmitOp(OpCodes.Ldloc, locJ);
+    EmitOp(OpCodes.Ldloc, locTmp);
+    Emit(OpCodes.Stelem_Ref);
+    il.Append(sortINext);
+    Emit(OpCodes.Ldc_I4_1);
+    Emit(OpCodes.Add);
+    EmitOp(OpCodes.Stloc, locJ);
+    il.Append(sortITest);
+    EmitOp(OpCodes.Ldloc, locDirs);
+    Emit(OpCodes.Ldlen);
+    Emit(OpCodes.Conv_I4);
+    EmitOp(OpCodes.Blt, sortIBody);
+    EmitOp(OpCodes.Ldloc, locI);
+    Emit(OpCodes.Ldc_I4_1);
+    Emit(OpCodes.Add);
+    EmitOp(OpCodes.Stloc, locI);
+    il.Append(sortOTest);
+    EmitOp(OpCodes.Ldloc, locDirs);
+    Emit(OpCodes.Ldlen);
+    Emit(OpCodes.Conv_I4);
+    EmitOp(OpCodes.Blt, sortOBody);
+
+    // for (i=0; i<dirs.Length; i++) Directory.Delete(dirs[i], false);
+    Emit(OpCodes.Ldc_I4_0);
+    EmitOp(OpCodes.Stloc, locI);
+    var loop2Test = Instruction.Create(OpCodes.Ldloc, locI);
+    EmitOp(OpCodes.Br, loop2Test);
+    var loop2Body = Instruction.Create(OpCodes.Ldloc, locDirs);
+    il.Append(loop2Body);
+    EmitOp(OpCodes.Ldloc, locI);
+    Emit(OpCodes.Ldelem_Ref);
+    Emit(OpCodes.Ldc_I4_0);
+    EmitOp(OpCodes.Call, dirDelete);
+    EmitOp(OpCodes.Ldloc, locI);
+    Emit(OpCodes.Ldc_I4_1);
+    Emit(OpCodes.Add);
+    EmitOp(OpCodes.Stloc, locI);
+    il.Append(loop2Test);
+    EmitOp(OpCodes.Ldloc, locDirs);
+    Emit(OpCodes.Ldlen);
+    Emit(OpCodes.Conv_I4);
+    EmitOp(OpCodes.Blt, loop2Body);
+
+    // Directory.Delete(path, false);
+    Emit(OpCodes.Ldarg_0);
+    Emit(OpCodes.Ldc_I4_0);
+    EmitOp(OpCodes.Call, dirDelete);
+
+    Emit(OpCodes.Ret);
+
+    return helper;
+}
