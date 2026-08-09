@@ -3,28 +3,26 @@
 
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+using System.IO;
 using System.Linq;
 
 #nullable disable
 
 // ============================================================================
-// Default-Pfade in der CrossOver-Bottle. args[1] überschreibt nur den Pfad zu
-// PugMod.Loader.dll — Pug.Other.dll bleibt am Default (per Edit dieser Konstante
-// anpassbar).
+// Alle sechs Patches liegen im Managed-Verzeichnis EINER Core-Keeper-
+// Installation. args[1] ist deren Spielverzeichnis (der Steam-Installations-
+// ordner); die drei DLL-Pfade werden daraus abgeleitet. Der Data-Ordner heisst
+// beim Client "CoreKeeper_Data", beim Dedicated Server "CoreKeeperServer_Data"
+// — daher die *_Data-Suche statt eines festen Namens. Ohne args[1] wird die
+// Client-Installation in der CrossOver-Bottle benutzt.
 // ============================================================================
 
-const string ManagedDir =
+const string DefaultGamePath =
     "/Users/valgard/Library/Application Support/CrossOver/Bottles/Core Keeper/" +
-    "drive_c/Program Files (x86)/Steam/steamapps/common/Core Keeper/" +
-    "CoreKeeper_Data/Managed";
+    "drive_c/Program Files (x86)/Steam/steamapps/common/Core Keeper";
 
-const string DefaultLoaderDll = ManagedDir + "/PugMod.Loader.dll";
 const string LoaderTypeName   = "PugMod.Loader";
-
-const string DefaultOtherDll  = ManagedDir + "/Pug.Other.dll";
 const string FsTypeName       = "Pug.Platform.StandaloneFilesystem";
-
-const string DefaultModioDll  = ManagedDir + "/modio.UnityPlugin.dll";
 const string ModioWrapperType = "ModIO.Implementation.Platform.SystemIOWrapper";
 // Name der vom Patcher injizierten Wine-safe Iter-and-Delete Helper-Methode in
 // SystemIOWrapper. Existenz dieser Methode = Patch-6-Marker (Idempotenz).
@@ -33,18 +31,50 @@ const string ModioHelperName  = "CorekeeperWineSafeDeleteDir";
 if (args.Length < 1 || (args[0] != "analyze" && args[0] != "apply"))
 {
     Console.Error.WriteLine(
-        "Usage: corekeeper-patch <analyze|apply> [pfad-zu-PugMod.Loader.dll]");
+        "Usage: corekeeper-patch <analyze|apply> [pfad-zum-spielverzeichnis]");
+    Console.Error.WriteLine();
+    Console.Error.WriteLine(
+        "  Spielverzeichnis = der Ordner MIT dem <Name>_Data-Unterordner, z.B.");
+    Console.Error.WriteLine(
+        "  '.../steamapps/common/Core Keeper Dedicated Server'.");
     return 2;
 }
 
-string command   = args[0];
-string loaderDll = args.Length >= 2 ? args[1] : DefaultLoaderDll;
-string otherDll  = DefaultOtherDll;
-string modioDll  = DefaultModioDll;
-bool apply       = command == "apply";
+string command  = args[0];
+string gamePath = args.Length >= 2 ? args[1].TrimEnd('/') : DefaultGamePath;
+bool apply      = command == "apply";
+
+// Frueher nahm das Tool den Pfad zu PugMod.Loader.dll — der Aufruf von damals
+// soll nicht stumm den Default patchen, sondern sagen was jetzt gemeint ist.
+if (gamePath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+{
+    Console.Error.WriteLine("Fehler: erwartet wird das SPIELVERZEICHNIS, kein DLL-Pfad.");
+    Console.Error.WriteLine("  bekommen: " + gamePath);
+    string guess = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(gamePath)));
+    if (guess != null)
+    {
+        Console.Error.WriteLine("  gemeint:  " + guess);
+    }
+    return 2;
+}
+
+string managedDir = ResolveManagedDir(gamePath);
+if (managedDir == null)
+{
+    Console.Error.WriteLine("Fehler: kein '<Name>_Data/Managed' unterhalb von:");
+    Console.Error.WriteLine("  " + gamePath);
+    return 2;
+}
+
+string loaderDll = Path.Combine(managedDir, "PugMod.Loader.dll");
+string otherDll  = Path.Combine(managedDir, "Pug.Other.dll");
+string modioDll  = Path.Combine(managedDir, "modio.UnityPlugin.dll");
 
 Console.WriteLine("corekeeper-patch");
 Console.WriteLine(new string('=', 52));
+Console.WriteLine();
+Console.WriteLine("Spiel:   " + gamePath);
+Console.WriteLine("Managed: " + managedDir);
 
 int rcLoader = ProcessLoaderDll(loaderDll, apply);
 
@@ -93,6 +123,45 @@ Console.WriteLine(apply
     ? "Status: FERTIG — alle Patches im Soll-Zustand."
     : "Status: ANALYSE — 'apply' wendet fehlende Patches an.");
 return 0;
+
+// ============================================================================
+// Spielverzeichnis -> Managed-Verzeichnis
+// ============================================================================
+// Unity legt die Managed-Assemblies unter "<Spiel>/<Produktname>_Data/Managed"
+// ab. Der Produktname unterscheidet sich zwischen den Builds — Client
+// "CoreKeeper_Data", Dedicated Server "CoreKeeperServer_Data" — deshalb wird
+// der Ordner per *_Data-Glob gesucht statt fest benannt. Ein bereits tiefer
+// zeigender Pfad (das *_Data- oder das Managed-Verzeichnis selbst) wird
+// ebenfalls akzeptiert, damit der Aufruf nicht an einer Ebene scheitert.
+static string ResolveManagedDir(string gamePath)
+{
+    if (!Directory.Exists(gamePath))
+    {
+        return null;
+    }
+
+    if (Path.GetFileName(gamePath).Equals("Managed", StringComparison.OrdinalIgnoreCase))
+    {
+        return gamePath;
+    }
+
+    string direct = Path.Combine(gamePath, "Managed");
+    if (Directory.Exists(direct))
+    {
+        return direct;
+    }
+
+    foreach (string dataDir in Directory.GetDirectories(gamePath, "*_Data").OrderBy(d => d))
+    {
+        string managed = Path.Combine(dataDir, "Managed");
+        if (Directory.Exists(managed))
+        {
+            return managed;
+        }
+    }
+
+    return null;
+}
 
 // ============================================================================
 // PugMod.Loader.dll — Patch 1 (Directory.Delete) + Patch 2 (InvariantCulture)
