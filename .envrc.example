@@ -1,27 +1,33 @@
 #!/usr/bin/env bash
 # core_keeper/.envrc.example — tracked template for the shared, machine-level
-# environment inherited by EVERY Core Keeper mod.
+# environment inherited by EVERY Core Keeper mod. Copy it to .envrc and replace
+# every "/path/to/…" placeholder with the real absolute path:
 #
-# Copy to .envrc and adjust the ABSOLUTE machine paths marked "ADJUST". The
-# real .envrc is gitignored; this .envrc.example is committed (via the
-# `!/.envrc.example` allowlist line in .gitignore).
-#
-#   cp .envrc.example .envrc   # then edit the ADJUST lines
+#   cp .envrc.example .envrc   # then edit the placeholder paths
 #   direnv allow               # here, and once in each mod dir
 #
-# Each mod's .envrc inherits this file via direnv's source_up_if_exists (with a
-# manual `source ../.envrc` fallback), so these shared values live here ONCE
-# rather than duplicated per mod. Paths are absolute because source_up does not
-# change $PWD.
+# The real .envrc is gitignored; this template is committed via the
+# `!/.envrc.example` allowlist line in .gitignore. Keep the two in sync — both
+# the variables and their comments.
+#
+# Each mod's .envrc inherits these values via direnv's `source_up_if_exists`
+# (with a manual `source ../.envrc` fallback for the documented
+# `source .envrc && ../utils/build.sh` workflow), so the shared machine paths
+# below are defined ONCE here instead of duplicated per mod.
+#
+# Paths are ABSOLUTE on purpose: direnv's source_up sources this file without
+# changing $PWD (it stays the mod dir), so a $PWD-relative path here would not
+# resolve to core_keeper/.
 
-# --- Machine paths (ADJUST per machine) -------------------------------------
+# --- Machine paths (shared by all mods) -------------------------------------
 
-# Unity Editor binary — MUST be Unity 6000.0.59f2 (pinned in the SDK's
-# ProjectVersion.txt). Canonical macOS Unity Hub location; ADJUST if yours differs.
+# Unity Editor binary — MUST be Unity 6000.0.59f2, the version pinned in the
+# SDK's ProjectVersion.txt (its README is one patch behind — do not trust it).
+# The path below is the canonical macOS Unity Hub location.
 export UNITY_BIN="/Applications/Unity/Hub/Editor/6000.0.59f2/Unity.app/Contents/MacOS/Unity"
 
-# Cloned Pugstorm CoreKeeperModSDK (the one shared clone). ADJUST to your
-# absolute checkout path — the SDK symlinks (utils/link.sh) encode absolute paths.
+# Cloned Pugstorm CoreKeeperModSDK — the one shared clone, never vendored per
+# mod. Absolute, because the SDK symlinks (utils/link.sh) encode absolute paths.
 export SDK_PATH="/path/to/core_keeper/CoreKeeperModSDK"
 
 # macOS only — CrossOver bottle that holds Core Keeper. The install/uninstall
@@ -43,22 +49,31 @@ export SDK_PATH="/path/to/core_keeper/CoreKeeperModSDK"
 # export CK_SERVER_DIR="$CK_BOTTLE_PATH/drive_c/Program Files (x86)/Steam/steamapps/common/Core Keeper Dedicated Server"
 
 # Base directory for each mod's build-output staging dir. A mod's .envrc sets
-# MOD_INSTALL_PATH="$MOD_INSTALL_BASE_PATH/$MOD_NAME_ID-build".
+# MOD_INSTALL_PATH="$MOD_INSTALL_BASE_PATH/$MOD_NAME_ID-build" (combined after this
+# file is sourced and MOD_NAME_ID is set).
 export MOD_INSTALL_BASE_PATH="$HOME/Library/Caches"
 
 # --- Shared defaults (a mod's own .envrc may override) ----------------------
 
-# Core Keeper game versions → mod.io compatibility tags for ALL mods. Single
-# canonical list — mods do NOT override CK_GAME_VERSION; keep it in sync here as
-# new game builds ship. Space-separated; each value becomes its own mod.io tag.
+# Core Keeper game versions → mod.io compatibility tags for ALL mods. This is
+# the single canonical list — mods do NOT override CK_GAME_VERSION; keep it in
+# sync here as new game builds ship. Space-separated; each value becomes its own
+# mod.io compatibility tag.
 export CK_GAME_VERSION="1.2.1.5 1.2.1.4 1.2.1.3 1.2.1.0 1.2.0.7 1.2.0.6 1.2.0.5 1.2.0.4 1.2.0.3"
 
-# --- Shared utils/ data files (ADJUST the absolute prefix) ------------------
+# --- Shared utils/ data files (absolute — source_up keeps $PWD = mod dir) ---
 
+# Self-populating modName → mod.io ModId cache, read/written by the shared
+# CLIPublishHelper when syncing platform dependencies.
 export MODIO_DEPS_MAP="/path/to/core_keeper/utils/modio-dependencies.json"
+
+# CK language address → ISO table used by the shared LocalizationGenerator.
+# Harmless for non-localised mods (their generator run is a no-op).
 export LOC_TABLE="/path/to/core_keeper/utils/ck-language-addresses.json"
 
 # --- Project-local PATH additions -------------------------------------------
 
-# ilspycmd (.NET global tool) is not on macOS PATH by default. Harmless unused.
+# ilspycmd is a .NET global tool under ~/.dotnet/tools, not on macOS PATH by
+# default. Sourced project-locally; harmless when unused, needed for
+# decompiling game DLLs.
 export PATH="$HOME/.dotnet/tools:$PATH"
