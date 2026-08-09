@@ -168,6 +168,11 @@ asmdef cannot reference an editor-only one, so a CLI build helper (for
 Fake-ID dev install, the incompatible-mod dialog, `state.json`/`config.json`
 surfaces, and CrossOver/Wine specifics — see @docs/macos-crossover-loader.md.
 
+Running the dedicated server (Steam app 1963720) in the same bottle — sharing one
+world with the client via directory symlinks, mirroring the mod set, and why a
+mismatch surfaces as "wrong game version" — see @docs/dedicated-server.md. The
+helper is `utils/server.sh start|stop|status|log`.
+
 ## Build pattern (shared `utils/`)
 
 The shared `utils/` build/publish scripts and the `.envrc` inheritance chain

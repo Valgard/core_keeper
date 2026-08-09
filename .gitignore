@@ -16,6 +16,7 @@ __pycache__
 !/README.md
 !/docs/
 /docs/*
+!/docs/dedicated-server.md
 !/docs/macos-crossover-loader.md
 !/docs/publishing.md
 # Track ONLY .claude/skills (shared agent skills). The parent dir must be
