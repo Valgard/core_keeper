@@ -94,16 +94,41 @@ do_start() {
 
 do_stop() {
     is_running || { echo "Server is not running."; return 0; }
-    # Caveat: this does NOT trigger a final save — the last autosave is what
-    # survives. Give the world a moment rather than stopping mid-session.
-    pkill -f "$PROC_PATTERN" || true
+
+    # Graceful shutdown goes through Windows' WM_CLOSE, which Unity turns into a
+    # quit request: Application.wantsToQuit lets the managers block until they
+    # have finished writing, then QuitHandler() runs Deinit() on all of them and
+    # removes PID.txt. A POSIX signal (pkill/SIGTERM) bypasses all of that — the
+    # process just disappears and the last autosave is what survives.
+    # This is also why Pugstorm's own Launch.ps1 uses `taskkill` without /F.
+    echo "Requesting shutdown (taskkill)…"
+    "$CXSTART" --bottle "$CK_BOTTLE_NAME" --no-wait --no-convert \
+        'C:\windows\system32\taskkill.exe' /IM CoreKeeperServer.exe >/dev/null 2>&1 || true
+
     local waited=0
-    while is_running && [ "$waited" -lt 40 ]; do
+    while is_running && [ "$waited" -lt 60 ]; do
         sleep 2
         waited=$((waited + 2))
     done
-    is_running && { echo "WARNING: still running after ${waited}s." >&2; return 1; }
+
+    if is_running; then
+        echo "Still running after ${waited}s — falling back to SIGTERM (no final save)." >&2
+        pkill -f "$PROC_PATTERN" || true
+        while is_running && [ "$waited" -lt 90 ]; do
+            sleep 2
+            waited=$((waited + 2))
+        done
+        is_running && { echo "WARNING: still running after ${waited}s." >&2; return 1; }
+    fi
+
     echo "Stopped after ${waited}s."
+    # "Running quit handlers" only appears when the graceful path was taken; a
+    # leftover PID.txt is the same signal inverted.
+    if grep -q "Running quit handlers" "$LOGFILE" 2>/dev/null; then
+        echo "Quit handlers ran — world was flushed."
+    else
+        echo "NOTE: no quit handlers in the log — the last autosave is what survives." >&2
+    fi
 }
 
 do_status() {
