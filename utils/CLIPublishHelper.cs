@@ -259,6 +259,18 @@ namespace CoreKeeperModUtils
         private static string Inline(string text)
         {
             var s = text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+
+            // Images before links: the link pattern would otherwise swallow the
+            // "[alt](url)" half of an image and leave a stray "!" in front of it.
+            // Both run before the emphasis rules so a URL containing '*' cannot be
+            // mangled into <em> on its way into the attribute.
+            //
+            // These two are why raw HTML is not an option in modio-description.md:
+            // the escaping above turns a hand-written <img> into &lt;img&gt;, which
+            // mod.io then shows as literal text. Markdown is the only route in.
+            s = Regex.Replace(s, @"!\[([^\]]*)\]\(([^)\s]+)\)", "<img src=\"$2\" alt=\"$1\">");
+            s = Regex.Replace(s, @"\[([^\]]+)\]\(([^)\s]+)\)", "<a href=\"$2\">$1</a>");
+
             s = Regex.Replace(s, @"\*\*(.+?)\*\*", "<strong>$1</strong>");
             s = Regex.Replace(s, @"\*(.+?)\*", "<em>$1</em>");
             s = Regex.Replace(s, @"`(.+?)`", "<code>$1</code>");
