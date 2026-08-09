@@ -56,8 +56,15 @@ absolute paths, so they dangle after a worktree switch or repo move;
   `Delete` to a Wine-safe iterate-and-delete. In `modio.UnityPlugin.dll`:
   (Patch 6) the same delete rewrite for `SystemIOWrapper.DeleteDirectory`.
   Every Core Keeper update reverts all three DLLs to stock — re-apply after
-  each update. Rationale + canonical commands in the
-  `corekeeper-roslyn-locale-bug` memory.
+  each update. The patcher lives at `utils/corekeeper-patch.cs` (a .NET
+  file-based script; `~/local/bin/corekeeper-patch` is a symlink onto it). It
+  takes the **game directory** and resolves `<game>/*_Data/Managed` itself —
+  `corekeeper-patch analyze|apply "<…>/steamapps/common/Core Keeper"` — so the
+  same invocation works for any build. Apply it to **each installation
+  separately**: the Dedicated Server (`CoreKeeperServer_Data`) needs all six
+  patches too, and without Patch 2 its mods load but never compile, which the
+  client then rejects as `Error/BadProtocolVersion` ("wrong game version").
+  Rationale + canonical commands in the `corekeeper-roslyn-locale-bug` memory.
 
 ## SDK quirks (apply to every mod)
 
