@@ -132,12 +132,19 @@ Three things have to line up:
    mods load but Roslyn fails on the missing `de-DE` satellite assembly, so none
    of them compile — same hash mismatch, one step later. The patcher takes the
    game directory, so run it once per installation.
-3. **`modloader/config.json` → `unsupportedModsToLoad`.** This list holds the mod
-   GUIDs you once confirmed through the "load anyway" dialog. The server can
-   never populate it: `Loader.LoadUnsupportedMod` is only reachable from that
-   dialog, and `-batchmode` has no UI. Copy the client's list over. The loader
-   clears it on every game-version change, so after each Core Keeper update
-   confirm in the client again and re-copy.
+3. **Mods the client rejects as incompatible.** Only the client checks version
+   compatibility — it reads the mod.io tags and skips a mod that does not match,
+   unless its GUID sits in `modloader/config.json` → `unsupportedModsToLoad`
+   (what the "load anyway" dialog writes). The server's directory scan passes
+   `supportsCurrentVersion: true` **hardcoded** (`PugMod.Loader` ~2172), so it
+   loads everything present, tags be damned.
+
+   The asymmetry runs one way: a mod the client drops but the server loads is a
+   set mismatch. Either confirm it in the client's dialog or unlink it on the
+   server. Copying `unsupportedModsToLoad` to the server does nothing — the gate
+   it feeds (`!supportsCurrentVersion && !contains(guid)`) can never fire there.
+   Note the loader clears that list on every game-version change, so a mod you
+   confirmed once is silently dropped by the client after the next update.
 
 ## Troubleshooting
 
