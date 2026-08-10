@@ -126,13 +126,39 @@ Three things have to line up:
 | Server exits during world generation | `-nographics` was passed, or the host has no usable graphics device |
 | Mods listed but inert | Scripts did not compile — check the log for `CompileFailed` or the `de-DE` satellite assembly |
 
-Two known rough edges:
+## Stopping it without losing progress
 
-- `Write failed: … .pugbackup (-2147024896)` for `ServerConfig.json` and
-  `Admins.json` persists even with all six patches applied. The files themselves
-  are written; only the backup copy fails.
-- `utils/server.sh stop` terminates the process without triggering a final save,
-  so the last autosave is what survives.
+`utils/server.sh stop` sends a Windows `WM_CLOSE` through `taskkill` (no `/F`),
+which is what Unity turns into a quit request. The chain is visible in the log:
+
+```
+Got quit request
+Exit blocked by ECSManager     <- the manager holding the world defers the quit
+Quit blocked
+Got quit request
+Running quit handlers          <- Deinit() on every manager, then PID.txt is removed
+```
+
+A POSIX signal (`pkill`, SIGTERM) bypasses all of it — the process disappears and
+only the last autosave survives. This is also why Pugstorm's own `Launch.ps1`
+uses `taskkill`. Verified: a graceful stop rewrote the world file, an earlier
+SIGTERM stop did not.
+
+Two independent signals tell the paths apart:
+
+- `Running quit handlers` in the log — only present on the graceful path.
+- A leftover `PID.txt` next to the executable. It is written at startup and
+  removed *only* by the quit handler, so its presence means the previous run was
+  cut short. A stale one is also read back on the next start as "a server is
+  already running".
+
+Autosave runs every 60 s (`AutoSaveInterval`, disableable with
+`-disableautosave`), so even a hard kill costs at most a minute.
+
+One known rough edge: `Write failed: … .pugbackup (-2147024896)` for
+`ServerConfig.json`, `Admins.json` and `PlayerBans.json` persists even with all
+six patches applied. Those files themselves are written and the world is
+unaffected — only the backup copies fail.
 
 ## Log formats differ
 
