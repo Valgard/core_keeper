@@ -136,10 +136,28 @@ types and Harmony out of the box — no manual reference editing is needed.
 Mods ship `Scripts/*.cs` and are compiled at load time inside a default-deny
 sandbox. `System.IO.*`, `System.Diagnostics.Process`, reflection-emit and
 similar BCL surface fail the compile on first reference (`mod load error:
-CompileFailed`). Either avoid those APIs (hardcode what would otherwise live
-in a runtime `config.json`) or set `skipSafetyChecks: true` in
-`ModManifest.json` to disable the sandbox entirely — acceptable for
-personal-use mods, at the cost of whatever the safety checks guarded.
+CompileFailed`).
+
+**This does not mean a mod cannot have a runtime config** — the sandbox
+inspects references in the mod's *own* source, so a call into an
+already-loaded trusted assembly costs nothing. Three ways out, in order of
+preference:
+
+- **`API.ConfigFilesystem`** (`PugMod`) — the loader's own file API, and the
+  right answer for anything a `config.json` would hold. `FileExists`, `Read` /
+  `Write` (both `byte[]`), `CreateDirectory`, rooted at
+  `…/LocalLow/Pugstorm/Core Keeper/<platform>/<user-id>/mods/<ModName>/` and
+  initialised before any mod's `EarlyInit`. No dependency, sandbox-clean.
+  Used by `mod-settings-menu`'s `ConfigStore` — and by CoreLib, which is
+  itself a sandboxed source mod (`skipSafetyChecks: false`) with zero
+  `System.IO` references.
+- **CoreLib's `ConfigFile`** — typed entries, defaults,
+  `AcceptableValueRange`, a TOML-ish `.cfg` on disk. Same
+  `API.ConfigFilesystem` underneath, at the cost of a hard CoreLib dependency.
+- **`skipSafetyChecks: true`** in the ModBuilderSettings `.asset` — disables
+  the sandbox entirely and unlocks raw `System.IO`. A last resort for what the
+  first two cannot express; it also flips the derived mod.io `Access Type`
+  tag.
 
 ### Burst-compiled systems are not Harmony-patchable
 A DOTS system whose `OnUpdate` is Burst-compiled cannot be intercepted by
