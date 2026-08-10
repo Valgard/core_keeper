@@ -86,34 +86,74 @@ Installed mods live unpacked in `<bottle>/drive_c/users/Public/mod.io/5289/mods/
 Symlink them into the server:
 
 ```
-CoreKeeperServer_Data/StreamingAssets/Mods/<any-name>  ->  …/mod.io/5289/mods/<modId>_<fileId>
+CoreKeeperServer_Data/StreamingAssets/Mods/<name_id>  ->  …/mod.io/5289/mods/<modId>_<fileId>
 ```
 
-Folder names are free — the loader reads each `ModManifest.json`. Symlinks are
+Folder names are free — the loader reads each `ModManifest.json` — so `relink`
+names them after the mod.io slug (`modObject.name_id`): unique, filesystem-safe
+and readable, unlike `mod_<id>`. Note that a mod can carry three different names:
+`morelabels` (slug), `More Labels` (mod.io profile, what you see in game) and
+`NameChests` (`metadata.name`, the identity the server hashes its `ModId` from). Symlinks are
 the right tool here (mod.io is the only writer, the server only reads); copies
 would go stale on the next mod update, which immediately breaks the join.
 
-**The symlinks go stale too, just less visibly.** The target name carries the
-`<fileId>`, and mod.io mints a new one on every release — of your own mods as
-much as a foreign one. The link then points at a superseded folder, and the
-outcome is one of two quiet failures: the folder is gone and the server drops
-that mod (with the `Server` flag in `requiredOn` the client refuses to join), or
-the folder lingers and the server keeps running the *old* version while the
-client has the new one — which looks exactly like a fixed bug coming back.
+**The symlinks drift, and in four different ways** — all of them quiet, because
+the loader gates on `File.Exists(ModManifest.json)` and skips a broken link
+without a word:
 
-`utils/server.sh relink` re-points every link at the highest `fileId` present in
-the cache, and `start` runs it automatically, so a normal start is already
-correct. Run it manually after publishing a mod — but note the new folder only
-appears once the **client** has downloaded that release.
+| Drift | What happens |
+|---|---|
+| A mod is updated | mod.io mints a new `<modId>_<fileId>` folder; the link points at a superseded one — the server either drops the mod or keeps running the *old* version, which looks like a fixed bug coming back |
+| A mod is switched off in the game, or unsubscribed | the client skips it, the server keeps loading it |
+| A mod is newly subscribed, or moves between mod.io and a dev build | no link exists at all — and a dev build changes the `modId` itself, so the old link cannot even be repaired |
+| The same mod ends up linked twice | both are fed to the loader; `SortMods` keeps whichever comes last |
 
-A link whose mod has **no** cache folder at all is reported and left alone. That
-is deliberate: the same symptom covers an unsubscribed mod and one whose folder
-mod.io happens to be rewriting (opening the in-game Mods menu triggers such a
-sweep), and these symlinks *are* the server's mod selection — nothing else
-records it. A stale link is harmless in the meantime, because the loader gates on
-`File.Exists(ModManifest.json)` and skips it without a word. When you are sure a
-mod is gone for good, `utils/server.sh relink --prune` removes those links.
-`start` never prunes.
+`utils/server.sh relink` reconciles all four in one pass, and `start` runs it
+first, so a normal start is already correct:
+
+```
+  + BoatTurbo: mod_6265625 -> 6265625_8033551        added
+  ~ AutoPlant3: mod_6163009 -> 6163009_7887057       re-pointed
+  - mod_3400322 (not loaded by the client)           removed
+  - zweitlink (duplicate of mod_6198932)             removed
+```
+
+The target set mirrors what `PugMod.Platform` does on a normal client start,
+read from the same structured data the game keeps in `state.json`:
+
+| Step | Source |
+|---|---|
+| walk the subscriptions | `existingUsers[*].subscribedMods` |
+| drop what is switched off | `existingUsers[*].disabledMods` |
+| drop what is not installed | `mods[id].currentModfile.id` → folder must exist with a manifest |
+| drop version-incompatible mods | `mods[id].modObject.tags` vs. the game version, unless the guid sits in `unsupportedModsToLoad` |
+
+The folder comes from `currentModfile.id`, not from guessing at the cache — the
+cache keeps superseded folders around (CoreLib had `3177992_7845185` next to
+`_7710097`), and "highest number wins" is a guess where `state.json` has the
+answer. `metadata.name` and `guid` still come from each `ModManifest.json`:
+`state.json` only carries the mod.io *profile* name, which differs
+(`Mod Settings Menu` vs. `ModSettingsMenu`), and the manifest name is the identity
+the server goes by. Verified against a live client run: the derivation produced
+exactly the 33 mods the game had loaded.
+
+Version comparison follows `ModVersion`, which looks at the **first three**
+components only — a game on `1.2.1.5` accepts a `1.2.1.0` tag. Nothing in the
+client is written; all of this is read-only.
+
+If the target set cannot be determined — unreadable `state.json`, empty cache —
+`relink` changes **nothing** and says so. These symlinks are the only record of
+the server's mod selection; there is no second list to restore from.
+
+Two enabled mod folders can also claim the same `metadata.name` — the identity
+the server goes by, since `ModId` is hashed from it and `SortMods` keys on it.
+Only one of them can run, so `relink` reports the collision and names its pick.
+
+**A shared `guid` does not prove they are the same mod.** A fork inherits the
+guid along with the manifest, so two different authors can ship the same name
+*and* the same guid — `Auto Plant 3` (`6007069`) and `AutoPlant for 1.2.1.5`
+(`6163009`) are exactly that. It is still worth reporting, because the data-block
+loader keys on the guid and would clash on top of the name collision.
 
 ## Client and server must match
 

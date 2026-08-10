@@ -214,12 +214,14 @@ surfaces, and CrossOver/Wine specifics — see @docs/macos-crossover-loader.md.
 Running the dedicated server (Steam app 1963720) in the same bottle — sharing one
 world with the client via directory symlinks, mirroring the mod set, and why a
 mismatch surfaces as "wrong game version" — see @docs/dedicated-server.md. The
-helper is `utils/server.sh start|stop|status|log|relink`. Those mod symlinks
-carry the mod.io `<fileId>`, which changes with every release, so they go stale
-on any mod update — `relink` re-points them and `start` does it automatically.
-Links whose mod has no cache folder at all are only reported (they are inert, and
-the symlinks are the sole record of the server's mod set); `relink --prune`
-removes them on demand, and `start` never does.
+helper is `utils/server.sh start|stop|status|log|relink`. The mod symlinks drift
+four ways — a release mints a new `<fileId>`, a mod is switched off or
+unsubscribed, a mod is added or moves between mod.io and a dev build, or one ends
+up linked twice — so `relink` reconciles the whole directory against what is
+installed and switched on (mod.io cache minus `disabledMods`, the loader's own two
+filters), adding, re-pointing and removing links; `start` runs it first. When
+the target set is unreadable it changes nothing: the symlinks are the sole record
+of the mod set.
 
 ## Build pattern (shared `utils/`)
 

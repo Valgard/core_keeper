@@ -9,8 +9,7 @@
 #   utils/server.sh stop      Terminate it (see the save caveat below)
 #   utils/server.sh status    Show whether it runs, plus the join details
 #   utils/server.sh log       Follow CoreKeeperServerLog.txt
-#   utils/server.sh relink    Re-point the mod symlinks at the current cache
-#                   relink --prune   …and drop links whose mod is gone for good
+#   utils/server.sh relink    Reconcile the mod symlinks with the client's set
 #
 # Env vars (set in .envrc; all optional, defaults shown):
 #   CK_BOTTLE_NAME       CrossOver bottle name.                 "Core Keeper"
@@ -56,170 +55,240 @@ START_TIMEOUT=420
 # catalogue, so the id alone says whether a cache folder is a local build.
 FAKE_ID_MIN=9999000
 
+# The client's loader config: carries the normalised game version and the mods
+# the player waved through the incompatible-mod dialog. Both are needed to model
+# the version filter; empty when absent, which simply disables that filter.
+LOADER_CFG="$(find "$CK_BOTTLE_PATH/drive_c/users/${CK_WINE_USER:-crossover}/AppData/LocalLow/Pugstorm/Core Keeper/Steam" \
+    -maxdepth 3 -name config.json -path "*/modloader/*" 2>/dev/null | head -1)"
+
 is_running() { pgrep -f "$PROC_PATTERN" >/dev/null 2>&1; }
 
-# mod.io ids the player switched off in the game's Mods menu, one per line.
-# Read-only: the client's state.json is never written by this script.
-disabled_ids() {
-    python3 -c 'import json,sys
-try:
-    d = json.load(open(sys.argv[1]))
-    out = set()
-    for u in d.get("existingUsers", {}).values():
-        out |= {str(x) for x in u.get("disabledMods", [])}
-    print("\n".join(sorted(out)))
-except Exception:
-    pass' "$(dirname "$MODIO_CACHE")/state.json" 2>/dev/null
-}
+# Prints the reconciliation plan, one tab-separated action per line:
+#   ADD <link> <cacheFolder> <modName>    create a missing link
+#   SET <link> <cacheFolder> <modName>    re-point an existing link
+#   MOV <link> <newName> <modName>        rename a link to the mod.io slug
+#   DEL <link> <reason>                   remove a link
+#   KEEP                                  counted only
+#   WARN <message>                        reported, nothing done
+# Exits non-zero when the target set cannot be determined (unreadable state.json,
+# or nothing subscribed and installed); the caller then leaves everything alone.
+relink_plan() {
+    MODS_DIR="$MODS_DIR" MODIO_CACHE="$MODIO_CACHE" LOADER_CFG="$LOADER_CFG" \
+    FAKE_ID_MIN="$FAKE_ID_MIN" python3 -c '
+import json, os, glob, sys
 
-# metadata.name from a mod folder's ModManifest.json — the identity the server
-# actually goes by. Empty when the file is missing or unparsable.
-manifest_name() {
-    python3 -c 'import json,sys
+mods_dir = os.environ["MODS_DIR"]
+cache    = os.environ["MODIO_CACHE"]
+cfg      = os.environ["LOADER_CFG"]
+fake_min = int(os.environ["FAKE_ID_MIN"])
+state    = os.path.join(os.path.dirname(cache), "state.json")
+
+# --- what the client will load: subscribed, enabled, installed --------------
+# This mirrors PugMod.Platform: it walks GetSubscribedMods() and skips anything
+# disabled, not installed, or without a manifest. Taking the folder from
+# currentModfile.id rather than guessing at the cache matters - the cache keeps
+# superseded folders around (CoreLib had 3177992_7845185 next to _7710097), and
+# "highest number wins" is a guess where state.json has the answer.
 try:
-    print(json.load(open(sys.argv[1]))["name"])
+    st = json.load(open(state, encoding="utf-8"))
 except Exception:
-    pass' "$1/ModManifest.json" 2>/dev/null
+    sys.exit(1)
+
+mods = st.get("mods", {})
+subs, disabled = set(), set()
+for u in st.get("existingUsers", {}).values():
+    subs     |= {str(x.get("id") if isinstance(x, dict) else x) for x in u.get("subscribedMods", [])}
+    disabled |= {str(x) for x in u.get("disabledMods", [])}
+
+# The client also drops mods whose mod.io tags do not carry the running game
+# version, unless the player confirmed them through the incompatible-mod dialog.
+# ModVersion compares only the first three components, so 1.2.1.5 accepts a
+# 1.2.1.0 tag. The loader writes that normalised version into its own config.
+game_ver, forced = None, set()
+try:
+    c = json.load(open(cfg, encoding="utf-8"))
+    game_ver = c.get("version")
+    forced = {str(x) for x in c.get("unsupportedModsToLoad", [])}
+except Exception:
+    pass
+
+def compatible(tags):
+    if not game_ver:
+        return True
+    want3 = game_ver.split(".")[:3]
+    for tag in tags:
+        parts = str(tag.get("name") if isinstance(tag, dict) else tag).split(".")
+        if len(parts) >= 3 and parts[:3] == want3:
+            return True
+    return False
+
+# metadata.name and guid live only in the manifest - modObject.name is the mod.io
+# profile name, which differs ("Mod Settings Menu" vs "ModSettingsMenu").
+cands = {}
+for mid in sorted(subs - disabled):
+    entry = mods.get(mid) or {}
+    cf = entry.get("currentModfile") or {}
+    fid = cf.get("id")
+    if fid is None:
+        continue
+    folder = "%s_%s" % (mid, fid)
+    mf = os.path.join(cache, folder, "ModManifest.json")
+    if not os.path.isfile(mf):
+        continue
+    try:
+        meta = json.load(open(mf, encoding="utf-8"))
+    except Exception:
+        continue
+    tags = (entry.get("modObject") or {}).get("tags") or []
+    if not compatible(tags) and meta.get("guid", "") not in forced:
+        continue
+    mo = entry.get("modObject") or {}
+    slug = mo.get("name_id") or ("mod_%s" % mid)
+    label = mo.get("name") or meta.get("name", "")
+    cands.setdefault(meta.get("name", ""), []).append((int(mid), meta.get("guid", ""), folder, slug, label))
+
+if not cands:
+    sys.exit(1)
+
+want = set(cands)
+
+out = []
+
+resolved = {}
+for name, lst in cands.items():
+    # metadata.name is the server-side identity: ModId is hashed from it and
+    # SortMods keys on it, so two enabled folders under one name displace each
+    # other no matter what they are. Report it and name the pick.
+    #
+    # A shared guid does NOT mean it is the same mod: a fork inherits the guid
+    # along with the manifest, so two different authors can ship the same name
+    # AND the same guid (Auto Plant 3 / AutoPlant for 1.2.1.5). It is worth
+    # calling out anyway, because the data-block loader keys on the guid and
+    # would clash on top of the name collision.
+    if len(lst) > 1:
+        ids = ", ".join(str(e[0]) for e in sorted(lst))
+        note = ""
+        if len({e[1] for e in lst}) == 1:
+            note = " (they also share a guid - forked or re-uploaded)"
+        out.append(("WARN", "several enabled folders provide metadata.name %r: ids %s%s - "
+                            "only one can run" % (name, ids, note), "", ""))
+    dev = [e for e in lst if e[0] >= fake_min]
+    if len(dev) == 1:
+        resolved[name] = dev[0]
+    else:
+        # Same name from different mod ids: prefer the newer profile.
+        resolved[name] = sorted(lst)[-1]
+
+# --- current state ---------------------------------------------------------
+have = {}
+for link in sorted(glob.glob(mods_dir + "/*")):
+    if not os.path.islink(link):
+        continue
+    target = os.readlink(link)
+    mf = os.path.join(os.path.realpath(link), "ModManifest.json")
+    name = None
+    if os.path.isfile(mf):
+        try:
+            name = json.load(open(mf, encoding="utf-8")).get("name")
+        except Exception:
+            pass
+    have.setdefault(name, []).append((os.path.basename(link), os.path.basename(target)))
+
+# --- plan ------------------------------------------------------------------
+for name, entries in sorted(have.items(), key=lambda kv: kv[0] or ""):
+    if name is None:
+        for ln, tg in entries:
+            out.append(("DEL", ln, "target %s has no readable manifest" % tg, ""))
+        continue
+    if name not in want:
+        for ln, tg in entries:
+            out.append(("DEL", ln, "not in the client mod set (disabled, uninstalled or version-incompatible)", ""))
+        continue
+    _, _, folder, slug, label = resolved[name]
+    # On a duplicate, keep the one already carrying the slug rather than whichever
+    # sorts first, so the surviving link is the correctly named one.
+    entries.sort(key=lambda e: e[0] != slug)
+    keep, keep_target = entries[0]
+    for ln, tg in entries[1:]:
+        out.append(("DEL", ln, "duplicate of %s" % keep, ""))
+    # The link name is cosmetic to the loader, so use the mod.io slug: it is
+    # unique, filesystem-safe and readable, unlike mod_<id>.
+    if keep != slug:
+        out.append(("MOV", keep, slug, label))
+        keep = slug
+    if keep_target != folder:
+        out.append(("SET", keep, folder, label))
+    else:
+        out.append(("KEEP", "", "", ""))
+
+for name in sorted(want - {k for k in have if k}):
+    if name not in resolved:
+        out.append(("WARN", "client loads %r but no enabled cache folder provides it" % name, "", ""))
+        continue
+    _, _, folder, slug, label = resolved[name]
+    out.append(("ADD", slug, folder, label))
+
+for row in out:
+    print("\t".join(row))
+'
 }
 
 # The server has no mod directory of its own: every entry under
-# StreamingAssets/Mods is a symlink into the *client's* mod.io cache, whose
-# folders are named <modId>_<modfileId>. mod.io mints a fresh modfileId on every
-# release, so each update — ours or a foreign mod's — leaves the link pointing at
-# a folder that is on its way out. Two ways that hurts, both quiet: the folder
-# disappears and the server drops the mod (with the Server flag in requiredOn the
-# client then refuses to join), or the folder lingers and the server keeps
-# running the *old* version while the client has the new one. Re-point every link
-# at the highest modfileId currently in the cache.
+# StreamingAssets/Mods is a symlink into the client's mod.io cache. Four things
+# make those links drift, and patching each one separately is how this function
+# grew a special case per symptom:
 #
-# A link whose mod has no cache folder at all is only reported, not removed:
-# "folder is missing" covers both "unsubscribed for good" and "mod.io is
-# rewriting it right now" (opening the in-game Mods menu triggers exactly such a
-# sweep), and the script cannot tell them apart. Since the symlinks *are* the
-# server's mod selection — there is no second list to restore from — deleting on
-# a guess is the expensive mistake, while a stale link is inert: the loader gates
-# on File.Exists(ModManifest.json) and skips it silently. --prune is the explicit
-# opt-in for cleaning up, and do_start never passes it.
+#   * a mod update mints a fresh <modId>_<modfileId> folder
+#   * a mod is switched off in the game, or unsubscribed for good
+#   * a mod is newly subscribed, or moves between mod.io and a dev build - which
+#     changes the modId itself, so the old link cannot even be repaired
+#   * the same mod ends up linked twice
+#
+# All four are the same problem: the links say what the server runs, and nothing
+# keeps them in step with the client. So reconcile instead of patch - derive the
+# target set the way the loader does - subscribed, minus disabled, minus what is
+# not installed - resolve each mod name to the cache folder state.json names, and
+# make the link directory match.
+#
+# Safety: when the target set cannot be read, nothing is touched. These symlinks
+# are the only record of the server is mod selection.
 do_relink() {
     [ -d "$MODS_DIR" ] || { echo "ERROR: server mod dir not found: $MODS_DIR" >&2; exit 1; }
     [ -d "$MODIO_CACHE" ] || { echo "ERROR: mod.io cache not found: $MODIO_CACHE" >&2; exit 1; }
 
-    local prune=0
-    if [ "${1:-}" = "--prune" ]; then
-        prune=1
+    local plan
+    plan="$(mktemp)"
+    if ! relink_plan > "$plan"; then
+        rm -f "$plan"
+        echo "ERROR: cannot determine the installed mod set (state.json unreadable" >&2
+        echo "       or empty cache) — leaving every link untouched." >&2
+        return 1
     fi
 
-    local updated=0 unchanged=0 missing=0 pruned=0 deduped=0 disabled=0
-    local link target id newest want
+    local added=0 repointed=0 removed=0 renamed=0 unchanged=0 warned=0
+    local action arg1 arg2 arg3
+    while IFS="$(printf '\t')" read -r action arg1 arg2 arg3; do
+        case "$action" in
+            ADD)  ln -sfn "$MODIO_CACHE/$arg2" "$MODS_DIR/$arg1"
+                  echo "  + $arg3: $arg1 -> $arg2"; added=$((added + 1)) ;;
+            SET)  ln -sfn "$MODIO_CACHE/$arg2" "$MODS_DIR/$arg1"
+                  echo "  ~ $arg3: $arg1 -> $arg2"; repointed=$((repointed + 1)) ;;
+            MOV)  mv "$MODS_DIR/$arg1" "$MODS_DIR/$arg2"
+                  echo "  » $arg3: $arg1 -> $arg2"; renamed=$((renamed + 1)) ;;
+            DEL)  rm -f "$MODS_DIR/$arg1"
+                  echo "  - $arg1 ($arg2)"; removed=$((removed + 1)) ;;
+            KEEP) unchanged=$((unchanged + 1)) ;;
+            WARN) echo "WARNING: $arg1" >&2; warned=$((warned + 1)) ;;
+        esac
+    done < "$plan"
+    rm -f "$plan"
 
-    # Mods switched off in the game do not belong on the server. Only the client
-    # honours disabledMods ("skipping disabled mod X"); the server's directory
-    # scan knows nothing of it and keeps loading them — a mod-set difference the
-    # join answers with BadProtocolVersion. Removing the link is safe in the one
-    # direction that matters: nothing in the client is touched, and re-enabling
-    # the mod in the game means linking it here again by hand.
-    local disabled_list
-    disabled_list="$(mktemp)"
-    disabled_ids > "$disabled_list"
-    if [ -s "$disabled_list" ]; then
-        for link in "$MODS_DIR"/*; do
-            [ -L "$link" ] || continue
-            target="$(readlink "$link")"
-            id="$(basename "$target")"; id="${id%%_*}"
-            case "$id" in ''|*[!0-9]*) continue ;; esac
-            if grep -qx "$id" "$disabled_list"; then
-                rm -f "$link"
-                echo "  removed $(basename "$link"): mod $id is disabled in the game"
-                disabled=$((disabled + 1))
-            fi
-        done
+    local summary="Mod links: $added added, $repointed repointed, $removed removed, $unchanged unchanged"
+    if [ "$renamed" -gt 0 ]; then
+        summary="$summary, $renamed renamed"
     fi
-    rm -f "$disabled_list"
-
-    for link in "$MODS_DIR"/*; do
-        [ -L "$link" ] || continue          # leave real directories alone
-        target="$(readlink "$link")"
-        # Take the modId from the current target rather than the link name:
-        # folder names here are free-form (the loader reads each
-        # ModManifest.json), and readlink still answers once the link dangles.
-        id="$(basename "$target")"
-        id="${id%%_*}"
-        case "$id" in ''|*[!0-9]*) continue ;; esac   # not a mod.io cache link
-        # Sort numerically on the modfileId suffix — the highest is the newest
-        # release. Normally there is exactly one candidate.
-        newest="$(find "$MODIO_CACHE" -maxdepth 1 -type d -name "${id}_*" \
-                  -exec basename {} \; | sort -t_ -k2,2n | tail -1)"
-        if [ -z "$newest" ]; then
-            if [ "$prune" -eq 1 ]; then
-                rm -f "$link"
-                echo "  pruned $(basename "$link") (was $(basename "$target"))"
-                pruned=$((pruned + 1))
-            else
-                echo "WARNING: no cache folder for mod $id — server starts without it" >&2
-                missing=$((missing + 1))
-            fi
-            continue
-        fi
-        want="$MODIO_CACHE/$newest"
-        if [ "$target" = "$want" ]; then
-            unchanged=$((unchanged + 1))
-        else
-            # -n so an existing link to a directory is replaced instead of the
-            # new link being created *inside* it.
-            ln -sfn "$want" "$link"
-            echo "  $(basename "$link"): $(basename "$target") -> $newest"
-            updated=$((updated + 1))
-        fi
-    done
-
-    # Resolve duplicates. A mod installed both from mod.io and as a fake-ID dev
-    # build has two cache folders, and nothing downstream separates them: the
-    # server derives ModId from -Abs(metadata.name.GetHashCode()) and the loader
-    # extracts scripts to ModLoader/<metadata.name>, so two links to the same mod
-    # get the same id and the same working directory. The client is no better off
-    # — it feeds both into the loader and only survives because of that same
-    # collision. The dev build wins, which is what effectively happens there too.
-    local dup_names losers name winner loser
-    dup_names="$(mktemp)"; losers="$(mktemp)"
-    : > "$dup_names"
-    for link in "$MODS_DIR"/*; do
-        [ -L "$link" ] || continue
-        target="$(readlink "$link")"
-        [ -f "$target/ModManifest.json" ] || continue
-        name="$(manifest_name "$target")"
-        [ -n "$name" ] || continue
-        id="$(basename "$target")"; id="${id%%_*}"
-        printf '%s\t%s\t%s\n' "$name" "$id" "$link" >> "$dup_names"
-    done
-    while IFS= read -r name; do
-        [ -n "$name" ] || continue
-        winner="$(awk -F'\t' -v n="$name" -v m="$FAKE_ID_MIN" '$1==n && $2+0>=m {print $3}' "$dup_names")"
-        if [ "$(printf '%s' "$winner" | grep -c .)" -ne 1 ]; then
-            echo "WARNING: '$name' is linked more than once and no single dev build settles it — resolve by hand" >&2
-            continue
-        fi
-        awk -F'\t' -v n="$name" -v w="$winner" '$1==n && $3!=w {print $3}' "$dup_names" > "$losers"
-        while IFS= read -r loser; do
-            [ -n "$loser" ] || continue
-            rm -f "$loser"
-            echo "  deduped $name: dropped $(basename "$loser"), kept $(basename "$winner")"
-            deduped=$((deduped + 1))
-        done < "$losers"
-    done < <(cut -f1 "$dup_names" | sort | uniq -d)
-    rm -f "$dup_names" "$losers"
-
-    local summary="Mod symlinks: $updated updated, $unchanged unchanged"
-    if [ "$deduped" -gt 0 ]; then
-        summary="$summary, $deduped deduped"
-    fi
-    if [ "$disabled" -gt 0 ]; then
-        summary="$summary, $disabled removed as disabled"
-    fi
-    if [ "$pruned" -gt 0 ]; then
-        summary="$summary, $pruned pruned"
-    fi
-    if [ "$missing" -gt 0 ]; then
-        summary="$summary, $missing WITHOUT a cache folder (drop them with: relink --prune)"
+    if [ "$warned" -gt 0 ]; then
+        summary="$summary, $warned warning(s)"
     fi
     echo "$summary"
 }
@@ -231,7 +300,9 @@ do_start() {
 
     # Always before launching: the mod set is read once at startup, so a link
     # left pointing at a superseded cache folder silently changes what runs.
-    do_relink
+    # A failure here is not fatal: without a readable state.json there is no
+    # target set, and the server should still start with the links as they are.
+    do_relink || echo "WARNING: mod links not reconciled — starting with the links as they are" >&2
 
     local argv=(-batchmode -logfile CoreKeeperServerLog.txt
                 -world "$CK_SERVER_WORLD" -maxplayers "$CK_SERVER_MAXPLAYERS")
@@ -336,12 +407,12 @@ case "${1:-}" in
     status) do_status ;;
     log)    exec tail -f "$LOGFILE" ;;
     relink)
-        # Validate the flag instead of passing it straight through: a typo like
-        # --prun would otherwise quietly read as "no pruning".
+        # relink takes no arguments; reject anything trailing rather than
+        # ignoring it, so a stale "--prune" from muscle memory is not silent.
         case "${2:-}" in
-            ''|--prune) do_relink "${2:-}" ;;
-            *) echo "Usage: utils/server.sh relink [--prune]" >&2; exit 1 ;;
+            '') do_relink ;;
+            *) echo "Usage: utils/server.sh relink" >&2; exit 1 ;;
         esac
         ;;
-    *)      echo "Usage: utils/server.sh start|stop|status|log|relink [--prune]" >&2; exit 1 ;;
+    *)      echo "Usage: utils/server.sh start|stop|status|log|relink" >&2; exit 1 ;;
 esac
