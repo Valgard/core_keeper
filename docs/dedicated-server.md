@@ -93,6 +93,20 @@ Folder names are free — the loader reads each `ModManifest.json`. Symlinks are
 the right tool here (mod.io is the only writer, the server only reads); copies
 would go stale on the next mod update, which immediately breaks the join.
 
+**The symlinks go stale too, just less visibly.** The target name carries the
+`<fileId>`, and mod.io mints a new one on every release — of your own mods as
+much as a foreign one. The link then points at a superseded folder, and the
+outcome is one of two quiet failures: the folder is gone and the server drops
+that mod (with the `Server` flag in `requiredOn` the client refuses to join), or
+the folder lingers and the server keeps running the *old* version while the
+client has the new one — which looks exactly like a fixed bug coming back.
+
+`utils/server.sh relink` re-points every link at the highest `fileId` present in
+the cache, and `start` runs it automatically, so a normal start is already
+correct. Run it manually after publishing a mod — but note the new folder only
+appears once the **client** has downloaded that release. Mods whose cache folder
+is missing entirely are reported and left untouched.
+
 ## Client and server must match
 
 A mismatch surfaces in the client as **"wrong game version"**, which is

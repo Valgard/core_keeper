@@ -5,10 +5,11 @@
 # macOS it runs under CrossOver in the same bottle as the game itself.
 #
 # Usage:
-#   utils/server.sh start     Launch the server, wait until GameInfo.txt appears
+#   utils/server.sh start     Relink the mods, launch, wait for GameInfo.txt
 #   utils/server.sh stop      Terminate it (see the save caveat below)
 #   utils/server.sh status    Show whether it runs, plus the join details
 #   utils/server.sh log       Follow CoreKeeperServerLog.txt
+#   utils/server.sh relink    Re-point the mod symlinks at the current cache
 #
 # Env vars (set in .envrc; all optional, defaults shown):
 #   CK_BOTTLE_NAME       CrossOver bottle name.                 "Core Keeper"
@@ -40,6 +41,8 @@ CXSTART="/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/cxstar
 EXE="$CK_SERVER_DIR/CoreKeeperServer.exe"
 GAMEINFO="$CK_SERVER_DIR/GameInfo.txt"
 LOGFILE="$CK_SERVER_DIR/CoreKeeperServerLog.txt"
+MODS_DIR="$CK_SERVER_DIR/CoreKeeperServer_Data/StreamingAssets/Mods"
+MODIO_CACHE="$CK_BOTTLE_PATH/drive_c/users/Public/mod.io/5289/mods"
 # Matches the Windows process inside the bottle; -f is the only pgrep/pkill flag
 # that behaves correctly under macOS proctools.
 PROC_PATTERN="CoreKeeperServer.exe"
@@ -50,10 +53,66 @@ START_TIMEOUT=420
 
 is_running() { pgrep -f "$PROC_PATTERN" >/dev/null 2>&1; }
 
+# The server has no mod directory of its own: every entry under
+# StreamingAssets/Mods is a symlink into the *client's* mod.io cache, whose
+# folders are named <modId>_<modfileId>. mod.io mints a fresh modfileId on every
+# release, so each update — ours or a foreign mod's — leaves the link pointing at
+# a folder that is on its way out. Two ways that hurts, both quiet: the folder
+# disappears and the server drops the mod (with the Server flag in requiredOn the
+# client then refuses to join), or the folder lingers and the server keeps
+# running the *old* version while the client has the new one. Re-point every link
+# at the highest modfileId currently in the cache.
+do_relink() {
+    [ -d "$MODS_DIR" ] || { echo "ERROR: server mod dir not found: $MODS_DIR" >&2; exit 1; }
+    [ -d "$MODIO_CACHE" ] || { echo "ERROR: mod.io cache not found: $MODIO_CACHE" >&2; exit 1; }
+
+    local updated=0 unchanged=0 missing=0
+    local link target id newest want
+    for link in "$MODS_DIR"/*; do
+        [ -L "$link" ] || continue          # leave real directories alone
+        target="$(readlink "$link")"
+        # Take the modId from the current target rather than the link name:
+        # folder names here are free-form (the loader reads each
+        # ModManifest.json), and readlink still answers once the link dangles.
+        id="$(basename "$target")"
+        id="${id%%_*}"
+        case "$id" in ''|*[!0-9]*) continue ;; esac   # not a mod.io cache link
+        # Sort numerically on the modfileId suffix — the highest is the newest
+        # release. Normally there is exactly one candidate.
+        newest="$(find "$MODIO_CACHE" -maxdepth 1 -type d -name "${id}_*" \
+                  -exec basename {} \; | sort -t_ -k2,2n | tail -1)"
+        if [ -z "$newest" ]; then
+            echo "WARNING: no cache folder for mod $id — server starts without it" >&2
+            missing=$((missing + 1))
+            continue
+        fi
+        want="$MODIO_CACHE/$newest"
+        if [ "$target" = "$want" ]; then
+            unchanged=$((unchanged + 1))
+        else
+            # -n so an existing link to a directory is replaced instead of the
+            # new link being created *inside* it.
+            ln -sfn "$want" "$link"
+            echo "  $(basename "$link"): $(basename "$target") -> $newest"
+            updated=$((updated + 1))
+        fi
+    done
+
+    local summary="Mod symlinks: $updated updated, $unchanged unchanged"
+    if [ "$missing" -gt 0 ]; then
+        summary="$summary, $missing WITHOUT a cache folder"
+    fi
+    echo "$summary"
+}
+
 do_start() {
     [ -x "$CXSTART" ] || { echo "ERROR: cxstart not found: $CXSTART" >&2; exit 1; }
     [ -f "$EXE" ] || { echo "ERROR: server not installed: $EXE" >&2; exit 1; }
     is_running && { echo "Server already running (PID $(pgrep -f "$PROC_PATTERN" | head -1))."; do_status; return 0; }
+
+    # Always before launching: the mod set is read once at startup, so a link
+    # left pointing at a superseded cache folder silently changes what runs.
+    do_relink
 
     local argv=(-batchmode -logfile CoreKeeperServerLog.txt
                 -world "$CK_SERVER_WORLD" -maxplayers "$CK_SERVER_MAXPLAYERS")
@@ -157,5 +216,6 @@ case "${1:-}" in
     stop)   do_stop ;;
     status) do_status ;;
     log)    exec tail -f "$LOGFILE" ;;
-    *)      echo "Usage: utils/server.sh start|stop|status|log" >&2; exit 1 ;;
+    relink) do_relink ;;
+    *)      echo "Usage: utils/server.sh start|stop|status|log|relink" >&2; exit 1 ;;
 esac

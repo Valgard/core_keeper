@@ -196,7 +196,9 @@ surfaces, and CrossOver/Wine specifics — see @docs/macos-crossover-loader.md.
 Running the dedicated server (Steam app 1963720) in the same bottle — sharing one
 world with the client via directory symlinks, mirroring the mod set, and why a
 mismatch surfaces as "wrong game version" — see @docs/dedicated-server.md. The
-helper is `utils/server.sh start|stop|status|log`.
+helper is `utils/server.sh start|stop|status|log|relink`. Those mod symlinks
+carry the mod.io `<fileId>`, which changes with every release, so they go stale
+on any mod update — `relink` re-points them and `start` does it automatically.
 
 ## Build pattern (shared `utils/`)
 
