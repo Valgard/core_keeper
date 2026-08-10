@@ -52,7 +52,21 @@ PROC_PATTERN="CoreKeeperServer.exe"
 # right after a hard stop is slower still, because the compile cache is gone.
 START_TIMEOUT=420
 
+# install-macos.sh gives every dev build a fake mod.io id well above the real
+# catalogue, so the id alone says whether a cache folder is a local build.
+FAKE_ID_MIN=9999000
+
 is_running() { pgrep -f "$PROC_PATTERN" >/dev/null 2>&1; }
+
+# metadata.name from a mod folder's ModManifest.json — the identity the server
+# actually goes by. Empty when the file is missing or unparsable.
+manifest_name() {
+    python3 -c 'import json,sys
+try:
+    print(json.load(open(sys.argv[1]))["name"])
+except Exception:
+    pass' "$1/ModManifest.json" 2>/dev/null
+}
 
 # The server has no mod directory of its own: every entry under
 # StreamingAssets/Mods is a symlink into the *client's* mod.io cache, whose
@@ -81,7 +95,7 @@ do_relink() {
         prune=1
     fi
 
-    local updated=0 unchanged=0 missing=0 pruned=0
+    local updated=0 unchanged=0 missing=0 pruned=0 deduped=0
     local link target id newest want
     for link in "$MODS_DIR"/*; do
         [ -L "$link" ] || continue          # leave real directories alone
@@ -119,7 +133,46 @@ do_relink() {
         fi
     done
 
+    # Resolve duplicates. A mod installed both from mod.io and as a fake-ID dev
+    # build has two cache folders, and nothing downstream separates them: the
+    # server derives ModId from -Abs(metadata.name.GetHashCode()) and the loader
+    # extracts scripts to ModLoader/<metadata.name>, so two links to the same mod
+    # get the same id and the same working directory. The client is no better off
+    # — it feeds both into the loader and only survives because of that same
+    # collision. The dev build wins, which is what effectively happens there too.
+    local dup_names losers name winner loser
+    dup_names="$(mktemp)"; losers="$(mktemp)"
+    : > "$dup_names"
+    for link in "$MODS_DIR"/*; do
+        [ -L "$link" ] || continue
+        target="$(readlink "$link")"
+        [ -f "$target/ModManifest.json" ] || continue
+        name="$(manifest_name "$target")"
+        [ -n "$name" ] || continue
+        id="$(basename "$target")"; id="${id%%_*}"
+        printf '%s\t%s\t%s\n' "$name" "$id" "$link" >> "$dup_names"
+    done
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        winner="$(awk -F'\t' -v n="$name" -v m="$FAKE_ID_MIN" '$1==n && $2+0>=m {print $3}' "$dup_names")"
+        if [ "$(printf '%s' "$winner" | grep -c .)" -ne 1 ]; then
+            echo "WARNING: '$name' is linked more than once and no single dev build settles it — resolve by hand" >&2
+            continue
+        fi
+        awk -F'\t' -v n="$name" -v w="$winner" '$1==n && $3!=w {print $3}' "$dup_names" > "$losers"
+        while IFS= read -r loser; do
+            [ -n "$loser" ] || continue
+            rm -f "$loser"
+            echo "  deduped $name: dropped $(basename "$loser"), kept $(basename "$winner")"
+            deduped=$((deduped + 1))
+        done < "$losers"
+    done < <(cut -f1 "$dup_names" | sort | uniq -d)
+    rm -f "$dup_names" "$losers"
+
     local summary="Mod symlinks: $updated updated, $unchanged unchanged"
+    if [ "$deduped" -gt 0 ]; then
+        summary="$summary, $deduped deduped"
+    fi
     if [ "$pruned" -gt 0 ]; then
         summary="$summary, $pruned pruned"
     fi
