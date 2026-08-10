@@ -121,7 +121,7 @@ paths) is gitignored; only its `.envrc.example` template is tracked.
 
 ## Formatting gate
 
-Every repo here — the nine mod repos and `core_keeper` itself — runs a
+Every repo here — each mod repo and `core_keeper` itself — runs a
 formatting gate as a `pre-commit` **and** `pre-push` hook. It **checks and
 blocks**; it never rewrites files behind your back. C# goes through
 **CSharpier**, pinned per repo in `.config/dotnet-tools.json` with
@@ -145,7 +145,7 @@ git add -u && git commit …
 ```
 
 Both formatters are scoped to the repo they run in. In `core_keeper` that
-needs care, because the SDK clone and all nine mod repos sit inside it as
+needs care, because the SDK clone and every mod repo sit inside it as
 separate repos: `.csharpierignore` mirrors the `.gitignore` allowlist shape
 (`/*` plus `!/utils/`) so a full-tree run cannot reach foreign sources. `ruff`
 needs no equivalent, as it honours `.gitignore` itself.

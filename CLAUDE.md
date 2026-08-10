@@ -10,11 +10,13 @@ machine — change it only when an insight is genuinely mod-agnostic.
 
 - `CoreKeeperModSDK/` — the Pugstorm SDK clone, **shared** by every mod. Its
   own git repo. Mods do not vendor a private SDK copy.
-- `<mod-name>/` — one directory per mod, each its own git repo. Currently:
-  `caveling-divining-rod/`, `disable-durability/`, `faster-pet-talents/`,
-  `faster-talents/`, `item-checklist/`, `mod-settings-menu/`,
-  `rebalance-key-crafting/`, `reusable-cattle-box/`, and
-  `simple-crafting-pool-extender/`.
+- `<mod-name>/` — one directory per mod, each its own git repo. **Do not keep
+  a list of them here or a count anywhere** — both go stale silently, and did.
+  Enumerate them at the moment you need them:
+  ```bash
+  find . -maxdepth 2 -name .git -not -path "./.git*" \
+    | sed 's|^\./||; s|/\.git$||' | grep -v "^CoreKeeperModSDK$" | sort
+  ```
 
 A mod keeps **every file the Unity Editor generates for it** — `.cs`
 sources, `.asmdef`s, the ModBuilderSettings `.asset`, and all `.meta` GUID
@@ -152,6 +154,29 @@ IL patch — but Burst-disable the **consumer** system and pre-inflate the
 pending component data in its `OnUpdate` prefix (see the
 `reference_ck_xp_grant_architecture` memory).
 
+**On a dedicated server that call alone is a silent no-op** — no error, no log
+line, the prefix simply never fires, so the mod works in singleplayer and not in
+multiplayer. `DisableBurstForSystem` only *registers* the type; the bypass is
+armed per world by `BurstDisabler.AddWorld`, whose sole caller is
+`ECSManager.StartEcs` and which **snapshots** the types registered so far. A
+dedicated server runs `IMod.Init()` *after* `StartEcs` (the client runs it
+before), so the snapshot is taken while the registration is still missing.
+Follow every `DisableBurstForSystem*` call with:
+
+```csharp
+foreach (var world in World.All)   // using Unity.Entities;
+    BurstDisabler.AddWorld(world);
+```
+
+`World.All` passes the Roslyn sandbox, and the registry is a `HashSet`, so the
+pass is a no-op in the client ordering. Moving the call to `EarlyInit()` instead
+does **not** work — `TypeManager` is not initialised that early and
+`DisableBurstForSystem` throws `NullReferenceException`. To prove the patch is
+live server-side, log from the **static constructor** of the `[HarmonyPatch]`
+class and read the server log *after* a session with a player connected — an
+idle dedicated server sits at `timescale = 0` and never simulates. Background:
+the `reference_ck_burstdisabler_dedicated_server` memory.
+
 ### IMod lifecycle
 `IMod` (namespace `PugMod`) has five methods: `EarlyInit`, `Init`,
 `ModObjectLoaded`, `Shutdown`, `Update`. `[HarmonyPatch]` classes are
@@ -189,7 +214,7 @@ instructions live there.
 
 ## Formatting gate (every repo)
 
-Every repo under this directory — the nine mod repos and `core_keeper` itself —
+Every repo under this directory — each mod repo and `core_keeper` itself —
 carries the same CSharpier gate. `README.md` (§ Formatting gate) holds the
 human-facing setup; what matters when editing code here:
 
@@ -213,7 +238,7 @@ human-facing setup; what matters when editing code here:
   under .NET 10, not into `.config/`. Move it to `.config/dotnet-tools.json`;
   `dotnet tool restore` accepts either location.
 - **Never run a formatter from `core_keeper/` without its ignore file.** The SDK
-  clone (~2,900 foreign `.cs`) and all nine mod repos sit inside it as separate
+  clone (~2,900 foreign `.cs`) and every mod repo sit inside it as separate
   repos, so a bare `csharpier format .` would rewrite them all. The parent's
   `.csharpierignore` is an allowlist (`/*` + `!/utils/`) for exactly that
   reason; `ruff` needs no counterpart because it honours `.gitignore`.
@@ -229,7 +254,7 @@ Publishing flow, dependency sync, and the three mod IDs — see @docs/publishing
 Every mod ships a square mod.io profile logo at `unity/<Mod>/Editor/logo.png`,
 and they all share one deliberate visual identity — match it for any new mod.
 
-**Shared DNA (all nine existing logos):**
+**Shared DNA (every existing logo):**
 - A single, centred **hero object in teal / petrol-green** with **gold / brass
   accents** and a thick dark outline — hand-painted "sticker" concept-art,
   **not** pixel-art.
