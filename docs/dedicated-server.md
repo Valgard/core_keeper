@@ -104,8 +104,16 @@ client has the new one — which looks exactly like a fixed bug coming back.
 `utils/server.sh relink` re-points every link at the highest `fileId` present in
 the cache, and `start` runs it automatically, so a normal start is already
 correct. Run it manually after publishing a mod — but note the new folder only
-appears once the **client** has downloaded that release. Mods whose cache folder
-is missing entirely are reported and left untouched.
+appears once the **client** has downloaded that release.
+
+A link whose mod has **no** cache folder at all is reported and left alone. That
+is deliberate: the same symptom covers an unsubscribed mod and one whose folder
+mod.io happens to be rewriting (opening the in-game Mods menu triggers such a
+sweep), and these symlinks *are* the server's mod selection — nothing else
+records it. A stale link is harmless in the meantime, because the loader gates on
+`File.Exists(ModManifest.json)` and skips it without a word. When you are sure a
+mod is gone for good, `utils/server.sh relink --prune` removes those links.
+`start` never prunes.
 
 ## Client and server must match
 

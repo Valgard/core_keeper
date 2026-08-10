@@ -217,6 +217,9 @@ mismatch surfaces as "wrong game version" — see @docs/dedicated-server.md. The
 helper is `utils/server.sh start|stop|status|log|relink`. Those mod symlinks
 carry the mod.io `<fileId>`, which changes with every release, so they go stale
 on any mod update — `relink` re-points them and `start` does it automatically.
+Links whose mod has no cache folder at all are only reported (they are inert, and
+the symlinks are the sole record of the server's mod set); `relink --prune`
+removes them on demand, and `start` never does.
 
 ## Build pattern (shared `utils/`)
 

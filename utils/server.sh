@@ -10,6 +10,7 @@
 #   utils/server.sh status    Show whether it runs, plus the join details
 #   utils/server.sh log       Follow CoreKeeperServerLog.txt
 #   utils/server.sh relink    Re-point the mod symlinks at the current cache
+#                   relink --prune   …and drop links whose mod is gone for good
 #
 # Env vars (set in .envrc; all optional, defaults shown):
 #   CK_BOTTLE_NAME       CrossOver bottle name.                 "Core Keeper"
@@ -62,11 +63,25 @@ is_running() { pgrep -f "$PROC_PATTERN" >/dev/null 2>&1; }
 # client then refuses to join), or the folder lingers and the server keeps
 # running the *old* version while the client has the new one. Re-point every link
 # at the highest modfileId currently in the cache.
+#
+# A link whose mod has no cache folder at all is only reported, not removed:
+# "folder is missing" covers both "unsubscribed for good" and "mod.io is
+# rewriting it right now" (opening the in-game Mods menu triggers exactly such a
+# sweep), and the script cannot tell them apart. Since the symlinks *are* the
+# server's mod selection — there is no second list to restore from — deleting on
+# a guess is the expensive mistake, while a stale link is inert: the loader gates
+# on File.Exists(ModManifest.json) and skips it silently. --prune is the explicit
+# opt-in for cleaning up, and do_start never passes it.
 do_relink() {
     [ -d "$MODS_DIR" ] || { echo "ERROR: server mod dir not found: $MODS_DIR" >&2; exit 1; }
     [ -d "$MODIO_CACHE" ] || { echo "ERROR: mod.io cache not found: $MODIO_CACHE" >&2; exit 1; }
 
-    local updated=0 unchanged=0 missing=0
+    local prune=0
+    if [ "${1:-}" = "--prune" ]; then
+        prune=1
+    fi
+
+    local updated=0 unchanged=0 missing=0 pruned=0
     local link target id newest want
     for link in "$MODS_DIR"/*; do
         [ -L "$link" ] || continue          # leave real directories alone
@@ -82,8 +97,14 @@ do_relink() {
         newest="$(find "$MODIO_CACHE" -maxdepth 1 -type d -name "${id}_*" \
                   -exec basename {} \; | sort -t_ -k2,2n | tail -1)"
         if [ -z "$newest" ]; then
-            echo "WARNING: no cache folder for mod $id — server starts without it" >&2
-            missing=$((missing + 1))
+            if [ "$prune" -eq 1 ]; then
+                rm -f "$link"
+                echo "  pruned $(basename "$link") (was $(basename "$target"))"
+                pruned=$((pruned + 1))
+            else
+                echo "WARNING: no cache folder for mod $id — server starts without it" >&2
+                missing=$((missing + 1))
+            fi
             continue
         fi
         want="$MODIO_CACHE/$newest"
@@ -99,8 +120,11 @@ do_relink() {
     done
 
     local summary="Mod symlinks: $updated updated, $unchanged unchanged"
+    if [ "$pruned" -gt 0 ]; then
+        summary="$summary, $pruned pruned"
+    fi
     if [ "$missing" -gt 0 ]; then
-        summary="$summary, $missing WITHOUT a cache folder"
+        summary="$summary, $missing WITHOUT a cache folder (drop them with: relink --prune)"
     fi
     echo "$summary"
 }
@@ -216,6 +240,13 @@ case "${1:-}" in
     stop)   do_stop ;;
     status) do_status ;;
     log)    exec tail -f "$LOGFILE" ;;
-    relink) do_relink ;;
-    *)      echo "Usage: utils/server.sh start|stop|status|log|relink" >&2; exit 1 ;;
+    relink)
+        # Validate the flag instead of passing it straight through: a typo like
+        # --prun would otherwise quietly read as "no pruning".
+        case "${2:-}" in
+            ''|--prune) do_relink "${2:-}" ;;
+            *) echo "Usage: utils/server.sh relink [--prune]" >&2; exit 1 ;;
+        esac
+        ;;
+    *)      echo "Usage: utils/server.sh start|stop|status|log|relink [--prune]" >&2; exit 1 ;;
 esac
