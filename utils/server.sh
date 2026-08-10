@@ -58,6 +58,20 @@ FAKE_ID_MIN=9999000
 
 is_running() { pgrep -f "$PROC_PATTERN" >/dev/null 2>&1; }
 
+# mod.io ids the player switched off in the game's Mods menu, one per line.
+# Read-only: the client's state.json is never written by this script.
+disabled_ids() {
+    python3 -c 'import json,sys
+try:
+    d = json.load(open(sys.argv[1]))
+    out = set()
+    for u in d.get("existingUsers", {}).values():
+        out |= {str(x) for x in u.get("disabledMods", [])}
+    print("\n".join(sorted(out)))
+except Exception:
+    pass' "$(dirname "$MODIO_CACHE")/state.json" 2>/dev/null
+}
+
 # metadata.name from a mod folder's ModManifest.json — the identity the server
 # actually goes by. Empty when the file is missing or unparsable.
 manifest_name() {
@@ -95,8 +109,33 @@ do_relink() {
         prune=1
     fi
 
-    local updated=0 unchanged=0 missing=0 pruned=0 deduped=0
+    local updated=0 unchanged=0 missing=0 pruned=0 deduped=0 disabled=0
     local link target id newest want
+
+    # Mods switched off in the game do not belong on the server. Only the client
+    # honours disabledMods ("skipping disabled mod X"); the server's directory
+    # scan knows nothing of it and keeps loading them — a mod-set difference the
+    # join answers with BadProtocolVersion. Removing the link is safe in the one
+    # direction that matters: nothing in the client is touched, and re-enabling
+    # the mod in the game means linking it here again by hand.
+    local disabled_list
+    disabled_list="$(mktemp)"
+    disabled_ids > "$disabled_list"
+    if [ -s "$disabled_list" ]; then
+        for link in "$MODS_DIR"/*; do
+            [ -L "$link" ] || continue
+            target="$(readlink "$link")"
+            id="$(basename "$target")"; id="${id%%_*}"
+            case "$id" in ''|*[!0-9]*) continue ;; esac
+            if grep -qx "$id" "$disabled_list"; then
+                rm -f "$link"
+                echo "  removed $(basename "$link"): mod $id is disabled in the game"
+                disabled=$((disabled + 1))
+            fi
+        done
+    fi
+    rm -f "$disabled_list"
+
     for link in "$MODS_DIR"/*; do
         [ -L "$link" ] || continue          # leave real directories alone
         target="$(readlink "$link")"
@@ -172,6 +211,9 @@ do_relink() {
     local summary="Mod symlinks: $updated updated, $unchanged unchanged"
     if [ "$deduped" -gt 0 ]; then
         summary="$summary, $deduped deduped"
+    fi
+    if [ "$disabled" -gt 0 ]; then
+        summary="$summary, $disabled removed as disabled"
     fi
     if [ "$pruned" -gt 0 ]; then
         summary="$summary, $pruned pruned"
