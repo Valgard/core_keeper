@@ -2,8 +2,9 @@
 """Extract the thinTiny full-build atlas + advance widths from a Pixaki master.
 
 Reads the master's `Atlas` layer (the glyph pixels) and `Rects` layer (the
-magenta advance boxes), writes the atlas PNG, and prints one advance width per
-atlas cell as a 384-character string of digits.
+magenta advance boxes), writes the atlas PNG, prints one advance width per
+atlas cell as a 384-character string of digits, and (optionally) generates a
+kerning matrix from the same glyph ink -- see `kerning_pair()` for the rule.
 
 Cell layout: 32 columns x 12 rows of 8x12 cells on a 257x144 canvas. The cell
 index equals the charset position AND the PugFont.glyphData index -- CK's
@@ -14,6 +15,7 @@ complete-tiny-font/sources/thinTiny-review.md), so only the width varies;
 
 Usage:
     python3 utils/pixaki_to_glyphs.py --pixaki <master.pixaki> --sheet <out.png>
+    python3 utils/pixaki_to_glyphs.py --pixaki <master.pixaki> --kerning <out.bytes>
     python3 utils/pixaki_to_glyphs.py --pixaki <master.pixaki> --check-only
 """
 
@@ -112,6 +114,70 @@ def widths(rects_img, cell_count=CELLS):
     return out
 
 
+def ink_edges(atlas_img, index, advance_width):
+    """Per-row leftmost/rightmost ink column of one glyph, in cell coordinates.
+
+    Two length-BOX_H lists (`left`, `right`); an entry is None for a row with
+    no ink. Columns are restricted to the glyph's own advance width, so ink
+    outside it (there should be none -- the rect box already bounds it) can't
+    skew the kerning calculation below.
+    """
+    x0, y0, _, _ = cell_box(index)
+    px = atlas_img.load()
+    left = [None] * BOX_H
+    right = [None] * BOX_H
+    for row in range(BOX_H):
+        y = y0 + BOX_Y + row
+        for col in range(advance_width):
+            if _is_opaque(px[x0 + col, y]):
+                if left[row] is None:
+                    left[row] = col
+                right[row] = col
+    return left, right
+
+
+def kerning_pair(right_a, left_b, advance_a):
+    """The kerning correction for glyph `a` immediately followed by `b`.
+
+    Calibrated against vanilla's own thinTiny kerning table (13,456 comparable
+    pairs from rrs5.png + Font5.asset): reproduces 97.66% of vanilla's values,
+    the best of several tested variants (a subtraction term: 84%; cap 3 or 4:
+    97.2-97.5%; tolerating neighbouring rows instead of requiring the same
+    row: 89.5%; 0 instead of 2 for the no-overlap case: 97.42%). Do not
+    "improve" this rule without recalibrating against that table.
+
+    For every row where BOTH glyphs have ink, the gap is how far `b`'s ink
+    would sit from the end of `a`'s advance if kerning were zero: the empty
+    columns after `a`'s ink, plus the empty columns before `b`'s ink. The
+    kerning is the smallest such gap across those rows, clamped to [0, 2]. A
+    pair with no row where both have ink (e.g. an underscore and an acute
+    accent) defaults to the cap, 2, rather than 0 -- they never touch, so
+    nothing measured rules out the maximum correction.
+    """
+    gaps = [
+        (advance_a - 1 - right_a[y]) + left_b[y]
+        for y in range(BOX_H)
+        if right_a[y] is not None and left_b[y] is not None
+    ]
+    if not gaps:
+        return 2
+    return max(0, min(min(gaps), 2))
+
+
+def kerning_matrix(atlas_img, ws, cell_count=CELLS):
+    """Dense cell_count x cell_count byte matrix, row-major by cell index.
+
+    Byte [a * cell_count + b] is `kerning_pair` for "a followed by b". Rows
+    and columns of unpainted cells (ws[i] == 0) stay zero.
+    """
+    edges = {i: ink_edges(atlas_img, i, w) for i, w in enumerate(ws) if w}
+    matrix = bytearray(cell_count * cell_count)
+    for a, (_, right_a) in edges.items():
+        for b, (left_b, _) in edges.items():
+            matrix[a * cell_count + b] = kerning_pair(right_a, left_b, ws[a])
+    return bytes(matrix)
+
+
 def validate(rects_img, atlas_img, cell_count=CELLS):
     """Fail-loud invariant report. Empty list == clean.
 
@@ -148,6 +214,9 @@ def main(argv=None):
     ap.add_argument("--pixaki", required=True, help="path to the .pixaki master")
     ap.add_argument("--sheet", help="write the Atlas layer here as PNG")
     ap.add_argument(
+        "--kerning", help="write the CELLS x CELLS kerning matrix here as raw bytes"
+    )
+    ap.add_argument(
         "--check-only",
         action="store_true",
         help="only run the invariant checks, write nothing",
@@ -176,6 +245,12 @@ def main(argv=None):
     if ns.sheet:
         atlas.save(ns.sheet)
         print(f"// wrote {ns.sheet} ({atlas.width}x{atlas.height}), {painted} cells")
+    if ns.kerning:
+        matrix = kerning_matrix(atlas, w)
+        with open(ns.kerning, "wb") as f:
+            f.write(matrix)
+        nonzero = sum(1 for b in matrix if b)
+        print(f"// wrote {ns.kerning} ({len(matrix)} bytes), {nonzero} non-zero pairs")
     if max(w) > 9:
         sys.exit(
             f"an advance width exceeds 9 ({max(w)}) — the digit string cannot hold it"

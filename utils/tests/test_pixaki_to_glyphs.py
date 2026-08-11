@@ -86,3 +86,59 @@ def test_validate_clean_sheet_reports_nothing():
     _paint_rect(rects, 4, dx=0, dy=0, w=3, h=10)
     _paint_rect(atlas, 4, dx=0, dy=2, w=3, h=8, colour=WHITE)
     assert g.validate(rects, atlas) == []
+
+
+def _ws(widths_by_index):
+    """A 384-entry width vector with only the given indices set."""
+    ws = [0] * 384
+    for i, w in widths_by_index.items():
+        ws[i] = w
+    return ws
+
+
+def test_kerning_flush_blocks_have_zero_kerning():
+    # two solid 4px blocks, ink flush against both advance edges: no gap.
+    atlas = _blank()
+    _paint_rect(atlas, 0, dx=0, dy=0, w=4, h=10, colour=WHITE)
+    _paint_rect(atlas, 1, dx=0, dy=0, w=4, h=10, colour=WHITE)
+    matrix = g.kerning_matrix(atlas, _ws({0: 4, 1: 4}))
+    assert matrix[0 * 384 + 1] == 0
+
+
+def test_kerning_one_empty_column_each_side_is_clamped_to_two():
+    # cell 0: ink in columns 0-2 of a 4px advance (column 3 empty -> 1px gap
+    # to the advance edge). Cell 1: ink in columns 1-3 (column 0 empty -> 1px
+    # gap from its own edge). Combined gap is 1 + 1 = 2, the clamp's cap.
+    atlas = _blank()
+    _paint_rect(atlas, 0, dx=0, dy=0, w=3, h=10, colour=WHITE)
+    _paint_rect(atlas, 1, dx=1, dy=0, w=3, h=10, colour=WHITE)
+    matrix = g.kerning_matrix(atlas, _ws({0: 4, 1: 4}))
+    assert matrix[0 * 384 + 1] == 2
+
+
+def test_kerning_non_overlapping_ink_rows_default_to_two():
+    # cell 0 has ink only in row 0, cell 1 only in row 5 -- no row has ink in
+    # both, so the pair falls back to the cap rather than a measured gap.
+    atlas = _blank()
+    _paint_rect(atlas, 0, dx=0, dy=0, w=4, h=1, colour=WHITE)
+    _paint_rect(atlas, 1, dx=0, dy=5, w=4, h=1, colour=WHITE)
+    matrix = g.kerning_matrix(atlas, _ws({0: 4, 1: 4}))
+    assert matrix[0 * 384 + 1] == 2
+
+
+def test_kerning_partial_gap_is_exact():
+    # only row 0 has ink in both: cell 0 stops 1px short of its advance edge,
+    # cell 1 starts flush at column 0 -- the measured gap is exactly 1.
+    atlas = _blank()
+    _paint_rect(atlas, 0, dx=0, dy=0, w=3, h=1, colour=WHITE)
+    _paint_rect(atlas, 1, dx=0, dy=0, w=4, h=1, colour=WHITE)
+    matrix = g.kerning_matrix(atlas, _ws({0: 4, 1: 4}))
+    assert matrix[0 * 384 + 1] == 1
+
+
+def test_kerning_unpainted_cell_is_zero_in_both_directions():
+    atlas = _blank()
+    _paint_rect(atlas, 0, dx=0, dy=0, w=4, h=1, colour=WHITE)
+    matrix = g.kerning_matrix(atlas, _ws({0: 4}))  # cell 1 stays unpainted
+    assert matrix[0 * 384 + 1] == 0
+    assert matrix[1 * 384 + 0] == 0
