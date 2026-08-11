@@ -62,10 +62,13 @@ def test_validate_flags_rect_box_with_wrong_y_or_height():
     _paint_rect(img, 1, dx=0, dy=1, w=3, h=9)  # h must be 10
     _paint_rect(img, 2, dx=1, dy=1, w=3, h=10)  # dx must be 0
     problems = g.validate(img, _blank())
+    # Assert the exact messages: a substring like "y" also matches the word
+    # "glyph" in the presence-mismatch message, which would let this test pass
+    # even with the y check deleted (proven by mutation testing).
     assert len(problems) == 3
-    assert any("cell 0" in p and "y" in p for p in problems)
-    assert any("cell 1" in p and "height" in p for p in problems)
-    assert any("cell 2" in p and "x-offset" in p for p in problems)
+    assert "cell 0: rect box y is 0, expected 1" in problems
+    assert "cell 1: rect box height is 9, expected 10" in problems
+    assert "cell 2: rect box x-offset is 1, expected 0" in problems
 
 
 def test_validate_flags_painted_cell_without_rect_box_and_vice_versa():

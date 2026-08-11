@@ -9,8 +9,8 @@ Cell layout: 32 columns x 12 rows of 8x12 cells on a 257x144 canvas. The cell
 index equals the charset position AND the PugFont.glyphData index -- CK's
 `latinCharset` is exactly 384 characters long, one per cell. Every rect box in
 the master sits at y=1 with height 10 and x-offset 0 (verified in
-sources/thinTiny-review.md), so only the width varies; `validate()` fails loud
-if that ever stops holding.
+complete-tiny-font/sources/thinTiny-review.md), so only the width varies;
+`validate()` fails loud if that ever stops holding.
 
 Usage:
     python3 utils/pixaki_to_glyphs.py --pixaki <master.pixaki> --sheet <out.png>
