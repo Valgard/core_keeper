@@ -8,7 +8,7 @@ atlas cell as a 384-character string of digits.
 Cell layout: 32 columns x 12 rows of 8x12 cells on a 257x144 canvas. The cell
 index equals the charset position AND the PugFont.glyphData index -- CK's
 `latinCharset` is exactly 384 characters long, one per cell. Every rect box in
-the master sits at y=1 with height 10 and x-offset 0 (verified in
+the master sits at y=0 with height 10 and x-offset 0 (verified in
 complete-tiny-font/sources/thinTiny-review.md), so only the width varies;
 `validate()` fails loud if that ever stops holding.
 
@@ -27,7 +27,12 @@ from PIL import Image
 CDX, CDY = 8, 12  # cell size (thinSmall grid)
 COLS, ROWS = 32, 12
 CELLS = COLS * ROWS  # 384 == len(PugFont.latinCharset)
-BOX_Y, BOX_H = 1, 10  # the rect box inside every cell (thinTiny metric)
+BOX_Y, BOX_H = 0, 10  # the rect box inside every cell (thinTiny metric)
+# BOX_Y was 1 until 2026-08-12: PugFont.InitCodePoints derives every glyph
+# sprite from (y+1, h-1), discarding the box's bottom row. At y=1 that row
+# sat inside the drawn glyph, so every glyph rendered a pixel low and 15
+# diacritics lost their bottom row. The master was shifted up by one row so
+# CK's discarded row falls outside the drawn glyph.
 RECTS_RGB = (229, 59, 223)  # the Rects layer colour
 
 
