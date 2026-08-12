@@ -136,6 +136,9 @@ def ink_edges(atlas_img, index, advance_width):
     return left, right
 
 
+KERNING_CLAMP = 3  # EXPERIMENT (2026-08-12, was 2) -- see kerning_pair()'s docstring
+
+
 def kerning_pair(right_a, left_b, advance_a):
     """The kerning correction for glyph `a` immediately followed by `b`.
 
@@ -143,9 +146,10 @@ def kerning_pair(right_a, left_b, advance_a):
     would sit from the end of `a`'s advance if kerning were zero: the empty
     columns after `a`'s ink, plus the empty columns before `b`'s ink. The
     kerning is one less than the smallest such gap across those rows, clamped
-    to [0, 2]. A pair with no row where both have ink (e.g. an underscore and
-    an acute accent) defaults to the cap, 2, rather than going through that
-    subtraction -- they never touch, so nothing measured limits them.
+    to [0, KERNING_CLAMP]. A pair with no row where both have ink (e.g. an
+    underscore and an acute accent) defaults to KERNING_CLAMP rather than
+    going through that subtraction -- they never touch, so nothing measured
+    limits them.
 
     The "one less" is deliberate, not a rounding nicety: a rule that closes
     the tightest gap completely (no subtraction) reproduces 97.66% of
@@ -154,11 +158,19 @@ def kerning_pair(right_a, left_b, advance_a):
     box (6px capitals vs. this build's narrower ones). Applied to our own
     narrower shapes, closing the last column made stems collide in game (`l`
     immediately followed by `t`, both advance 2, tightest row 1 column of
-    air -- closed to 0, the stems touched in "Seltenheit"/"Entdeckt"). This
-    variant reproduces only ~84% of vanilla's table -- agreement with vanilla
-    is deliberately no longer the criterion. Collision-freedom on our own
-    shapes is, and that's what leaving one column of air buys: the tightest
-    legal gap before subtraction is 1, so it can go to 0 but never below it.
+    air -- closed to 0, the stems touched in "Seltenheit"/"Entdeckt"). With
+    KERNING_CLAMP = 2 this variant reproduced only ~84% of vanilla's table --
+    agreement with vanilla is deliberately no longer the criterion.
+    Collision-freedom on our own shapes is, and that's what leaving one
+    column of air buys: the tightest legal gap before subtraction is 1, so it
+    can go to 0 but never below it, regardless of the clamp's upper bound.
+
+    KERNING_CLAMP is currently 3, one higher than the settled value of 2: an
+    experiment, requested to see a wider look in game before the rule is
+    settled. It is not (yet) known to reproduce a specific percentage of
+    vanilla's table at this setting -- that number was only ever measured for
+    the settled variants (2 with no subtraction: 97.66%; 2 with the
+    subtraction: ~84%), not for this one.
     """
     gaps = [
         (advance_a - 1 - right_a[y]) + left_b[y]
@@ -166,8 +178,8 @@ def kerning_pair(right_a, left_b, advance_a):
         if right_a[y] is not None and left_b[y] is not None
     ]
     if not gaps:
-        return 2
-    return max(0, min(min(gaps) - 1, 2))
+        return KERNING_CLAMP
+    return max(0, min(min(gaps) - 1, KERNING_CLAMP))
 
 
 def kerning_matrix(atlas_img, ws, cell_count=CELLS):
