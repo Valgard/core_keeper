@@ -120,10 +120,11 @@ def ink_edges(atlas_img, index, advance_width):
 
     Two length-BOX_H lists (`left`, `right`); an entry is None for a row with
     no ink. Only columns 0..advance_width-1 and rows BOX_Y..BOX_Y+BOX_H-1 are
-    read, so ink outside the glyph's own advance box is clipped rather than
-    skewing the kerning calculation below -- and clipping it here would hide a
-    real defect, which is why validate() rejects such a glyph outright instead
-    of letting this function paper over it.
+    read. That clip is belt-and-braces, not load-bearing: validate() rejects
+    any glyph with ink outside its advance box, so a master that passes the
+    gate has nothing here to clip. It stays because clipping silently is the
+    wrong failure mode for this function -- rejecting is validate()'s job, and
+    quietly measuring a truncated glyph is what shipped a collision once.
     """
     x0, y0, _, _ = cell_box(index)
     px = atlas_img.load()
@@ -157,16 +158,20 @@ def kerning_pair(right_a, left_b, advance_a):
     The "one less" is deliberate, not a rounding nicety: a rule that closes
     the tightest gap completely (no subtraction) reproduces 97.66% of
     vanilla's own thinTiny kerning table, but vanilla's numbers describe
-    vanilla's glyph shapes -- wider ones, with more air inside the advance
-    box (6px capitals vs. this build's narrower ones). Applied to our own
-    narrower shapes, closing the last column made stems collide in game (`l`
-    immediately followed by `t`, both advance 2, tightest row 1 column of
-    air -- closed to 0, the stems touched in "Seltenheit"/"Entdeckt"). This
-    variant reproduces only ~84% of vanilla's table -- agreement with vanilla
-    is deliberately no longer the criterion. Collision-freedom on our own
-    shapes is, and that's what leaving one column of air buys: the tightest
-    legal gap before subtraction is 1, so it can go to 0 but never below it,
-    regardless of the clamp's upper bound.
+    vanilla's glyph shapes, and those differ from this build's in both
+    directions -- vanilla's digits are a row taller (6px vs. 5px here),
+    while several of its letters are narrower: `C E F L` sit in advance 2
+    against 3 here, `M`/`m` in 3 against 5. Of the 114 characters vanilla
+    carries, 25 have a different advance here, every one of them wider.
+    Applied to these shapes, closing the last column made stems collide in
+    game (`l` immediately followed by `t`, both advance 2, tightest row 1
+    column of air -- closed to 0, the stems touched in
+    "Seltenheit"/"Entdeckt"). This variant reproduces only ~84% of vanilla's
+    table -- agreement with vanilla is deliberately no longer the criterion.
+    Collision-freedom on our own shapes is, and that's what leaving one
+    column of air buys: the tightest legal gap before subtraction is 1, so
+    it can go to 0 but never below it, regardless of the clamp's upper
+    bound.
 
     KERNING_CLAMP = 3 was tried and rejected after an in-game look: raising
     it only changes low-ink punctuation/symbol pairs (1,071 of them in this
