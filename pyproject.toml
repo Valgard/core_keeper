@@ -1,0 +1,19 @@
+[project]
+# Not a distributable package -- this exists so the shared tools in utils/ and
+# their test suite run against pinned dependencies instead of whatever the
+# machine happens to have. Byte-identity against the committed font artifacts
+# is this project's acceptance check, and PNG bytes are encoder-dependent, so
+# an unpinned Pillow would make "the file changed" and "my encoder differs"
+# indistinguishable. Version floor matches the python in .tool-versions.
+name = "core-keeper"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "pillow==12.1.1",
+    "pyyaml>=6.0.3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

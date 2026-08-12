@@ -14,6 +14,10 @@ __pycache__
 !/CLAUDE.md
 !/utils/
 !/README.md
+# The uv project that pins what utils/ imports (Pillow exactly, since the font
+# artifacts are checked by byte-identity). .venv stays ignored by the /* rule.
+!/pyproject.toml
+!/uv.lock
 !/docs/
 /docs/*
 !/docs/dedicated-server.md

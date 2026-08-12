@@ -18,3 +18,16 @@ repos:
             stages:
                 - pre-commit
                 - pre-push
+
+          # Runs through uv so the suite sees the pinned Pillow, not whatever
+          # the machine has — test_shipped_artifacts.py compares the committed
+          # font atlas by byte-identity, which an unpinned encoder would break.
+          - id: pytest
+            name: pytest (utils)
+            entry: uv run --frozen pytest utils/tests -q
+            language: system
+            pass_filenames: false
+            files: ^(utils/|pyproject\.toml|uv\.lock)
+            stages:
+                - pre-commit
+                - pre-push
