@@ -248,6 +248,20 @@ def test_csharpierrc_pins_print_width_160():
     assert data == {"printWidth": 160}
 
 
+def test_csharpierignore_exists_and_stops_the_upward_search():
+    # Not cosmetic: CSharpier's ignore-file search walks past the git boundary
+    # into core_keeper/, whose .csharpierignore is an allowlist for utils/ only.
+    # Measured in a git repo holding one misformatted source: `csharpier check`
+    # reports "Checked 0 files" without a local ignore file and "Checked 1
+    # files" with one. So a scaffolded mod without this ships a gate that
+    # passes while checking nothing.
+    text = nm.build_csharpierignore()
+    assert ".worktrees/" in text
+    # The comment has to say why the file is required, or the next person
+    # deletes it as a stray worktree rule.
+    assert "zero files" in text
+
+
 def test_precommit_config_runs_csharpier_check_at_both_stages():
     cfg = nm.build_precommit_config()
     assert "entry: dotnet csharpier check" in cfg
@@ -337,6 +351,7 @@ def test_plan_contains_the_expected_file_set():
         ".gitignore",
         "CHANGELOG.md",
         ".csharpierrc",
+        ".csharpierignore",
         ".pre-commit-config.yaml",
         ".config/dotnet-tools.json",
         "unity/FasterPetTalents.asset",

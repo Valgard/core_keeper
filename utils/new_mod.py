@@ -532,6 +532,32 @@ def build_csharpierrc() -> str:
 """
 
 
+def build_csharpierignore() -> str:
+    """The file that makes the gate above check anything at all.
+
+    CSharpier searches upward for an ignore file and does not stop at a git
+    boundary. A mod repo sits inside `core_keeper/`, whose `.csharpierignore` is
+    an allowlist (`/*` plus `!/utils/`) guarding the SDK clone and the sibling
+    mods from a full-tree run. Without a local file, a scaffolded mod inherits
+    that allowlist and every one of its own sources falls outside it: measured
+    inside a git repo, `dotnet csharpier check .` reports `Checked 0 files`
+    with no local ignore file and `Checked 1 files` with one. The hook passes
+    either way, so the gate looks healthy while checking nothing.
+
+    The `.worktrees/` entry is the content this file would have had anyway --
+    sibling worktrees carry their own copies of the sources and their own hook.
+    Its presence is the load-bearing part."""
+    return """# Required, not optional: CSharpier's ignore-file search walks up past this
+# repo into core_keeper/, whose .csharpierignore is an allowlist for utils/
+# only. Without this file every source here falls outside that allowlist and
+# the gate silently checks zero files.
+#
+# Sibling worktrees live inside the repo and carry their own copies of the
+# sources; formatting them from here would fight the worktree's own hook.
+.worktrees/
+"""
+
+
 def build_precommit_config() -> str:
     """The formatting-gate pre-commit hook. Runs `csharpier check` — it
     blocks, it does not rewrite — at both the `pre-commit` and `pre-push`
@@ -660,6 +686,7 @@ def build_plan(
         (".gitignore", build_gitignore(mod_name)),
         ("CHANGELOG.md", build_changelog()),
         (".csharpierrc", build_csharpierrc()),
+        (".csharpierignore", build_csharpierignore()),
         (".pre-commit-config.yaml", build_precommit_config()),
         (".config/dotnet-tools.json", build_dotnet_tools_json()),
         (
