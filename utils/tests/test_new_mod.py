@@ -293,15 +293,36 @@ def test_envrc_exports_the_modio_type_tags():
     assert 'export CK_MODIO_TYPE="Visual|Quality of Life"' in _envrc()
 
 
-def test_envrc_leaves_the_localisation_pair_commented_out():
-    # Unset means "skip localisation". A set LOC_YAML pointing at a YAML with no
-    # terms fails the build instead (LocalizationGenerator rejects 0 terms), so
-    # the scaffold must not pre-arm these for a mod that has no text yet.
+def test_envrc_wires_localisation_from_the_start():
+    # Safe to pre-arm since LocalizationGenerator skips a table with no terms:
+    # writing the first term is then the only step, instead of a retrofit that has
+    # shipped mods with zero localisation when forgotten.
     env = _envrc()
-    assert "# export LOC_YAML=" in env
-    assert "# export LOC_OUT=" in env
-    assert "\nexport LOC_YAML=" not in env
-    assert "\nexport LOC_OUT=" not in env
+    assert 'export LOC_YAML="$PWD/localization/localization.yaml"' in env
+    assert 'export LOC_OUT="$PWD/unity/$MOD_NAME/Localization/Generated"' in env
+
+
+def test_localization_template_is_inert():
+    # The load-bearing property of the template, not a style check: LOC_YAML is
+    # wired active, and the generator fails on a table that HAS content but
+    # yields no term. One uncommented namespace header here would break the very
+    # first build of every scaffolded mod. Mirrors LocYaml.HasAuthoredContent,
+    # which is the authority.
+    yaml = nm.build_localization_yaml("FasterPetTalents")
+    authored = [
+        line
+        for line in yaml.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    assert not authored, f"template would parse as content: {authored}"
+    # Still has to show the shape, or it teaches nothing.
+    assert "FasterPetTalents-Config:" in yaml
+
+
+def test_gitignore_excludes_the_generated_localisation_output():
+    gi = nm.build_gitignore("FasterPetTalents")
+    assert "unity/FasterPetTalents/Localization/Generated/" in gi
+    assert "unity/FasterPetTalents/Localization/Generated.meta" in gi
 
 
 def test_gitignore_ignores_envrc_and_editor_helpers_by_mod_name():
@@ -436,6 +457,7 @@ def test_plan_contains_the_expected_file_set():
         ".envrc.example",
         ".gitignore",
         "CHANGELOG.md",
+        "localization/localization.yaml",
         ".csharpierrc",
         ".csharpierignore",
         ".pre-commit-config.yaml",

@@ -514,14 +514,12 @@ export MOD_REPO_ROOT="$PWD"
 # Library, Other.
 export CK_MODIO_TYPE="{modio_type}"
 
-# --- Localisation (only for a mod with in-game text) ------------------------
-# Uncomment both once localization/localization.yaml holds at least one term,
-# and add the generated output to .gitignore (see the new-ck-mod skill).
-# LOC_TABLE (the shared CK language-address table) is inherited from the parent.
-# Leaving these unset skips generation; setting them with a term-less YAML
-# fails the build (LocalizationGenerator rejects 0 parsed terms).
-# export LOC_YAML="$PWD/localization/localization.yaml"
-# export LOC_OUT="$PWD/unity/$MOD_NAME/Localization/Generated"
+# --- Localisation (read by utils/CLIBuildHelper.cs -> LocalizationGenerator.GenerateFromEnv) ---
+# LOC_TABLE (the shared CK language-address table) is inherited from the parent core_keeper/.envrc.
+# Wired from the start even for a mod with no text yet: a table holding no terms
+# is skipped, so writing the first term is the only step needed later.
+export LOC_YAML="$PWD/localization/localization.yaml"
+export LOC_OUT="$PWD/unity/$MOD_NAME/Localization/Generated"
 """
 
 
@@ -564,6 +562,10 @@ UserSettings/
 # the work is implemented. docs/specs/ and docs/adrs/ stay tracked.
 docs/superpowers/
 
+# LocalizationGenerator output (regenerated each build from localization/localization.yaml)
+unity/{mod_name}/Localization/Generated/
+unity/{mod_name}/Localization/Generated.meta
+
 # Shared editor helpers — symlinked in by utils/link.sh (the .cs are symlinks
 # into ../utils, the .meta are Unity-generated locally; no asset references
 # them by GUID, so neither belongs in the repo).
@@ -586,6 +588,32 @@ All notable changes to this mod are documented here.
 ## [0.1.0] - Unreleased
 
 - Initial scaffold.
+"""
+
+
+def build_localization_yaml(mod_name: str) -> str:
+    """The mod's localisation table — inert on purpose: every line a comment.
+
+    The wiring is scaffolded *active* (`LOC_YAML`/`LOC_OUT` in the `.envrc`),
+    which is only safe because `LocalizationGenerator` skips a table that holds
+    no terms. So this file must contain no authored line: a single uncommented
+    namespace header would be content yielding no term, which is exactly the case
+    the generator fails on. `test_localization_template_is_inert` guards that.
+    """
+    return f"""# Localisation table for {mod_name} — namespace at indent 0, term at indent 2,
+# its values at indent 4. Every build turns this into TextDataBlock assets; a
+# table with no terms is skipped, so the file is inert until the first real
+# entry. Uncomment and edit:
+#
+# {mod_name}-Config:
+#   enabled:
+#     hint: "Master on/off toggle label."
+#     en: "Enabled"
+#     de: "Aktiviert"
+#
+# Leaf keys stay unquoted. The generator rejects a U+2026 ellipsis and a U+2014
+# em dash in values: the game's thin font crashes on the first and renders the
+# second as a plain hyphen. Write '...' and '-'.
 """
 
 
@@ -755,6 +783,7 @@ def build_plan(
         (".envrc.example", envrc),
         (".gitignore", build_gitignore(mod_name)),
         ("CHANGELOG.md", build_changelog()),
+        ("localization/localization.yaml", build_localization_yaml(mod_name)),
         (".csharpierrc", build_csharpierrc()),
         (".csharpierignore", build_csharpierignore()),
         (".pre-commit-config.yaml", build_precommit_config()),
