@@ -240,6 +240,28 @@ def test_changelog_starts_at_0_1_0():
     assert "## [0.1.0]" in cl
 
 
+# --- formatting-gate files ---------------------------------------------------
+
+
+def test_csharpierrc_pins_print_width_160():
+    data = json.loads(nm.build_csharpierrc())
+    assert data == {"printWidth": 160}
+
+
+def test_precommit_config_runs_csharpier_check_at_both_stages():
+    cfg = nm.build_precommit_config()
+    assert "entry: dotnet csharpier check" in cfg
+    assert "- pre-commit" in cfg
+    assert "- pre-push" in cfg
+
+
+def test_dotnet_tools_json_pins_csharpier():
+    data = json.loads(nm.build_dotnet_tools_json())
+    assert data["isRoot"] is True
+    assert data["tools"]["csharpier"]["version"] == "1.3.0"
+    assert data["tools"]["csharpier"]["commands"] == ["csharpier"]
+
+
 # --- placeholder PNG --------------------------------------------------------
 
 
@@ -314,6 +336,9 @@ def test_plan_contains_the_expected_file_set():
         ".envrc.example",
         ".gitignore",
         "CHANGELOG.md",
+        ".csharpierrc",
+        ".pre-commit-config.yaml",
+        ".config/dotnet-tools.json",
         "unity/FasterPetTalents.asset",
         "unity/FasterPetTalents.asset.meta",
         "unity/FasterPetTalents.meta",

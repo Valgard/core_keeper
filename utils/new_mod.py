@@ -521,6 +521,56 @@ All notable changes to this mod are documented here.
 """
 
 
+def build_csharpierrc() -> str:
+    """The formatting-gate CSharpier config. `printWidth` is deliberately 160,
+    not CSharpier's default of 100 — matches every existing mod repo (see the
+    parent CLAUDE.md's Formatting gate section). Identical across mods, so
+    unparameterized."""
+    return """{
+    "printWidth": 160
+}
+"""
+
+
+def build_precommit_config() -> str:
+    """The formatting-gate pre-commit hook. Runs `csharpier check` — it
+    blocks, it does not rewrite — at both the `pre-commit` and `pre-push`
+    stages, matching every existing mod repo."""
+    return """repos:
+    - repo: local
+      hooks:
+          - id: csharpier
+            name: csharpier
+            entry: dotnet csharpier check
+            language: system
+            files: \\.cs$
+            stages:
+                - pre-commit
+                - pre-push
+"""
+
+
+def build_dotnet_tools_json() -> str:
+    """The pinned CSharpier tool manifest. Lives under `.config/`, not the
+    repo root — `dotnet new tool-manifest` writes it to the root under .NET
+    10, but the convention here is to move it; `dotnet tool restore` accepts
+    either location."""
+    return """{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "csharpier": {
+      "version": "1.3.0",
+      "commands": [
+        "csharpier"
+      ],
+      "rollForward": false
+    }
+  }
+}
+"""
+
+
 # --- placeholder PNG --------------------------------------------------------
 
 
@@ -609,6 +659,9 @@ def build_plan(
         (".envrc.example", envrc),
         (".gitignore", build_gitignore(mod_name)),
         ("CHANGELOG.md", build_changelog()),
+        (".csharpierrc", build_csharpierrc()),
+        (".pre-commit-config.yaml", build_precommit_config()),
+        (".config/dotnet-tools.json", build_dotnet_tools_json()),
         (
             f"{u}/{mod_name}.asset",
             build_asset_yaml(mod_name, display, metadata_guid, dependencies),

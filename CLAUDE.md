@@ -269,6 +269,10 @@ human-facing setup; what matters when editing code here:
   reason; `ruff` needs no counterpart because it honours `.gitignore`.
 - `pre-commit` itself is pinned once in the parent `.tool-versions`; asdf
   resolves it for the mod subdirectories by walking up.
+- **`utils/new_mod.py` scaffolds the gate too.** A freshly generated mod repo
+  already carries `.csharpierrc`, `.pre-commit-config.yaml`, and
+  `.config/dotnet-tools.json` from its first commit — there is no separate
+  step to add them by hand.
 
 ## mod.io publishing (applies to every mod)
 

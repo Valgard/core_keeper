@@ -137,6 +137,11 @@ blocks**; it never rewrites files behind your back. C# goes through
 `printWidth: 160` in `.csharpierrc`; in `core_keeper` the Python in `utils/`
 additionally goes through **`ruff format`**.
 
+`utils/new_mod.py` emits all three gate files (`.csharpierrc`,
+`.pre-commit-config.yaml`, `.config/dotnet-tools.json`) as part of its
+scaffold, so a freshly created mod repo already carries the gate — only the
+one-time tool setup below is still needed.
+
 A fresh clone needs two one-time commands:
 
 ```bash
