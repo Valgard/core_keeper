@@ -102,6 +102,30 @@ def test_validate_flags_ink_wider_than_its_advance():
     ]
 
 
+def test_validate_flags_a_last_column_advance_that_crowds_the_outline_padding():
+    # CK widens each sprite rect by 2 px only while
+    # `rect2.x + rect2.width + 2 < texture.width`; at x=248 (column 31) on the
+    # 257 px canvas that caps the advance at 6. A 7 costs one "make the font
+    # texture wider" error per glyph on every launch, plus a glyph drawn
+    # without its padding -- and it used to validate clean.
+    rects, atlas = _blank(), _blank()
+    _paint_rect(rects, 31, dx=0, dy=0, w=7, h=10)
+    _paint_rect(atlas, 31, dx=0, dy=0, w=7, h=10, colour=WHITE)
+    assert g.validate(rects, atlas) == [
+        "cell 31: advance 7 at x=248 leaves no room for the outline padding "
+        "CK adds (needs x + advance + 2 < 257)"
+    ]
+
+
+def test_validate_accepts_the_widest_advance_the_last_column_can_hold():
+    # 248 + 6 + 2 == 256 < 257: the padding still fits, so this must pass --
+    # the shipped atlas has a 5 here, one column of headroom.
+    rects, atlas = _blank(), _blank()
+    _paint_rect(rects, 31, dx=0, dy=0, w=6, h=10)
+    _paint_rect(atlas, 31, dx=0, dy=0, w=6, h=10, colour=WHITE)
+    assert g.validate(rects, atlas) == []
+
+
 def test_validate_flags_ink_below_the_rect_box_rows():
     # Same clipping hazard on the other axis: ink_edges() reads only rows
     # 0..BOX_H-1, so ink in the cell's two spare bottom rows would be invisible

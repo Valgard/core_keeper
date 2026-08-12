@@ -12,10 +12,17 @@ the master sits at y=0 with height 10 and x-offset 0 (verified in
 complete-tiny-font/sources/thinTiny-review.md), so only the width varies;
 `validate()` fails loud if that ever stops holding.
 
+Run it through `uv run`, which resolves the Pillow pinned in the repo's
+`pyproject.toml`. The pin is not cosmetic: PNG bytes are encoder-dependent, and
+byte-identity against the committed atlas is how a regeneration is checked, so
+an unpinned Pillow makes "the file changed" and "my encoder differs"
+indistinguishable. `test_shipped_artifacts.py` fails if the running Pillow is
+not the pinned one.
+
 Usage:
-    python3 utils/pixaki_to_glyphs.py --pixaki <master.pixaki> --sheet <out.png>
-    python3 utils/pixaki_to_glyphs.py --pixaki <master.pixaki> --kerning <out.bytes>
-    python3 utils/pixaki_to_glyphs.py --pixaki <master.pixaki> --check-only
+    uv run utils/pixaki_to_glyphs.py --pixaki <master.pixaki> --sheet <out.png>
+    uv run utils/pixaki_to_glyphs.py --pixaki <master.pixaki> --kerning <out.bytes>
+    uv run utils/pixaki_to_glyphs.py --pixaki <master.pixaki> --check-only
 """
 
 import argparse
@@ -28,6 +35,8 @@ from PIL import Image
 CDX, CDY = 8, 12  # cell size (thinSmall grid)
 COLS, ROWS = 32, 12
 CELLS = COLS * ROWS  # 384 == len(PugFont.latinCharset)
+# The +1 column exists solely for PugFont.InitCodePoints' outline-padding check.
+ATLAS_W = COLS * CDX + 1
 BOX_Y, BOX_H = 0, 10  # the rect box inside every cell (thinTiny metric)
 # BOX_Y was 1 until 2026-08-12: PugFont.InitCodePoints derives every glyph
 # sprite from (y+1, h-1), discarding the box's bottom row. At y=1 that row
@@ -242,6 +251,19 @@ def validate(rects_img, atlas_img, cell_count=CELLS):
         # prevent, which makes it this gate's job to catch.
         gx, gy, gw, gh = gb
         advance = rb[2]
+        # CK widens every sprite rect by 2 px for its outline, but only when
+        # `rect2.width + rect2.x + 2 < texture.width`; otherwise it takes the
+        # else branch and logs "You need to make the font texture 1 pixel
+        # wider" once per glyph, every launch, and that glyph renders without
+        # its padding. Only the last column can run out of room (x = 248 on a
+        # 257 px canvas leaves advance <= 6); every earlier column has slack no
+        # 8 px cell can use up.
+        x0, _, _, _ = cell_box(i)
+        if x0 + advance + 2 >= ATLAS_W:
+            problems.append(
+                f"cell {i}: advance {advance} at x={x0} leaves no room for the "
+                f"outline padding CK adds (needs x + advance + 2 < {ATLAS_W})"
+            )
         if gx + gw > advance:
             problems.append(
                 f"cell {i}: glyph ink reaches column {gx + gw - 1}, "
@@ -284,6 +306,13 @@ def main(argv=None):
 
     w = widths(rects)
     painted = sum(1 for x in w if x)
+    # Belt-and-braces: `_bbox` only scans CDX columns per cell, so a width
+    # cannot exceed 8 today. Checked here rather than after the writes, so it
+    # can still honour the "refusing to emit" contract above if CDX ever grows.
+    if max(w) > 9:
+        sys.exit(
+            f"an advance width exceeds 9 ({max(w)}) — the digit string cannot hold it"
+        )
     if ns.check_only:
         print(f"OK — {painted} painted cells, all invariants hold")
         return 0
@@ -297,10 +326,6 @@ def main(argv=None):
             f.write(matrix)
         nonzero = sum(1 for b in matrix if b)
         print(f"// wrote {ns.kerning} ({len(matrix)} bytes), {nonzero} non-zero pairs")
-    if max(w) > 9:
-        sys.exit(
-            f"an advance width exceeds 9 ({max(w)}) — the digit string cannot hold it"
-        )
     print("// paste into ThinTinyFontPatch.cs Widths")
     print("        private const string Widths =")
     for row in range(ROWS):
