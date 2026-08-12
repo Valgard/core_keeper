@@ -13,7 +13,10 @@ needs the Editor open, and emits only a fraction of a buildable mod) and
 publishable skeleton:
 
 ```bash
-utils/new_mod.py <kebab-name> --summary "<one-line mod.io summary>"
+utils/new_mod.py <kebab-name> \
+  --summary "<one-line mod.io summary>" \
+  --required-on {1|2|3} \
+  --modio-type "<Type|Type>"
 ```
 
 - **`<kebab-name>`** is the single identity source → `MOD_NAME` (Pascal) and
@@ -21,8 +24,20 @@ utils/new_mod.py <kebab-name> --summary "<one-line mod.io summary>"
   only for acronyms the casing gets wrong (e.g. `HUD`, `CoreLib`).
 - **`--summary` is required** and lands in the mod.io listing. Confirm the real
   one-liner with the user first — do not invent one silently.
-- **`--corelib`** adds the CoreLib loader dependency — use for UI mods or
-  anything depending on CoreLib. Plain Harmony-patch mods take no flag.
+- **`--required-on` is required**, with no default on purpose: `1` = Client,
+  `2` = Server, `3` = both. Ask **does the SERVER need this mod for the feature
+  to work?** — `1` for a read-only HUD/UI mod (a blanket `3` hard-blocks joining
+  unmodded servers), `3` for new items, recipe/database changes or
+  server-authoritative logic. Full semantics in the parent `CLAUDE.md`.
+- **`--modio-type` is required**: pipe-separated mod.io "Type" tags, e.g.
+  `"Visual|Quality of Life"` (pipes because the values contain spaces). Known
+  values: Visual, Audio, Item, NPC, Quality of Life, Overhaul, Language, World,
+  Library, Other. Without it the *publish* aborts, not the build — pick the tags
+  with the user, since they drive discoverability.
+- **`--corelib`** wires CoreLib both ways — the loader dependency in the `.asset`
+  and the assembly reference in the runtime `.asmdef` (a mod needs both: the
+  first to have CoreLib loaded, the second to compile against it). Use for UI
+  mods or anything depending on CoreLib; plain Harmony-patch mods take no flag.
 - **`--dry-run`** prints the plan + derived names and writes nothing. Good for a
   pre-flight check.
 
@@ -33,6 +48,10 @@ a placeholder `logo.png`), then `git init` + `link.sh`. It deliberately omits
 the Harmony patch class, `ModConfig.cs`, `CLAUDE.md` (→ `/init`), and the prose
 docs `README.md` / `modio-description.md` — you author the docs next (see
 below), and write the patch + config during the actual modding.
+
+`utils/tests/test_new_mod_parity.py` holds the generator to whatever *every* mod
+repo has. If it is red, fix `new_mod.py` before scaffolding — the red is telling
+you the scaffold is already missing something the family requires.
 
 ## Before running
 - The Unity **Editor must be closed** — any file write or build collides with
@@ -64,7 +83,29 @@ sibling's style (e.g. `../faster-pet-talents/README.md` and
 Draft from what the user told you the mod does; confirm specifics you're unsure
 of rather than inventing mechanics.
 
-**2. Build:**
+**2. Only for a mod with in-game text — wire up localisation.** Left out of the
+scaffold on purpose: unset `LOC_YAML`/`LOC_OUT` means "skip generation", while
+pointing them at a term-less YAML **fails the build** (`LocalizationGenerator`
+rejects 0 parsed terms). So add it once real terms exist, in this order:
+
+1. Write `localization/localization.yaml` — `Namespace:` → leaf → `hint`/`en`/`de`,
+   at least one term. No U+2026 (`…`) and no U+2014 (`—`): the generator rejects
+   both, because the game's thin font crashes on the first and misrenders the second.
+   ```yaml
+   <ModName>-Config:
+     enabled:
+       hint: "Master on/off toggle label."
+       en: "Enabled"
+       de: "Aktiviert"
+   ```
+2. Uncomment the `LOC_YAML` / `LOC_OUT` pair in **both** `.envrc` and
+   `.envrc.example`.
+3. Add the generated output to `.gitignore` (it is rebuilt every build):
+   `unity/<Mod>/Localization/Generated/` and `…/Generated.meta`. The
+   `Localization.meta` folder carrier that Unity writes on the next import *is*
+   tracked — commit it.
+
+**3. Build:**
 ```bash
 cd <kebab-name> && source .envrc && ../utils/build.sh
 ```

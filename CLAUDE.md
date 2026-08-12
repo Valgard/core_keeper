@@ -237,6 +237,35 @@ instructions live there.
   `CLIPublishHelper.Publish` can leave the mod.io profile/modfile partially
   uploaded; the `timeout 600` wrapper already bounds a genuinely hung run.
 
+## New mods — keep `utils/new_mod.py` in step
+
+`utils/new_mod.py` is the only path to a new mod repo (the `new-ck-mod` skill
+documents the invocation), which makes it a standing liability: **when a
+convention lands in every mod repo, it belongs in `new_mod.py` in the same
+change.** A lagging scaffold produces a repo that looks finished and fails later
+— three drifts did exactly that, found 2026-08-12: no `CK_MODIO_TYPE`, so
+`CLIPublishHelper` aborted the publish; `requiredOn` hardcoded to `3` against
+this file's own rule (and never even passed through); and `--corelib` writing the
+loader dependency without the assembly reference, so `using CoreLib;` would not
+compile. Its own unit suite was green throughout — it can only check the
+generator against itself.
+
+The guard is `utils/tests/test_new_mod_parity.py`, part of the normal suite
+(`uv run pytest utils/tests`). One rule: **whatever every mod repo has, the
+generator must produce.** So it needs no list of conventions to keep current, and
+anything only some mods adopt stays their business. It compares each file at the
+level the repos actually agree on — verbatim, contained block, JSON value,
+pattern lines — because byte-identity across all of them is not true, and it
+skips loudly in a checkout without the mod repos.
+
+Deliberately **not** scaffolded:
+- `README.md`, `modio-description.md`, `CLAUDE.md` — a static template would be
+  dead prose; they are authored from the mod's real purpose right afterwards.
+  This is the guard's one hand-kept exception list.
+- The localisation table. `LOC_YAML`/`LOC_OUT` stay commented out in the
+  generated `.envrc`: unset means "skip generation", whereas a set path to a
+  term-less YAML **fails the build** (`LocalizationGenerator` rejects 0 terms).
+
 ## Formatting gate (every repo)
 
 Every repo under this directory — each mod repo and `core_keeper` itself —
