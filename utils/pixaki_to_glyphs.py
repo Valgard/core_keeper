@@ -136,7 +136,7 @@ def ink_edges(atlas_img, index, advance_width):
     return left, right
 
 
-KERNING_CLAMP = 3  # EXPERIMENT (2026-08-12, was 2) -- see kerning_pair()'s docstring
+KERNING_CLAMP = 2  # settled 2026-08-12 -- see kerning_pair()'s docstring
 
 
 def kerning_pair(right_a, left_b, advance_a):
@@ -158,19 +158,19 @@ def kerning_pair(right_a, left_b, advance_a):
     box (6px capitals vs. this build's narrower ones). Applied to our own
     narrower shapes, closing the last column made stems collide in game (`l`
     immediately followed by `t`, both advance 2, tightest row 1 column of
-    air -- closed to 0, the stems touched in "Seltenheit"/"Entdeckt"). With
-    KERNING_CLAMP = 2 this variant reproduced only ~84% of vanilla's table --
-    agreement with vanilla is deliberately no longer the criterion.
-    Collision-freedom on our own shapes is, and that's what leaving one
-    column of air buys: the tightest legal gap before subtraction is 1, so it
-    can go to 0 but never below it, regardless of the clamp's upper bound.
+    air -- closed to 0, the stems touched in "Seltenheit"/"Entdeckt"). This
+    variant reproduces only ~84% of vanilla's table -- agreement with vanilla
+    is deliberately no longer the criterion. Collision-freedom on our own
+    shapes is, and that's what leaving one column of air buys: the tightest
+    legal gap before subtraction is 1, so it can go to 0 but never below it,
+    regardless of the clamp's upper bound.
 
-    KERNING_CLAMP is currently 3, one higher than the settled value of 2: an
-    experiment, requested to see a wider look in game before the rule is
-    settled. It is not (yet) known to reproduce a specific percentage of
-    vanilla's table at this setting -- that number was only ever measured for
-    the settled variants (2 with no subtraction: 97.66%; 2 with the
-    subtraction: ~84%), not for this one.
+    KERNING_CLAMP = 3 was tried and rejected after an in-game look: raising
+    it only changes low-ink punctuation/symbol pairs (1,071 of them in this
+    atlas), never letters or digits, so the difference was invisible in
+    ordinary text and not worth trading away the settled variant's stronger
+    footing (measured against real gameplay text, not just vanilla's table).
+    Settled back at 2.
     """
     gaps = [
         (advance_a - 1 - right_a[y]) + left_b[y]

@@ -105,32 +105,32 @@ def test_kerning_flush_blocks_have_zero_kerning():
     assert matrix[0 * 384 + 1] == 0
 
 
-def test_kerning_two_empty_columns_each_side_reaches_the_cap():
+def test_kerning_two_empty_columns_each_side_is_clamped_to_two():
     # cell 0: ink in columns 0-1 of a 4px advance (columns 2-3 empty -> 2px
     # gap to the advance edge). Cell 1: ink in columns 2-3 (columns 0-1 empty
-    # -> 2px gap from its own edge). Raw gap 2 + 2 = 4, minus one is 3, which
-    # lands exactly on KERNING_CLAMP's current experimental value (3) --
-    # named "reaches" rather than "is clamped to" because this fixture no
-    # longer demonstrates truncation below that value, only equality with it.
+    # -> 2px gap from its own edge). Raw gap 2 + 2 = 4, minus one is 3,
+    # clamped down to the cap, 2. Deliberately a literal, not
+    # g.KERNING_CLAMP: this pins the clamp's actual settled value (2) so a
+    # future accidental change to the constant is caught here, not silently
+    # carried along by an assertion that reads the same constant it's meant
+    # to check.
     atlas = _blank()
     _paint_rect(atlas, 0, dx=0, dy=0, w=2, h=10, colour=WHITE)
     _paint_rect(atlas, 1, dx=2, dy=0, w=2, h=10, colour=WHITE)
     matrix = g.kerning_matrix(atlas, _ws({0: 4, 1: 4}))
-    assert matrix[0 * 384 + 1] == g.KERNING_CLAMP
+    assert matrix[0 * 384 + 1] == 2
 
 
-def test_kerning_non_overlapping_ink_rows_default_to_the_cap():
+def test_kerning_non_overlapping_ink_rows_default_to_two():
     # cell 0 has ink only in row 0, cell 1 only in row 5 -- no row has ink in
-    # both, so the pair falls back to KERNING_CLAMP rather than a measured
-    # gap (the no-overlap case is exempt from the "one less" adjustment
-    # below). Asserted against the constant, not a literal, because this is
-    # exactly the coupling a hardcoded default would silently break if the
-    # clamp changed without updating both places.
+    # both, so the pair falls back to the cap rather than a measured gap (the
+    # no-overlap case is exempt from the "one less" adjustment below).
+    # Literal 2, not g.KERNING_CLAMP, for the same reason as the test above.
     atlas = _blank()
     _paint_rect(atlas, 0, dx=0, dy=0, w=4, h=1, colour=WHITE)
     _paint_rect(atlas, 1, dx=0, dy=5, w=4, h=1, colour=WHITE)
     matrix = g.kerning_matrix(atlas, _ws({0: 4, 1: 4}))
-    assert matrix[0 * 384 + 1] == g.KERNING_CLAMP
+    assert matrix[0 * 384 + 1] == 2
 
 
 def test_kerning_partial_gap_is_exact():
