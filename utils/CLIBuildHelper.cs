@@ -102,7 +102,13 @@ namespace CoreKeeperModUtils
         // fresh at package time, is the only mechanism that actually reaches what ships.
         private static void GenerateDevFlags(string modName)
         {
-            var generatedPath = $"Assets/{modName}/Generated/DevFlags.generated.cs";
+            // Application.dataPath, not a bare "Assets/..." string passed to System.IO —
+            // raw File/Directory calls resolve against the OS process's current working
+            // directory, which for a -batchmode Editor launched via build.sh is the invoking
+            // shell's cwd (the mod repo), NOT -projectPath. Application.dataPath is Unity's own
+            // absolute path to <project>/Assets and is what LocalizationGenerator already uses
+            // for the identical reason (see its own "packed" path resolution).
+            var generatedPath = Path.Combine(Application.dataPath, modName, "Generated", "DevFlags.generated.cs");
             var envValue = Environment.GetEnvironmentVariable("MOD_DEV_FLAGS");
             if (string.IsNullOrEmpty(envValue) && !File.Exists(generatedPath))
                 return;
