@@ -258,13 +258,23 @@ level the repos actually agree on — verbatim, contained block, JSON value,
 pattern lines — because byte-identity across all of them is not true, and it
 skips loudly in a checkout without the mod repos.
 
-Deliberately **not** scaffolded:
-- `README.md`, `modio-description.md`, `CLAUDE.md` — a static template would be
-  dead prose; they are authored from the mod's real purpose right afterwards.
-  This is the guard's one hand-kept exception list.
-- The localisation table. `LOC_YAML`/`LOC_OUT` stay commented out in the
-  generated `.envrc`: unset means "skip generation", whereas a set path to a
-  term-less YAML **fails the build** (`LocalizationGenerator` rejects 0 terms).
+Localisation is wired from the start — `LOC_YAML`/`LOC_OUT` in the generated
+`.envrc`, an all-comment `localization/localization.yaml`, the two `.gitignore`
+entries. That is only safe because `LocalizationGenerator` tells an **empty**
+table (skip generation, and clear what an earlier run wrote, or emptying a table
+would keep shipping stale assets) from one that **has content but yields no
+term** (fail — a term is a `Leaf:` at indent 2, so namespace headers alone define
+nothing, and those terms would render as raw keys in game). A missing file stays
+fatal: `LOC_YAML` pointing at nothing is a contradiction, and a silent skip there
+would ship text that quietly fell back to raw keys. Consequence for a new mod:
+the first localisation step is writing a term, not wiring anything — and the
+scaffolded template must stay fully commented, which
+`test_localization_template_is_inert` enforces.
+
+Deliberately **not** scaffolded: `README.md`, `modio-description.md` and
+`CLAUDE.md` — a static template would be dead prose; they are authored from the
+mod's real purpose right afterwards. That is the guard's one hand-kept exception
+list.
 
 ## Formatting gate (every repo)
 

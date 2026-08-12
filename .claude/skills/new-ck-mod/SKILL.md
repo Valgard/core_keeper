@@ -44,7 +44,8 @@ utils/new_mod.py <kebab-name> \
 It writes the full tree (ModBuilderSettings `.asset`, runtime/Editor `.asmdef`s
 with live-scanned game DLLs, all `.meta` with fresh GUIDs, `_modio.asset` with
 modId 0, the IMod bootstrap, `.envrc`/`.envrc.example`/`.gitignore`/`CHANGELOG`,
-a placeholder `logo.png`), then `git init` + `link.sh`. It deliberately omits
+the CSharpier gate, a commented-out `localization/localization.yaml`, a
+placeholder `logo.png`), then `git init` + `link.sh`. It deliberately omits
 the Harmony patch class, `ModConfig.cs`, `CLAUDE.md` (→ `/init`), and the prose
 docs `README.md` / `modio-description.md` — you author the docs next (see
 below), and write the patch + config during the actual modding.
@@ -83,27 +84,26 @@ sibling's style (e.g. `../faster-pet-talents/README.md` and
 Draft from what the user told you the mod does; confirm specifics you're unsure
 of rather than inventing mechanics.
 
-**2. Only for a mod with in-game text — wire up localisation.** Left out of the
-scaffold on purpose: unset `LOC_YAML`/`LOC_OUT` means "skip generation", while
-pointing them at a term-less YAML **fails the build** (`LocalizationGenerator`
-rejects 0 parsed terms). So add it once real terms exist, in this order:
+**2. Only for a mod with in-game text — write the terms.** Nothing to wire: the
+scaffold ships `LOC_YAML`/`LOC_OUT` in the `.envrc`, an all-comment
+`localization/localization.yaml`, and the `.gitignore` entries for the generated
+output. A table with no terms is skipped, so uncomment the example and edit it:
 
-1. Write `localization/localization.yaml` — `Namespace:` → leaf → `hint`/`en`/`de`,
-   at least one term. No U+2026 (`…`) and no U+2014 (`—`): the generator rejects
-   both, because the game's thin font crashes on the first and misrenders the second.
-   ```yaml
-   <ModName>-Config:
-     enabled:
-       hint: "Master on/off toggle label."
-       en: "Enabled"
-       de: "Aktiviert"
-   ```
-2. Uncomment the `LOC_YAML` / `LOC_OUT` pair in **both** `.envrc` and
-   `.envrc.example`.
-3. Add the generated output to `.gitignore` (it is rebuilt every build):
-   `unity/<Mod>/Localization/Generated/` and `…/Generated.meta`. The
-   `Localization.meta` folder carrier that Unity writes on the next import *is*
-   tracked — commit it.
+```yaml
+<ModName>-Config:
+  enabled:
+    hint: "Master on/off toggle label."
+    en: "Enabled"
+    de: "Aktiviert"
+```
+
+`Namespace:` at indent 0 → term at indent 2 → `hint`/`en`/`de` at indent 4, leaf
+keys unquoted. Two ways to break it: a namespace header with **no** term under it
+fails the build (content that yields nothing — either a complete term or all
+comments), and U+2026 (`…`) / U+2014 (`—`) in values are rejected, because the
+game's thin font crashes on the first and misrenders the second. The
+`Localization.meta` folder carrier Unity writes on the next import *is* tracked —
+commit it.
 
 **3. Build:**
 ```bash
