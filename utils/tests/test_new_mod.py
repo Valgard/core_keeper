@@ -51,6 +51,29 @@ def test_validate_kebab_rejects_malformed(bad):
         nm.validate_kebab(bad)
 
 
+# --- mod.io Type tags -------------------------------------------------------
+
+
+def test_parse_modio_type_splits_on_pipes_and_trims():
+    assert nm.parse_modio_type("Visual| Quality of Life |Library") == [
+        "Visual",
+        "Quality of Life",
+        "Library",
+    ]
+
+
+def test_parse_modio_type_keeps_inner_spaces():
+    # The values themselves contain spaces — that is why the separator is a pipe
+    # and not a comma.
+    assert nm.parse_modio_type("Quality of Life") == ["Quality of Life"]
+
+
+@pytest.mark.parametrize("bad", ["", "|", " | ", "  "])
+def test_parse_modio_type_rejects_effectively_empty(bad):
+    with pytest.raises(ValueError):
+        nm.parse_modio_type(bad)
+
+
 # --- GUIDs ------------------------------------------------------------------
 
 
@@ -102,6 +125,19 @@ def test_runtime_asmdef_overrides_refs_and_is_not_autoreferenced():
     assert data["autoReferenced"] is False
 
 
+def test_runtime_asmdef_omits_corelib_unless_requested():
+    data = json.loads(nm.build_runtime_asmdef("Mod", []))
+    assert "CoreLib" not in data["references"]
+
+
+def test_runtime_asmdef_references_corelib_when_requested():
+    # The loader dependency in the .asset is not enough: without this assembly
+    # reference the mod's own sources cannot compile against CoreLib types
+    # (CS0246). Every CoreLib mod in the family carries both.
+    data = json.loads(nm.build_runtime_asmdef("Mod", [], corelib=True))
+    assert data["references"][-1] == "CoreLib"
+
+
 def test_editor_asmdef_references_runtime_modsdk_and_pugmod():
     data = json.loads(nm.build_editor_asmdef("FasterPetTalents"))
     assert data["name"] == "FasterPetTalents.Editor"
@@ -114,7 +150,7 @@ def test_editor_asmdef_references_runtime_modsdk_and_pugmod():
 
 
 def test_asset_binds_verbatim_sdk_script_guid():
-    y = nm.build_asset_yaml("Mod", "Mod", metadata_guid="a" * 32)
+    y = nm.build_asset_yaml("Mod", "Mod", metadata_guid="a" * 32, required_on=3)
     assert (
         "m_Script: {fileID: 11500000, guid: bc43e4983a160e543856e5ba0421c9e1, type: 3}"
         in y
@@ -123,7 +159,10 @@ def test_asset_binds_verbatim_sdk_script_guid():
 
 def test_asset_carries_identity_and_fresh_metadata_guid():
     y = nm.build_asset_yaml(
-        "FasterPetTalents", "Faster Pet Talents", metadata_guid="d" * 32
+        "FasterPetTalents",
+        "Faster Pet Talents",
+        metadata_guid="d" * 32,
+        required_on=3,
     )
     assert "m_Name: FasterPetTalents" in y
     assert "name: FasterPetTalents" in y
@@ -134,17 +173,35 @@ def test_asset_carries_identity_and_fresh_metadata_guid():
 
 
 def test_asset_dependencies_empty_by_default():
-    y = nm.build_asset_yaml("Mod", "Mod", metadata_guid="a" * 32)
+    y = nm.build_asset_yaml("Mod", "Mod", metadata_guid="a" * 32, required_on=3)
     assert "dependencies: []" in y
 
 
 def test_asset_dependencies_render_corelib_when_requested():
     y = nm.build_asset_yaml(
-        "Mod", "Mod", metadata_guid="a" * 32, dependencies=[("CoreLib", 1)]
+        "Mod",
+        "Mod",
+        metadata_guid="a" * 32,
+        dependencies=[("CoreLib", 1)],
+        required_on=3,
     )
     assert "dependencies: []" not in y
     assert "- modName: CoreLib" in y
     assert "required: 1" in y
+
+
+@pytest.mark.parametrize("value", [1, 2, 3])
+def test_asset_writes_the_chosen_required_on(value):
+    y = nm.build_asset_yaml("Mod", "Mod", metadata_guid="a" * 32, required_on=value)
+    assert f"requiredOn: {value}" in y
+
+
+def test_asset_refuses_to_guess_required_on():
+    # No default on purpose. The old default of 3 shipped three mods that
+    # needlessly blocked joining unmodded servers, and it also hid that
+    # build_plan never passed the argument through at all.
+    with pytest.raises(TypeError):
+        nm.build_asset_yaml("Mod", "Mod", metadata_guid="a" * 32)
 
 
 # --- _modio.asset YAML (internal cross-reference) ---------------------------
@@ -214,13 +271,15 @@ def test_bootstrap_cs_declares_imod_in_mod_namespace():
         assert method in cs
 
 
+def _envrc(**kw):
+    kw.setdefault("summary", "Does a thing.")
+    kw.setdefault("fake_mod_id", 9999992)
+    kw.setdefault("modio_type", "Visual|Quality of Life")
+    return nm.build_envrc("FasterPetTalents", "faster-pet-talents", **kw)
+
+
 def test_envrc_sets_identity_and_inherits_parent():
-    env = nm.build_envrc(
-        "FasterPetTalents",
-        "faster-pet-talents",
-        summary="Does a thing.",
-        fake_mod_id=9999992,
-    )
+    env = _envrc()
     assert 'MOD_NAME="FasterPetTalents"' in env
     assert 'MOD_NAME_ID="faster-pet-talents"' in env
     assert 'MOD_SUMMARY="Does a thing."' in env
@@ -228,11 +287,36 @@ def test_envrc_sets_identity_and_inherits_parent():
     assert "source_up_if_exists" in env  # inherits SDK_PATH etc. from parent
 
 
+def test_envrc_exports_the_modio_type_tags():
+    # Without CK_MODIO_TYPE the publish aborts in CLIPublishHelper before it
+    # uploads anything, so a scaffold that omits it builds but cannot ship.
+    assert 'export CK_MODIO_TYPE="Visual|Quality of Life"' in _envrc()
+
+
+def test_envrc_leaves_the_localisation_pair_commented_out():
+    # Unset means "skip localisation". A set LOC_YAML pointing at a YAML with no
+    # terms fails the build instead (LocalizationGenerator rejects 0 terms), so
+    # the scaffold must not pre-arm these for a mod that has no text yet.
+    env = _envrc()
+    assert "# export LOC_YAML=" in env
+    assert "# export LOC_OUT=" in env
+    assert "\nexport LOC_YAML=" not in env
+    assert "\nexport LOC_OUT=" not in env
+
+
 def test_gitignore_ignores_envrc_and_editor_helpers_by_mod_name():
     gi = nm.build_gitignore("FasterPetTalents")
     assert ".envrc" in gi
     assert "unity/FasterPetTalents/Editor/CLIBuildHelper.cs" in gi
     assert "unity/FasterPetTalents/Editor/LocalizationGenerator.cs.meta" in gi
+
+
+def test_gitignore_excludes_superpowers_process_artifacts():
+    # Plans and brainstorming scratch are slop once implemented; docs/specs/ and
+    # docs/adrs/ stay tracked, so the entry has to be the narrow one.
+    gi = nm.build_gitignore("FasterPetTalents")
+    assert "docs/superpowers/" in gi
+    assert "\ndocs/\n" not in gi
 
 
 def test_changelog_starts_at_0_1_0():
@@ -340,6 +424,8 @@ def _plan_dict(**kw):
     kw.setdefault("summary", "x")
     kw.setdefault("dll_names", ["0Harmony.dll"])
     kw.setdefault("fake_mod_id", 9999992)
+    kw.setdefault("required_on", 1)
+    kw.setdefault("modio_type", "Quality of Life")
     return dict(nm.build_plan("faster-pet-talents", **kw))
 
 
@@ -400,22 +486,54 @@ def test_plan_asset_metadata_guid_differs_from_asset_file_guid():
     assert metadata_guid != asset_meta_guid
 
 
-def test_plan_corelib_flag_adds_dependency():
+def test_plan_corelib_flag_sets_both_wirings():
+    # Loader dependency and compile-time assembly reference are separate; the
+    # flag has to set both or the mod loads CoreLib but cannot compile against it.
     plan = _plan_dict(corelib=True)
     assert "- modName: CoreLib" in plan["unity/FasterPetTalents.asset"]
+    asmdef = json.loads(plan["unity/FasterPetTalents/FasterPetTalents.asmdef"])
+    assert "CoreLib" in asmdef["references"]
+
+
+def test_plan_without_corelib_wires_neither():
+    plan = _plan_dict()
+    assert "dependencies: []" in plan["unity/FasterPetTalents.asset"]
+    asmdef = json.loads(plan["unity/FasterPetTalents/FasterPetTalents.asmdef"])
+    assert "CoreLib" not in asmdef["references"]
+
+
+def test_plan_passes_required_on_and_modio_type_through():
+    # Both used to stop here: required_on was accepted by build_asset_yaml but
+    # never handed to it, and CK_MODIO_TYPE did not exist at all.
+    plan = _plan_dict(required_on=2, modio_type="World|Library")
+    assert "requiredOn: 2" in plan["unity/FasterPetTalents.asset"]
+    assert 'export CK_MODIO_TYPE="World|Library"' in plan[".envrc.example"]
 
 
 def test_plan_name_override_changes_pascal_identity():
     plan = dict(
         nm.build_plan(
-            "corelib", summary="x", dll_names=[], fake_mod_id=1, name="CoreLib"
+            "corelib",
+            summary="x",
+            dll_names=[],
+            fake_mod_id=1,
+            required_on=3,
+            modio_type="Library",
+            name="CoreLib",
         )
     )
     assert "unity/CoreLib.asset" in plan
 
 
 def test_write_plan_writes_text_and_binary(tmp_path):
-    plan = nm.build_plan("faster-pet-talents", summary="x", dll_names=[], fake_mod_id=1)
+    plan = nm.build_plan(
+        "faster-pet-talents",
+        summary="x",
+        dll_names=[],
+        fake_mod_id=1,
+        required_on=1,
+        modio_type="Other",
+    )
     nm.write_plan(plan, tmp_path)
     assert (tmp_path / ".envrc").is_file()
     logo = (tmp_path / "unity/FasterPetTalents/Editor/logo.png").read_bytes()
@@ -433,6 +551,25 @@ def test_scan_existing_fake_mod_ids_reads_sibling_envrc_examples(tmp_path):
     assert sorted(nm.scan_existing_fake_mod_ids(tmp_path)) == [9999993, 9999994]
 
 
+def test_resolve_mods_dir_never_points_inside_a_worktree():
+    # From .worktrees/<branch>/utils/ the naive grandparent would scaffold the
+    # new mod into the worktree (deleted on cleanup) and, seeing no siblings,
+    # allocate FAKE_MOD_ID 9999999 — disable-durability's.
+    resolved = nm.resolve_mods_dir()
+    assert ".worktrees" not in resolved.parts
+    assert (resolved / "utils" / "new_mod.py").is_file()
+
+
+def test_resolve_mods_dir_falls_back_to_the_grandparent_without_git(monkeypatch):
+    monkeypatch.setattr(
+        nm.subprocess,
+        "run",
+        lambda *a, **kw: type("Proc", (), {"returncode": 128, "stdout": ""})(),
+    )
+    expected = nm.pathlib.Path(nm.__file__).resolve().parent.parent
+    assert nm.resolve_mods_dir() == expected
+
+
 def test_resolve_sdk_path_prefers_environment(tmp_path):
     assert nm.resolve_sdk_path(tmp_path, {"SDK_PATH": "/x/sdk"}) == "/x/sdk"
 
@@ -445,39 +582,48 @@ def test_resolve_sdk_path_falls_back_to_parent_envrc(tmp_path):
 # --- scaffold (top-level orchestration) -------------------------------------
 
 
+def _scaffold(tmp_path, **kw):
+    kw.setdefault("summary", "x")
+    kw.setdefault("mods_dir", tmp_path)
+    kw.setdefault("sdk_path", tmp_path)
+    kw.setdefault("required_on", 1)
+    kw.setdefault("modio_type", "Quality of Life")
+    return nm.scaffold("faster-pet-talents", **kw)
+
+
 def test_scaffold_dry_run_writes_nothing(tmp_path):
-    result = nm.scaffold(
-        "faster-pet-talents",
-        summary="x",
-        mods_dir=tmp_path,
-        sdk_path=tmp_path,
-        dry_run=True,
-    )
+    result = _scaffold(tmp_path, dry_run=True)
     assert not (tmp_path / "faster-pet-talents").exists()
     assert result["mod_name"] == "FasterPetTalents"
     assert result["target"].name == "faster-pet-talents"
 
 
+def test_scaffold_reports_the_publish_relevant_choices(tmp_path):
+    result = _scaffold(tmp_path, required_on=3, modio_type="Item|World", dry_run=True)
+    assert result["required_on"] == 3
+    assert result["modio_types"] == ["Item", "World"]
+
+
+def test_scaffold_rejects_an_empty_modio_type(tmp_path):
+    with pytest.raises(ValueError):
+        _scaffold(tmp_path, modio_type="  |  ", dry_run=True)
+
+
+def test_scaffold_normalises_modio_type_spacing(tmp_path):
+    plan = dict(
+        _scaffold(tmp_path, modio_type=" Visual | World ", dry_run=True)["plan"]
+    )
+    assert 'export CK_MODIO_TYPE="Visual|World"' in plan[".envrc"]
+
+
 def test_scaffold_aborts_if_target_exists(tmp_path):
     (tmp_path / "faster-pet-talents").mkdir()
     with pytest.raises(FileExistsError):
-        nm.scaffold(
-            "faster-pet-talents",
-            summary="x",
-            mods_dir=tmp_path,
-            sdk_path=tmp_path,
-            dry_run=True,
-        )
+        _scaffold(tmp_path, dry_run=True)
 
 
 def test_scaffold_writes_tree_without_finalize(tmp_path):
-    nm.scaffold(
-        "faster-pet-talents",
-        summary="x",
-        mods_dir=tmp_path,
-        sdk_path=tmp_path,
-        finalize=False,
-    )
+    _scaffold(tmp_path, finalize=False)
     root = tmp_path / "faster-pet-talents"
     assert (root / "unity/FasterPetTalents.asset").is_file()
     assert (root / "unity/FasterPetTalents/FasterPetTalentsMod.cs").is_file()
@@ -486,14 +632,37 @@ def test_scaffold_writes_tree_without_finalize(tmp_path):
 # --- CLI argument parsing ---------------------------------------------------
 
 
-def test_parse_args_requires_summary():
+_MIN_ARGS = [
+    "faster-pet-talents",
+    "--summary",
+    "Does X",
+    "--required-on",
+    "1",
+    "--modio-type",
+    "Quality of Life",
+]
+
+
+@pytest.mark.parametrize("drop", ["--summary", "--required-on", "--modio-type"])
+def test_parse_args_requires_every_publish_relevant_option(drop):
+    # All three end up in the mod.io listing, and two of them abort the publish
+    # when missing — so none of them may be guessed at scaffold time.
+    i = _MIN_ARGS.index(drop)
+    argv = _MIN_ARGS[:i] + _MIN_ARGS[i + 2 :]
     with pytest.raises(SystemExit):
-        nm.parse_args(["faster-pet-talents"])
+        nm.parse_args(argv)
+
+
+def test_parse_args_rejects_a_required_on_outside_the_flags_enum():
+    with pytest.raises(SystemExit):
+        nm.parse_args(_MIN_ARGS + ["--required-on", "0"])
 
 
 def test_parse_args_defaults_and_flags():
-    ns = nm.parse_args(["faster-pet-talents", "--summary", "Does X", "--corelib"])
+    ns = nm.parse_args(_MIN_ARGS + ["--corelib"])
     assert ns.kebab == "faster-pet-talents"
     assert ns.summary == "Does X"
+    assert ns.required_on == 1
+    assert ns.modio_type == "Quality of Life"
     assert ns.corelib is True
     assert ns.dry_run is False

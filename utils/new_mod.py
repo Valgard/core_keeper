@@ -37,6 +37,10 @@ UNITY_REFERENCES = [
 # the lowest already in use.
 _FAKE_MOD_ID_BASE = 9999999
 
+# ModMetadata.ModExistsOn ([Flags], PugMod.SDK) — for the CLI's echo, so the
+# chosen value is legible in the scaffold output rather than a bare number.
+REQUIRED_ON_LABELS = {1: "Client", 2: "Server", 3: "Client and Server"}
+
 # Verbatim SDK MonoScript GUIDs — these bind a generated ScriptableObject to its
 # SDK class. They are SDK-clone-stable (every existing mod shares them); if a
 # future SDK update changes them, these two constants are the single edit point.
@@ -56,6 +60,25 @@ def validate_kebab(name: str) -> None:
             f"invalid kebab name {name!r}: expected lowercase alphanumeric "
             f"segments joined by single hyphens (e.g. 'faster-pet-talents')"
         )
+
+
+def parse_modio_type(value: str) -> list:
+    """Split a pipe-separated CK_MODIO_TYPE into its mod.io "Type" tag values.
+
+    Pipe- rather than comma-separated because the values themselves contain
+    spaces ("Quality of Life"). Deliberately **not** validated against a value
+    list: mod.io's tag taxonomy is the authority and CLIPublishHelper reads it
+    live for exactly that reason, so a copy here would be one more list that
+    goes stale silently. Emptiness is rejected, though — `--modio-type "|"`
+    would otherwise satisfy argparse and only surface as an aborted publish."""
+    values = [part.strip() for part in value.split("|")]
+    values = [part for part in values if part]
+    if not values:
+        raise ValueError(
+            'invalid --modio-type: expected pipe-separated mod.io "Type" tags, '
+            'e.g. "Visual|Quality of Life"'
+        )
+    return values
 
 
 def derive_pascal(kebab: str) -> str:
@@ -84,13 +107,23 @@ def next_fake_mod_id(existing_ids) -> int:
 # --- asmdef builders --------------------------------------------------------
 
 
-def build_runtime_asmdef(mod_name: str, dll_names) -> str:
+def build_runtime_asmdef(mod_name: str, dll_names, corelib: bool = False) -> str:
     """The mod's runtime assembly definition: the 14 Unity references plus the
     live-scanned game DLLs as precompiled references. Mirrors the object the
-    wizard assembles in ModBuilderWindow.cs:96-119."""
+    wizard assembles in ModBuilderWindow.cs:96-119.
+
+    A CoreLib mod needs *two* separate wirings, and having only one is a
+    scaffold that fails late: the `.asset` dependency makes the loader require
+    CoreLib at runtime, while this assembly reference is what lets the mod's own
+    sources compile against CoreLib types at all (the assembly comes from the
+    SDK's `ck.modding.corelib` UPM package, not from `Assets/`). Without it the
+    first `using CoreLib;` fails with CS0246."""
+    references = list(UNITY_REFERENCES)
+    if corelib:
+        references.append("CoreLib")
     data = {
         "name": mod_name,
-        "references": list(UNITY_REFERENCES),
+        "references": references,
         "includePlatforms": [],
         "excludePlatforms": [],
         "allowUnsafeCode": False,
@@ -145,11 +178,18 @@ def build_asset_yaml(
     display_name: str,
     metadata_guid: str,
     dependencies=None,
-    required_on: int = 3,
+    *,
+    required_on: int,
 ) -> str:
     """The ModBuilderSettings `.asset` — the build entry point. Binds the SDK
     ModBuilderSettings class verbatim; `metadata.guid` must be freshly unique
-    per mod or the loader crashes with "Data block loader already added"."""
+    per mod or the loader crashes with "Data block loader already added".
+
+    `required_on` is deliberately keyword-only and has **no default**. It used
+    to default to 3, which is how three published mods ended up needlessly
+    blocking joins to unmodded servers, and the default also hid that
+    `build_plan` was not passing the value through at all. A missing argument
+    is now a TypeError instead of a silently wrong manifest."""
     return f"""%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
@@ -415,11 +455,19 @@ namespace {mod_name}
 """
 
 
-def build_envrc(mod_name: str, kebab: str, summary: str, fake_mod_id: int) -> str:
+def build_envrc(
+    mod_name: str, kebab: str, summary: str, fake_mod_id: int, modio_type: str
+) -> str:
     """The mod's environment file. Machine-shared paths (SDK_PATH, UNITY_BIN,
     …) are inherited from the parent core_keeper/.envrc; only the project-
     inherent identity vars live here. Used for both `.envrc` (gitignored) and
-    `.envrc.example` (tracked) — the identity is the same in both."""
+    `.envrc.example` (tracked) — the identity is the same in both.
+
+    This file is part of the *publish* contract, not just the build one:
+    `CLIPublishHelper` reads `MOD_SUMMARY` and `CK_MODIO_TYPE` from here and
+    aborts the publish outright when the latter is missing. The localisation
+    pair is left commented out on purpose — unset means "skip localisation",
+    while a set `LOC_YAML` pointing at a term-less YAML fails the build."""
     return f"""#!/usr/bin/env bash
 # {mod_name} — environment variables.
 #
@@ -458,6 +506,22 @@ export MOD_INSTALL_PATH="$MOD_INSTALL_BASE_PATH/$MOD_NAME_ID-build"
 
 # Repo root, read by the shared CLIPublishHelper to locate CHANGELOG.md.
 export MOD_REPO_ROOT="$PWD"
+
+# mod.io "Type" tags for the listing — PIPE-separated, because the values
+# contain spaces. Synchronised (not just added) by the shared
+# CLIPublishHelper, so a value dropped here is removed on mod.io. Valid:
+# Visual, Audio, Item, NPC, Quality of Life, Overhaul, Language, World,
+# Library, Other.
+export CK_MODIO_TYPE="{modio_type}"
+
+# --- Localisation (only for a mod with in-game text) ------------------------
+# Uncomment both once localization/localization.yaml holds at least one term,
+# and add the generated output to .gitignore (see the new-ck-mod skill).
+# LOC_TABLE (the shared CK language-address table) is inherited from the parent.
+# Leaving these unset skips generation; setting them with a term-less YAML
+# fails the build (LocalizationGenerator rejects 0 parsed terms).
+# export LOC_YAML="$PWD/localization/localization.yaml"
+# export LOC_OUT="$PWD/unity/$MOD_NAME/Localization/Generated"
 """
 
 
@@ -495,6 +559,10 @@ UserSettings/
 .env
 .envrc
 .envrc.local
+
+# Superpowers process artifacts — plans and brainstorming scratch, slop once
+# the work is implemented. docs/specs/ and docs/adrs/ stay tracked.
+docs/superpowers/
 
 # Shared editor helpers — symlinked in by utils/link.sh (the .cs are symlinks
 # into ../utils, the .meta are Unity-generated locally; no asset references
@@ -652,6 +720,8 @@ def build_plan(
     summary: str,
     dll_names,
     fake_mod_id: int,
+    required_on: int,
+    modio_type: str,
     corelib: bool = False,
     name: str = None,
     display_name: str = None,
@@ -678,7 +748,7 @@ def build_plan(
     u = "unity"
     md = f"{u}/{mod_name}"
     ed = f"{md}/Editor"
-    envrc = build_envrc(mod_name, kebab, summary, fake_mod_id)
+    envrc = build_envrc(mod_name, kebab, summary, fake_mod_id, modio_type)
 
     return [
         (".envrc", envrc),
@@ -691,11 +761,20 @@ def build_plan(
         (".config/dotnet-tools.json", build_dotnet_tools_json()),
         (
             f"{u}/{mod_name}.asset",
-            build_asset_yaml(mod_name, display, metadata_guid, dependencies),
+            build_asset_yaml(
+                mod_name,
+                display,
+                metadata_guid,
+                dependencies,
+                required_on=required_on,
+            ),
         ),
         (f"{u}/{mod_name}.asset.meta", build_native_asset_meta(asset_meta_guid)),
         (f"{u}/{mod_name}.meta", build_folder_meta(moddir_guid)),
-        (f"{md}/{mod_name}.asmdef", build_runtime_asmdef(mod_name, dll_names)),
+        (
+            f"{md}/{mod_name}.asmdef",
+            build_runtime_asmdef(mod_name, dll_names, corelib=corelib),
+        ),
         (f"{md}/{mod_name}.asmdef.meta", build_asmdef_meta(runtime_asmdef_guid)),
         (f"{md}/{mod_name}Mod.cs", build_bootstrap_cs(mod_name)),
         (f"{md}/{mod_name}Mod.cs.meta", build_script_meta(bootstrap_cs_guid)),
@@ -738,6 +817,43 @@ def scan_existing_fake_mod_ids(mods_dir) -> list:
     return ids
 
 
+def run_git(args, cwd):
+    """Run a git command with the ambient git environment scrubbed.
+
+    Inside a git hook, `GIT_DIR` / `GIT_INDEX_FILE` and friends are exported and
+    take precedence over *cwd* — so `git ls-files` aimed at a sibling repo
+    silently reports the *committing* repo's index instead. Every git call in
+    this file means "the repo at this directory", which only holds with those
+    variables gone. Found by the parity suite running inside the pre-commit hook.
+    """
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    return subprocess.run(
+        args, cwd=cwd, capture_output=True, text=True, check=False, env=env
+    )
+
+
+def resolve_mods_dir():
+    """The directory the sibling mod repos live in — the **main** checkout.
+
+    This file's grandparent is right in the main clone and wrong in a worktree
+    (`.worktrees/<branch>/utils/`), where it would scaffold the new mod into the
+    worktree — deleted on cleanup — and, finding no siblings there, hand it a
+    FAKE_MOD_ID of 9999999, which `disable-durability` already uses. Working in a
+    worktree is the norm here, so the ordinary path must not be the broken one.
+    git knows where the main checkout is; without git we are not in a worktree
+    either, so the plain grandparent is the correct fallback.
+    """
+    here = pathlib.Path(__file__).resolve().parent
+    # A non-zero exit is the "not a git checkout" signal, hence run_git's
+    # check=False.
+    proc = run_git(
+        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], here
+    )
+    if proc.returncode == 0 and proc.stdout.strip():
+        return pathlib.Path(proc.stdout.strip()).parent
+    return here.parent
+
+
 def resolve_sdk_path(mods_dir, environ):
     """SDK_PATH from the environment, falling back to parsing the parent
     core_keeper/.envrc. Returns None if neither yields it."""
@@ -772,6 +888,8 @@ def scaffold(
     *,
     mods_dir,
     sdk_path,
+    required_on,
+    modio_type,
     corelib=False,
     name=None,
     display_name=None,
@@ -783,6 +901,7 @@ def scaffold(
     git-init + link into the SDK. Returns a result dict for the caller to
     report. Raises FileExistsError if the target already exists."""
     validate_kebab(kebab)
+    modio_types = parse_modio_type(modio_type)
     mod_name = name or derive_pascal(kebab)
     display = display_name or derive_title(kebab)
     target = pathlib.Path(mods_dir) / kebab
@@ -796,6 +915,8 @@ def scaffold(
         summary=summary,
         dll_names=dll_names,
         fake_mod_id=fake_id,
+        required_on=required_on,
+        modio_type="|".join(modio_types),
         corelib=corelib,
         name=name,
         display_name=display_name,
@@ -805,6 +926,8 @@ def scaffold(
         "display_name": display,
         "target": target,
         "fake_mod_id": fake_id,
+        "required_on": required_on,
+        "modio_types": modio_types,
         "dll_count": len(dll_names),
         "plan": plan,
         "dry_run": dry_run,
@@ -830,6 +953,33 @@ def parse_args(argv=None):
     p.add_argument(
         "--summary", required=True, help="one-line mod.io summary (required)"
     )
+    p.add_argument(
+        "--required-on",
+        dest="required_on",
+        type=int,
+        choices=(1, 2, 3),
+        required=True,
+        help=(
+            "who needs the mod: 1=Client, 2=Server, 3=both. Required, and "
+            "deliberately without a default — the loader's checks are crossed "
+            "(the Server flag makes the CLIENT demand the mod on the server), so "
+            "a blanket 3 hard-blocks joining unmodded servers. Ask: does the "
+            "SERVER need this mod for the feature to work? 1 for read-only "
+            "HUD/UI, 3 for items, recipes, database or server-authoritative logic"
+        ),
+    )
+    p.add_argument(
+        "--modio-type",
+        dest="modio_type",
+        required=True,
+        metavar="TYPES",
+        help=(
+            'pipe-separated mod.io "Type" tags, e.g. "Visual|Quality of Life" '
+            "(pipes, because the values contain spaces). Required: the publish "
+            "aborts when CK_MODIO_TYPE is unset. Known values: Visual, Audio, "
+            "Item, NPC, Quality of Life, Overhaul, Language, World, Library, Other"
+        ),
+    )
     p.add_argument("--name", help="override the derived PascalCase MOD_NAME")
     p.add_argument(
         "--display-name",
@@ -850,7 +1000,7 @@ def parse_args(argv=None):
 
 def main(argv=None) -> int:
     ns = parse_args(argv)
-    mods_dir = pathlib.Path(__file__).resolve().parent.parent
+    mods_dir = resolve_mods_dir()
     sdk_path = resolve_sdk_path(mods_dir, os.environ)
     if not sdk_path:
         print(
@@ -866,6 +1016,8 @@ def main(argv=None) -> int:
             ns.summary,
             mods_dir=mods_dir,
             sdk_path=sdk_path,
+            required_on=ns.required_on,
+            modio_type=ns.modio_type,
             corelib=ns.corelib,
             name=ns.name,
             display_name=ns.display_name,
@@ -878,6 +1030,9 @@ def main(argv=None) -> int:
     print(f"mod:         {result['mod_name']}  ({result['display_name']})")
     print(f"target:      {result['target']}")
     print(f"fake mod id: {result['fake_mod_id']}")
+    required_on = result["required_on"]
+    print(f"requiredOn:  {required_on} ({REQUIRED_ON_LABELS[required_on]})")
+    print(f"mod.io type: {' | '.join(result['modio_types'])}")
     print(f"game DLLs:   {result['dll_count']} scanned")
     if ns.dry_run:
         print(f"\n[dry-run] {len(result['plan'])} files would be written:")
