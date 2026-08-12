@@ -122,6 +122,22 @@ def test_widths_constant_matches_what_the_generator_prints(regenerated):
     assert _digit_rows(constant.group(1)) == generated
 
 
+def test_the_printed_widths_block_is_pasteable_verbatim(regenerated):
+    # The digit comparison above tolerates any layout; this pins the layout
+    # itself. The generator emits what CSharpier would produce (leading `+` on
+    # each continuation line at printWidth 160), so pasting is the last step of
+    # a regeneration. With a trailing `+` the block had to be reformatted
+    # afterwards -- a hand-touch on a string where one lost digit shifts every
+    # later cell's advance and kerning row with nothing to catch it.
+    _, _, stdout = regenerated
+    start = stdout.index("        private const string Widths =")
+    block = stdout[start : stdout.index(";", start) + 1]
+    assert block in PATCH.read_text(), (
+        "the generator's output is no longer a verbatim paste into "
+        f"{PATCH.name} -- one of the two changed shape"
+    )
+
+
 def test_widths_constant_is_exactly_one_digit_per_cell(regenerated):
     # A short or long paste shifts every glyph after the error, and the
     # runtime never checks the length. Asserted as the literal 384 rather

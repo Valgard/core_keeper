@@ -339,10 +339,17 @@ def main(argv=None):
         print(f"// wrote {ns.kerning} ({len(matrix)} bytes), {nonzero} non-zero pairs")
     print("// paste into ThinTinyFontPatch.cs Widths")
     print("        private const string Widths =")
+    # Leading `+`, not trailing: CSharpier moves binary operators to the start
+    # of the continuation line, so trailing ones made every regeneration pass
+    # through a reformat -- one hand-touch too many on a string where a single
+    # lost digit shifts every later cell's advance and kerning row silently.
+    # This shape is what the formatter would produce, so the paste is the last
+    # step. `test_shipped_artifacts.py` holds it to that.
     for row in range(ROWS):
         chunk = "".join(str(x) for x in w[row * COLS : (row + 1) * COLS])
+        operator = "" if row == 0 else "+ "
         tail = ";" if row == ROWS - 1 else ""
-        print(f'            "{chunk}"{"" if row == ROWS - 1 else " +"}{tail}')
+        print(f'            {operator}"{chunk}"{tail}')
     return 0
 
 
