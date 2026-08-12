@@ -11,6 +11,10 @@
         {
             "modName": "ModSettingsMenu",
             "modId": 6211950
+        },
+        {
+            "modName": "CompleteTinyFont",
+            "modId": 6302514
         }
     ]
 }
