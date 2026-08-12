@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Extract the thinTiny full-build atlas + advance widths from a Pixaki master.
 
 Reads the master's `Atlas` layer (the glyph pixels) and `Rects` layer (the
@@ -35,7 +34,6 @@ BOX_Y, BOX_H = 0, 10  # the rect box inside every cell (thinTiny metric)
 # sat inside the drawn glyph, so every glyph rendered a pixel low and 15
 # diacritics lost their bottom row. The master was shifted up by one row so
 # CK's discarded row falls outside the drawn glyph.
-RECTS_RGB = (229, 59, 223)  # the Rects layer colour
 
 
 def layer_full(zf, sprite, cels, name):
@@ -87,6 +85,9 @@ def _bbox(img, index, predicate):
 
 
 def _is_rects_colour(rgba):
+    """A loose per-channel threshold for the Rects layer's magenta (Pixaki
+    paints it RGB 229, 59, 223) -- not an exact match, to tolerate
+    anti-aliased edges."""
     r, g, b, a = rgba
     return a > 0 and r > 140 and b > 140 and g < 130
 
@@ -211,7 +212,7 @@ def validate(rects_img, atlas_img, cell_count=CELLS):
             if gb is not None:
                 problems.append(f"cell {i}: glyph pixels but no rect box")
             continue
-        dx, dy, w, h = rb
+        dx, dy, _, h = rb
         had_geometry_issue = False
         if dy != BOX_Y:
             problems.append(f"cell {i}: rect box y is {dy}, expected {BOX_Y}")

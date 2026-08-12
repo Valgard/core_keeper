@@ -1,7 +1,7 @@
 """Unit tests for pixaki_to_glyphs (the thinTiny full-build extractor)."""
 
-from PIL import Image
 import pixaki_to_glyphs as g
+from PIL import Image
 
 MAGENTA = (229, 59, 223, 255)
 WHITE = (255, 255, 255, 255)
