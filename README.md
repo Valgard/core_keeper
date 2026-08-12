@@ -163,3 +163,28 @@ needs care, because the SDK clone and every mod repo sit inside it as
 separate repos: `.csharpierignore` mirrors the `.gitignore` allowlist shape
 (`/*` plus `!/utils/`) so a full-tree run cannot reach foreign sources. `ruff`
 needs no equivalent, as it honours `.gitignore` itself.
+
+## Python tooling and its tests
+
+The shared scripts in `utils/` are a **uv project**: `pyproject.toml` plus
+`uv.lock` pin what they import, so run them through `uv`:
+
+```bash
+uv run utils/pixaki_to_glyphs.py --pixaki … --sheet … --kerning …
+uv run pytest utils/tests -q
+```
+
+Pillow is pinned to an exact version on purpose. Some of these scripts write
+binary assets that ship inside a mod, and those are checked by regenerating
+them and comparing bytes — PNG output is encoder-dependent, so an unpinned
+Pillow would make "the source changed" indistinguishable from "my encoder
+differs". `utils/tests/test_shipped_artifacts.py` fails if the running Pillow
+is not the pinned one, which also catches the likelier accident: running the
+suite outside the project environment.
+
+`pre-commit` runs the suite for you on any change under `utils/` (or to the
+manifest), at both the commit and the push stage. One repo reaches back the
+other way: `complete-tiny-font` owns the three generated font artifacts whose
+consistency that suite checks, and the parent's hook cannot see a commit made
+in a mod repo, so that mod carries a hook running this suite when those files
+change — and printing why it did nothing when the parent isn't beside it.
