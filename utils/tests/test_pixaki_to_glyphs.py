@@ -272,3 +272,33 @@ def test_kerning_unpainted_cell_is_zero_in_both_directions():
     matrix = g.kerning_matrix(atlas, _ws({0: 4}))  # cell 1 stays unpainted
     assert matrix[0 * 384 + 1] == 0
     assert matrix[1 * 384 + 0] == 0
+
+
+def _clean_master(tmp_path):
+    """A master that validates clean: an empty canvas of the required size."""
+    return _pixaki(tmp_path / "clean.pixaki", {"Rects": _blank(), "Atlas": _blank()})
+
+
+def test_check_only_reports_the_master_as_clean(tmp_path, capsys):
+    assert g.main(["--pixaki", str(_clean_master(tmp_path)), "--check-only"]) == 0
+    assert "all invariants hold" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("write_flag", ["--sheet", "--kerning"])
+def test_check_only_refuses_the_write_flags(tmp_path, capsys, write_flag):
+    # The combination used to write nothing and print OK -- indistinguishable
+    # from a successful regeneration, with the stale artifacts left on disk.
+    target = tmp_path / "out"
+    with pytest.raises(SystemExit) as exc:
+        g.main(
+            [
+                "--pixaki",
+                str(_clean_master(tmp_path)),
+                "--check-only",
+                write_flag,
+                str(target),
+            ]
+        )
+    assert exc.value.code == 2  # argparse usage error, not a clean exit
+    assert "--check-only writes nothing" in capsys.readouterr().err
+    assert not target.exists()

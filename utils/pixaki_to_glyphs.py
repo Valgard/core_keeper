@@ -293,9 +293,14 @@ def main(argv=None):
     ap.add_argument(
         "--check-only",
         action="store_true",
-        help="only run the invariant checks, write nothing",
+        help="only run the invariant checks, write nothing (excludes the two above)",
     )
     ns = ap.parse_args(argv)
+    if ns.check_only and (ns.sheet or ns.kerning):
+        # It used to accept the combination, write neither file and print OK --
+        # which reads exactly like a successful regeneration. Nobody would
+        # notice until the stale artifacts shipped.
+        ap.error("--check-only writes nothing; drop it, or drop --sheet/--kerning")
 
     rects, atlas = load_layers(ns.pixaki)
     if atlas.size != (COLS * CDX + 1, ROWS * CDY):
