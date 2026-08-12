@@ -55,6 +55,15 @@ When building from a **git worktree** (`REPO_ROOT/.worktrees/<branch>`, two
 levels below the mod root), the shared scripts are reached via
 `../../../utils/build.sh` (three levels up: `<branch>` → `.worktrees` →
 `<mod>` → `core_keeper/utils`), not the normal mod-root `../utils/build.sh`.
+The environment needs the same three-level correction and gives no warning
+when it's missing: the mod `.envrc`'s manual-source fallback only tries
+`../.envrc`, which from a worktree resolves to `<mod>/.worktrees/.envrc` and
+doesn't exist, so every machine-level variable (`LOC_TABLE`,
+`CK_GAME_VERSION`, `MODIO_DEPS_MAP`, …) stays unset while the mod's own
+identity variables still load fine. Source the parent directly first, then
+the mod's own `.envrc`: `source ../../../.envrc && source .envrc`. A missing
+`LOC_TABLE` has already shipped a build whose localisation table came out
+empty.
 
 `build.sh` refreshes the SDK symlinks (`link.sh`), runs a Unity batchmode
 build via `-executeMethod` (`<MOD_NAME>.Editor.CLIBuildHelper.Build`), then on
