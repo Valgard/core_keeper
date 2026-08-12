@@ -7,12 +7,20 @@
 # the mod.io plugin.
 #
 # Usage:
-#   utils/upload.sh [mod-repo-path] [--dry-run] [--profile-only]
+#   utils/upload.sh [mod-repo-path] [--dry-run] [--profile-only|--changelog-only]
 #
 # --profile-only updates just the mod.io profile (description, name, summary,
 # logo) via EditModProfile — no build, no version tags, no dependency sync, no
 # modfile upload. Use it to push an edited modio-description.md without cutting
 # a new release.
+#
+# --changelog-only rewrites the published release's changelog text and nothing
+# else. A changelog belongs to the modfile rather than the profile, so
+# --profile-only cannot reach it; this mode edits the existing modfile in place
+# (no upload, no version change). It refuses unless the live modfile's version
+# equals CHANGELOG.md's topmost entry, so it can only correct the notes OF the
+# published release. Use it when a shipped changelog entry is wrong; use a real
+# release for anything that changes what the mod does.
 #
 # Required env vars (set in the mod's .envrc):
 #   UNITY_BIN, SDK_PATH, MOD_NAME, CK_GAME_VERSION, MOD_SUMMARY
@@ -31,13 +39,20 @@ set -euo pipefail
 REPO_ROOT="$PWD"
 DRY_RUN=0
 PROFILE_ONLY=0
+CHANGELOG_ONLY=0
 for arg in "$@"; do
     case "$arg" in
         --dry-run) DRY_RUN=1 ;;
         --profile-only) PROFILE_ONLY=1 ;;
+        --changelog-only) CHANGELOG_ONLY=1 ;;
         *) REPO_ROOT="$arg" ;;
     esac
 done
+
+if [ "$PROFILE_ONLY" = "1" ] && [ "$CHANGELOG_ONLY" = "1" ]; then
+    echo "ERROR: --profile-only and --changelog-only are separate modes; pick one." >&2
+    exit 1
+fi
 
 UTILS_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -58,8 +73,9 @@ fi
 export MOD_REPO_ROOT="$REPO_ROOT"
 [ "$DRY_RUN" = "1" ] && export PUBLISH_DRY_RUN=1
 [ "$PROFILE_ONLY" = "1" ] && export PUBLISH_PROFILE_ONLY=1
+[ "$CHANGELOG_ONLY" = "1" ] && export PUBLISH_CHANGELOG_ONLY=1
 
-echo "Publishing $MOD_NAME to mod.io${PUBLISH_PROFILE_ONLY:+ (profile only)}${PUBLISH_DRY_RUN:+ (dry run)}..."
+echo "Publishing $MOD_NAME to mod.io${PUBLISH_PROFILE_ONLY:+ (profile only)}${PUBLISH_CHANGELOG_ONLY:+ (changelog only)}${PUBLISH_DRY_RUN:+ (dry run)}..."
 
 # No -quit: CLIPublishHelper drives async mod.io calls and exits itself.
 # timeout guards against a hung network call.

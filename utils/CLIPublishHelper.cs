@@ -7,6 +7,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using ModIO;
@@ -14,6 +15,7 @@ using PugMod;
 using PugMod.ModIO;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Networking;
 
 namespace CoreKeeperModUtils
 {
@@ -26,6 +28,7 @@ namespace CoreKeeperModUtils
 
         private static bool _dryRun;
         private static bool _profileOnly;
+        private static bool _changelogOnly;
         private static string _version;
         private static string _changelog;
         private static string _descriptionHtml;
@@ -49,6 +52,12 @@ namespace CoreKeeperModUtils
 
                 _dryRun = Environment.GetEnvironmentVariable("PUBLISH_DRY_RUN") == "1";
                 _profileOnly = Environment.GetEnvironmentVariable("PUBLISH_PROFILE_ONLY") == "1";
+                _changelogOnly = Environment.GetEnvironmentVariable("PUBLISH_CHANGELOG_ONLY") == "1";
+                if (_profileOnly && _changelogOnly)
+                {
+                    Fail("--profile-only and --changelog-only are separate modes; pick one.");
+                    return;
+                }
                 _depsMapPath = Environment.GetEnvironmentVariable("MODIO_DEPS_MAP");
 
                 var repoRoot = Environment.GetEnvironmentVariable("MOD_REPO_ROOT");
@@ -101,6 +110,17 @@ namespace CoreKeeperModUtils
                             + "the modfile upload; updating the mod.io profile, "
                             + "dependencies and tags only."
                     );
+                    OnBuilt();
+                    return;
+                }
+
+                // Changelog-only: rewrite the CURRENT modfile's changelog text and
+                // nothing else. Needed because a changelog belongs to the modfile,
+                // not the profile, so --profile-only cannot reach it and a wrong
+                // release note would otherwise sit there until the next version.
+                if (_changelogOnly)
+                {
+                    Debug.Log("[CLIPublishHelper] changelog-only: no build, no upload; rewriting the published modfile's changelog.");
                     OnBuilt();
                     return;
                 }
@@ -315,6 +335,12 @@ namespace CoreKeeperModUtils
                 modIo.modSettings = builder;
                 AssetDatabase.CreateAsset(modIo, _modIoSettingsPath);
                 AssetDatabase.SaveAssets();
+            }
+
+            if (_changelogOnly)
+            {
+                UpdateChangelogOnly(modIo);
+                return;
             }
 
             var logo = AssetDatabase.LoadAssetAtPath<Texture2D>(_logoAssetPath);
@@ -703,6 +729,150 @@ namespace CoreKeeperModUtils
                 return;
             }
             Upload(modIo);
+        }
+
+        // ---- changelog-only: correct a published release's notes in place ----
+
+        // A changelog belongs to the modfile, not to the mod profile, so
+        // --profile-only cannot touch it. The plugin cannot either: its API offers
+        // UploadModfile (which creates a NEW modfile, i.e. a new release) and no
+        // way to edit an existing one. mod.io's REST layer does — PUT on the file
+        // resource — so this is the only path in this class that calls the API
+        // directly instead of going through ModIOUnity.
+        //
+        // Reflection for the OAuth token is fine here and nowhere else in this
+        // project: this is Unity editor code, outside the Roslyn sandbox that
+        // forbids it in a mod's runtime sources.
+        [Serializable]
+        private class ModfileBrief
+        {
+            public long id;
+            public string version;
+            public string changelog;
+        }
+
+        [Serializable]
+        private class ModBrief
+        {
+            public ModfileBrief modfile;
+        }
+
+        private static void UpdateChangelogOnly(ModSettings modIo)
+        {
+            if (modIo.modId == 0)
+            {
+                Fail($"changelog-only needs a published mod, but {_modName} has no modId yet. Run a normal publish first.");
+                return;
+            }
+
+            var server = ModIO.Implementation.Settings.server;
+            if (string.IsNullOrEmpty(server.serverURL) || string.IsNullOrEmpty(server.gameKey))
+            {
+                Fail("mod.io server settings are empty — cannot resolve the API endpoint.");
+                return;
+            }
+
+            var modUrl = $"{server.serverURL}/games/{server.gameId}/mods/{modIo.modId}";
+            var probe = UnityWebRequest.Get($"{modUrl}?api_key={server.gameKey}");
+            probe.SendWebRequest().completed += _ =>
+            {
+                try
+                {
+                    if (probe.result != UnityWebRequest.Result.Success)
+                    {
+                        Fail($"could not read the published mod ({probe.responseCode}): {probe.error}");
+                        return;
+                    }
+                    var live = JsonUtility.FromJson<ModBrief>(probe.downloadHandler.text)?.modfile;
+                    if (live == null || live.id == 0)
+                    {
+                        Fail("the published mod has no active modfile — nothing to correct.");
+                        return;
+                    }
+
+                    // The guard that makes this safe to automate: CHANGELOG.md's
+                    // topmost entry describes ONE release. If the live modfile is a
+                    // different version, writing this text would put the wrong
+                    // notes on an older release — the opposite of the fix.
+                    if (live.version != _version)
+                    {
+                        Fail(
+                            $"CHANGELOG.md's topmost entry is {_version} but the published modfile is {live.version}. "
+                                + "Refusing to write: this mode corrects the notes OF the published release, it does not publish a new one."
+                        );
+                        return;
+                    }
+
+                    if ((live.changelog ?? "") == _changelog)
+                    {
+                        Debug.Log($"[CLIPublishHelper] changelog for {live.version} already matches CHANGELOG.md — nothing to do.");
+                        Succeed();
+                        return;
+                    }
+
+                    var token = ReadOAuthToken();
+                    if (_dryRun)
+                    {
+                        Debug.Log(
+                            $"[CLIPublishHelper] dry run: would PUT {modUrl}/files/{live.id} "
+                                + $"(version {live.version}), replacing {(live.changelog ?? "").Length} chars of changelog with {_changelog.Length}. "
+                                + $"OAuth token from the plugin: {(string.IsNullOrEmpty(token) ? "MISSING — the real run would fail" : "present")}."
+                        );
+                        Succeed();
+                        return;
+                    }
+                    if (string.IsNullOrEmpty(token))
+                    {
+                        Fail("no OAuth token in the mod.io plugin's user data — log in once via the SDK window's 'Log in' tab.");
+                        return;
+                    }
+
+                    var put = UnityWebRequest.Put($"{modUrl}/files/{live.id}", "changelog=" + UnityWebRequest.EscapeURL(_changelog));
+                    put.SetRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+                    put.SetRequestHeader("Authorization", "Bearer " + token);
+                    put.SetRequestHeader("Accept", "application/json");
+                    put.SendWebRequest().completed += __ =>
+                    {
+                        if (put.result != UnityWebRequest.Result.Success)
+                        {
+                            // Print the body: mod.io explains a rejected field there,
+                            // and this endpoint's editable-field list is the one thing
+                            // this mode cannot verify without trying.
+                            Fail($"PUT failed ({put.responseCode}): {put.error} — {put.downloadHandler?.text}");
+                            return;
+                        }
+                        Debug.Log(
+                            $"[CLIPublishHelper] changelog of {_modName} {live.version} (modfile {live.id}) rewritten. No new modfile, no version change."
+                        );
+                        Succeed();
+                    };
+                }
+                catch (Exception e)
+                {
+                    Fail($"changelog-only failed: {e.Message}");
+                }
+            };
+        }
+
+        /// <summary>
+        /// The plugin's live OAuth token, or null. <c>ModIO.Implementation.UserData</c>
+        /// is internal, so reflection is the only route; the assembly is found by
+        /// scanning rather than by name so a plugin rename cannot silently break it.
+        /// The token is never logged or written to disk.
+        /// </summary>
+        private static string ReadOAuthToken()
+        {
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var type = asm.GetType("ModIO.Implementation.UserData");
+                if (type == null)
+                    continue;
+                var instance = type.GetField("instance", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+                if (instance == null)
+                    return null;
+                return type.GetField("oAuthToken", BindingFlags.Public | BindingFlags.Instance)?.GetValue(instance) as string;
+            }
+            return null;
         }
 
         private static void Upload(ModSettings modIo)
