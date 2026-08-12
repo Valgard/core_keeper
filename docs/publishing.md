@@ -94,7 +94,7 @@ deleted. Tags outside these four groups are never touched.
 |---|---|
 | `Game Version` | `CK_GAME_VERSION` — **space**-separated (one canonical list in the parent `.envrc`) |
 | `Type` | `CK_MODIO_TYPE` — **pipe**-separated, because the values contain spaces (`Visual\|Quality of Life`) |
-| `Application Type` | derived from the `.asset`'s `metadata.requiredOn` (`Client`=1, `Server`=2, both=3) |
+| `Application Type` | derived from the `.asset`'s `metadata.requiredOn` (`Client`=1, `Server`=2, both=3; **0 is valid** and publishes with no tag in this group, for a mod that must never gate a connection — it logs a warning, because 0 is also what an unset field reads as) |
 | `Access Type` | derived from `metadata.skipSafetyChecks` (`false` → `Script`, `true` → `Script (Elevated Access)`) |
 
 - **Group membership comes from the live API** (`GetTagCategories`), never a

@@ -483,7 +483,8 @@ namespace CoreKeeperModUtils
             //                     (e.g. "1.2.1.5 1.2.1.4"); one tag each.
             //   Type              CK_MODIO_TYPE — PIPE-separated, because the
             //                     values contain spaces ("Visual|Quality of Life").
-            //   Application Type  metadata.requiredOn ([Flags]: Client=1, Server=2).
+            //   Application Type  metadata.requiredOn ([Flags]: Client=1,
+            //                     Server=2; 0 is valid and means no tag).
             //   Access Type       metadata.skipSafetyChecks (false -> "Script",
             //                     true -> "Script (Elevated Access)"). "Asset" is
             //                     never produced here — these are script mods, so
@@ -515,11 +516,21 @@ namespace CoreKeeperModUtils
                 appTypes.Add("Client");
             if ((requiredOn & ModMetadata.ModExistsOn.Server) != 0)
                 appTypes.Add("Server");
+            // An empty set is legitimate rather than an error: a mod neither
+            // side is required to have — a pure client-side diagnostic, say —
+            // carries no Application Type, and mod.io models the group as a
+            // checkbox set, where none ticked is a valid state. Publishing it
+            // therefore *removes* any Application Type tag the mod still has.
+            //
+            // It still earns a line, because 0 is equally what an unset field
+            // reads as: ModExistsOn.None and "forgot to fill it in" are the
+            // same value, and only the author can tell them apart.
             if (appTypes.Count == 0)
-            {
-                Fail($"metadata.requiredOn is {requiredOn} in {_settingsPath} — set it " + "to 1 (Client), 2 (Server) or 3 (ClientAndServer).");
-                return;
-            }
+                Debug.LogWarning(
+                    $"[CLIPublishHelper] metadata.requiredOn is {requiredOn} in {_settingsPath} — publishing with no "
+                        + "'Application Type' tag, and removing any it currently has. Set 1 (Client), 2 (Server) or "
+                        + "3 (ClientAndServer) if that was not intended."
+                );
 
             var accessTypes = new List<string> { _builder.metadata.skipSafetyChecks ? "Script (Elevated Access)" : "Script" };
 

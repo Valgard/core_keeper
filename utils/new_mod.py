@@ -39,7 +39,12 @@ _FAKE_MOD_ID_BASE = 9999999
 
 # ModMetadata.ModExistsOn ([Flags], PugMod.SDK) — for the CLI's echo, so the
 # chosen value is legible in the scaffold output rather than a bare number.
-REQUIRED_ON_LABELS = {1: "Client", 2: "Server", 3: "Client and Server"}
+REQUIRED_ON_LABELS = {
+    0: "Neither (no Application Type tag)",
+    1: "Client",
+    2: "Server",
+    3: "Client and Server",
+}
 
 # Verbatim SDK MonoScript GUIDs — these bind a generated ScriptableObject to its
 # SDK class. They are SDK-clone-stable (every existing mod shares them); if a
@@ -986,15 +991,17 @@ def parse_args(argv=None):
         "--required-on",
         dest="required_on",
         type=int,
-        choices=(1, 2, 3),
+        choices=(0, 1, 2, 3),
         required=True,
         help=(
-            "who needs the mod: 1=Client, 2=Server, 3=both. Required, and "
-            "deliberately without a default — the loader's checks are crossed "
+            "who needs the mod: 0=neither, 1=Client, 2=Server, 3=both. Required, "
+            "and deliberately without a default — the loader's checks are crossed "
             "(the Server flag makes the CLIENT demand the mod on the server), so "
             "a blanket 3 hard-blocks joining unmodded servers. Ask: does the "
             "SERVER need this mod for the feature to work? 1 for read-only "
-            "HUD/UI, 3 for items, recipes, database or server-authoritative logic"
+            "HUD/UI, 3 for items, recipes, database or server-authoritative "
+            "logic, 0 for a mod that must never gate a connection either way "
+            "(publishes with no Application Type tag)"
         ),
     )
     p.add_argument(

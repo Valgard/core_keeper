@@ -190,7 +190,7 @@ def test_asset_dependencies_render_corelib_when_requested():
     assert "required: 1" in y
 
 
-@pytest.mark.parametrize("value", [1, 2, 3])
+@pytest.mark.parametrize("value", [0, 1, 2, 3])
 def test_asset_writes_the_chosen_required_on(value):
     y = nm.build_asset_yaml("Mod", "Mod", metadata_guid="a" * 32, required_on=value)
     assert f"requiredOn: {value}" in y
@@ -675,9 +675,23 @@ def test_parse_args_requires_every_publish_relevant_option(drop):
         nm.parse_args(argv)
 
 
-def test_parse_args_rejects_a_required_on_outside_the_flags_enum():
+@pytest.mark.parametrize("value", ["4", "-1", "two"])
+def test_parse_args_rejects_a_required_on_outside_the_flags_enum(value):
     with pytest.raises(SystemExit):
-        nm.parse_args(_MIN_ARGS + ["--required-on", "0"])
+        nm.parse_args(_MIN_ARGS + ["--required-on", value])
+
+
+@pytest.mark.parametrize("value", [0, 1, 2, 3])
+def test_every_accepted_required_on_has_a_label(value):
+    # 0 (ModExistsOn.None) is a legitimate choice for a mod that must never gate
+    # a connection in either direction; it publishes with no Application Type
+    # tag. The label lookup is not cosmetic -- the CLI echoes
+    # REQUIRED_ON_LABELS[required_on] once scaffolding has succeeded, so a value
+    # argparse accepts but the table lacks is a KeyError at the very end of an
+    # otherwise complete run.
+    ns = nm.parse_args(_MIN_ARGS + ["--required-on", str(value)])
+    assert ns.required_on == value
+    assert value in nm.REQUIRED_ON_LABELS
 
 
 def test_parse_args_defaults_and_flags():
