@@ -46,9 +46,17 @@ BOX_Y, BOX_H = 0, 10  # the rect box inside every cell (thinTiny metric)
 
 
 def layer_full(zf, sprite, cels, name):
-    """Composite one named layer onto a full-canvas RGBA image."""
+    """Composite one named layer onto a full-canvas RGBA image.
+
+    Exits with the layer names the master actually has if `name` is not among
+    them: renaming a layer in Pixaki is the likeliest way to break this tool,
+    and it is worth saying so in one line rather than through a traceback.
+    """
     w, h = sprite["size"]
-    layer = next(l for l in sprite["layers"] if l.get("name") == name)
+    layer = next((l for l in sprite["layers"] if l.get("name") == name), None)
+    if layer is None:
+        have = ", ".join(repr(l.get("name")) for l in sprite["layers"]) or "none"
+        sys.exit(f"the master has no layer named {name!r} (its layers: {have})")
     cel = cels[layer["clips"][0]["itemIdentifier"]]
     (fx, fy), _ = cel["frame"]
     full = Image.new("RGBA", (w, h), (0, 0, 0, 0))
@@ -58,12 +66,18 @@ def layer_full(zf, sprite, cels, name):
 
 
 def load_layers(pixaki_path):
-    """Return (rects_img, atlas_img) from a .pixaki (a plain ZIP)."""
-    zf = zipfile.ZipFile(pixaki_path)
-    doc = json.load(zf.open("document.json"))
-    sprite = doc["sprites"][0]
-    cels = {c["identifier"]: c for c in sprite["cels"]}
-    return layer_full(zf, sprite, cels, "Rects"), layer_full(zf, sprite, cels, "Atlas")
+    """Return (rects_img, atlas_img) from a .pixaki (a plain ZIP).
+
+    Both layers are composited before the ZIP closes, so the returned images
+    own their pixels and do not read the archive again.
+    """
+    with zipfile.ZipFile(pixaki_path) as zf:
+        doc = json.load(zf.open("document.json"))
+        sprite = doc["sprites"][0]
+        cels = {c["identifier"]: c for c in sprite["cels"]}
+        rects = layer_full(zf, sprite, cels, "Rects")
+        atlas = layer_full(zf, sprite, cels, "Atlas")
+    return rects, atlas
 
 
 def cell_box(index):

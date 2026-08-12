@@ -1,6 +1,11 @@
 """Unit tests for pixaki_to_glyphs (the thinTiny full-build extractor)."""
 
+import io
+import json
+import zipfile
+
 import pixaki_to_glyphs as g
+import pytest
 from PIL import Image
 
 MAGENTA = (229, 59, 223, 255)
@@ -19,6 +24,68 @@ def _paint_rect(img, cell_index, dx, dy, w, h, colour=MAGENTA):
     for yy in range(h):
         for xx in range(w):
             img.putpixel((x0 + dx + xx, y0 + dy + yy), colour)
+
+
+def _pixaki(path, layers, size=(257, 144), offset=(0, 0)):
+    """Write a minimal .pixaki holding {layer name: image}.
+
+    Enough of the real format for load_layers(): one cel per layer, each
+    placed at `offset` on a `size` canvas. Lets the loader be tested without
+    the mod repo's real master, which is only present in a full checkout.
+    """
+    doc = {
+        "sprites": [
+            {
+                "size": list(size),
+                "layers": [
+                    {"name": name, "clips": [{"itemIdentifier": f"cel-{name}"}]}
+                    for name in layers
+                ],
+                "cels": [
+                    {"identifier": f"cel-{name}", "frame": [list(offset), [1, 1]]}
+                    for name in layers
+                ],
+            }
+        ]
+    }
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("document.json", json.dumps(doc))
+        for name, img in layers.items():
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            zf.writestr(f"images/drawings/cel-{name}.png", buf.getvalue())
+    return path
+
+
+def test_load_layers_composites_each_layer_at_its_cel_offset(tmp_path):
+    # A Pixaki drawing is stored cropped to its own bounds; the cel's frame
+    # origin is where it belongs on the canvas. Getting that offset wrong
+    # shifts every cell index by a constant, so pin it with a 1px marker.
+    rects_drawing = Image.new("RGBA", (1, 1), MAGENTA)
+    atlas_drawing = Image.new("RGBA", (1, 1), WHITE)
+    master = _pixaki(
+        tmp_path / "m.pixaki",
+        {"Rects": rects_drawing, "Atlas": atlas_drawing},
+        offset=(16, 12),
+    )
+    rects, atlas = g.load_layers(master)
+    assert rects.size == (257, 144) and atlas.size == (257, 144)
+    assert rects.getpixel((16, 12)) == MAGENTA
+    assert atlas.getpixel((16, 12)) == WHITE
+    assert rects.getpixel((0, 0)) == CLEAR
+
+
+def test_load_layers_names_the_layer_a_renamed_master_lacks(tmp_path):
+    # Renaming a layer in Pixaki is the likeliest way to break the tool; the
+    # message has to say which name it wanted and what the master has.
+    master = _pixaki(
+        tmp_path / "m.pixaki",
+        {"Boxes": _blank(1, 1), "Atlas": _blank(1, 1)},  # 'Rects' renamed
+    )
+    with pytest.raises(SystemExit) as exc:
+        g.load_layers(master)
+    assert "'Rects'" in str(exc.value)
+    assert "'Boxes'" in str(exc.value)
 
 
 def test_cell_geometry_maps_index_to_unity_coordinates():
