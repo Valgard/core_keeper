@@ -23,6 +23,7 @@ __pycache__
 !/docs/dedicated-server.md
 !/docs/macos-crossover-loader.md
 !/docs/publishing.md
+!/docs/pixaki-format.md
 # Track ONLY .claude/skills (shared agent skills). The parent dir must be
 # un-ignored so git descends into it, then everything inside is re-ignored,
 # then skills alone is re-allowed — so settings.json etc. stay local. Same

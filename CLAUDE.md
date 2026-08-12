@@ -366,7 +366,9 @@ Background / history: the `project_corekeeper_mod_logo_pipeline` memory.
 - Each mod is an independent git repo with its own `CLAUDE.md` for
   mod-specific detail.
 
-> Note: the two `docs/research/` notes referenced above currently live inside
-> the `disable-durability/` repo, since that is where they were first written.
-> Their content is mod-agnostic — if a second mod needs them, consider
-> promoting them to a shared location under this directory.
+> Note: the two `docs/research/` notes referenced above still live inside the
+> `disable-durability/` repo, since that is where they were first written. Their
+> content is mod-agnostic — if a second mod needs them, promote them to `docs/`
+> here, the way `docs/pixaki-format.md` was promoted out of `item-checklist`
+> once the shared `utils/pixaki_*` tools gave it a second consumer. A note that
+> two mods depend on is not a mod's note.
