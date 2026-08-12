@@ -12,8 +12,9 @@ the character silently does not render at all.
 
 These tests are the comparison nobody was making. They live in the parent repo
 because that is where the generator and its suite live, and they read the mod
-repo beside it; a parent checkout without the mod skips them loudly rather
-than passing vacuously.
+repo beside the main checkout — from a worktree too, which is where they used to
+skip silently. A checkout without the mod skips them loudly rather than passing
+vacuously.
 """
 
 import hashlib
@@ -23,13 +24,18 @@ import tomllib
 from contextlib import redirect_stdout
 from pathlib import Path
 
+import new_mod as nm  # only for resolve_mods_dir() — shared checkout resolution
 import PIL
 import pixaki_to_glyphs as g
 import pytest
 
-REPO = Path(__file__).resolve().parents[2]
-PYPROJECT = REPO / "pyproject.toml"
-MOD = REPO / "complete-tiny-font"
+# Two roots, and conflating them is why this suite skipped silently from a
+# worktree: the pyproject that pins Pillow is the one in the checkout we run in,
+# because that is the environment `uv run` resolves — while the mod repos live
+# beside the MAIN checkout, which a worktree is not.
+CHECKOUT = Path(__file__).resolve().parents[2]
+PYPROJECT = CHECKOUT / "pyproject.toml"
+MOD = nm.resolve_mods_dir() / "complete-tiny-font"
 MASTER = MOD / "sources" / "thinTiny.pixaki"
 ART = MOD / "unity" / "CompleteTinyFont" / "Art"
 ATLAS = ART / "thinTiny_full.png"
@@ -39,7 +45,7 @@ PATCH = MOD / "unity" / "CompleteTinyFont" / "ThinTinyFontPatch.cs"
 pytestmark = pytest.mark.skipif(
     not MASTER.exists(),
     reason=(
-        f"complete-tiny-font is not checked out beside this repo "
+        f"complete-tiny-font is not checked out beside the main checkout "
         f"({MASTER} missing), so the shipped artifacts cannot be compared "
         f"against their master -- these guards did NOT run"
     ),
