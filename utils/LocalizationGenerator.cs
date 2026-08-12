@@ -44,13 +44,47 @@ namespace CoreKeeperModUtils
 
         public static void Generate(string yamlPath, string outDir, string tablePath)
         {
+            // Still fatal, deliberately: LOC_YAML pointing at nothing is a
+            // contradiction — localisation configured, source absent — and the likely
+            // cause is a moved or renamed file, where a silent skip would ship a mod
+            // whose text quietly fell back to raw keys. An empty file is the supported
+            // way to say "no terms yet".
             if (!File.Exists(yamlPath))
-                throw new FileNotFoundException($"[LocGen] YAML not found: {yamlPath}");
+                throw new FileNotFoundException(
+                    $"[LocGen] YAML not found: {yamlPath} — create it (an empty one is fine, generation then "
+                        + "skips) or remove LOC_YAML/LOC_OUT from the mod's .envrc."
+                );
             if (!File.Exists(tablePath))
                 throw new FileNotFoundException($"[LocGen] address table not found: {tablePath}");
 
             var langs = LangTable.Load(tablePath); // ISO -> (low, high), + primary
-            var terms = LocYaml.Parse(File.ReadAllText(yamlPath)); // throws on U+2026 / U+2014
+            var yamlText = File.ReadAllText(yamlPath);
+            var terms = LocYaml.Parse(yamlText); // throws on U+2026 / U+2014
+
+            // An empty table and a broken one are different situations, and treating
+            // both as fatal made "has no in-game text yet" a build failure — which is
+            // why a scaffolded mod could not carry its localisation wiring from the
+            // start. The failure worth keeping is the one where terms were authored
+            // and none arrived: those would render as raw keys in game.
+            if (terms.Count == 0)
+            {
+                if (LocYaml.HasAuthoredContent(yamlText))
+                    throw new Exception(
+                        $"[LocGen] {yamlPath} has content but yielded 0 terms — a term is a `Leaf:` at "
+                            + "indent 2 under a namespace at indent 0, so a file of namespace headers alone "
+                            + "defines nothing. Every term would fall back to its raw key in game."
+                    );
+                // Clear what an earlier run produced: without this, emptying the table
+                // would keep shipping its stale assets, since the bundle packs whatever
+                // the AssetDatabase still sees under the mod's tree.
+                if (Directory.Exists(outDir))
+                {
+                    Directory.Delete(outDir, true);
+                    AssetDatabase.Refresh(); // let the packer see them go, not just the disk
+                }
+                Debug.Log($"[LocGen] {yamlPath} holds no terms yet — skipping localisation generation.");
+                return;
+            }
 
             var scriptGuid = AssetDatabase.AssetPathToGUID(ScriptableDataDllPath);
             if (string.IsNullOrEmpty(scriptGuid))
@@ -115,8 +149,11 @@ namespace CoreKeeperModUtils
         // older than this run were not produced by it.
         private static void VerifyVisibleToUnity(List<LocTerm> terms, string outDir, DateTime startedUtc)
         {
+            // Unreachable through Generate(), which decides between skipping and
+            // failing before it writes anything; kept because the probe below indexes
+            // terms[0], so a direct caller must not get an IndexOutOfRange instead.
             if (terms.Count == 0)
-                throw new Exception("[LocGen] parsed 0 terms from the localisation source — every term would fall back to its raw key in game.");
+                throw new ArgumentException("[LocGen] the visibility probe needs at least one term.", nameof(terms));
 
             var modName = Environment.GetEnvironmentVariable("MOD_NAME");
             if (string.IsNullOrEmpty(modName))
@@ -353,6 +390,18 @@ namespace CoreKeeperModUtils
             if (s.IndexOf('—') >= 0)
                 throw new Exception($"[LocGen] line {lineNo}: U+2014 em-dash renders as hyphen (docs/gotchas.md). Use '-' or '--'.");
             return s;
+        }
+
+        // Whether the source holds anything a term could have come from. Uses the
+        // parser's own comment stripping, so "empty" here means exactly what Parse
+        // sees as empty — a file of nothing but comments is a mod that has not
+        // written its table yet, while content that yields no term is a mistake.
+        public static bool HasAuthoredContent(string text)
+        {
+            foreach (var rawLine in text.Replace("\r", "").Split('\n'))
+                if (StripComment(rawLine).Trim().Length > 0)
+                    return true;
+            return false;
         }
 
         private static string StripComment(string l)
