@@ -105,20 +105,22 @@ def test_kerning_flush_blocks_have_zero_kerning():
     assert matrix[0 * 384 + 1] == 0
 
 
-def test_kerning_one_empty_column_each_side_is_clamped_to_two():
-    # cell 0: ink in columns 0-2 of a 4px advance (column 3 empty -> 1px gap
-    # to the advance edge). Cell 1: ink in columns 1-3 (column 0 empty -> 1px
-    # gap from its own edge). Combined gap is 1 + 1 = 2, the clamp's cap.
+def test_kerning_two_empty_columns_each_side_is_clamped_to_two():
+    # cell 0: ink in columns 0-1 of a 4px advance (columns 2-3 empty -> 2px
+    # gap to the advance edge). Cell 1: ink in columns 2-3 (columns 0-1 empty
+    # -> 2px gap from its own edge). Raw gap 2 + 2 = 4, minus one is 3,
+    # clamped down to the cap, 2.
     atlas = _blank()
-    _paint_rect(atlas, 0, dx=0, dy=0, w=3, h=10, colour=WHITE)
-    _paint_rect(atlas, 1, dx=1, dy=0, w=3, h=10, colour=WHITE)
+    _paint_rect(atlas, 0, dx=0, dy=0, w=2, h=10, colour=WHITE)
+    _paint_rect(atlas, 1, dx=2, dy=0, w=2, h=10, colour=WHITE)
     matrix = g.kerning_matrix(atlas, _ws({0: 4, 1: 4}))
     assert matrix[0 * 384 + 1] == 2
 
 
 def test_kerning_non_overlapping_ink_rows_default_to_two():
     # cell 0 has ink only in row 0, cell 1 only in row 5 -- no row has ink in
-    # both, so the pair falls back to the cap rather than a measured gap.
+    # both, so the pair falls back to the cap rather than a measured gap (the
+    # no-overlap case is exempt from the "one less" adjustment below).
     atlas = _blank()
     _paint_rect(atlas, 0, dx=0, dy=0, w=4, h=1, colour=WHITE)
     _paint_rect(atlas, 1, dx=0, dy=5, w=4, h=1, colour=WHITE)
@@ -127,13 +129,29 @@ def test_kerning_non_overlapping_ink_rows_default_to_two():
 
 
 def test_kerning_partial_gap_is_exact():
-    # only row 0 has ink in both: cell 0 stops 1px short of its advance edge,
-    # cell 1 starts flush at column 0 -- the measured gap is exactly 1.
+    # only row 0 has ink in both: cell 0 stops 2px short of its advance edge,
+    # cell 1 starts flush at column 0. Raw gap is 2, minus one is 1 -- within
+    # the clamp, so the result is the exact value, not the cap.
+    atlas = _blank()
+    _paint_rect(atlas, 0, dx=0, dy=0, w=2, h=1, colour=WHITE)
+    _paint_rect(atlas, 1, dx=0, dy=0, w=4, h=1, colour=WHITE)
+    matrix = g.kerning_matrix(atlas, _ws({0: 4, 1: 4}))
+    assert matrix[0 * 384 + 1] == 1
+
+
+def test_kerning_one_free_column_becomes_zero_not_one():
+    # Regression for the l/t collision observed in game ("Seltenheit",
+    # "Entdeckt"): cell 0 stops 1px short of its advance edge, cell 1 starts
+    # flush at column 0 -- a raw gap of exactly 1. The pre-round-4 rule (no
+    # subtraction) returned kerning 1 here, subtracting the *entire* 1px gap
+    # from the advance and leaving zero columns of air -- the stems touched.
+    # Minus one is 0: no pixels get subtracted, so that 1px gap survives
+    # untouched instead of being closed to nothing.
     atlas = _blank()
     _paint_rect(atlas, 0, dx=0, dy=0, w=3, h=1, colour=WHITE)
     _paint_rect(atlas, 1, dx=0, dy=0, w=4, h=1, colour=WHITE)
     matrix = g.kerning_matrix(atlas, _ws({0: 4, 1: 4}))
-    assert matrix[0 * 384 + 1] == 1
+    assert matrix[0 * 384 + 1] == 0
 
 
 def test_kerning_unpainted_cell_is_zero_in_both_directions():
