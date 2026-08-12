@@ -4,7 +4,45 @@ How every Core Keeper mod is published to mod.io through the SDK's plugin.
 
 Publishing runs through the SDK's own mod.io plugin (`ModIOUnity`), not a
 REST client — `utils/upload.sh` invokes a per-mod Editor class
-`CLIPublishHelper` (sibling of `CLIBuildHelper`) via `-executeMethod`.
+`CLIPublishHelper` (sibling of `CLIBuildHelper`) via `-executeMethod`. One
+narrow exception calls the REST API directly, because the plugin has no
+equivalent: `--changelog-only`, below.
+
+### Three modes
+
+A full run builds the mod, uploads a modfile and syncs everything. Two narrower
+modes exist because not every correction deserves a release, and each is scoped
+to what its target actually is:
+
+| Mode | Touches | Leaves alone |
+|---|---|---|
+| *(default)* | build + new modfile + profile + tags + dependencies | — |
+| `--profile-only` | description, name, summary, logo, tags, dependencies | the build and the modfile — no version change |
+| `--changelog-only` | the published modfile's changelog text | everything else — same modfile id, same version |
+
+`--dry-run` combines with all three: it does everything except the writing calls
+and logs what it would have sent. `--profile-only` and `--changelog-only` are
+mutually exclusive and refuse to run together.
+
+The split follows what a field belongs to. Description and tags describe the
+**mod**, so they live on the profile and `--profile-only` can fix them at any
+time. A changelog describes a **release**, so mod.io stores it on the modfile —
+which is why `--profile-only` cannot reach it and why a wrong release note used
+to stay wrong until the next version.
+
+`--changelog-only` therefore does what the plugin cannot: its API offers
+`UploadModfile`, which creates a *new* modfile, and no way to edit an existing
+one. So this mode reads the active modfile with the public game key, then
+`PUT`s the new text with the plugin's own OAuth token, pulled out of the
+internal `ModIO.Implementation.UserData` by reflection (editor code, outside
+the Roslyn sandbox that forbids reflection in a mod's runtime sources; the
+token is never logged or written to disk).
+
+**It refuses unless the live modfile's version equals `CHANGELOG.md`'s topmost
+entry.** Without that guard, a repo already sitting on an unreleased entry would
+paste those notes onto the previous release. It also exits early when the text
+already matches, so re-running costs nothing. Use it to correct a shipped
+changelog; use a real release for anything that changes what the mod does.
 
 - **One-time login:** open the Pugstorm Mod SDK window, use the "Log in" tab
   (email + security code). The mod.io plugin persists the session;
@@ -76,14 +114,22 @@ deleted. Tags outside these four groups are never touched.
 
 > ⚠️ Known build gotcha: the shared `CLIPublishHelper`/`CLIBuildHelper` compile
 > into **every** linked mod's `<Mod>.Editor` assembly, so the class exists in
-> several assemblies and `-executeMethod` runs the alphabetically-first one
-> (`CavelingDiviningRod.Editor`). Because Unity's AssetDatabase does **not**
-> detect edits to a symlink *target*, only the currently-built mod's symlinks
-> are refreshed per build — the other mods' editor assemblies keep a **stale**
-> compiled copy of the shared helper, and `-executeMethod` may run that stale
-> copy. After editing a shared helper, re-link **all** mods (run `link.sh` for
-> each) so every editor assembly recompiles from the current source before
-> relying on a publish/build run.
+> several assemblies and `-executeMethod` runs whichever assembly name sorts
+> first — do not rely on a particular one; adding a mod can change it, and this
+> note used to name a mod that no longer sorts first. Because Unity's
+> AssetDatabase does **not** detect edits to a symlink *target*, only the
+> currently-built mod's symlinks are refreshed per build — the other mods'
+> editor assemblies keep a **stale** compiled copy of the shared helper, and
+> `-executeMethod` may run that stale copy. After editing a shared helper,
+> re-link **all** mods (run `link.sh` for each) so every editor assembly
+> recompiles from the current source before relying on a publish/build run.
+>
+> How to recognise it, because the symptom is misleading: the stack traces name
+> a *foreign* mod's path, which looks like the wrong file was used. Check a line
+> number instead — a method's position in the trace versus in `utils/`'s current
+> source. The symlink content can be perfectly current while the compiled
+> assembly is not, and that is the actual failure. Cost when missed: one full
+> Unity run that silently does the old thing.
 
 ### The three mod IDs
 

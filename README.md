@@ -79,6 +79,16 @@ drives the mod.io plugin to create/update the mod profile and upload a new
 modfile. `upload.sh --dry-run` builds and validates without any writing
 mod.io call.
 
+Two narrower modes avoid cutting a release for something that is not one —
+each scoped to what its target belongs to. `--profile-only` updates the mod
+*profile* (description, name, summary, logo, tags, dependencies): no build, no
+modfile, no version change. `--changelog-only` corrects the *published
+release's* changelog text in place, because mod.io stores a changelog on the
+modfile rather than the profile, so the other mode cannot reach it; it refuses
+unless the live modfile's version matches `CHANGELOG.md`'s topmost entry.
+Details and the reason `--changelog-only` is the one path that calls mod.io's
+REST API directly: `docs/publishing.md`.
+
 A new mod.io profile is created **hidden**; review it on the website and
 switch it to visible manually. The real mod ID is stored in the SDK-native
 `<mod-name>/unity/<MOD_NAME>/Editor/<MOD_NAME>_modio.asset` — versioned in
