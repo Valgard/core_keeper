@@ -121,7 +121,7 @@ Also in `utils/`:
 
 `core_keeper/` is itself a git repo, but its `.gitignore` is an allowlist: it
 tracks only the shared, machine-agnostic files — `utils/`, the docs
-(`CLAUDE.md`, `README.md`, the two notes under `docs/`), the tooling config
+(`CLAUDE.md`, `README.md`, the notes under `docs/`), the tooling config
 (`.tool-versions`, `.envrc.example`, `.csharpierrc`, `.csharpierignore`,
 `.pre-commit-config.yaml`, `.config/dotnet-tools.json`) and `.claude/skills`.
 The mod repos and the SDK clone are independent repos and are deliberately

@@ -1,9 +1,11 @@
 """Make the utils/ scripts importable from the tests in this directory.
 
-The test modules live in utils/tests/ but import the scripts under test
-(new_mod, pixaki_to_sheet, prefab_query) from utils/. pytest only
-puts the test file's own directory on sys.path, so add its parent (utils/) here,
-once, for every test in this directory.
+The test modules live in utils/tests/ but import the scripts under test from
+utils/ one level up. pytest only puts the test file's own directory on
+sys.path, so add its parent (utils/) here, once, for every test in this
+directory. Deliberately no list of the scripts covered: this file said
+"new_mod, pixaki_to_sheet, prefab_query" for as long as it took the next
+suite to be added without it.
 """
 
 import os

@@ -292,12 +292,16 @@ and they all share one deliberate visual identity — match it for any new mod.
 - Square (1:1), 1024².
 
 **Per-mod "gesture":** each logo adds one small gold sub-symbol that hints at
-the mod's purpose — reuse arrow-ring (reusable-cattle-box), infinity on crossed
-tools (disable-durability), checkmarks + "?" (item-checklist), fanned cards +
-"+" (simple-crafting-pool-extender), star + cubes (faster-talents), paw + cube
+the mod's purpose. Examples for calibration, **not** an inventory of every mod
+— that is the kind of list that goes stale silently, and this one already had;
+each mod's own `CLAUDE.md` describes its logo. Reuse arrow-ring
+(reusable-cattle-box), infinity on crossed tools (disable-durability),
+checkmarks + "?" (item-checklist), fanned cards + "+"
+(simple-crafting-pool-extender), star + cubes (faster-talents), paw + cube
 (faster-pet-talents), crossed rods + orb (caveling-divining-rod), gear +
-toggle-slider (mod-settings-menu), ornate gemmed key (rebalance-key-crafting).
-Invent a fitting gesture for the new mod rather than copying one.
+toggle-slider (mod-settings-menu), ornate gemmed key (rebalance-key-crafting),
+type-case tray with glowing gold characters (complete-tiny-font). Invent a
+fitting gesture for the new mod rather than copying one.
 
 **Generation workflow** — the global `image-generation` skill
 (`~/.claude/skills/image-generation/`, Gemini "Nano Banana Pro"). Both of its
