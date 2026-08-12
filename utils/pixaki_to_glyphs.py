@@ -119,9 +119,11 @@ def ink_edges(atlas_img, index, advance_width):
     """Per-row leftmost/rightmost ink column of one glyph, in cell coordinates.
 
     Two length-BOX_H lists (`left`, `right`); an entry is None for a row with
-    no ink. Columns are restricted to the glyph's own advance width, so ink
-    outside it (there should be none -- the rect box already bounds it) can't
-    skew the kerning calculation below.
+    no ink. Only columns 0..advance_width-1 and rows BOX_Y..BOX_Y+BOX_H-1 are
+    read, so ink outside the glyph's own advance box is clipped rather than
+    skewing the kerning calculation below -- and clipping it here would hide a
+    real defect, which is why validate() rejects such a glyph outright instead
+    of letting this function paper over it.
     """
     x0, y0, _, _ = cell_box(index)
     px = atlas_img.load()
@@ -223,8 +225,28 @@ def validate(rects_img, atlas_img, cell_count=CELLS):
         if dx != 0:
             problems.append(f"cell {i}: rect box x-offset is {dx}, expected 0")
             had_geometry_issue = True
-        if gb is None and not had_geometry_issue:
-            problems.append(f"cell {i}: rect box but no glyph pixels")
+        if gb is None:
+            if not had_geometry_issue:
+                problems.append(f"cell {i}: rect box but no glyph pixels")
+            continue
+        # Ink containment. Both bounds mirror exactly what ink_edges() reads --
+        # columns 0..advance-1 and rows BOX_Y..BOX_Y+BOX_H-1 -- because ink
+        # outside them is silently clipped there, so the pair's kerning would be
+        # computed from a truncated glyph and could overlap its neighbour in
+        # game. That is the collision class the kerning margin exists to
+        # prevent, which makes it this gate's job to catch.
+        gx, gy, gw, gh = gb
+        advance = rb[2]
+        if gx + gw > advance:
+            problems.append(
+                f"cell {i}: glyph ink reaches column {gx + gw - 1}, "
+                f"outside its advance width {advance}"
+            )
+        if gy < BOX_Y or gy + gh > BOX_Y + BOX_H:
+            problems.append(
+                f"cell {i}: glyph ink spans rows {gy}..{gy + gh - 1}, "
+                f"outside the rect box rows {BOX_Y}..{BOX_Y + BOX_H - 1}"
+            )
     return problems
 
 

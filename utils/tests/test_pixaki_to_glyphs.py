@@ -88,6 +88,33 @@ def test_validate_clean_sheet_reports_nothing():
     assert g.validate(rects, atlas) == []
 
 
+def test_validate_flags_ink_wider_than_its_advance():
+    # A 3px advance box with 6px of ink. Before this check the cell passed as
+    # clean: ink_edges() reads only columns 0..advance-1, so the overflow was
+    # silently clipped and the pair's kerning came out of a truncated glyph --
+    # which then overlaps its neighbour in game.
+    rects, atlas = _blank(), _blank()
+    _paint_rect(rects, 4, dx=0, dy=0, w=3, h=10)
+    _paint_rect(atlas, 4, dx=0, dy=0, w=6, h=10, colour=WHITE)
+    problems = g.validate(rects, atlas)
+    assert problems == [
+        "cell 4: glyph ink reaches column 5, outside its advance width 3"
+    ]
+
+
+def test_validate_flags_ink_below_the_rect_box_rows():
+    # Same clipping hazard on the other axis: ink_edges() reads only rows
+    # 0..BOX_H-1, so ink in the cell's two spare bottom rows would be invisible
+    # to the kerning pass while still rendering (the sprite covers rows 0..10).
+    rects, atlas = _blank(), _blank()
+    _paint_rect(rects, 4, dx=0, dy=0, w=3, h=10)
+    _paint_rect(atlas, 4, dx=0, dy=2, w=3, h=10, colour=WHITE)
+    problems = g.validate(rects, atlas)
+    assert problems == [
+        "cell 4: glyph ink spans rows 2..11, outside the rect box rows 0..9"
+    ]
+
+
 def _ws(widths_by_index):
     """A 384-entry width vector with only the given indices set."""
     ws = [0] * 384
