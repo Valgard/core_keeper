@@ -85,14 +85,6 @@ def cell_box(index):
     return ((index % COLS) * CDX, (index // COLS) * CDY, CDX, CDY)
 
 
-def cell_geometry(index, atlas_h=None):
-    """(x, y_unity, h) of a cell's rect box, y flipped to Unity's bottom-left."""
-    if atlas_h is None:
-        atlas_h = ROWS * CDY
-    x, y_top, _, _ = cell_box(index)
-    return (x, atlas_h - (y_top + BOX_Y + BOX_H), BOX_H)
-
-
 def _bbox(img, index, predicate):
     x0, y0, w, h = cell_box(index)
     px = img.load()

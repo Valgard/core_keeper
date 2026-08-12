@@ -88,17 +88,6 @@ def test_load_layers_names_the_layer_a_renamed_master_lacks(tmp_path):
     assert "'Boxes'" in str(exc.value)
 
 
-def test_cell_geometry_maps_index_to_unity_coordinates():
-    # cell 0: top-left cell, rect box on rows 0..9 of a 12px cell
-    assert g.cell_geometry(0) == (0, 144 - 10, 10)
-    # cell 31: last column of row 0
-    assert g.cell_geometry(31) == (31 * 8, 144 - 10, 10)
-    # cell 32: first column of row 1
-    assert g.cell_geometry(32) == (0, 144 - (12 + 10), 10)
-    # cell 383: last cell (row 11)
-    assert g.cell_geometry(383) == (31 * 8, 144 - (11 * 12 + 10), 10)
-
-
 def test_rect_bbox_reads_magenta_box_in_cell_coordinates():
     img = _blank()
     _paint_rect(img, 5, dx=0, dy=0, w=3, h=10)
