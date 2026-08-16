@@ -573,8 +573,9 @@ cascade and desynchronise *other* mods, not only yours — see
 ## Reading the live ECS world from a mod
 
 Live-world access needs no Harmony routing at all: plain mod `Scripts/*.cs` may
-query the ECS world directly, and the whole surface below is sandbox-safe
-(`safetyCheck=True`).
+query the ECS world directly, and the surface below loads sandbox-clean
+(`safetyCheck=True`) for the component types it has been verified against — with
+the per-component caveat spelled out below.
 
 **Pick the world by measurement, not by name.** Inventories live in the
 **ServerWorld**, not the ClientWorld — including in single-player, where the
@@ -594,6 +595,19 @@ not a constant.
 From there, `em.CreateEntityQuery(ComponentType.ReadOnly<…>())` →
 `ToEntityArray(Allocator.TempJob)` → `GetComponentData<T>`, `HasComponent<T>`,
 `GetBuffer<…>` all work.
+
+**Trap: the sandbox verdict is per component type, not per method.** The block is
+not on `GetComponentData` / `HasComponent` as such: `GetComponentData` over
+`ObjectDataCD` and `LocalTransform`, and `HasBuffer` / `GetBuffer` over
+`ContainedObjectsBuffer`, all load clean — which is what the scanning idiom above
+rests on. But `HasComponent<CharacterGuidCD>` plus
+`GetComponentData<CharacterGuidCD>` (with `Hash128`) fails verification, at one
+illegal namespace, one type and one member reference, which is why the GUID
+example [further up](#correlating-private-state-across-two-methods) goes through
+Harmony instead. Whether the ban sits on those specific game-side types or on
+some narrower slice of the generic surface has never been mapped. Treat the safe
+set as enumerated rather than general: if a query trips the sandbox, bisect it by
+component rather than abandoning the approach.
 
 ### Identifying an entity as a particular object
 
