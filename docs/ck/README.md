@@ -13,6 +13,9 @@ Knowledge is against Core Keeper **1.2.1.5** unless a passage names a different
 version. Facts read out of a decompile are true for the build they were read
 from; game updates can and do invalidate them.
 
+*Looking for a plain list of the chapters instead of a wayfinder?
+[index.md](index.md).*
+
 ## Start from nothing
 
 If you have not built a Core Keeper mod before, read three chapters in this
