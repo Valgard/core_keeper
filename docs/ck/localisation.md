@@ -1,10 +1,10 @@
 # Localisation
 
-Core Keeper does not render mod text from your mod's AssetBundle. It renders it
-from a single, game-wide table that every installed mod writes into once, and
-the merge is first-write-wins. Read this chapter before you ship translated
-text, and again the moment you *change* a string and the game keeps showing the
-old one.
+Core Keeper resolves mod text through two localisation sources, and the one your
+AssetBundle feeds is the *second* of them. The first is a single, game-wide
+table on disk that every installed mod writes into once, and it shadows the
+bundle indefinitely. Read this chapter before you ship translated text, and
+again the moment you *change* a string and the game keeps showing the old one.
 
 ## Where mod text actually comes from
 
@@ -15,25 +15,36 @@ game-wide I2 Localization source:
 <Steam>/steamapps/common/Core Keeper/localization/Localization.csv
 ```
 
-At runtime the game renders from **that CSV**, not from the bundle. The two
-layers are decoupled: your bundle can be perfectly fresh while the CSV row it
-was supposed to populate is stale, or absent.
+I2 holds two sources and takes the first one that knows the term.
+`LocalizationManager.Sources[0]` is loaded from that CSV; `Sources[1]` holds the
+game's own terms plus every mod's `TextDataBlock`s out of the bundles. So a CSV
+row **shadows** whatever your bundle says, while a term the CSV has never seen
+resolves from the bundle-derived source — and is copied into the table on that
+same launch. Either way the two layers are decoupled: your bundle can be
+perfectly fresh while the CSV row it was supposed to populate is stale.
 
-The CSV is tab-separated, one row per term:
+The CSV is tab-separated, with a header row naming the columns and one row per
+term after it:
+
+```text
+Key	Type	Desc	English	German	Japanese	Korean	Spanish	Chinese (Simplified)	Thai
+```
 
 | Column | Content | Example |
 |---|---|---|
-| 1 | Term key, `<Namespace>/<Leaf>` | `FasterTalents-Config/_hint` |
-| 2 | Term type | `Text` |
-| 3 | Flag | ` [new]` |
+| `Key` | Term key, `<Namespace>/<Leaf>` | `FasterTalents-Config/_hint` |
+| `Type` | Term type | `Text` |
+| `Desc` | The term's description — CK appends ` [new]` to it for every term it auto-adds | ` [new]` |
 | 4… | One column per language, English first | `Talent + XP tuning`, `Talent- + XP-Feineinstellung` |
 
 The whole file is a regenerable accumulator — no shipped base block lives in it.
-A typical installation has roughly 8,000 rows, essentially all of them carrying
-` [new]`; the handful without it are split artifacts of multi-line values, not
-a hand-authored core. That matters, because it makes deleting the entire file a
-safe repair: the game rebuilds it in full on the next launch — base game *and*
-every installed mod — from the current TextDataBlocks.
+A typical installation holds roughly 7,500 terms, essentially all of them
+carrying ` [new]`; the handful without it arrived with a description of their
+own, not from a hand-authored core block. A value may contain newlines, so a
+term can span several lines of the file — a line count is not a term count. That
+matters, because it makes deleting the entire file a safe repair: the game
+rebuilds it in full on the next launch — base game *and* every installed mod —
+from the current TextDataBlocks.
 
 Lookup happens through `API.Localization.GetLocalizedTerm(term)`. It returns
 null for a term the table does not know, and the conventional mod-side helper
@@ -60,10 +71,13 @@ build or the log is wrong — the bundle contains exactly what you authored, and
 verifying the bundle (below) will confirm it and tell you nothing about the
 problem.
 
-The per-mod export is re-triggered by the game seeing a new modfile version. A
-locally installed development build pinned to a fixed modfile version never
-provides one, which is why the dev loop is where this bites hardest: rebuild,
-cold start, cold start again — the old text survives all of it.
+The merge runs on every launch and knows nothing about versions. It walks the
+game's own term list and skips any term the table already holds —
+`if (customLanguageSource.ContainsTerm(...)) continue;` — so a term is frozen at
+the first value that ever reached the CSV, on your machine and on every player's
+alike. **Republishing the bundle does not unfreeze it.** The dev loop is merely
+where you *notice* it, because you change strings often: rebuild, cold start,
+cold start again — the old text survives all of it.
 
 **Repair, in order of preference:**
 
@@ -97,11 +111,12 @@ bundle packs whatever those assets happen to be on disk. If your **build** path
 runs that step but your **publish** path does not, publishing packs whatever the
 last build left behind — from whichever tree that build ran in.
 
-This shipped to real subscribers: a release went out with three of ten terms
-missing from the bundle entirely, because the generated assets on disk were
-frozen at a state from a different working tree. The source files had all ten.
-The mod rendered raw keys for the three, which reads to a user as "the mod is
-half-translated".
+This shipped to real subscribers: a release went out missing four terms — three
+leaves of one namespace plus a `ControlMapper` keybind term — because the
+generated assets on disk were frozen at a state from a different working tree.
+The source files had all of them. The mod rendered raw keys for the four, which
+reads to a user as "the mod is half-translated". Note that the loss spanned two
+namespaces: checking one namespace's term count is not a check.
 
 **Rule:** every path that packs a bundle regenerates localisation first. A
 generation step wired only into the build path is a latent shipped bug, not a
@@ -203,9 +218,8 @@ SDK's editor API and write terms through it — cannot work.
 `ScriptableDataEditorUtility.GetCachedDataBlocks<LanguageDataBlock>()` and
 `AssetDatabase.FindAssets("t:LanguageDataBlock")` return **zero** results — not
 only in `-batchmode`, but in a fully loaded interactive Editor as well (checked
-across 600 `Update` ticks). The type carries
-`[RuntimeInitializeOnScriptableDataLoad]`, so instances exist only while the
-game runs, never while the Editor imports assets.
+across 600 `Update` ticks). These assets are loaded by the game's own
+ScriptableData layer at runtime, not by the AssetDatabase.
 
 The consequence for any generator: it cannot go through the real CK-SDK
 localisation API and has to **template raw `.asset` YAML** instead. The one
@@ -265,9 +279,11 @@ terms must carry the mod name in the **leaf**, not the namespace. Registering
 the binding itself — categories, descriptions, and how the options menu presents
 them — belongs to the [UI framework](ui-framework.md).
 
-**Write leaf keys unquoted** in the term source — the settings-menu framework's
-consumer contract requires it. Leaves are not restricted to identifier-shaped
-names; a leading underscore such as `_hint` is fine.
+**Write leaf keys unquoted** in the term source. The leaf is taken verbatim
+while only *values* are unquoted, so `"10":` bakes the quote characters into the
+term key and the string renders on screen as a raw key. Numeric-looking leaves
+are where this bites, because quoting them is the natural YAML instinct. Leaves
+are otherwise unrestricted; a leading underscore such as `_hint` is fine.
 
 ## Feeding CK's own tooltip with a mod term
 
@@ -289,9 +305,10 @@ to the [UI framework](ui-framework.md).
 `I2.Loc.LocalizationManager.OnLocalizeEvent` is the hook for rebuilding derived
 state — cached strings, composed labels — when the player switches language.
 
-**Trap:** it fires *mid-*`DoLocalizeAll`, while I2's localization source is only
-half-rebuilt. Doing the real work synchronously inside the handler re-enters
-that half-rebuilt source and throws a `NullReferenceException` out of
+**Trap:** the event is the last thing `DoLocalizeAll` does, after every
+`Localize` component in the scene has already been re-localized — you are called
+from inside that pass, not after it. Doing the real work synchronously in the
+handler throws a `NullReferenceException` out of
 `PlayerController.GetObjectName` — once per language switched.
 
 The shape that works:

@@ -71,16 +71,29 @@ world file at all, so it is worth stating before you start.
 
 **Component types appear as numeric indices, never as names.** Searching a
 decompressed world for `MapMarkerCD`, `LocalTransform` or `ObjectDataCD` returns
-**zero** hits; the only readable string in a 23 MB dump is `EntityBinaryFile` in
-its header. Which index means which component is decided by the build's
+**zero** hits. Which index means which component is decided by the build's
 `TypeManager` registry, and which component sits at which offset inside a chunk
 comes from that chunk's archetype table.
 
-So reading a specific component out of a save needs two things you do not get
-from the file: the type registry of **exactly** that game build, and an
-archetype-aware chunk walker. Without both you cannot tell that a field is a
-`MapMarkerCD`, and you cannot pair it with the `LocalTransform` of the same
-entity — which is usually the half you actually wanted.
+**Plain strings are a different matter, and a `strings` pass is worth one minute
+before you conclude the file is opaque.** A real 24 MB world here yields 191
+readable runs of eight characters or more, in three groups:
+
+| Group | Source | Examples |
+|---|---|---|
+| ~180 scene and structure names | `CustomSceneBlob.sceneName` | `AbandonedCampScene`, `CavelingCampfire`, `SeedVault1`, `AmberBoulderScene` |
+| the player's own labels | `NameCD`, length-prefixed | whatever they named chests and pets |
+| the world-generation parameters | plain JSON, ~4 KB | `{"globalSeed":…,"worldScale":…,"biomeChaos":…}` — identical to `worldgenparams/<n>.json` |
+
+So "which named structures does this world contain?" and "what did the player
+label things?" are `grep` questions, answerable in seconds without any registry.
+
+What a string pass cannot give you is the **pairing** — which label belongs to
+which entity, at which position, carrying which components. That needs two
+things the file does not contain: the type registry of **exactly** that game
+build, and an archetype-aware chunk walker. Without both you cannot tell that a
+field is a `MapMarkerCD`, and you cannot tie it to the `LocalTransform` of the
+same entity — which is usually the half you actually wanted.
 
 **Trap: a byte-pattern search will produce convincing false positives.** Looking
 for a plausible struct layout — say three little-endian `int32`s whose values
@@ -148,9 +161,11 @@ It is **real gzip** (`1f8b` magic). Inside is JSON:
 MapPartSerialized>`. `png` is a byte array of a **256×256 RGBA PNG**, one per map
 tile, written with `Texture2D.EncodeToPNG` and read back with `LoadImage`.
 
-**Trap:** the byte array is serialized as *signed* ints. Mask every element with
-`& 0xFF` before assembling the PNG, or the decode fails on the first byte above
-127.
+Its elements come back plain 0–255 — every array starts `137, 80, 78, 71`, the
+PNG magic, with 137 stored positive — so `bytes(arr)` works directly. Masking
+each element with `& 0xFF` costs nothing and guards against a JSON reader that
+hands you signed values, but a decode failure here is not caused by sign: the
+field is a plain `byte[]` on `MapPartSerialized`.
 
 ### Objects are pixels in their own map colour
 
