@@ -73,9 +73,11 @@ Four things about this pattern are load-bearing:
   conversions. A `static HashSet<ObjectInfo>` (or an equivalent one-shot guard)
   is mandatory; without it, a ×0.25 recipe scaler quarters the cost again on
   every world load.
-- **All of these types live in the global namespace** — `PugDatabaseAuthoring`,
-  `DatabaseConversionUtility`, `PrefabData`, `ObjectInfo`. No `using` gets you
-  to them and none is needed.
+- **None of these types needs a `using`.** `PugDatabaseAuthoring`,
+  `DatabaseConversionUtility` and `ObjectInfo` are in the global namespace;
+  `PrefabData` is a struct nested inside `DatabaseConversionUtility`, so spelled
+  out it is `DatabaseConversionUtility.PrefabData` — which is exactly what `var`
+  in the loop above saves you from writing.
 
 ### Trap: `CraftingObject` is ambiguous — use `var`
 
@@ -136,8 +138,12 @@ part that catches people:
 | a station's craftable list (`CraftingAuthoring.canCraftObjects`) | **`ObjectID`**, with a string fallback |
 
 The element type of `requiredObjectsToCraft` is the ambiguous `CraftingObject`
-from the trap above — write `var`, never the type name. Which of the two
-declarations the field actually resolves to is not established.
+from the trap above — write `var`, never the type name. It resolves to the
+declaration nested inside `InventoryItemAuthoring`: the string-keyed
+`{ objectName, amount }` **struct**, not the `objectID`-keyed `Pug.Base` class
+that `ObjectInfo.requiredObjectsToCraft` uses. Because it is a struct, mutating
+the `var` copy and assigning it back through the list indexer is not optional
+here.
 
 ### The recipe entry: `CraftingAuthoring.CraftableObject`
 
@@ -165,9 +171,11 @@ idiom overwrites the first of those instead of adding an entry. Why the
 convention exists is not verified — treat it as the idiom other mods follow.
 
 **Trap: `CraftingAuthoring.OnValidate` silently discards `moddedObjectID`.** Any
-entry with `amount <= 0` is rewritten to a fresh `CraftableObject` carrying only
-`objectID` and `amount = 1` — the string id is gone, with no error and nothing
-in the console. This is Editor-only and does not affect the runtime injection
+entry with `amount <= 0` is rewritten to a fresh `CraftableObject` that keeps
+only `objectID`, forces `amount = 1`, and re-derives
+`craftingConsumesEntityAmount` from the station's `craftingType` (true for
+`CraftingType.Cattle`) — the string id is gone, with no error and nothing in the
+console. This is Editor-only and does not affect the runtime injection
 below, but it destroys a hand-written modded entry in a prefab. Give every
 modded entry an `amount` of at least 1.
 
@@ -180,7 +188,7 @@ and mutate its authoring list.
 | Step | Expression |
 |---|---|
 | 1 | `DatabaseConversionUtility.GetPrefabList(Manager.ecs.pugDatabase)` |
-| 2 | pick the `PrefabData` whose `ObjectInfo.objectID` is the station |
+| 2 | pick the `DatabaseConversionUtility.PrefabData` whose `ObjectInfo.objectID` is the station |
 | 3 | `ObjectInfo.prefabInfos[0].ecsPrefab` |
 | 4 | its `CraftingAuthoring.canCraftObjects` |
 
@@ -203,10 +211,12 @@ it. A wrong constant is at least a compile error, so this one fails loudly.
 you found the enum you meant — and picking the wrong enum fails *silently*,
 which makes it the more expensive of the two mistakes.
 
-**Trap: one identifier, three different things.** `DiggingSpot` resolves to an
-`ObjectType` enum value (`50`), an `ObjectID` enum value (`5530`) **and** an
-`EntityMonoBehaviour` class, with numerically unrelated values. Confirm which of
-the three a search hit belongs to before using its number.
+**Trap: one identifier, three different things.** `DiggingSpot` resolves to a
+`LootTableID` enum value (`50`), an `ObjectID` enum value (`5530`) **and** an
+`EntityMonoBehaviour` class, with numerically unrelated values. (`ObjectType`
+has no `DiggingSpot` member at all — which is its own reminder that "the enum I
+expected" is a guess until read.) Confirm which of the three a search hit
+belongs to before using its number.
 
 **Biome variants split one logical object over several ObjectIDs.** Digging
 spots occupy `5532`–`5536` for five biome variants beside the generic `5530`,
@@ -247,7 +257,7 @@ by `variationToToggleTo` / `variationIsDynamic`) and seed growth stages. Any
 catalog that enumerates variations needs a filter, not an assumption.
 
 **Two fields look like a variation count and are not.**
-`RandomObjectEnabler.variations` and `SpriteObject.SpriteAsset.staticVariantCount`
+`RandomObjectEnabler.variations` and `Pug.Sprite.SpriteAsset.staticVariantCount`
 are appearance-randomisation mechanisms for sprites and GameObjects; neither
 ever sets `ObjectDataCD.variation`, so both are irrelevant to discovering which
 variations an object has. Do not re-chase them as a variant-count source — the
@@ -255,7 +265,7 @@ real palette source for cattle is the `PossibleChildVariation[]` property below.
 
 ### Trap: `ObjectDataCD.amount` is not a stack size everywhere
 
-The third field of the key struct is double-purposed. For **equipment**,
+The struct's `amount` field is double-purposed. For **equipment**,
 `amount` carries **durability**, not a stack count — a break check reads
 `objectData.amount <= 0` immediately after a durability reduction. Counting a
 full-durability tool as a stack of 50 is a real, shipped bug class.
@@ -307,10 +317,12 @@ variations 1:1 — no off-by-one. Read it with
 
 **`PaintableObjectCD` is the clean cosmetic filter.** It is an (essentially
 empty) marker component on objects the player can paint, and it is exactly what
-separates real colour variants from the chest/seed state-junk above. Note its
-namespace: `PaintableObjectCD` is in the **global** namespace, *not*
-`Pug.Properties`, even though the related `PaintToolCD` and
-`PaintableObjectSerializedCD` sit in `Pug.ECS.Components`.
+separates real colour variants from the chest/seed state-junk above. Note the
+namespace — and note that `Pug.ECS.Components` is not one: `PaintableObjectCD`,
+`PaintToolCD` and `PaintableObjectSerializedCD` all sit in the **global**
+namespace, `Pug.ECS.Components` being the assembly they ship in. No `using`
+reaches them and none is needed. The genuinely namespaced type in this section
+is `ObjectPropertiesCD` — `Pug.Properties`, in `PugProperties.dll`.
 
 To display a real colour name instead of "variation 7", map the `paintIndex`
 back to the brush's enum name and strip the `PaintBrush` prefix:
@@ -319,9 +331,19 @@ word, which you then run through your own localisation terms — see
 [Localisation](localisation.md).
 
 **Reading a list-valued property** goes through
-`Pug.Properties.ObjectPropertiesCD.TryGetList`. The cattle breeding palette is
-one of these: `ObjectPropertiesCD.PossibleChildVariation[]`, property id
-`239678920`. That type needs `PugProperties.dll` in your runtime asmdef's
+`Pug.Properties.ObjectPropertiesCD.TryGetList<T>`. The cattle breeding palette
+is one of these:
+
+```csharp
+properties.TryGetList(239678920, out NativeArray<BreedStateCD.PossibleChildVariation> value,
+    (AllocatorManager.AllocatorHandle)Allocator.Temp);
+```
+
+The element type is nested in `BreedStateCD`, which is itself in the global
+namespace — `ObjectPropertiesCD` is the component you call `TryGetList` on, not
+the declaring type. The id is the constant
+`Pug.Properties.PropertyID.Breed.PossibleChildVariations` (plural), `239678920`.
+`ObjectPropertiesCD` needs `PugProperties.dll` in your runtime asmdef's
 `precompiledReferences` — check for it before assuming the type is reachable.
 
 **Floors and walls are tilemap, not entities**, so per-colour tracking of a
