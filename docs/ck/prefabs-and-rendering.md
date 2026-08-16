@@ -195,9 +195,11 @@ every UI element; for code-built UI, setting `textureType: 8` is the pragmatic r
 
 ### Sheet atlases: `spriteMode: 2` is correct on the prefab route
 
-CK's own UI sprite sources (`ui_icon.png`, `ui_group.png`) are **multiple-mode sheet
-atlases** — `textureType: 8`, `spriteMode: 2` — with named sub-sprites, referenced from
-prefab YAML as `{fileID: <internalID>, guid: <atlas guid>, type: 3}`. So the two modes are
+Sheet atlases — the third-party ItemBrowser mod's `ui_icon.png` and `ui_group.png` are the
+ones mods pass around — are **multiple-mode**: `textureType: 8`, `spriteMode: 2`, with
+named sub-sprites, referenced from prefab YAML as
+`{fileID: <internalID>, guid: <atlas guid>, type: 3}`. Those two are a mod's files, not the
+game's; there is no `ui_icon.png` anywhere in the shipped assets. So the two modes are
 not a right-and-wrong pair: `1` belongs to the `LoadAsset<Sprite>(path)` route, `2` to the
 prefab-reference route.
 
@@ -486,7 +488,7 @@ atlas, resolved via `Manager.text.GetFont(fontFace)`.
 | `boldMedium` | `67108912` | `rrs10` | 513×192 | 331 |
 | `boldLarge` | `67108896` | `rrs12b` | 514×192 | 212 |
 | `boldHuge` | `67108928` | `rrs18` | 641×432 | 341 |
-| `buttonFont` | `134217744` | `buttonfont_new` | 339×161 | 90 |
+| `button` | `134217744` | `buttonfont_new` | 339×161 | 90 |
 
 The atlases live in the `rrs*` family inside `resources.assets` — see
 [reverse engineering](reverse-engineering.md) for getting at them. The table is not the
@@ -546,11 +548,16 @@ Manager.text.<face>.codePoints[c] = idx;
 Manager.text.<face>.glyphData[idx].volatileSprite = ownSprite;
 ```
 
-The `codePoints.TryGetValue` branch in `GetGlyphData` wins before any fallback, and the
-renderer (`PugCoolText.UpdatePropertyBlock`) takes its UVs from `sprite.texture` /
-`sprite.rect` — so the glyph may come from your own bundle's texture.
-`InitCodePoints()` runs once at game boot, so an override applied before that point
-persists.
+The `codePoints.TryGetValue` branch in `GetGlyphData` wins before any fallback, and
+`PugFont.Render` hands the glyph to the pooled renderer as a plain
+`spriteRenderer.sprite = gd.volatileSprite` — a `Sprite` carries its own texture and rect,
+so the glyph may come from your own bundle's texture.
+
+**Trap: apply the override *after* `InitCodePoints()`, never before.** It runs once at
+game boot, but it `Clear()`s `codePoints` and rebuilds `volatileSprite` for every mapped
+cell from the atlas, so both halves of the snippet above are wiped if they were written
+earlier — and `EarlyInit` is exactly "earlier". A postfix on `TextManager.Init2` is the
+natural hook.
 
 ### Replacing a whole atlas
 
@@ -725,10 +732,11 @@ signal to read is `SpriteRenderer.isVisible`.
 | Scaled to nothing | `true` | Drawn at zero size |
 | Fully transparent sprite | `true` | Drawn correctly — there is nothing in the pixels |
 
-**`isVisible == false` means culled, not occluded.** Nothing in this game hides
-a HUD element behind something else — if the flag is false, the element is
-outside the frustum or on an unrendered layer. That single check isolates the
-wrong-Z row from all the others.
+**`isVisible == false` means culled, not occluded** — if the flag is false, the
+element is outside the frustum or on an unrendered layer. Occlusion never
+clears it: something drawn *over* your element still reads `isVisible == true`,
+which is the branch the Z-tie and `orderInLayer` sections above are about. That
+single check isolates the wrong-Z row from all the others.
 
 The last row is the meanest of the four, because *every* diagnostic reads healthy:
 a placeholder sprite whose pixels are fully transparent — an empty "frame", say — has
@@ -780,10 +788,21 @@ actually renders, and the same z CoreLib moves modal UIs to when it opens them.
 ### Never scale a mod HUD with `CalcGameplayUITargetScaleMultiplier`
 
 `Manager.ui.CalcGameplayUITargetScaleMultiplier()` is CK's own idiom — the
-vanilla health bar and its siblings assign it to `localScale` every frame. For a
-mod HUD mounted under `IngameUI` it returns **`(0, 0, 0)`**. Used as a scale
-source it collapses the element to nothing, while every other diagnostic still
-looks healthy.
+vanilla health bar and its siblings assign it to `localScale` every frame.
+
+**Trap: it says nothing about your element.** It takes no arguments and caches
+one value per unscaled frame, so every caller in that frame — vanilla health bar
+and mod HUD alike — gets the identical vector. What it encodes is global state,
+namely whether CK wants its *own* gameplay HUD on:
+
+- x and y collapse to `0` outside the in-game scene, and whenever a non-popup
+  `RadicalMenu` is on top (`ActivateTopMenu` → `TemporarilyDisableGameplayUI`).
+  The logged value is then `(0, 0, 1)`, not `(0, 0, 0)` — z is unaffected.
+- The whole vector is `Vector3.zero` on `Manager.prefs.hideInGameUI`, during a
+  fade-out, and while the load fade value is below `0.05`.
+
+Used as a scale source it collapses the element to nothing, while every other
+diagnostic still looks healthy.
 
 Drive visibility with an explicit boolean instead of a scale. Which predicate
 depends on what the element does: a world-anchored element needs the stricter
