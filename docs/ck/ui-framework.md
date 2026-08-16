@@ -92,12 +92,21 @@ field the player is editing is in
 
 ### Subclassing a CK UI component
 
-**CK's lifecycle methods are non-virtual.** They are declared
-`protected void Awake()`, so a subclass cannot `override` them. Hide the method
-with `private new void Awake()` and call `base.Awake()` explicitly: Unity
-dispatches the message once, to the most-derived method, so the base body runs
-only if you call it. That is also the only way to correct state a base `Awake`
-writes.
+**Check whether the method is virtual before overriding it — CK is not
+consistent about this.** Most UI base classes declare
+`protected virtual void Awake()`, so `override` is the right keyword:
+`SlotUIBase`, `RadicalMenuOption`, `RadicalMenu`, `ButtonUIElement`, and
+`UIelement.LateUpdate` are all virtual.
+
+Some are not. `TextInputField` declares a plain `protected void Awake()`, and
+there a subclass cannot `override` at all: hide it with
+`private new void Awake()` and call `base.Awake()` explicitly. Unity dispatches
+the message once, to the most-derived method, so the base body runs only if you
+call it — which is also how you correct state a base `Awake` writes.
+
+Grep the decompile for the specific class rather than assuming either shape.
+Applying the hiding idiom to a method CK declared virtual produces a `new`-hiding
+warning and forfeits the override CK intended you to use.
 
 **Mirror a virtual's signature exactly.** `UIelement.OnDeselected(bool
 playEffect = true)`, `GetHoverStats(bool)` — a near-miss compiles as a *new*
@@ -262,12 +271,14 @@ The list applies to any modal mod window. On route A, *why* the shortcuts panel
 and the inventory-context HUD are up at all is CoreLib forcing
 `isAnyInventoryShowing` true.
 
-### The first `SetActive(true)` costs a second
+### The first `SetActive(true)` can cost a second
 
 The first time you activate a prefab instance created from your own AssetBundle,
 about 98 % of the time goes into the `OnEnable` cascade — first-time asset
-loading and shader-variant compilation. Measured: **1039 ms**, and worse on a
-Wine host.
+loading and shader-variant compilation. One measured prefab took **1039 ms**;
+slower machines take longer. Treat the magnitude as "expect something on the
+order of a second for a UI prefab of comparable size", not as a constant — the
+figure comes from a single menu prefab on one machine.
 
 The cost is **instance-specific, not global**: opening a vanilla menu that uses
 the same font beforehand does not warm it. Pre-instantiating does not help
