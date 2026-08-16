@@ -27,6 +27,12 @@ __pycache__
 # The Core Keeper modding handbook — game/SDK reference, tracked as a whole
 # directory rather than file by file, so new chapters need no gitignore edit.
 !/docs/ck/
+# Spec and ADR artefacts, per the project workflow: a design spec is committed
+# before implementation, and later replaced by a distilled ADR. Whole
+# directories for the same reason as docs/ck/ above — otherwise every new spec
+# needs a gitignore edit, and the ones that do not get it stay invisible to git.
+!/docs/specs/
+!/docs/adrs/
 # Track ONLY .claude/skills (shared agent skills). The parent dir must be
 # un-ignored so git descends into it, then everything inside is re-ignored,
 # then skills alone is re-allowed — so settings.json etc. stay local. Same
