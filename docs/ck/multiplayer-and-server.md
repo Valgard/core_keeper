@@ -108,12 +108,18 @@ something to print; it ends up in `ModCheck.modName`.
 
 **Trap: that name is truncated to 14 characters.** The server fills the field
 with `name.Substring(0, min(UTF8MaxLengthInBytes / 2, len))`
-(`Pug.Other:125924`), and `FixedString32Bytes` holds 29 UTF-8 bytes — so 14
-characters are all that survive. A 26-character internal name such as
-`SimpleCraftingPoolExtender` reaches the player as `SimpleCrafting`. Matching is
-unaffected, so this is not a bug to hunt; but the first 14 characters of
-`metadata.name` are the whole of what a player sees when your mod is the one
-blocking their join.
+(`Pug.Other:125927`), and `FixedString32Bytes` holds 29 UTF-8 bytes — so 14
+characters are all that survive. Matching is unaffected, and for a **published**
+mod neither is the display: when the server demands a mod the client lacks, the
+client resolves `modId` through `ModIOUnity.GetMod` and prints the mod.io profile
+name instead (`:125076`). The truncated field is reached only when there is no
+mod.io identity to resolve — a development build with a fake mod ID
+(`modId <= 0`), where a 26-character internal name such as
+`SimpleCraftingPoolExtender` really does reach the player as `SimpleCrafting`. In
+the other direction — your `Server`-flagged mod missing on the server — the
+dialogue prints the client's own local `metadata.name`
+(`localMod.name = loadedMod.Metadata.name`, `Pug.Other:124925`), untruncated, and
+never touches this field at all.
 
 **If you patch this layer:** `ModInfoRpcSystem.OnCreate` builds its mod list
 exactly **once**, not per request, and — unlike `OnUpdate` and `OnDestroy` in the
@@ -224,10 +230,21 @@ does not match the running game version, unless the mod's GUID sits in
 `modloader/config.json` → `unsupportedModsToLoad`, which is what the "load
 anyway" dialogue writes.
 
-**Trap:** copying that list to the server accomplishes nothing. The server's
-directory scan passes `supportsCurrentVersion: true` **hardcoded**
-(`PugMod.Loader` ~2172) and loads everything it finds, so the gate the list feeds
-— `!supportsCurrentVersion && !contains(guid)` — can never fire there.
+**Trap:** copying that list to the server accomplishes nothing — and not because
+the server's loader is a different build. `PugMod.Loader` is all but identical on
+both sides. The version check belongs to the *subscription* loaders, which pass
+`ModVersion.IsCompatible(Application.version, tags)` into
+`Integration.AddMod(…, supportsCurrentVersion)`: `ModIOLoader`
+(`PugMod.Platform:70`) and `SteamWorkshopLoader` (`PugMod.Loader:156`). The
+directory scan does not — `SideLoader` passes `supportsCurrentVersion: true`
+**hardcoded** (`PugMod.Loader:2173`), so the gate the list feeds —
+`!supportsCurrentVersion && !contains(guid)` — can never fire for a side-loaded
+mod. And a dedicated server's `Manager` registers only `SideLoader` and
+`SteamWorkshopLoader`, never `ModIOLoader` (`Pug.Other:263316-263325` against
+`DedicatedServer:263259-263262`), while `StreamingAssets/Mods` is how a server is
+normally given its mods. The rule that predicts both cases is therefore about the
+*source* of a mod, not about the build: a mod side-loaded into the **client's**
+own `StreamingAssets/Mods` skips the version check just as thoroughly.
 
 The asymmetry therefore runs one way only, and it is a mismatch generator: a mod
 the **client rejects** but the server still loads is a set difference. Resolve it
@@ -275,9 +292,15 @@ of the `[HarmonyPatch]` class. An explicit static constructor suppresses
 rather than at some unrelated point of type loading — and then connect a player
 so the systems actually run.
 
-The two log formats also differ, which costs time when comparing sides: the
-server writes `loaded mod <Name> at <path>`, the client writes
-`Loading mod with ID <modId>`. There is no grep pattern that matches both.
+The two mod log formats come from different loader *stages*, not from different
+builds — both processes write both. `loaded mod <Name> …` is written once per mod
+by whichever loader found it: `… at <path>` for the `StreamingAssets/Mods`
+directory scan (what a dedicated server uses, `PugMod.Loader:2178`), `… from
+mod.io (<Profile>)` for a mod.io subscription (`PugMod.Platform:97`, what the
+client usually uses), `… from steam workshop (<Title>)` for the third.
+Afterwards both processes log `Loading mod with ID <modId>` once per loaded mod,
+from `ModManager.Init()`, regardless of source. So `grep "loaded mod "` is the
+one pattern that works on both sides and the only one that gives you names.
 
 ### Warning: the lifecycle order is inverted
 
@@ -361,25 +384,26 @@ instead — the accessors are rewritten accordingly:
 | `GetWorldMode(int id)` | from the array | returns `Manager.prefs.serverWorldMode` |
 | `GetWorldName(int id)` | from the array | returns `Manager.prefs.serverWorldName` |
 | `IsWorldModeEnabled(int id, …)` | from the array | tests `Manager.prefs.serverWorldMode` |
+| `GetWorldGenerationType()` (no id) | returns `worldInfo[_worldId].worldGenerationType` | derives it from the configured mode: `Creative` if `GetWorldMode()` is creative, else `FullRelease` |
 
-In every server case the id parameter is accepted and **never read**. Passing a
-slot number therefore does not select anything — you always get the one hosted
-world, and a mod that treats a differing id as a differing world will be wrong
-in a way that no error reports.
+Wherever a server accessor still takes an id, the parameter is accepted and
+**never read**. Passing a slot number therefore does not select anything — you
+always get the one hosted world, and a mod that treats a differing id as a
+differing world will be wrong in a way that no error reports.
 
 **The array itself is not dead** — be precise here, because the obvious
 generalisation is wrong. It is allocated normally, still loaded from disk, and
 still read for `activatedCrystals`, `creationDate`, `iconIndex` and
 `ActivatedContentBundles`. A mod reading *those* through the save manager gets
-real data on a server. Only mode, name, seed and the assembled `WorldInfo`
-bypass it.
+real data on a server. Only mode, name, seed, world-generation type and the
+assembled `WorldInfo` bypass it.
 
-**Trap: the setters were not rewritten to match the getters.** `SetWorldMode`
-and `SetWorldName` are character-identical to their client versions and still
-write into `worldInfo[_worldId]`. The write genuinely happens — it just cannot
-matter, for two independent reasons:
+**Trap: the setters were not rewritten to match the getters.** `SetWorldMode`,
+`SetWorldName` and `SetWorldGenerationType` are character-identical to their
+client versions and still write into `worldInfo[_worldId]`. The write genuinely
+happens — it just cannot matter, for two independent reasons:
 
-1. None of the four rewritten getters consults the array, so nothing reads the
+1. None of the five rewritten getters consults the array, so nothing reads the
    value back.
 2. The write-back path is gone. `WriteWorldInfo(int)` is replaced server-side by
    a single `Debug.LogError("Trying to write world info as server")`, and the
