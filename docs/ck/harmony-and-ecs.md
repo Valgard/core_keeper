@@ -91,28 +91,35 @@ is **not** evidence that your hooks are live. It comes from the `AndJobs`
 variant's dependency patch, which is applied regardless of the per-world
 snapshot — so it appears even while the bypass is inactive.
 
-### What it costs
+### What it costs is not established
 
-Taking a system off Burst means its `OnUpdate` runs as managed code, which
-sounds expensive enough to worry about. In practice it has not been:
+Taking a system off Burst means its `OnUpdate` runs as managed code instead of
+compiled native code, so there *is* a real cost. How large it is for a given
+system is an open question, and this handbook cannot answer it.
 
-- A mod that Burst-disables `EquipmentUpdateSystem` showed **no perceptible
-  frame cost** in the operation that hammers it — laying rails while bridges are
-  auto-placed underneath across pits and water.
-- Several mods on the same installation held systems un-Bursted at once without
-  the sum becoming noticeable.
+What exists is a single anecdote, recorded here because the question comes up
+immediately and because knowing the evidence is thin is better than guessing:
+one mod Burst-disables `EquipmentUpdateSystem` and its author noticed no frame
+drop while laying rails with bridges auto-placed beneath them, with several of
+his own mods holding systems un-Bursted at the same time.
 
-Two honest caveats. This is **play-testing, not measurement** — no profiler
-numbers back it, so treat it as "do not pre-optimise against this", not as a
-guarantee. And attributing a slowdown correctly is harder than it looks: the one
-place that did feel slower was a large base, which is also where an unrelated
-inventory-scanning mod does its heaviest work. A cost that appears only where two
-mods overlap belongs to neither until you have isolated it.
+**Read that for exactly what it is.** One person, one mod, one system, one
+activity, judged by eye with no profiler. It does not establish that
+Burst-disabling is cheap in general — and there is reason to think this
+particular case sits at the *favourable* end: the observation covers a burst of
+player-driven activity, not a system grinding large entity sets every frame.
 
-The scaling factor that actually matters is **how often the system runs and how
-much it does per tick**, not the Burst switch itself. A per-input-tick system is
-cheap to un-Burst; a system that walks large entity sets every frame is where you
-should look first if something does get slow.
+It also came with an attribution problem worth repeating: the one place that
+did feel slower was a large base, which is also where an unrelated
+inventory-scanning mod does its heaviest work. A cost that shows up only where
+two mods overlap belongs to neither until it has been isolated.
+
+**If the cost matters to your mod, measure it.** The variables that plausibly
+dominate are how often the system ticks and how much work it does per tick, so
+compare the same scene with your `DisableBurstForSystem*` call present and
+removed, and look at frame time rather than at whether it "feels" the same. That
+is a small experiment, and it beats both this anecdote and any assumption you
+would otherwise make.
 
 ## The dedicated-server trap
 
