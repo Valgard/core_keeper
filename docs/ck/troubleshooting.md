@@ -40,8 +40,9 @@ causes below are silent, which is exactly what makes them expensive.
 ### Check first: the mod.io type tag
 
 **A mod.io profile carrying the `Asset` tag has its scripts silently disabled.**
-The loader walks the profile's `entry.Tags` and sets
-`metadata.disableScripts = true` on `Asset`, with zero log output.
+The mod.io loader walks the subscribed profile's `tags` (`ModIOLoader.Init`) and
+sets `metadata.disableScripts = true` on `Asset`, with zero log output. The Steam
+Workshop loader does the same over `entry.Tags`.
 
 | Profile tag | Effect on the loader |
 |---|---|
@@ -68,9 +69,21 @@ synchronises this tag group and removes a hand-set `Asset` as surplus — see
 
 ### Then: a stale game-version compatibility tag
 
-A published mod whose profile lacks a compatibility tag for the running game
-version is treated as unsupported for mod.io subscribers, lands in
-`unsupportedModsToLoad` territory and does not run — the same end symptom.
+**This one is not silent — check it first if you have a log.** A published mod
+whose profile carries no compatibility tag for the running game version is
+refused for mod.io subscribers before it loads at all, and says so twice:
+
+```text
+mod <ProfileName> is not compatible with current version
+not loading incompatible mod <ModName>
+```
+
+The mod is never added, so none of the tells above apply — no bundle, no entry
+in the loaded-mod list. Core Keeper's main menu raises the incompatible-mod
+dialog offering **Disable** or **Load Anyway**; "Load Anyway" writes the mod's
+GUID into `unsupportedModsToLoad`, the force-load allowlist that makes the
+loader skip this rejection on the next launch (see
+[macOS / CrossOver](../macos-crossover-loader.md)).
 
 This bites after every Core Keeper update: the game moved from 1.2.1.4 to
 1.2.1.5 and mods that were not re-tagged lost their crafting tab for 1.2.1.5
@@ -89,21 +102,34 @@ Core Keeper update**, even though they all still work locally.
 
 ## `Data block loader already added for key <guid>`
 
-Exactly one such line in `Player.log`, no `CompileFailed`, no `CS####` — and the
-named mod shows the full silent-no-scripts symptom above.
+Exactly one such line in `Player.log`, no `CompileFailed`, no `CS####` — and one
+mod is missing the entries its asset bundle defines: a recipe that never
+appears, an object-database block that never takes effect. The line names the
+**GUID, not the mod**, so on its own it does not tell you which mod lost.
 
 **Cause: two mods carry the same `metadata.guid`.** That field lives in the
 ModBuilderSettings `.asset` and is written 1:1 into the built
 `ModManifest.json`'s `guid` — it is the mod's identity. (The `.asset` file's own
 `.meta` GUID is unrelated and is usually unique even when this one is not.) The
-loader keys its data-block-loader registry by that GUID, so the second mod to
-load is rejected outright and its `Scripts/*.cs` are never compiled. The race
-loser loses everything.
+loader registers each mod's asset-bundle data-block loader under that GUID
+(`ScriptableData.AddDataBlocksLoader(mod.Metadata.guid, …)`), and a registry
+that already holds the key refuses the second registration — so the data blocks
+that bundle defines are never loaded.
+
+**It is not a load failure.** The rejection is a `LogError` and nothing else:
+the losing mod's scripts still compile, its Harmony patches still bind, and its
+bundle assets still load. That is why a crafted item can still appear in-game —
+CoreLib's entity map is name-keyed and reads the entity from the bundle — while
+the recipe that unlocks it does not.
+
+**This is not the cause of the silent-no-scripts symptom above**, although the
+two were once conflated. The loader runs the script stage before the bundle
+stage, so a mod with a duplicate GUID has already logged its
+`Successfully compiled` line by the time the duplicate-key error appears. If you
+see both symptoms, you have both problems — fix both.
 
 This happens when a new mod is scaffolded by copying a sibling mod's asset tree
-and the GUID is not reset. A crafted item may still appear in-game — CoreLib's
-entity map is name-keyed and reads the entity from the bundle — which makes it
-look as if the mod partly works.
+and the GUID is not reset.
 
 **Decisive test:**
 
@@ -287,10 +313,12 @@ the cause of the lag. **Check where in the log they sit before you believe it.**
 Normally they bunch in the **last lines of `Player.log`**, immediately after
 
 ```text
-Input System module state changed to: Shutdown
+Input System module state changed to: Shutdown.
 ```
 
-That position identifies them as the GC's process-exit cleanup of buffers that
+Both the trailing period and the exact word matter as an anchor: a
+`Input System module state changed to: ShutdownInProgress.` line sits two lines
+earlier, and a prefix grep matches it too. That position identifies them as the GC's process-exit cleanup of buffers that
 were never explicitly `Release()`d — a shutdown artifact, not a mid-play hitch.
 A collection that actually ran during play would spread its warnings through the
 log rather than cluster them at the very end. Do not promote them to "the
@@ -394,11 +422,13 @@ resets the licensing/IPC environment. Reopen the project; the first open does a
 one-time fresh ILPP/Bee rebuild and is slower, but should not hang. If it still
 hangs, a reboot clears any remaining wedged Unity IPC.
 
-**Prevention: never run a batchmode build while the Editor holds the project.**
-The reverse direction is already blocked — the Editor's lock aborts a batchmode
+**Prevention: keep the two uses of the shared project apart in time.** The
+concurrent direction is already blocked — the Editor's lock aborts a batchmode
 run with `Abort trap: 6` and "It looks like another Unity instance is running
-with this project open". When someone opens the Editor to inspect a prefab,
-pause builds until they are done.
+with this project open". The unguarded direction is the sequential one: any
+batchmode build can leave the *next* interactive open to hang. When someone
+opens the Editor to inspect a prefab, pause builds until they are done, and
+expect the recovery above if a build ran in between.
 
 ## A newly linked mod builds to an empty file list
 
