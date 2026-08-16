@@ -1,0 +1,460 @@
+# Troubleshooting
+
+Symptom-first index of the ways a Core Keeper mod fails after it has already
+built successfully — silently disabled scripts, a mod that takes an unrelated
+mod down with it, a game that closes at the loading screen, an Editor that
+hangs, a build that produces nothing. Each entry names what you observe, then
+the mechanism, then the fix. Where a symptom has more than one cause, the
+cheapest check comes first.
+
+Most in-game diagnosis happens in `Player.log`. Under Wine the file is
+**UTF-16**, so `grep` reports "binary file matches" and prints nothing useful —
+pipe it through `strings -n 3` first (`iconv` was unreliable on it). The host
+path is in [macOS / CrossOver](../macos-crossover-loader.md).
+
+## The mod loads, but its scripts are never compiled
+
+The asset bundle loads. The mod appears in the in-game mod list. And nothing it
+does in code happens: no recipe, no HUD, no tab, no patch — **and no error**.
+
+The tell is what is *missing* from `Player.log`:
+
+| Expected line | Meaning when absent |
+|---|---|
+| `Creating modified script files at …ModLoader\<Mod>` | the loader never staged the sources |
+| `Successfully compiled <Mod>` | no compile happened at all |
+| `passed code security verification` | the sandbox check never ran |
+
+Alongside that, there is no `…/Temp/Pugstorm/Core Keeper/ModLoader/<Mod>/`
+directory while every other mod has one, and deserialising the bundle logs
+`referenced script (<Type>) is missing!`.
+
+Two log lines are **not** the cause. `couldn't load …asmdef from asset bundle`
+is benign — every mod logs it. `referenced script (<Type>) is missing!` is the
+downstream effect of the scripts not existing, not a reason for it.
+
+There is no `CompileFailed` and no `CS####` here. A failing compile is loud; the
+causes below are silent, which is exactly what makes them expensive.
+
+### Check first: the mod.io type tag
+
+**A mod.io profile carrying the `Asset` tag has its scripts silently disabled.**
+The loader walks the profile's `entry.Tags` and sets
+`metadata.disableScripts = true` on `Asset`, with zero log output.
+
+| Profile tag | Effect on the loader |
+|---|---|
+| `Asset` | `disableScripts = true` — sources are never staged or compiled |
+| `Script` | normal sandboxed load; `skipSafetyChecks` forced to false |
+| `Script (Elevated Access)` | normal load, keeps the mod's authored `skipSafetyChecks` |
+
+A scripted mod must be tagged **`Script`** — or `Script (Elevated Access)` if it
+genuinely needs `skipSafetyChecks` (see [the sandbox](sandbox-and-config.md)).
+`Asset` is an easy mistake to make by hand at profile creation, because it reads
+like the right word for a mod that adds an *item*; it means "ships no code".
+
+**Diagnosis:** compare `modObject.tags` across mods in
+`…/Public/mod.io/5289/state.json` — a broken mod shows `…,'Item','Client','Asset'`
+where a working one shows `…,'Client','Script'`. If `Player.log` has no
+`skipping mod` or `circular dependency` line, the mod survived
+`DependencySorter.SortMods` and the tag path is what dropped it.
+
+**Fix:** mod.io website → the mod's profile → Edit → Tags → uncheck `Asset`,
+check `Script` → save. Then open the in-game Mods menu once (that is what syncs
+tags into `state.json`) and restart. The publish tooling in this repo also
+synchronises this tag group and removes a hand-set `Asset` as surplus — see
+[publishing](../publishing.md).
+
+### Then: a stale game-version compatibility tag
+
+A published mod whose profile lacks a compatibility tag for the running game
+version is treated as unsupported for mod.io subscribers, lands in
+`unsupportedModsToLoad` territory and does not run — the same end symptom.
+
+This bites after every Core Keeper update: the game moved from 1.2.1.4 to
+1.2.1.5 and mods that were not re-tagged lost their crafting tab for 1.2.1.5
+subscribers, while a re-tagged CoreLib kept loading beside them.
+
+**A local dev install never reproduces either failure.** It builds its tags from
+the configured game version alone, carries no type tag, and skips the
+version-tag filter entirely (see [macOS / CrossOver](../macos-crossover-loader.md)).
+"It works for me on the new version" therefore proves the *code* is compatible,
+not that the *listing* serves it.
+
+**Fix:** add the new version tag on the mod.io website; no rebuild is needed if
+the code already runs. Keep the publish configuration's game-version list
+current so the next publish carries it, and **re-tag every published mod after a
+Core Keeper update**, even though they all still work locally.
+
+## `Data block loader already added for key <guid>`
+
+Exactly one such line in `Player.log`, no `CompileFailed`, no `CS####` — and the
+named mod shows the full silent-no-scripts symptom above.
+
+**Cause: two mods carry the same `metadata.guid`.** That field lives in the
+ModBuilderSettings `.asset` and is written 1:1 into the built
+`ModManifest.json`'s `guid` — it is the mod's identity. (The `.asset` file's own
+`.meta` GUID is unrelated and is usually unique even when this one is not.) The
+loader keys its data-block-loader registry by that GUID, so the second mod to
+load is rejected outright and its `Scripts/*.cs` are never compiled. The race
+loser loses everything.
+
+This happens when a new mod is scaffolded by copying a sibling mod's asset tree
+and the GUID is not reset. A crafted item may still appear in-game — CoreLib's
+entity map is name-keyed and reads the entity from the bundle — which makes it
+look as if the mod partly works.
+
+**Decisive test:**
+
+```bash
+for mf in …/Public/mod.io/5289/mods/*/ModManifest.json; do jq -r .guid "$mf"; done \
+  | sort | uniq -d
+```
+
+**Fix:** give the *newer* mod's `.asset` a fresh 32-hex `metadata.guid`
+(`uuidgen | tr -d -`), rebuild, republish; leave the established mod alone.
+After publishing, open the in-game Mods menu once to re-sync the corrected
+modfile, then restart.
+
+**Two traps while verifying the fix:**
+
+- **The AssetDatabase caches the `.asset` across the symlink.** Editing the
+  symlink target is not picked up by a rebuild. A refresh with `ForceUpdate`
+  is not enough, and a targeted `ImportAsset` of the mod directory misses it too,
+  because the `.asset` is a *sibling* of that directory, not inside it. Force
+  re-deserialisation of the ScriptableObject with
+  `rm -rf CoreKeeperModSDK/Library/{SourceAssetDB,ArtifactDB,Artifacts}`
+  (Editor closed).
+- **Read the right manifest.** The publish path builds into a temporary cache
+  directory and deletes it — there is no manifest left to inspect, and a
+  `--dry-run` inspects nothing. Only a normal build writes `ModManifest.json`
+  into the install output. Verify the GUID there, after a fresh build, or you
+  are reading an hours-old file and drawing the wrong conclusion.
+
+## `CS0246` on CoreLib types although CoreLib is installed
+
+A mod fails with `CompileFailed` and a batch of `CS0246`/`CS0103` on CoreLib
+types, while CoreLib itself is installed, enabled and loads fine. Typically seen
+on a *foreign* mod; your own mods are unaffected.
+
+**mod.io has two unrelated dependency concepts, and only one of them matters
+here:**
+
+| | Where it lives | What it does |
+|---|---|---|
+| Platform dependency | mod.io-side, `GET /v1/games/5289/mods/{id}/dependencies` | auto-installs the dependency and shows it in the in-game list |
+| Manifest dependency | the `dependencies` array inside the shipped modfile's `ModManifest.json` | **drives the loader's Roslyn compile order** — the topological sort that compiles CoreLib first so its assembly is a metadata reference for dependents |
+
+An author can set the first and forget the second. CoreLib installs and runs,
+but the dependent mod is compiled *before* it, so every CoreLib type is
+unresolved. Your own mods escape this because the `.asset`'s `dependencies`
+block writes `{"modName":"CoreLib","required":true}` into the built manifest —
+see [mod anatomy](mod-anatomy.md).
+
+**Diagnosis:**
+
+- The fault surfaces in the game's loader compile step, never in an Editor
+  build.
+- The `Creating modified script files at …ModLoader\<Mod>` lines are the
+  **actual compile order** — and they are not the same as the `loaded mod …`
+  order. In a broken setup the dependent's line precedes CoreLib's.
+- **Verify at the shipped modfile, not at the source or the local cache.**
+  Read-only mod.io REST works with the game's public `gameKey` (in
+  `CoreKeeperModSDK/Assets/Resources/mod.io/config.asset`, game ID `5289`); no
+  OAuth for reads. Download the modfile via
+  `…/mods/{id}/files/{modfile}/download?api_key=…`, confirm it matches the API's
+  `filehash.md5`, unzip it, and read its `ModManifest.json`.
+
+**Local workaround for someone else's bug:** back up, then patch the installed
+cache manifest at
+`…/Public/mod.io/5289/mods/<modId>_<modfile>/ModManifest.json`, changing
+`"dependencies": []` to `[{"modName":"CoreLib","required":true}]`. The patch
+**survives a game restart** — Core Keeper does not re-verify the modfile hash on
+every launch — but is **wiped by any mod.io update of that mod**, because the
+update lands in a new `<modId>_<modfile>` directory. CoreLib is modId `3177992`.
+
+The durable fix is the author adding CoreLib to the `.asset` dependencies.
+
+## A previously working mod's Harmony patch suddenly breaks
+
+A mod you did not touch starts throwing — classically a `NullReferenceException`
+inside a `[HarmonyPrefix]` dereferencing something that was reliably non-null
+before — right after you subscribed to, updated or built *other* mods.
+
+**Cause: the loader compiles every source mod into one shared
+`RoslynCSharp.ScriptDomain`** (visible in stack frames as
+`PugMod.Loader:LoadScripts (..., RoslynCSharp.ScriptDomain, ...)`). A
+`CompileFailed` leaves diagnostics and partial type state in that domain.
+Subsequent mods compile against it and register their Harmony patches in an
+order that differs from the all-mods-clean baseline. A prefix that was safe
+under patch order A is a NullRef under patch order B.
+
+**Logical independence between mods is a wrong prior.** In the verified case a
+chest-UI mod's `UIManager.Init` prefix started dereferencing a null
+`playerInventoryUI` the same launch an unrelated, outdated mod first appeared
+with `CompileFailed` (it was built against an older `CoreLib.Util.Extensions`
+API). Disabling only that failing mod — touching nothing else — restored the
+chest-UI mod.
+
+**Heuristic:** when a previously working Harmony patch NullRefs, do not stop at
+the loudest error. Scan `Player.log` for **any** `CompileFailed` earlier in the
+same load pass. A failed compile anywhere is a silent partial corruption of the
+shared domain, not a contained failure.
+
+**Bisect** by disabling one mod at a time rather than unsubscribing — see the
+two lists below.
+
+### The loader's two disable lists are opposites
+
+| File | Key | Meaning |
+|---|---|---|
+| `…/Public/mod.io/5289/state.json` | `existingUsers["<userId>"].disabledMods` | *skip this mod* — the loader drops it before the compile step, with no warning dialog |
+| `…/LocalLow/Pugstorm/Core Keeper/Steam/<account>/modloader/config.json` | `unsupportedModsToLoad` | *load this incompatible mod anyway* — a force-load override |
+
+`disabledMods` takes mod.io IDs as **strings** (not GUIDs) and the file is
+minified JSON — preserve `separators=(",", ":")` when writing it
+programmatically. `unsupportedModsToLoad` takes mod **GUIDs**. To get rid of a
+stuck incompatible mod cleanly, remove its GUID from `unsupportedModsToLoad`
+*and* add its mod.io ID to `disabledMods`. Details on both files:
+[macOS / CrossOver](../macos-crossover-loader.md).
+
+### "Loading screen hangs forever" is usually a quit deadlock
+
+Not a slow load. When a `Manager.<Initialize…>` throws — e.g.
+`Init failed for UI Manager` — Unity calls `Application.Quit()`, but `ModManager`
+has registered a quit-blocking callback that waits on mod.io async operations.
+Those operations never complete, because the init crash never let them start, so
+the quit hangs forever. What you see is a frozen loading screen.
+
+Tells in `Player.log`:
+
+```text
+Got quit request
+waiting for ModIO shutdown
+Exit blocked by ModManager
+Quit blocked
+```
+
+plus a sibling `UnityCrashHandler64.exe --attach <pid>` process next to
+`CoreKeeper.exe`. SIGTERM is absorbed by the deadlock; recovery needs SIGKILL on
+all of `CoreKeeper.exe`, `UnityCrashHandler64.exe` and `crashpad_handler.exe`.
+
+## The game window simply closes at the loading screen
+
+A hard, native crash before the main menu — the window disappears, with no
+managed exception and no hang. **Suspect Steam Cloud, not your mods.**
+
+A Steam Cloud save conflict crashes Core Keeper at the pre-main-menu loading
+screen. It typically appears right after you changed assets, which is exactly
+why it gets blamed on the build.
+
+**Diagnosis in `Player.log`, very early and *before* the mod load:** a
+`CloudSyncDown` block with diverging local/cloud timestamps for all save files
+(`Admins.json`, `PlayerBans.json`, `worldgenparams/*`, `worldinfos`, `worlds/*`,
+`saves/*`, `maps`), followed by 20+ lines of
+
+```text
+Write failed: Erfolg : '…\cloudconflicts\…pugbackup' (-2147024896)
+```
+
+The conflict arises from, for instance, starting the game on a second device or
+an interrupted sync.
+
+**Why it is not a mod:**
+
+- A native crash (window closes) is not a managed exception. A mod NRE or
+  `CompileFailed` would be logged and the game would keep running.
+- The conflict runs *before* the mod load. The mods then load cleanly and
+  `Player.log` ends normally with `pooled N modded prefabs` — no crash trace.
+  The native crash comes afterwards, at the world-list / main-menu load.
+- It reproduces across game and host restarts, and it is orthogonal to the
+  game-DLL patches ([macOS / CrossOver](../macos-crossover-loader.md)) — those
+  fix directory deletion and save recovery, not the cloud-conflict backup
+  writes.
+
+**Fix: disable Steam Cloud globally** (Steam → Settings → Cloud). Core Keeper
+frequently **ignores the per-game setting** under the game's properties; only
+the global switch reliably makes Steam skip `CloudSyncDown`, after which the
+local saves load and the loading screen completes. Resolve the actual conflict
+afterwards, deliberately — do not blind-delete save files.
+
+## Works in singleplayer, not in multiplayer
+
+A Harmony prefix on a DOTS system fires in a local world and never fires on a
+dedicated server, with no error and no log line. The cause is Burst bypass
+registration being world-scoped and the server's different init ordering — the
+mechanism and the fix are in
+[Harmony and ECS](harmony-and-ecs.md). Version-compatibility rejections
+(`Error/BadProtocolVersion`) and the join-blocking dialog raised by a mod's
+`requiredOn` flags belong to
+[multiplayer and the dedicated server](multiplayer-and-server.md).
+
+## The Unity Editor hangs at "Initial Asset Database Refresh"
+
+The Editor never gets past the splash after a `-batchmode` build has run against
+the same project.
+
+`~/Library/Logs/Unity/Editor.log` shows an infinite retry loop:
+
+```text
+Connectivity with IL Post Processor runner cannot be established yet. Retrying.
+System.InvalidOperationException: Can't find file /tmp/ilpp.sock-<hash>
+```
+
+The IL-Post-Processor subprocess never creates its Unix socket, so the asset-DB
+refresh blocks forever. It does **not** self-recover. The batchmode build
+invalidates the `Library/Bee` + ILPP artifacts and the next interactive open
+hits stale ILPP state. Note that no `dotnet`/ILPP runner process is even
+running, and the `ilpp.sock-<hash>` name is identical across hung sessions — the
+wedged Hub/licensing IPC environment is what prevents the runner from starting.
+
+**This is not a corrupt prefab or script.** If the batchmode build reported
+success, it already imported and ILPP-processed the whole project.
+
+**Recovery — both halves are required.** Clearing artifacts alone does not fix
+it; it hangs again on reopen. The Editor has no unsaved state while stuck at the
+initial refresh, so killing it is safe.
+
+```bash
+pkill -9 -f "Unity.*CoreKeeperModSDK"
+rm -rf CoreKeeperModSDK/Temp          # lockfile + ILPP state
+rm -rf CoreKeeperModSDK/Library/Bee   # ILPP/build cache, rebuilt on next open
+rm -f /tmp/ilpp.sock-*
+```
+
+Then **quit and restart the Unity Hub** — this is the decisive step, as it
+resets the licensing/IPC environment. Reopen the project; the first open does a
+one-time fresh ILPP/Bee rebuild and is slower, but should not hang. If it still
+hangs, a reboot clears any remaining wedged Unity IPC.
+
+**Prevention: never run a batchmode build while the Editor holds the project.**
+The reverse direction is already blocked — the Editor's lock aborts a batchmode
+run with `Abort trap: 6` and "It looks like another Unity instance is running
+with this project open". When someone opens the Editor to inspect a prefab,
+pause builds until they are done.
+
+## A newly linked mod builds to an empty file list
+
+Bee compiles the mod's DLL correctly (it is there under
+`Library/Bee/artifacts/*.dag/<Mod>.dll`), but the build produces a manifest with
+`files: []` and neither a `Scripts/` nor a `Bundles/` folder in the install
+output.
+
+**Cause:** `ModBuilder.BuildMod`
+(`Packages/dev.pugstorm.mod/SDK/Editor/ModBuilder.cs:53`) calls
+`AssetDatabase.FindAssets("t:Object", new[] { modDirectory })`. In batchmode
+that resolves against `Library/SourceAssetDB` — Unity's persistent asset
+database, a SQLite file updated incrementally when the Editor opens, and a
+cache separate from Bee and ScriptAssemblies. It does not pick up the children
+of a freshly symlinked mod folder. `IsValidFolder` returns true while
+`FindAssets` returns zero hits.
+
+**None of these help** (all verified): deleting only `Library/Bee` and
+`Library/ScriptAssemblies`; `AssetDatabase.Refresh(ForceUpdate | ForceSynchronousImport)`;
+`AssetDatabase.ImportAsset(modPath, ImportRecursive | ForceSynchronousImport)`;
+per-file `ImportAsset` calls wrapped in `StartAssetEditing`/`StopAssetEditing`.
+Correct `.meta` files (parent-folder `DefaultImporter` + `folderAsset`, asmdef
+`AssemblyDefinitionImporter`) are **necessary but not sufficient** — without the
+reset, `FindAssets` stays deaf.
+
+**Fix — drop the caches so Unity does a full reindex including symlinks**
+(Editor closed):
+
+```bash
+rm -rf CoreKeeperModSDK/Library/SourceAssetDB \
+       CoreKeeperModSDK/Library/Bee \
+       CoreKeeperModSDK/Library/ScriptAssemblies \
+       CoreKeeperModSDK/Library/ArtifactDB \
+       CoreKeeperModSDK/Library/Artifacts
+```
+
+The next build re-imports everything (about 30 s extra, once per newly added
+mod). Afterwards the mod is known to SourceAssetDB and normal builds work.
+
+**To confirm before spending an hour on `.meta` files**, add an
+`AssetDatabase.FindAssets("t:Object", new[] { settings.modPath })` probe right
+before `ModBuilder.BuildMod` and log its `Length`. `0` means the reset is due.
+
+### The same reset for an established mod built from a git worktree
+
+An existing mod is immune to this only when built from the main checkout, where
+earlier interactive Editor sessions put it into SourceAssetDB. Build it from a
+**git worktree** — where the SDK's `Assets/` symlink points into the worktree
+tree — and the AssetDatabase **intermittently misses edits through the
+symlink**.
+
+**Trap: the bundle's mtime lies.** It is re-exported fresh on every build, so
+the usual "is the bundle newer than my edit?" check gives an all-clear — while
+the export happens from the *stale imported* asset. In the observed case a
+prefab `localPosition.x` edit never reached the loaded bundle over several
+builds, while `localPosition.y` and `DrawMode`/`m_Size` edits to the same
+objects in the same session did. It is intermittent, not field- or
+block-specific.
+
+The fix is the same cache reset. In a tight worktree calibration loop, clear
+the caches **proactively before every build** — a slower reimport beats another
+round of "is this stale, or does the value simply not do anything?".
+
+## An edit to a shared editor helper appears to have no effect
+
+You change an editor helper that is shared across several mods (a CLI build or
+publish entry point), run it, and the run contradicts the change you just made.
+
+**Two compounding causes:**
+
+1. **The helper compiles into *every* linked mod's `<Mod>.Editor` assembly**,
+   because the one shared source file is symlinked into each mod's editor
+   folder. So the same
+   class exists many times over, and
+   `-executeMethod <Namespace>.<Class>.<Method>` runs the **alphabetically
+   first** assembly that defines the type — regardless of which mod you are
+   building. That is harmless while all copies are identical, which is why it
+   only bites right after you edit one.
+2. **Unity's AssetDatabase does not detect edits to a symlink *target*.** A
+   build re-links only the mod being built, so only that mod's symlinks get a
+   fresh mtime and reimport. Every other mod's editor assembly keeps a stale
+   compiled copy — and the alphabetically-first pick may well be one of those.
+   All the `*.Editor.dll` files can share one mtime and still contain different
+   source versions.
+
+**The symptom has three shapes, and two of them look like your code is wrong:**
+
+| What you see | What it actually is |
+|---|---|
+| Stack-trace `:line` numbers that do not match the current source | stale assembly |
+| A newly added log line producing **no output at all** | stale assembly — reads as "the feature does not support this mode" |
+| An error message you thought you had **replaced**, sometimes with a log line the new code cannot reach | stale assembly — the most expensive misread available |
+
+A partially-new run is possible too: an edit made minutes earlier appears while
+the newest one does not, because only the earlier one made it into the compiled
+assembly.
+
+**Fix ladder — both rungs, in order:**
+
+1. **Re-link every mod**, not just the one you are building, so all the symlinks
+   get a fresh mtime and the AssetDatabase reimports the sources (see
+   [the build workflow](../../README.md)).
+2. **`rm -rf CoreKeeperModSDK/Library/{ScriptAssemblies,Bee}`** with the Editor
+   closed, so Unity recompiles every editor assembly from source on the next
+   batchmode launch.
+
+Neither rung implies the other, and each has, on its own, failed to pick up a
+change: re-linking repairs links but not the compile cache, and dropping
+`ScriptAssemblies` alone still ran the old helper when the sources had not been
+reimported. It is lighter than the full `Bee`/`SourceAssetDB` nuke above and
+targets scripts only.
+
+**Whenever a verification run contradicts a change you just made to a shared
+helper, suspect staleness before suspecting the change.** Gate shared-helper
+changes behind a `--dry-run` first — that path is non-mutating, so it is a safe
+compile-and-freshness probe before any real publish.
+
+## Symptoms owned by other chapters
+
+| Symptom | Where |
+|---|---|
+| `CompileFailed` with `failed code security verification`, illegal namespace/type/member references | [the sandbox](sandbox-and-config.md) |
+| Text renders as raw term keys instead of translations | [localisation](localisation.md) |
+| A Harmony patch that never binds at all ("Undefined target method"), or binds and never fires | [Harmony and ECS](harmony-and-ecs.md) |
+| Loader failures caused by stale `ModLoader/` directories, Roslyn satellite-assembly lookups, or failing save writes on a Wine host | [macOS / CrossOver](../macos-crossover-loader.md) |
+| A client refusing to join with `Error/BadProtocolVersion`, or a dialog demanding a mod be disabled before connecting | [multiplayer and the dedicated server](multiplayer-and-server.md) |

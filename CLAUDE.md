@@ -6,6 +6,15 @@ directory. Each mod also has its own `CLAUDE.md` with mod-specific detail
 true for *all* mods built against Pugstorm's `CoreKeeperModSDK` on this
 machine — change it only when an insight is genuinely mod-agnostic.
 
+**Game and SDK reference — @docs/ck/README.md.** How Core Keeper itself works
+is documented in the handbook under `docs/ck/`: the load-time sandbox, Harmony
+and ECS patching, the object database, UI and prefabs, world mechanics,
+multiplayer, localisation, save formats, troubleshooting and reverse
+engineering. The split: **this file holds the working rules for this repo**
+(setup, conventions, what must stay in step with what), **the handbook holds
+the game knowledge**. Read the handbook before investigating anything about the
+game itself — it very likely answers it already.
+
 ## Directory layout
 
 - `CoreKeeperModSDK/` — the Pugstorm SDK clone, **shared** by every mod. Its

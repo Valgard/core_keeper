@@ -1,0 +1,554 @@
+# World, tiles and game mechanics
+
+This chapter is about the game itself: how the world is laid out in space, what
+the rules are for putting a tile or an object somewhere, how far the world
+around a player actually exists, and how a handful of frequently-modded systems
+(ore boulders, livestock, pets, cooked food) really behave. You need it when
+your mod computes positions, places or removes things, scans the world for
+entities, or reasons about creature and item identity. How to *hook* any of it
+is [Harmony and ECS](harmony-and-ecs.md); how to change baked prefab data is
+[database and baking](database-and-baking.md).
+
+## World geometry: the plane is XZ, not XY
+
+Core Keeper looks top-down but is a 3D scene with a fixed overhead camera. The
+axes are the usual Unity ones, which means the map plane is **XZ**:
+
+| Axis | Meaning |
+|---|---|
+| `x` | left/right on screen |
+| `y` | **height** (3D up). For every ground-level entity — players, enemies, dropped items, digging spots — it is `0` |
+| `z` | up/down on screen, i.e. what a map would call its Y axis |
+
+So a top-down distance and bearing from `LocalTransform.Position` (`float3`)
+use `x` and `z`:
+
+```csharp
+float3 delta   = targetWorldPos - playerWorldPos;
+float distance = math.sqrt(delta.x * delta.x + delta.z * delta.z);
+float bearing  = math.atan2(delta.z, delta.x);   // radians, top-down
+```
+
+**Trap: `delta.y` is not the map's Y.** It is the height axis and is ~0 for
+everything on the ground, so `math.atan2(delta.y, delta.x)` returns 0 or π for
+every target depending only on the sign of `delta.x`. The symptom is unmistakable
+once you know it: direction indicators that all point horizontally and never
+rotate as you move. Measured example — target at `(111.00, 0.00, -114.00)`,
+player at `(91.49, 0.00, -49.78)`, so `delta = (+19.51, 0, -64.22)`: the correct
+bearing is ~73°, the `delta.y` version gives 0°.
+
+`math.length(delta)` for *distance* is safe as long as `y` is 0, since
+`sqrt(dx² + 0 + dz²) == sqrt(dx² + dz²)`. Only the bearing is fragile.
+
+Once you have the bearing scalar, screen-space work needs nothing else from the
+world — a HUD arrow on a ring is `cos(bearing)` for its screen X and
+`sin(bearing)` for its screen Y. Screen versus world coordinate handling is
+covered in [prefabs and rendering](prefabs-and-rendering.md).
+
+## Tile layers: what may sit on what
+
+`TileType.GetNeededTile` (`Pug.Base:18111`) and `GetInvalidTile` (`:18155`) are
+the authority. A tile is applied only if at least one of its needed tiles is
+present at that position and none of its invalid ones is.
+
+| Tile | Requires (ANY of) |
+|---|---|
+| `rail`, `wall`, `thinWall`, `floor`, `fence`, `rug`, `litFloor`, `looseFlooring`, `circuitPlate`, `smallStones`, `debris`, `debris2`, `bigRoot`, `groundSlime`, `chrysalis` | `ground`, `bridge` |
+| `bridge` | `pit`, `water` |
+| `dugUpGround`, `smallGrass`, `floorCrack` | `ground` |
+| `wateredGround` | `ground`, `dugUpGround` |
+| `wallGrass`, `wallCrack`, `ore`, `ancientCrystal` | `wall` |
+
+`GetInvalidTile` contains exactly one mirror pair: **`bridge` is invalid where
+`ground` is present, and `ground` is invalid where `bridge` is.** A bridge can
+therefore never be laid over normal ground.
+
+**Do not substitute `TileType.IsWalkableTile()` for this check.**
+`IsWalkableTile` (`Pug.Base:17781`) also accepts `floor`, `rug`, `litFloor`,
+`looseFlooring`, `rail`, `circuitPlate` and more — a strictly wider set than the
+apply-time rule uses. The correct predicate for "can a rail/floor/wall go here"
+is `ground || bridge`.
+
+Vanilla itself substitutes a tile the player never asked for:
+`PlaceObjectSlot.GetTileTypeToPlace` (`Pug.Other:295561`) silently lays `ground`
+first when a `wall` is placed on a position that has neither `ground` nor
+`bridge`. Inserting a missing substrate is an established pattern, not a hack.
+
+## `AddTile` is a queue append, not a commit
+
+```csharp
+EntityUtility.AddTile(int tileSet, TileType tileType, int2 position,
+                      bool isWorldModeCreative,
+                      DynamicBuffer<TileUpdateBuffer> tileUpdateBuffer)
+```
+
+`Pug.Other:256440`. All it does is `tileUpdateBuffer.Add(new TileUpdateBuffer {
+command = Add, … })` — plus, for a `wall`, a paired `Remove` of `roofHole`. It
+rejects `tileSet < 0 || tileSet >= 75` and guards the spawn-area tiles. **The
+layer rules above are judged later**, when the buffer is applied.
+
+### Ordering: the buffer is reversed twice, so insertion order survives
+
+- `UpdateSubMapCommon.FilterUpdates` (`Pug.Other:240546`) walks the buffer
+  backwards while building `addList`, de-duplicating per `(position, tileType)`.
+- `ApplyAdd` (`Pug.Other:241602`) walks `addList` backwards again.
+
+Two reversals cancel. Net effect: **write the substrate tile first and it is
+applied first.** A bridge under a rail means queueing `bridge`, then `rail`. A
+single additional reversal introduced anywhere in that chain by a game update
+would silently invert this, so re-verify after updates.
+
+### A rejected tile drops the item, it does not destroy it
+
+In `ApplyAdd`, when the needed tile is missing or an invalid one is present, the
+tile is simply not set — instead `EntityUtility.DropNewEntity` puts the
+corresponding item into the world as a pickup (`Pug.Other:241659`), unless its
+`objectType` is `NonObtainable`. So queueing a tile that then fails validation
+costs the player a walk to pick it back up, nothing more.
+
+### Never suppress an `AddTile` call to veto a placement
+
+`AddTile` is the convergence point of tile placement: writing into the
+`TileUpdateBuffer` is what "placing" means, and this is the utility that does
+it. Vanilla calls it at `Pug.Other:311379`/`:311382`, and third-party placement
+mods call it too. That makes it the right place to *change* a placement — but
+the wrong place to *cancel* one:
+
+**Both vanilla and the placement mods debit the item from the inventory
+*after* calling `AddTile`.** Blocking the call therefore consumes the item and
+produces nothing: a straight item loss. Letting the call through and having it
+fail validation only drops a pickup (see above). If you need to veto, veto
+earlier, at the placement decision, not at the tile write.
+
+`AddTile`'s parameters carry no player or inventory reference, so a mod that
+needs that context has to capture it upstream. The patch mechanics — priority,
+prefix/postfix interplay, and coexisting with mods that replace the placement
+path wholesale — are in [Harmony and ECS](harmony-and-ecs.md).
+
+## The placement permission model
+
+Whether an item may be placed on a given tile is decided by
+`PlacementHandler.ShouldCheckPlaceObjectOnTile` (`Pug.Other:295735`), and it
+grants permission through **two independent, OR-ed routes**:
+
+1. **`PlacementCD` bool flags** — `canPlaceOnWalkableTiles`, `canPlaceOnWater`,
+   `canBePlacedOnLava` (which is `water` with `tileset == 3`), `canPlaceOnPit`,
+   … They are set in `PlacementHandler.Activate` (`:296019`) from
+   `ObjectPropertiesCD` hashes:
+
+   | Hash | Flag |
+   |---|---|
+   | `-1324171664` | `canPlaceOnWater` |
+   | `-1535225238` | `canBePlacedOnLava` |
+   | `-1827158511` | `canPlaceOnPit` |
+
+2. **An object list** — `ObjectCanBePlacedOnObject(<the ObjectID the target TILE
+   maps to>, …, canBePlacedOnObjects)` at `:295775`, which sets
+   `foundValidTileToPlaceOn = true` **regardless of every flag**.
+
+**Trap: bridges use route 2, not route 1.** Measured live on `WoodBridge`, the
+`PlaceableObject` master gate (hash `-975748197`) is `True`, but
+`canPlaceOnPit`, `canPlaceOnWater` and `canBePlacedOnLava` are all **`False`** —
+both on the database prefab and in `PlacementCD` while the bridge is equipped.
+A design built on "read the bridge's pit/water flags and copy them onto another
+item" has nothing to copy. What actually makes a bridge reach an abyss is its
+membership list.
+
+### The two list properties are passed crossed
+
+`CanPlaceObjectAtPosition` (`:295579-295586`) reads both list properties into
+locals and then calls `ShouldCheckPlaceObjectOnTile(…, tilesChecked, value2,
+value, …)` at `:295631` against a signature of `(…, canBePlacedOnObjects,
+canNotBePlaceOnObjects, …)`. Reading the hashes in declaration order gets the
+meaning exactly backwards:
+
+| Property hash | Meaning |
+|---|---|
+| `-789473209` | `canBePlacedOnObjects` — the **allow** list |
+| `1757427560` | `canNotBePlaceOnObjects` — the **veto** list |
+
+Measured contents under `-789473209`:
+
+| Object | `canBePlacedOnObjects` |
+|---|---|
+| `WoodBridge` | `Water`, `Pit`, `Lava` |
+| `Rail` | `ConveyorBelt`, `ElectricalDoor` |
+
+The rail entry is independently observable in game: rails can be placed on
+conveyor belts.
+
+`ObjectCanBePlacedOnObject` is a plain membership scan — veto list first as a
+hard block, then the allow list, where a hit returns `true` with no further
+condition.
+
+Note that permission and layer rules are separate gates. Being allowed to place
+a rail on a pit does not conjure a substrate: the rail still needs `ground` or
+`bridge` underneath once permission is granted.
+
+### Changing the list requires the bake-time hook
+
+`PlaceableObjectConverter.Convert(PlaceableObjectAuthoring)`
+(`Pug.ECS.Conversion:2825`) is **editor-side only** — zero calls were measured
+in the shipped game, so patching it does nothing at all.
+
+The list is reachable from `PugDatabasePostConverter.PostConvert(GameObject)`
+(`Pug.Other:3474`/`:3478`), which does run per world/database conversion. From a
+prefix you walk `PugDatabaseAuthoring` →
+`DatabaseConversionUtility.GetPrefabList(...)` → the `PrefabData` whose
+`ObjectInfo.objectID` matches → `ObjectInfo.prefabInfos` →
+`prefabInfo.ecsPrefab.TryGetComponent<PlaceableObjectAuthoring>()` → mutate
+`canBePlacedOnObjects`, a `List<ObjectID>` (`Pug.ECS.Authoring:3150`). Identify
+prefabs by their `objectID` enum, never by `objectName` string. Useful constants:
+`ObjectID.Pit = 233`, `ObjectID.Water = 232`. The bake runs after `EarlyInit` and
+before `Init`, so the patch must be bound in `IMod.EarlyInit`; the full
+`PostConvert` pattern is in [database and baking](database-and-baking.md).
+
+**Permission has to exist before placement runs.** `canPlaceObject` is computed
+in `UpdatePlaceablePosition`, and `PlaceItem` returns early at `:311322` when it
+is false. You cannot "place first and justify it afterwards" — a hook that would
+insert the supporting tile is never reached.
+
+### Placement flags are re-initialised every tick
+
+`PlacementHandler.Activate` — the call that populates `PlacementCD` from the
+object's properties — is invoked from
+`SelectedEquipmentChangeSystem.EquippedSlotChangeJob` (`Pug.Other:427117`, call
+at `:427333`).
+
+**Trap: do not read that system's name as its cadence.** Its `OnUpdate` schedules
+the job **unconditionally every tick** (`:428254-428257`; its queries carry no
+`SetChangedVersionFilter`), and the `Activate` call sits *outside* the
+equip-change branch above it. The flags are refreshed per tick, not only when
+the equipped item changes.
+
+A mod that mutates those flags should nevertheless clear its own mutation on
+every invocation — not because vanilla forgets to, but because a hook cannot
+know what state it is entered in, nor the relative ordering of the two systems.
+Idempotence that depends on another system's cadence is not idempotence.
+
+## Entity radii: loaded is not observed
+
+Core Keeper keeps chunks loaded in a bubble around the **player**, driven by
+`KeepAreaLoadedCD` on the player entity (set at conversion to
+`KeepLoadedRadius = 300`, `StartLoadRadius = 250`, `ImmediateLoadRadius = 200`).
+The named constants:
+
+| Constant | Value |
+|---|---|
+| `PLAYER_DISTANCE_TO_UNLOAD_ENTITIES` | 300 |
+| `PLAYER_DISTANCE_TO_START_LOAD` | 250 |
+| `PLAYER_DISTANCE_TO_LOAD` | 200 |
+| `DISTANCE_FROM_PLAYER_TO_UPDATE_ENTITY` | 40 |
+| `DISTANCE_TO_RESPAWN_ENVIRONMENT` | 200 |
+| `UNLOADED_WORLD_SEGMENT_SIZE_LOG2` | 7 (serialized world segment = 128 tiles) |
+
+`UnloadToSerializeWorldSystem` / `FindUnloadedChunksToLoad`
+(`Pug.Other:179834-180412`) build the keep-loaded, load and load-immediately
+circles from those radii: a segment's entities are destroyed when its AABB
+overlaps no 300-circle, and re-created when it overlaps the 250 or 200 circles.
+
+`defaultSimDistance = 100` and `SessionConfiguration.SimulationDistance = 50`
+exist but are unreferenced in the shipped DLLs — **the player load bubble is not
+shrinkable by any in-game setting.**
+
+Client ghost relevancy is a much smaller and entirely separate thing:
+`SpawnRect (22,14)` / `DespawnRect (24,16)` (`Pug.Other:135800`). A scan that
+resolves the ServerWorld therefore sees entities out to 200-300 tiles, not the
+~24-tile client ghost set; multiplayer world separation is covered in
+[multiplayer and server](multiplayer-and-server.md).
+
+### The trap
+
+**A loaded entity is not necessarily an observed one.** Measured in game, base
+placed-object entities leave a mod's per-scan query set at only **~91-115 tiles**
+from the player — far inside the 200-tile load floor. That boundary matches no
+named constant. The best-supported explanation is DOTS `ArchetypeChunk` unload
+granularity: a container and a workbench standing next to each other are
+different archetypes, hence different chunks with different AABBs, so one can
+leave the query while the other stays. A camera reference-frame offset may
+contribute.
+
+**Consequence for any spatial-scan mod** that self-heals, prunes, or asks "is
+this thing still there?": you may only infer "not observed ⇒ destroyed" inside
+the **observed** boundary (~91), never at the load radius (200). Choosing a
+prune threshold just under `ImmediateLoadRadius` — say 180, which looks
+conservative — deletes loaded-but-unobserved entities as the player walks away
+and quietly destroys your own records. A safe threshold is well below the
+observed dropout (48 is comfortable), ideally combined with a
+"would-be-observed" gate that mirrors whatever coverage rule your scan itself
+uses.
+
+## Ore boulders
+
+**An ore boulder's `maxHealth` is `12,960,480`** — identical for every ore type,
+read off `HealthAuthoring` on the boulder prefabs. A boulder's remaining ore
+**is** its health; drilling drains the same field that damage does, so refilling
+a boulder means setting `HealthCD.health` back to `maxHealth`.
+
+**Trap: the "1800" that circulates in mod descriptions as the base-game limit is
+the ore *yield*, not the health.** At `12,960,480` health for 1,800 ore that is
+~7,200 health per unit of ore. Mistaking the yield for the health misestimates
+the scale by a factor of thousands and makes narrow health windows look
+unreachable when they are in fact enormous. A worked case: the mod.io mod
+*EternalOreBoulders* (6042718) does not prevent mining but heals afterwards —
+every 30 ticks (≈0.5 s) it sets every entity carrying `RequiresDrillCD` and
+`DontDropSelfCD` back to `maxHealth`, but only while
+`0 < health < maxHealth * 0.1` (a boulder already at `health <= 0` is
+deliberately not reanimated). That 10% window is 1.296 million health wide — with
+eight drills at an 11× speed multiplier it stays open for roughly 12 minutes and
+some 1,400 heal opportunities. "The drill speed skips the window" is arithmetic
+that does not work out; when the numbers say a window cannot be missed, look for
+a situation in which the system is not running at all rather than for a
+collision.
+
+### Ore boulders are ordinary placeable prefabs
+
+All ten ore types (`CopperOreBoulder` 2200 … `ReluciteOreBoulder` 2218) carry
+`objectType: 800` = `ObjectType.PlaceablePrefab` (`Pug.Base:4696`), a real `icon`
+and `smallIcon`, `isStackable: 1` and `prefabTileSize: 2×2`. Nothing in the
+prefab data marks them as world-only decoration.
+
+**The only gate is the creative catalogue, and it is a single runtime call.**
+Vanilla hangs the creative object browser off
+`UIManager.OnPlayerInventoryOpen` → `if (_creativeModeUIShouldBeOn &&
+Manager.saves.IsCreativeModeWorld() && …) creativeModeUI.ShowContainerUI()`
+(`Pug.Other:273173`). The mod.io mod *Item Spawner* (6103095) consists
+essentially of one prefix on that predicate:
+
+```csharp
+[HarmonyPatch(typeof(SaveManager), "IsCreativeModeWorld")]
+static bool Prefix(ref bool __result) { __result = true; return false; }
+```
+
+which makes the browser — boulders included — available in any survival world.
+(Its own filter drops foreign-mod items with `objectID >= 30000` outside real
+creative worlds; vanilla 2200-2218 are unaffected. It bails out on
+`IsDedicatedServer`, so the patch is client-side only.)
+
+**The reusable lesson: Core Keeper separates "is this object placeable"
+(prefab data, `objectInfo.objectType`) from "may the player see it in the
+catalogue" (a runtime gate).** Never assume a world object is unreachable
+because the game never offers it to you.
+
+To make a genuinely non-placeable object placeable, the same mod's converter
+patch shows the minimal pattern: prefix `ConversionManager.RunConverters` and set
+`gameObject.GetComponent<EntityMonoBehaviourData>().objectInfo.objectType =
+ObjectType.PlaceablePrefab`. Three lines, no bake-time work required.
+
+## Livestock, pets and critters
+
+The `ObjectType` enum (`Pug.Base`) is the first thing to get right, because the
+three creature families are typed differently and any bake-time filter you write
+will silently include or exclude whole categories:
+
+| `ObjectType` | Value |
+|---|---|
+| `PlaceablePrefab` | 800 |
+| `Critter` | 801 |
+| `Pet` | 802 |
+| `Creature` | 900 |
+| `PlayerType` | 6000 |
+
+### Livestock (cattle)
+
+Farm livestock are `ObjectType.Creature` (900) — confirmed in game, not
+inferred. They are marked by an empty `struct CattleCD` (`Pug.ECS.Components`),
+which `CattleConverter` assigns to every `: Cattle` prefab, so
+`PugDatabase.HasComponent<CattleCD>(objectData)` determines the set without
+hardcoding IDs.
+
+| Species | Adult `ObjectID` | Baby `ObjectID` |
+|---|---|---|
+| Cow | 1300 | 1304 |
+| Goat | 1302 | 1305 |
+| RolyPoly | 1303 | 1306 |
+| Turtle | 1307 | 1308 |
+| Dodo | 1309 | 1310 |
+| Camel | 1311 | 1312 |
+
+`CattleFeedTray` (1301) sits inside that ID range but is a `Table`, not cattle.
+
+**The baby↔adult relation is structural and readable at bake time.** The adult
+carries `BreedStateCD` (from `BreedStateAuthoring.babyType` via
+`BreedStateConverter`) whose `ObjectID babyType` points at its baby; a baby
+carries no `BreedStateCD` at all. So "is some adult's `babyType`" is the fold
+criterion — no name parsing needed.
+
+**Discovery is per `(objectID, colour variation)`.** Cattle have no
+`CanBeDiscoveredCD`, so there is no proximity discovery, but the game does
+discover them through the inventory-pickup path
+(`DetectUndiscoveredObjectsInInventory` → `SetObjectAsDiscovered`), keyed on the
+animal's **colour variant** as the variation. The consequence is
+counter-intuitive: a species you have only ever owned in a non-zero colour reads
+as undiscovered on its variation-0 row. A caged animal is stored as the
+*animal's* `ObjectID` plus aux data in a buffer.
+
+**Enumerating a species' colour palette.** There is no per-species colour-count
+API — no `CattleInfosTable`, no `maxColors` field, and `GetObjectInfo(id, v)`
+falls back to variation 0 for every `v`, so it gives no "this variation exists"
+signal. The full set is nonetheless authored: each cattle prefab's
+`Pug.Properties.ObjectPropertiesCD` carries a `PossibleChildVariation[]` list
+under property id **`239678920`** — the breeding-outcome list that
+`Pug.Other.GetChildVariation` rolls from.
+
+```csharp
+PugDatabase.TryGetComponent<Pug.Properties.ObjectPropertiesCD>(objectData, out var props);
+props.TryGetList(239678920, out NativeArray<BreedStateCD.PossibleChildVariation> list,
+                 (AllocatorManager.AllocatorHandle)Allocator.Temp);
+// distinct list[i].Variation values = the species' colours
+```
+
+Probed in game, every species yields `{0, 1, 2, 3, 4}` — five colours — and every
+colour of a *wild-caught* animal falls inside that set, so despite the name the
+list is the species' full palette, not a breeding-only subset. The call is
+sandbox-safe; it needs `PugProperties.dll` in the runtime asmdef's
+`precompiledReferences` and the namespace-qualified
+`Pug.Properties.ObjectPropertiesCD`. Other unexplored property-list hashes on
+cattle: `396300893`, `1985931659`, `1757427560`, `158600710`, `594131635`,
+`1126076739`.
+
+### The cattle cage is consumed at two points
+
+The vanilla Cattle Transport Box (`ObjectID.CattleCage`, crafted from 6 Plank,
+2 Tin Bar and 3 Iron Bar at the Livestock Workbench) is single-use, and there are
+two distinct consume sites:
+
+| Event | Where | What happens |
+|---|---|---|
+| Capture | `CageCattle()` `Pug.Other:404656` | Gated on `objectID == ObjectID.CattleCage`; calls `EntityUtility.DropPetInCage(...)` (`:404701`) to mint the *filled* cage item, `DestroyEntity(cattle)` (`:404702`), then `Create.ConsumeEntityAt(.., 1, destroy: true, ..)` (`:404706`) eats the empty box |
+| Release | `PlaceItem()` ~`:311388` | The filled box is a placeable carrying `CattleCD`; it is consumed via `Create.ConsumeEntityAt` |
+
+The `amount < 1 && HasComponent<CattleCD>` exception in
+`CanConsumeEntityInSlot` (`:301217`, static overload `:301224`) exists precisely
+so the filled box can still be placed at amount 0.
+
+Both sites live in Burst-compiled DOTS player systems (state-update and
+equipment-update aspects), so intercepting them needs the Burst treatment in
+[Harmony and ECS](harmony-and-ecs.md). A data-only alternative that avoids a
+Burst patch is to make the filled box emit an empty `CattleCage` as loot through
+the `OpenItemAndSpawnLoot` / `SpawnsItemsOnUseCD` path (`:404518`).
+
+### Pets
+
+Pets are `ObjectType.Pet` (802) — **not** `Creature`, which is a common wrong
+guess when relaxing a bake filter to "include pets".
+
+`SaveManager.SetObjectAsDiscovered` (`Pug.Other` ~`:363151`) force-zeroes
+`variation` for anything with a `PetCD`, so `discoveredObjects2` only ever holds
+a pet at `(objectID, 0)`. **The game does not track which pet skins you have
+seen** — a skin collection is necessarily mod-owned state.
+
+| Fact | Detail |
+|---|---|
+| Skin storage | `PetSkinCD { int skinIndex }`, an `[InventoryAuxDataComponent]` in the world-global `InventoryAuxDataSystem` — not a variation, not a direct entity component |
+| Assignment | Random on hatch, `rng.NextInt(maxSkins)` |
+| ObjectID | All skins of a pet share one ID (`PetDog` = 1222) |
+| Skin count | `Manager.ui.petInfosTable.GetPetSkinInfo(id).skins.Count` — more reliable than `PetCD.maxSkins` |
+| Rendering | Gradient recolours of the base `ObjectInfo.icon` (`_GradientMap` from `skins[i].primaryGradientMap` plus the `USE_GRADIENT_MAP` keyword on the `Amplify/UISpriteColorReplace` shader), not separate sprites; `GradientMapDataBlock` lives in `ScriptableData.dll` |
+| Stacking | Pets are non-stackable, one per slot |
+
+Reading `skinIndex` is sandbox-safe:
+`InventoryHandler.TryGetExtraInventoryData<PetSkinCD>(containedObject, out data)`
+(static; works for inventory and chest alike, since the aux data is
+world-global). For the currently summoned pet, go `PetOwnerCD.PetEntity` →
+`PetCD.inventoryAuxDataIndex` → the same lookup.
+
+**Trap for possession counting:** a stored pet sits in a `ContainedObjectsBuffer`
+and is found by an inventory scan, but a **summoned pet is a live entity outside
+that buffer** and will be missed — the classic "I own 8, it counts 7" symptom.
+
+Pets also carry generic `Level` and `Value` defaults (in game, Level 7 / Value 6
+for every pet); those numbers are meaningless for pets and should not be
+surfaced.
+
+### Critters
+
+Critters are `ObjectType.Critter` (801). Catchable ones become carriable items
+with the **same ObjectID** when caught with the Bug Net, and
+`SetObjectAsDiscovered` has no critter special case, so caught critters *are*
+discovery-tracked exactly like items.
+
+There are **25** obtainable critters, and a decompile-only survey does not find
+them all:
+
+| Group | ObjectIDs | Note |
+|---|---|---|
+| Net-catchable critters | 9800-9819 | 20 entries, no gaps |
+| Fireflies / glowbugs | 3500-3504 | `YellowFirefly` … `PurpleFirefly`; carry `FireflyCD`, **not** `CritterCD` |
+
+Because the fireflies use a different component, following `TryCatchAnyCritters`
+in the decompile leads away from them entirely. They are bug-net catchable
+through a firefly path and appear in players' chests. `CritterCatcherCatchableCD`
+is *automation* catchability and is not a clean predicate for "catchable with a
+net".
+
+### Pet talents
+
+Pet talents are structurally unlike player talents, which live in `SaveManager`.
+
+- **The budget lives in managed code.** The static class `PetExtensions` (global
+  namespace, `Pug.Other.dll`) owns the curve:
+  `GetTotalTalentPoints(int xp) = floor(GetLevelFromXP(xp) / 2)` and
+  `GetAvailableTalentPoints(xp, ContainedObjectsBuffer) = total -
+  GetSpentTalentPoints(buffer)`. With `maxLevel = 10`, vanilla tops out at
+  **5 points**. Every caller is managed UI (`PetTalentUIElement.CanPlacePoints`,
+  the pet-info `UpdatePointsText`), so it is Harmony-patchable **with no
+  BurstDisabler**.
+- **The server does not validate the budget.** `InventoryUtility.
+  SetPetTalentPoints` writes `buffer[talentIndex].points = points` directly and
+  trusts the client; the only enforcement anywhere is the client-side UI reading
+  `PetExtensions`. Verified in game: a server accepted 7 spent points on a
+  level-8 pet.
+- **The tree is 9 talents, 3 rows of 3.** Each talent costs exactly 1 point
+  (binary, `points > 0`). Row `talentIndex / 3` unlocks once
+  `spentPoints >= rowIndex`. `PetTalentBuffer` has `InternalBufferCapacity(9)`
+  and is stored in the pet's inventory aux data alongside `PetSkinCD`.
+- **Level-up feedback is level-driven, not talent-driven.** `Pet.UpdateLevel`
+  fires the "PetLeveledUp" chat line, the `GainTalentEffect` puff and the success
+  tone on a level change, independent of the talent-point formula. Pet damage is
+  `GetDamage(xp, type)` via `GetLevelFromXP` — also independent.
+
+## Cooked food is combinatorial
+
+There is no curated dish list. Cooking combines **two** ingredients; the dish's
+`ObjectID` is one of **15 base families** — Soup, Cake, Cereal, Cheese, DipSnack,
+Fillet, FishBalls, PanCurry, Pudding, Salad, Sandwich, Smoothie, Steak, Sushi,
+Wrap — and the concrete identity is packed into the `variation`:
+
+```csharp
+CookedFoodCD.GetFoodVariation(primary, secondary) = (primary << 16) | secondary
+```
+
+The name is generated per pair (`Pug.Other` ~`:301730`): `foodFormat` composes an
+adjective (`FoodAdjectives/<secondary>`), a noun (`FoodNouns/<primary>`) and the
+dish type (`Items/<family>`), with grammatical gender. A "Mushroom Soup" is
+simply mushroom in both slots. Each pair is a genuinely distinct, separately
+tracked recipe: the in-game cookbook lists one row per variation via
+`Manager.saves.GetDiscoveredCookedFoods()` and shows no total — just the count
+discovered.
+
+The arithmetic:
+
+| Quantity | Value |
+|---|---|
+| Cooking ingredients | 74 |
+| Distinct ingredient pairs, `n·(n+1)/2` | 2,775 (symmetric — `GetFoodVariation(a,b) == GetFoodVariation(b,a)`) |
+| Rarity tiers per pair | 3 (base, `rareVersion`, `epicVersion` on `CookedFoodCD`) |
+| Cooked-food `ObjectID`s (15 families × 3 tiers) | 45 |
+| **Distinct dishes** | **≈ 8,325** |
+
+All three tiers are reachable from the cooking roll
+(`ChanceToGainExtraCookedFood` → `ChanceForExtraCookedFoodToBeRare`,
+`Pug.Other` ~`:324098`).
+
+**Trap: the widely cited wiki figure of 5,550 dishes is wrong.** It lists three
+rarity colours and then multiplies by two — self-contradicting. The code has
+three tiers; 2,775 × 3 = 8,325.
+
+This dominates any exhaustive item catalogue: a full enumeration of obtainable
+items comes to roughly 10,910 rows, of which ~8,325 are cooked dishes (~76%) and
+only ~2,585 are "real" items. Soups alone account for 525 = 175 combinations × 3
+tiers. Any UI that renders such a catalogue needs viewport virtualisation —
+naive per-item `GameObject`s choke on the cooked block. Note that 8,325 is the
+theoretical maximum; the bake logs only a grand total, so an exact cooked-only
+figure requires your own counter.

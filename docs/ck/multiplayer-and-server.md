@@ -1,0 +1,205 @@
+# Multiplayer and the dedicated server
+
+Everything a mod does in singleplayer it does alone. The moment a second machine
+is involved, two independent gates decide whether the two sides may talk at all:
+Unity NetCode's own protocol validation, and Core Keeper's mod check on top of
+it. Neither knows about the other, and both fail in ways that name neither your
+mod nor the real cause. This chapter covers what those gates check, what a
+mismatch looks like from the player's seat, and what is different about a mod
+running inside a dedicated server process.
+
+## The netcode stack
+
+Three layers, all of them off-the-shelf:
+
+| Layer | Assembly | Role |
+|---|---|---|
+| Transport | `Unity.Networking.Transport.dll` | packet delivery |
+| Replication | `Unity.NetCode.dll` (+ `.Physics`, `.Hybrid`, `.Authoring.Hybrid`) | NetCode for Entities — ghosts, snapshots, RPCs |
+| Relay | `Facepunch.Steamworks.Win64.dll` | Steam Datagram Relay (SDR) |
+
+The replication layer is stock **NetCode for Entities / DOTS Netcode**. The
+server assemblies carry its symbols verbatim — `GhostCollectionSystem`,
+`GhostCollectionPrefabSerializer`, `GhostCollectionHash`,
+`GhostCollectionCustomSerializers`, `NetworkProtocolVersion` — and the SDK
+matches them with `ProjectSettings/NetCode{Client,Server,ClientAndServer}Settings.asset`.
+
+SDR does **not** come from Unity. It is Facepunch's Steamworks binding
+(`SteamNetworkingSockets`, `SteamNetworkingIdentity`, `SteamDatagramHostedAddress`,
+`SteamNetworkingFakeUDPPort`), and it sits underneath as a swappable transport
+interface, not as protocol semantics. A server started with a port set takes
+direct UDP connections; with no port it is reachable only through the relay. The
+protocol above is identical either way.
+
+### What changes the ghost hashes — and what does not
+
+On connect the two sides exchange `NetworkProtocolVersion` — NetCode version,
+game version, RPC collection, component collection — plus the ghost collection
+hash. NetCode generates its ghost serializers at **build time** from the ECS
+component types, so those hashes are a fingerprint of the component landscape,
+not of anything the loader can negotiate at runtime.
+
+For a mod this splits cleanly:
+
+| Kind of change | Hashes |
+|---|---|
+| Harmony patches on managed systems | unchanged |
+| Bake-time property edits, changed values, recipe/database tweaks | unchanged |
+| **New ECS components, or new ghost prefabs** | **changed** |
+
+The first two are the overwhelming majority of mods, and they pass NetCode's
+check untouched — their compatibility problem is entirely the mod-set layer
+below. Registering a new replicated component is the case to think twice about:
+it alters the component/ghost collection, so the NetCode check fires **on top of**
+whatever `requiredOn` says, and `requiredOn` cannot excuse it.
+
+### Why there is no third-party server
+
+The obvious-looking blocker — SDR — is not the blocker. The blocker is the
+build-time-generated ghost serialization: a reimplementation would have to
+reproduce the whole component landscape bit-exactly, which is the whole game,
+including the world generation that needs OpenGL/Mesa on the server side. The
+pragmatic path for anything server-authoritative is always the official server
+binary plus a server-side mod.
+
+**There is no macOS build at all** — not of the server, not of the game. The
+Steam store API reports `platforms.mac = False` for app 1621690, and server
+depots exist for Windows and Linux only. On Apple Silicon that leaves Wine/
+CrossOver or a Linux container; the `escapingnetwork` server image has an ARM
+variant via Box64. Running it locally in the CrossOver bottle is described in
+[../dedicated-server.md](../dedicated-server.md).
+
+## The second layer: the mod set
+
+Core Keeper runs its own mod comparison at connect time, in
+`ModInfoRpcSystem` and `NetworkClientStartSystem`, entirely independent of
+NetCode's hash validation. What it compares is driven by each mod's
+`requiredOn` flag — see [mod anatomy](mod-anatomy.md) for the enum itself and
+how to choose a value. What matters here is the network consequence.
+
+**The checks are crossed.** This is the part that gets set wrong:
+
+| Flag on your mod | Effect |
+|---|---|
+| `Server` (2) | `NetworkClientStartSystem` (Pug.Other ~124928): `localMod.required = (requiredOn & ModExistsOn.Server) != 0` — the **client** demands the mod **on the server** |
+| `Client` (1) | `ModInfoRpcSystem` (~125929): `required = (requiredOn & ModExistsOn.Client) != 0` — the **server** demands it **on the client** |
+| flag absent | the mod is removed from the check list entirely (`localMods.RemoveAt`) and never interferes in that direction |
+
+So a client-only HUD mod that carries `Server` does not "declare itself
+client-side" — it declares that every server you join must also run it.
+
+### What a mismatch looks like to the player
+
+It is a hard block, not a warning (~124940-124978). Joining a server that lacks a
+`Server`-flagged mod raises `Menu/ModMissingServerDialogue`, and the dialogue
+offers exactly two ways out:
+
+- **disable the mod** — `ModIOUnity.DisableMod` plus a restart of the game, or
+- **cancel the connection** — `cancel = true` → `Disconnect`.
+
+There is no "join anyway". And with a **development build carrying a fake mod ID**
+(`modId <= 0`) it is worse: the disable branch is not offered at all, because
+there is no mod.io subscription to disable, so the dialogue reduces to
+`cancelDialogue` — the player cannot get onto that server by any route the game
+provides.
+
+This is why an over-broad `requiredOn` costs real usability: it turns "my HUD
+mod does nothing on unmodded servers" into "my HUD mod cannot be installed by
+anyone who plays on public servers".
+
+## The dedicated server
+
+Wiring one up locally — the helper script, the world and mod symlinks, the
+bottle — is [../dedicated-server.md](../dedicated-server.md). What follows is
+what is true of the *game*, wherever the server runs.
+
+### The client builds no server world
+
+Joining a dedicated server, the client constructs only `ClientWorld0` — there is
+no `ServerWorld` in the process. Anything server-authoritative is decided
+entirely in the server process, and a client-side patch on a server-authoritative
+system will at best win for a few ticks before the next ghost snapshot overwrites
+its value.
+
+### A mod-set mismatch reports a version error
+
+The client shows **"wrong game version"**. The actual error is
+`Error/BadProtocolVersion`, and it almost never has anything to do with the game
+version — a mod-set difference produces exactly this message, because the mod set
+is upstream of the hashes NetCode compares. Nothing in the message mentions mods.
+
+Diagnose in `Player.log`: hundreds of `ComponentHash[N]` lines followed by
+`Client disconnected because Error/BadProtocolVersion`.
+
+### Version filtering is client-side only
+
+Only the client checks a mod's version-compatibility tags. It skips a mod that
+does not match the running game version, unless the mod's GUID sits in
+`modloader/config.json` → `unsupportedModsToLoad`, which is what the "load
+anyway" dialogue writes.
+
+**Trap:** copying that list to the server accomplishes nothing. The server's
+directory scan passes `supportsCurrentVersion: true` **hardcoded**
+(`PugMod.Loader` ~2172) and loads everything it finds, so the gate the list feeds
+— `!supportsCurrentVersion && !contains(guid)` — can never fire there.
+
+The asymmetry therefore runs one way only, and it is a mismatch generator: a mod
+the **client rejects** but the server still loads is a set difference. Resolve it
+on the side that actually filters — either confirm the mod in the client's
+dialogue, or remove it from the server. Note also that the loader **clears
+`unsupportedModsToLoad` on every game-version change**, so a mod confirmed once
+silently drops out of the client's set after the next game update, and the join
+that worked yesterday fails today with no change on either machine.
+
+### Duplicate mods: last one wins
+
+The loader deduplicates by `metadata.name` — the manifest identity, not the
+mod.io profile name and not the folder name. When two loaded folders claim the
+same `metadata.name`, `SortMods` keeps **the last one in enumeration order**.
+Only one of them ever runs, and nothing announces which. Two mods can also share
+a `guid` without being the same mod — a fork inherits it along with the manifest
+— so a shared guid is not proof of a duplicate, but it does clash for the
+data-block loader, which keys on the guid.
+
+### The server needs the same loader patches as the client
+
+On a Wine/CrossOver host the server installation must be patched **separately**
+from the game — it is a different install directory with its own
+`CoreKeeperServer_Data/Managed`. Skipping it produces a very specific failure:
+the mods **load but never compile**, because Roslyn chases a missing satellite
+assembly, and the client then rejects the join as `Error/BadProtocolVersion` —
+i.e. the mod-set symptom, one step removed from the real cause. Details in
+[../macos-crossover-loader.md](../macos-crossover-loader.md).
+
+### An idle server never simulates
+
+This is the single most misleading thing about server-side debugging. After world
+start the server settles at `timescale = 0` and stops simulating; its log stops
+growing at the same moment. Consequences:
+
+- **An absent log line proves nothing** unless a player was connected at the
+  time. "My patch never logged" is not evidence the patch is dead.
+- Read the log **after** the session, not during it.
+- A mod's `Debug.Log` output does land in the server log — the log file sits
+  next to the executable, not in `LocalLow`.
+
+To prove a Harmony patch is live server-side, log from the **static constructor**
+of the `[HarmonyPatch]` class. An explicit static constructor suppresses
+`beforefieldinit`, so the line fires immediately before the first `Prefix()` call
+rather than at some unrelated point of type loading — and then connect a player
+so the systems actually run.
+
+The two log formats also differ, which costs time when comparing sides: the
+server writes `loaded mod <Name> at <path>`, the client writes
+`Loading mod with ID <modId>`. There is no grep pattern that matches both.
+
+### Warning: the lifecycle order is inverted
+
+`IMod.Init()` runs at a different point relative to ECS startup on the two
+processes — **before** the worlds are built on the client, **after** them on the
+dedicated server. Anything that registers itself during `Init()` and is consumed
+by a snapshot taken at ECS startup therefore works in singleplayer and is a
+silent no-op on the server, with no error and no log line. `BurstDisabler` is the
+case this bites in practice; the mechanism and the fix belong to
+[Harmony and ECS](harmony-and-ecs.md). If your mod is server-authoritative and
+works alone but not in multiplayer, start there.
