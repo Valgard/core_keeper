@@ -51,11 +51,31 @@ public void Init()
 }
 ```
 
-Verified for **both** system shapes: `SystemBase` (`OnUpdate()`) and `ISystem`
-structs (`OnUpdate(ref SystemState state)`). In the `ISystem` case the prefix
-binds against the `ref SystemState` signature with no "Undefined target method".
+### The call does two entirely different things, depending on the system
 
-### The call has two halves, and only one of them is global
+`DisableBurstForSystemInternal` (`PugMod.SDK.Runtime:798`) branches on
+`TypeManager.IsSystemManaged` and **returns early** for a managed system. The
+two paths share nothing beyond the entry point:
+
+| System shape | What actually happens |
+|---|---|
+| **`ISystem` struct** (unmanaged) | the two-halves mechanism below |
+| **`SystemBase` class** (managed) | `PatchManagedSystem` Harmony-patches the system's own `OnCreate`/`OnStartRunning`/`OnUpdate`/`OnStopRunning`/`OnDestroy` with prefixes and postfixes that toggle `BurstCompiler.Options.EnableBurstCompilation` around each call — immediately, globally, with no world registry involved |
+
+**Everything that follows in this section — the two halves, the per-world
+snapshot, and the dedicated-server trap built on it — applies to the `ISystem`
+path only.** A managed `SystemBase` never reaches
+`SystemTypesToDisableBurstFor`, so `AddWorld` has nothing to arm for it and the
+server trap does not arise.
+
+Which shape you are looking at is worth checking before reasoning about any of
+it: in the decompile it is `public struct X : ISystem` versus
+`public class X : SystemBase`. Every system this handbook cites as a worked
+example — `ChangeDurabilitySystem`, `AddSkillValueSystem`, `PetHandlerSystem`,
+`EquipmentUpdateSystem` — is an `ISystem` **struct**, which is also why the
+managed path is the less-travelled one here and correspondingly less tested.
+
+### The `ISystem` call has two halves, and only one of them is global
 
 | Half | What it does | Scope |
 |---|---|---|
@@ -132,10 +152,18 @@ exactly one place, `ECSManager.StartEcs` (`Pug.Other:2675` in the client build,
 `:2656` in the server build), and it **snapshots** the types registered up to
 that moment. Nothing ever back-fills it.
 
-Note what this does *not* mean: the call is present and runs on both builds,
-immediately after authoring-data conversion in each. The server does not skip
-it. So "`AddWorld` never runs server-side" is the wrong diagnosis — it runs, it
-is simply reached before your `Init()` had a chance to register anything.
+Note what this does *not* mean: the call is present and runs on both builds, at
+the end of `ECSManager.StartEcs` once the worlds have been created. The server
+does not skip it. So "`AddWorld` never runs server-side" is the wrong diagnosis —
+it runs, it is simply reached before your `Init()` had a chance to register
+anything.
+
+The two builds *do* differ right beside that call, in a way worth knowing if you
+read the code: the client kicks off authoring-data conversion as a coroutine and
+falls straight through to `AddWorld`, so the conversion has not run yet; the
+server drains the same enumerator synchronously first. That difference does not
+affect the snapshot problem, but it does mean the surrounding state is not the
+same on the two sides.
 
 | Process | Order (measured in the logs) | Result |
 |---|---|---|

@@ -182,9 +182,16 @@ preference:
 A DOTS system whose `OnUpdate` is Burst-compiled cannot be intercepted by
 Harmony. Call `BurstDisabler.DisableBurstForSystem<TSystem>()` in
 `IMod.Init()` to move the system off Burst *before* the patch needs to bind.
-This works for **both** `SystemBase` (`OnUpdate()`) and `ISystem` structs
+Every system this repo's mods disable Burst for is an **`ISystem` struct**
 (`OnUpdate(ref SystemState)` — the prefix binds with no "Undefined target
-method"; verified in `faster-talents`/`faster-pet-talents`). To scale an ECS
+method"; verified in `faster-talents`/`faster-pet-talents`). A managed
+`SystemBase` takes a **completely different path** inside the SDK —
+`DisableBurstForSystemInternal` returns early into `PatchManagedSystem`, which
+toggles Burst around the system's own lifecycle methods and never touches the
+per-world registry — so none of the AddWorld/dedicated-server reasoning below
+applies to it. There is no `SystemBase` precedent here; an earlier version of
+this bullet claimed one, and the mod it named patches an `ISystem` struct.
+Details in `docs/ck/harmony-and-ecs.md`. To scale an ECS
 value that flows from a (possibly Burst) producer into a Burst-consumed
 component/buffer, don't patch the managed producer — Burst callers bypass the
 IL patch — but Burst-disable the **consumer** system and pre-inflate the
