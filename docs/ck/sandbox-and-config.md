@@ -170,8 +170,19 @@ read a public field and a value-type argument.
 
 ## Finding the banned identifier
 
-The verification log gives you counts, never names. Two strategies, in the
-order that pays off:
+The verification log reliably gives you **counts** — `Illegal Namespace/Type/
+Member References = N`. Read those first: they tell you which *category* you
+violated, which usually narrows it to one or two candidate calls.
+
+Whether it ever also names the offending member is unresolved. A second-hand
+account describes lines of the form `Referenced in method body: '<Type>.<Method>()'`
+with an `IL_` instruction, but that record is schematic rather than a captured
+log, so it may reflect the underlying verifier's documented format rather than
+what Core Keeper actually prints. **Check your own log for such a line before
+assuming you have to work without one** — if it is there, it answers the
+question outright and the strategies below are unnecessary.
+
+Two strategies otherwise, in the order that pays off:
 
 1. **Bisect.** Comment out the most recently added external API call, rebuild,
    reload. If verification passes, that call was it. This is how the

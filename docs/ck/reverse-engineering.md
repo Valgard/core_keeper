@@ -239,6 +239,22 @@ assembly-GUID remap plus copying the transitive asset hull — the fileIDs need 
 change at all. [Prefabs and rendering](prefabs-and-rendering.md) covers it;
 `utils/import_vanilla_prefab.py` automates it.
 
+### What you may do with the export
+
+Everything above extracts Pugstorm's assets. They stay Pugstorm's: Core Keeper
+modding runs under a personal-use, non-commercial EULA, and an extraction is a
+**reference and research artifact, not raw material to ship**.
+
+In practice that means two habits. Keep the export out of version control with
+an explicit ignore rule — it is large, it is not yours, and it is trivially
+re-generated from the game you already own. And never let extracted art or audio
+travel inside a published AssetBundle; a mod ships what you authored, plus
+references to what the game already has.
+
+Reading the export to learn how something is built, measuring a sprite to match
+its conventions, or querying the data YAML to answer a question are exactly what
+it is for.
+
 ## Answering a question about a prefab
 
 Query the YAML. Do not reason about it.
