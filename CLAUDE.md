@@ -227,12 +227,15 @@ asmdef cannot reference an editor-only one, so a CLI build helper (for
 
 ## macOS / CrossOver — distribution & loader
 
-Fake-ID dev install, the incompatible-mod dialog, `state.json`/`config.json`
-surfaces, and CrossOver/Wine specifics — see @docs/macos-crossover-loader.md.
+Read `docs/macos-crossover-loader.md` when a mod does not appear or does not
+load on this host, when the incompatible-mod dialogue shows up, or when you need
+the fake-ID dev install, the `state.json`/`config.json` surfaces, or
+CrossOver/Wine specifics.
 
-Running the dedicated server (Steam app 1963720) in the same bottle — sharing one
-world with the client via directory symlinks, mirroring the mod set, and why a
-mismatch surfaces as "wrong game version" — see @docs/dedicated-server.md. The
+Read `docs/dedicated-server.md` before starting, stopping or debugging the local
+dedicated server (Steam app 1963720) — it runs in the same bottle, shares one
+world with the client via directory symlinks, and a mod-set mismatch surfaces as
+"wrong game version" rather than as anything mentioning mods. The
 helper is `utils/server.sh start|stop|status|log|relink`. The mod symlinks drift
 four ways — a release mints a new `<fileId>`, a mod is switched off or
 unsubscribed, a mod is added or moves between mod.io and a dev build, or one ends
@@ -336,7 +339,9 @@ human-facing setup; what matters when editing code here:
 
 ## mod.io publishing (applies to every mod)
 
-Publishing flow, dependency sync, and the three mod IDs — see @docs/publishing.md.
+Read `docs/publishing.md` before publishing or re-tagging anything on mod.io:
+the publish flow, how dependencies and tags are synchronised, and which of the
+three mod IDs is which.
 
 ## Logo / branding (family style)
 
