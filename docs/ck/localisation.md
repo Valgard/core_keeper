@@ -193,6 +193,34 @@ from every other explanation — a build run without a captured log leaves you
 guessing. See [the build workflow](../../README.md) for how builds and installs
 are driven.
 
+## Generating the term assets
+
+Mod text reaches the bundle as generated `TextDataBlock` assets. The obvious way
+to produce them — enumerate the game's own localisation data blocks through the
+SDK's editor API and write terms through it — cannot work.
+
+**Trap:** `LanguageDataBlock` does not exist at build time. Both
+`ScriptableDataEditorUtility.GetCachedDataBlocks<LanguageDataBlock>()` and
+`AssetDatabase.FindAssets("t:LanguageDataBlock")` return **zero** results — not
+only in `-batchmode`, but in a fully loaded interactive Editor as well (checked
+across 600 `Update` ticks). The type carries
+`[RuntimeInitializeOnScriptableDataLoad]`, so instances exist only while the
+game runs, never while the Editor imports assets.
+
+The consequence for any generator: it cannot go through the real CK-SDK
+localisation API and has to **template raw `.asset` YAML** instead. The one
+piece of runtime knowledge it needs — the map from language address to ISO code
+— must be captured once from a runtime dump and carried in the generator (13
+runtime languages, `en` primary).
+
+**CoreLib's `LocalizationModule`** covers the same ground and is the obvious
+shortcut past all of this. Weigh it before you take the dependency: its source
+carries a `//TODO Remove Localization Module?` comment. That is the CoreLib
+author's stated intention, not evidence of removal — but it is why the route
+described in this chapter (your own term source, generated into `TextDataBlock`
+assets, read back through `API.Localization.GetLocalizedTerm(term) ?? term`) is
+the established one here.
+
 ## Empty, contentless, missing — three inputs, three different outcomes
 
 The generator produces "no terms" for three completely different reasons, and
@@ -240,3 +268,39 @@ them — belongs to the [UI framework](ui-framework.md).
 **Write leaf keys unquoted** in the term source — the settings-menu framework's
 consumer contract requires it. Leaves are not restricted to identifier-shaped
 names; a leading underscore such as `_hint` is fine.
+
+## Feeding CK's own tooltip with a mod term
+
+Item tooltips localise themselves, which makes it look as though handing CK a
+term key is enough. It is not, and the reason is in the mechanism: the
+`UIelement` hover virtuals return **raw CK loc keys** — `Items/AncientCoin` —
+and CK's own localiser resolves those.
+
+**Trap:** that localiser does not see mod-authored terms. Return your own term
+key from a hover virtual and the tooltip renders the key verbatim on screen.
+
+Resolve the term yourself first, with `API.Localization.GetLocalizedTerm`, and
+pass the **already-resolved** string with `dontLocalize` set so CK's localiser
+leaves it alone. Which hover virtuals exist and how they are overridden belongs
+to the [UI framework](ui-framework.md).
+
+## Reacting to a language change
+
+`I2.Loc.LocalizationManager.OnLocalizeEvent` is the hook for rebuilding derived
+state — cached strings, composed labels — when the player switches language.
+
+**Trap:** it fires *mid-*`DoLocalizeAll`, while I2's localization source is only
+half-rebuilt. Doing the real work synchronously inside the handler re-enters
+that half-rebuilt source and throws a `NullReferenceException` out of
+`PlayerController.GetObjectName` — once per language switched.
+
+The shape that works:
+
+1. In the handler, set a pending flag and return. Nothing else.
+2. Do the work on the next `IMod.Update` tick. Deferring also coalesces rapid
+   switches, so clicking through the language list costs one rebuild rather than
+   one per click.
+3. Guard that work on `Manager.main.player != null` — a language switch on the
+   main menu has no ECS world.
+4. **Consume the flag even when the guard skips the work.** A flag left set
+   survives into a later tick and fires a rebuild against unrelated state.
