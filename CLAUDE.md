@@ -13,7 +13,9 @@ multiplayer, localisation, save formats, troubleshooting and reverse
 engineering. The split: **this file holds the working rules for this repo**
 (setup, conventions, what must stay in step with what), **the handbook holds
 the game knowledge**. Read the handbook before investigating anything about the
-game itself — it very likely answers it already.
+game itself — it very likely answers it already. `README.md` lists what each
+chapter covers; `docs/ck/index.md` routes by symptom ("patch binds but never
+fires") and by task, which is usually the faster way in.
 
 ## Directory layout
 
