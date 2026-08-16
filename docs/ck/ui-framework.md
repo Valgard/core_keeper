@@ -12,12 +12,13 @@ setting the player may not change right now.
 
 ## Sprite UI, not uGUI
 
-**Do not build with uGUI.** Not one published Core Keeper UI mod uses
-`Canvas`, `Image` or `RectTransform` — a survey of published UI mods' prefab
-YAML turns up zero occurrences of `Canvas` or `RectTransform`. That is not a
-stylistic preference. CK's `UIMouse` resolves pointer input with a **physics
-raycast into Layer 5** and therefore only ever finds a `SpriteRenderer` with a
-`Collider`. A uGUI hierarchy is invisible to it, and to everything downstream.
+**Do not build with uGUI.** A May 2026 survey of ten published Core Keeper UI
+mods — roughly 43,000 lines of prefab YAML — found zero occurrences of `Canvas`
+or `RectTransform`. That is not a stylistic preference, and the mechanism is
+what makes it a rule rather than a headcount: CK's `UIMouse` resolves pointer
+input with a **physics raycast into Layer 5** and therefore only ever finds a
+`SpriteRenderer` with a `Collider`. A uGUI hierarchy is invisible to it, and to
+everything downstream.
 
 The canonical shape of a modded UI object:
 
@@ -162,9 +163,18 @@ UserInterfaceModule.RegisterModUI(go);
 UserInterfaceModule.OpenModUI("MyMod:UIName");
 ```
 
-The prefab it expects: a `ModUIAuthoring` component on the root GameObject, your
-`IModUI` component on that **same** root GameObject, and a child GameObject
-literally named `root` holding all the actual UI elements.
+The prefab it expects: a `ModUIAuthoring` component on the root GameObject and
+your `IModUI` component on that **same** root GameObject. Those two are what
+CoreLib actually looks for — `RegisterModUI` does `GetComponent<ModUIAuthoring>()`
+and **returns without a word** when it is missing, and the `UIManager.Init`
+postfix instantiates the prefab and takes its `IModUI` off the instantiated
+root.
+
+The third part is a convention, not a check. `IModUI.Root` is a `GameObject`
+property *you* supply, and CoreLib never inspects the name of what it points
+at — the string `"root"` appears nowhere in its `UserInterface` module. Every
+mod in this family points it at a child GameObject named `root` holding all the
+actual UI elements, and the next trap is why that split is worth keeping.
 
 What you get for free: the window is mounted under
 `UIManager.chestInventoryUI.transform.parent`; it hides automatically when
@@ -327,11 +337,14 @@ background.sprite = Manager.ui
     .background;
 ```
 
-`Wood` and `Stone` are confirmed enum members (the returned sprites are named
-`crafting_ui_hand_NN`; `Stone` is `11`); more themes exist — enumerate them at
-runtime if you need one. The call is sandbox-clean, and the theme sprite
-**overrides whatever sprite you assigned in the Editor**, so the Editor
-assignment is only a design-time preview.
+`UIManager.CraftingUIThemeType` has five members —
+`Wood`, `Stone`, `Merchant`, `UpgradeForge`, `DangerousUsage` (`Pug.Other`
+~272599) — and that is the whole set; `GetCraftingUITheme` walks
+`craftingUIThemes` for a match and logs *"Missing crafting ui theme setup for
+…"* when a theme was never configured. The returned sprites are named
+`crafting_ui_hand_NN`; `Stone` is `11`. The call is sandbox-clean, and the
+theme sprite **overrides whatever sprite you assigned in the Editor**, so the
+Editor assignment is only a design-time preview.
 
 ## Item slots, icons and tooltips
 
@@ -777,10 +790,22 @@ enum HelpButtonTypes { NAVIGATE, SELECT, BACK, REFRESH, OPENPROFILE, RESET_DEFAU
 Each of the seven maps to a serialized GameObject slot carrying a **baked
 per-platform glyph**. There is no clean way to add an eighth.
 
-For a custom prompt — "[Y] Toggle view" and the like — **roll your own hint
-object**: a `PugText` plus a sprite, parented under your own menu, toggled with
-`SetActive` from `OnSelectedOptionChanged`. Do not hijack the closed enum — it
-breaks the moment vanilla wants the slot back.
+**But one of the seven is unclaimed.** `RESET_DEFAULTS` is fully wired and never
+used: `MenuHelperButtons.Awake` registers it in `helpButtonToGameObject`
+(`Pug.Other` ~338892) with a complete `HelpButton` — a `root` GameObject, an
+`InputDependentSprite` and a `description` `PugText` carrying
+`textString: Menu/Reset` with `localize: 1`, a term that exists in
+`I2Languages.asset`. No vanilla menu ever asks for it: the only two mentions of
+`RESET_DEFAULTS` in the whole of `Pug.Other` are the enum member and that
+registration, and no other assembly names it either. So if your
+prompt *means* what the slot is named, request it and take the per-platform
+glyphs and the translation for free.
+
+When no slot fits your prompt — "[Y] Toggle view" and the like — **roll your
+own hint object**: a `PugText` plus a sprite, parented under your own menu,
+toggled with `SetActive` from `OnSelectedOptionChanged`. What you must not do is
+repurpose a slot whose label means something else: the text is vanilla's, and
+your prompt breaks the moment CK decides to request that slot itself.
 
 **Trap: never call `base.GetHelpButtonsToShow().Add(...)`.** The base
 implementation returns `Manager.menu.defaultHelpButtons` — a **public field on
@@ -795,18 +820,36 @@ stops refreshing as well.
 
 ## Which input actions you can use inside a menu
 
-**`MenuSecondaryActivate` is Rewired action id `221`**, in category `"Menu"`. It
-is defined in `PugMod.SDK.Runtime` (so it is reachable through `RewiredConsts`),
-bound by default to a controller face button, and — usefully — **free inside a
-normal settings menu**, because CK only polls it in the mod.io browser. Poll it
-with:
+**Take `OpenProfile`, Rewired action id `223`.** Of the menu face-button
+actions it is the only one vanilla never evaluates anywhere. The id appears
+twice: its `RewiredConsts` definition (`Pug.Other:386497`), which is how you
+reach it, and a single evaluation inside
+`InputManager.IsOpenProfileButtonDown()` (`:267304`) — and *that* method has
+zero callers in the whole decompile. Nothing collides with you.
+
+**`MenuSecondaryActivate`, action id `221`, is the fallback.** It is free inside
+a normal settings menu, but not unpolled: `ModIOBrowserInputCapture` reads it
+(`~269987`) to fire `InputReceiver.OnAlternate()` while the mod.io browser has
+focus. Use it when 223 is taken.
+
+Both are category `"Menu"`, defined in `PugMod.SDK.Runtime` (so both are
+reachable through `RewiredConsts`), bound by default to a controller face
+button, and polled the same way:
 
 ```csharp
-Manager.input.GetButtonDown(221);
+Manager.input.GetButtonDown(223);
 ```
 
-**Controller only.** Action 221 has no keyboard default, and you cannot give it
-one through the Controls screen: its category `"Menu"` is tagged `_tag: system`
+**Which physical button that is depends on the controller map — measure, don't
+assume.** The binding is per controller template, not one global mapping: in the
+shipped Rewired Input Manager asset, action `221` binds to
+`_elementIdentifierId: 7` in two maps and to `5` in a third. So a hint that
+names a face button ("[Y] Toggle view") is only right for the template you read
+it off; if the label matters, read the element back at runtime rather than
+hardcoding it.
+
+**Controller only.** Neither action has a keyboard default, and you cannot give
+one through the Controls screen: their category `"Menu"` is tagged `_tag: system`
 with `_userAssignable: 0` in the Rewired Input Manager asset, and category
 gating wins even though the action itself is marked `_userAssignable: 1`.
 

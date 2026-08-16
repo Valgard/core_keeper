@@ -172,10 +172,11 @@ Recommended alongside, matching CK's pixel-art convention:
 
 **Drawing for that border.** Corners are border-sized and never stretch, so all corner
 detail has to fit inside the border. Edges stretch along one axis and must therefore be
-constant/tileable along it. The centre stretches both ways and has to stay flat. When
-several sprites are packed into one sheet, leave a **2 px gutter** between them so 9-slice
-tiling can never sample a neighbour's pixels — that is padding in the sheet layout, not
-bleed painted into the sprite by hand.
+constant/tileable along it. The centre stretches both ways and has to stay flat. Sprites
+packed into one sheet need a gutter between them, or 9-slice tiling can sample a
+neighbour's pixels — that is padding in the sheet layout, not bleed painted into the
+sprite by hand. How wide is the packer's call, not the game's: the sheet generator used in
+this repository leaves **2 px**.
 
 **Why the defaults are wrong:** Unity's first import of a PNG in a folder writes
 `textureType: 0` / `spriteMode: 2`. In the Editor everything still *looks* right — the
@@ -234,10 +235,14 @@ Two independent traps that co-occur often enough to look like one.
 **Trap: the default material does not exist.** "Add Component → SpriteRenderer" in this
 SDK project assigns material `guid 274d4544…`, which is not backed by any asset. A
 renderer with a missing material **draws nothing** — with a valid sprite, correct sorting
-and a fully opaque colour, in the Editor as well as in game. Every working CK UI renderer
-uses Unity's built-in **Sprites-Default**:
-`{fileID: 10754, guid: 0000000000000000f000000000000000, type: 0}`. The dangling GUID is a
-property of this SDK project's defaults; the Sprites-Default convention is CK-wide.
+and a fully opaque colour, in the Editor as well as in game. The working mod UI renderers
+examined here all carry Unity's built-in **Sprites-Default**:
+`{fileID: 10754, guid: 0000000000000000f000000000000000, type: 0}` — set it on every
+hand-added renderer. Treat that as a rule of thumb, not a law: Sprites-Default is by a wide
+margin the most-used material across the game's own extracted prefabs, but a good many
+vanilla renderers run custom shaders instead, and CK prefabs pulled out with AssetRipper
+arrive with a placeholder material of their own (see below). The dangling default GUID is a
+property of this SDK project.
 
 **Trap: the sorting layer is `0`, not `"GUI"`.** A new renderer lands on sorting layer
 `0` ("Default"). This is not limited to runtime `AddComponent` — it recurs just as
@@ -613,7 +618,9 @@ Non-obvious constraints:
 
 ### Reading a vanilla atlas back
 
-Mapping an atlas cell to its character on the 32×12 `latinCharset` grid:
+Mapping an atlas cell to its character on the 32×12 `latinCharset` grid — the `thinSmall`
+arrangement, so it holds for every face that uses the shared charset and **not** for
+vanilla `thinTiny`, which carries its own `_customCharset` on a 256×40 atlas:
 
 ```text
 col = rect.x // 8
