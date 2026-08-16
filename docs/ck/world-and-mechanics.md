@@ -415,18 +415,34 @@ two distinct consume sites:
 
 | Event | Where | What happens |
 |---|---|---|
-| Capture | `CageCattle()` `Pug.Other:404656` | Gated on `objectID == ObjectID.CattleCage`; calls `EntityUtility.DropPetInCage(...)` (`:404701`) to mint the *filled* cage item, `DestroyEntity(cattle)` (`:404702`), then `Create.ConsumeEntityAt(.., 1, destroy: true, ..)` (`:404706`) eats the empty box |
-| Release | `PlaceItem()` ~`:311388` | The filled box is a placeable carrying `CattleCD`; it is consumed via `Create.ConsumeEntityAt` |
+| Capture | `CageCattle()` `Pug.Other:404656` | Gated on `objectID == ObjectID.CattleCage`; calls `EntityUtility.DropPetInCage(...)` (`:404701`), `DestroyEntity(cattle)` (`:404702`), then `Create.ConsumeEntityAt(.., 1, destroy: true, ..)` (`:404706`) eats the empty box |
+| Release | `PlaceItem()` ~`:311388` | The carried item is placed and consumed via `Create.ConsumeEntityAt` |
+
+**There is no "filled box" item.** This is the natural assumption and it is
+wrong. `DropPetInCage` (`:254079`) spawns a `DroppedItem` that carries the
+animal itself as an **`ObjectType.Creature` item**, preserving its auxiliary
+data — `NameCD`, `MealsEatenCD`, `BreedToggleCD` — while the cattle entity is
+destroyed. The box is gone; what you hold is the animal.
+
+That changes how you detect a release: test `objectType == Creature` **and**
+`CattleCD` on the prefab. Testing for a cage object finds nothing.
 
 The `amount < 1 && HasComponent<CattleCD>` exception in
 `CanConsumeEntityInSlot` (`:301217`, static overload `:301224`) exists precisely
-so the filled box can still be placed at amount 0.
+so the carried item can still be placed at amount 0.
 
 Both sites live in Burst-compiled DOTS player systems (state-update and
 equipment-update aspects), so intercepting them needs the Burst treatment in
-[Harmony and ECS](harmony-and-ecs.md). A data-only alternative that avoids a
-Burst patch is to make the filled box emit an empty `CattleCage` as loot through
-the `OpenItemAndSpawnLoot` / `SpawnsItemsOnUseCD` path (`:404518`).
+[Harmony and ECS](harmony-and-ecs.md).
+
+**Trap: the data-only loot path does not fire on placement.** Emitting an empty
+`CattleCage` through `SpawnsItemsOnUseCD` / `OpenItemAndSpawnLoot` (`:404518`)
+looks like an elegant way to avoid a Burst patch entirely — it is a dead end.
+That path is not reached when an item is *placed*, so a pure CoreLib data patch
+cannot dispense anything at placement time. This was tested and rejected before
+the equivalent mod was built as a code patch instead. (Verified for this case;
+whether the path never fires on *any* placement has not been established more
+broadly.)
 
 ### Pets
 
