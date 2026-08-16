@@ -52,18 +52,23 @@ it natural to treat "the origin" and "the Core" as the same point. They are not,
 and a mod that measures distance or draws a direction to the Core will be
 consistently wrong if it uses `(0, 0)`.
 
-Measured across the map data of eight separate worlds, the Core structure is
-**exactly symmetric about `x = 0`** but sits **north of the origin in z**: in
-every one of those worlds its southern edge is at `z = -1`, with the structure
-extending to `z = 10`–`11`. The origin therefore lies on the Core's centre line,
-at its southern edge rather than in its middle — at the waypoint below the Core,
-not in the Core.
+Measured across the map data of eight separate worlds, the built-up **Core base**
+— the whole region around the Core, not the 5×5 `TheCore` object itself
+(`ObjectID.TheCore = 4002`) — is centred on `x = 0`, its west and east edges
+equidistant in every one of them. In `z` it sits **north of the origin**: the
+southern edge came out at `z = -1` in all eight, and the region reached `z = 10`
+or `z = 11`.
 
-**Trap: do not derive the offset from the map's midpoint.** The southern edge is
-stable at `z = -1` because it is always explored; the northern extent varies with
-how far the player has walked, since the map is a fog-of-war record (see
-[savegame formats](savegame-formats.md)). Averaging the two produces a number
-that changes per save.
+Those are tile-quantised edges read off a fog-of-war raster, so treat them as
+±1 tile. What they support is the qualitative claim, and that is enough: **the
+origin sits near the southern edge of the Core base, not in its middle** — at the
+waypoint below the Core rather than in the Core.
+
+**Trap: do not derive the offset from the region's midpoint.** Only the southern
+edge was stable across all eight worlds; the northern one came out at `10` or
+`11`, and what makes the difference was not established. A midpoint computed from
+the two is therefore not reproducible across saves — and it would in any case
+describe the base, not the Core object.
 
 Practical consequences:
 
@@ -183,7 +188,7 @@ apply-time rule uses. The correct predicate for "can a rail/floor/wall go here"
 is `ground || bridge`.
 
 Vanilla itself substitutes a tile the player never asked for:
-`PlaceObjectSlot.GetTileTypeToPlace` (`Pug.Other:295561`) silently lays `ground`
+`PlaceObjectSlot.GetTileTypeToPlace` (`Pug.Other:311561`) silently lays `ground`
 first when a `wall` is placed on a position that has neither `ground` nor
 `bridge`. Inserting a missing substrate is an established pattern, not a hack.
 
@@ -380,8 +385,8 @@ The named constants:
 | Constant | Value |
 |---|---|
 | `PLAYER_DISTANCE_TO_UNLOAD_ENTITIES` | 300 |
-| `PLAYER_DISTANCE_TO_START_LOAD` | 250 |
-| `PLAYER_DISTANCE_TO_LOAD` | 200 |
+| `PLAYER_DISTANCE_TO_START_LOAD_ENTITIES` | 250 |
+| `PLAYER_DISTANCE_TO_LOAD_ENTITIES` | 200 |
 | `DISTANCE_FROM_PLAYER_TO_UPDATE_ENTITY` | 40 |
 | `DISTANCE_TO_RESPAWN_ENVIRONMENT` | 200 |
 | `UNLOADED_WORLD_SEGMENT_SIZE_LOG2` | 7 (serialized world segment = 128 tiles) |
