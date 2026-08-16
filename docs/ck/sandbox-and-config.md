@@ -246,6 +246,8 @@ would hold, it needs no dependency, and it is **initialised before any mod's
 `EarlyInit`** — so you can read your settings at the earliest point of the
 [IMod lifecycle](mod-anatomy.md).
 
+`IConfigFilesystem` (`PugMod.SDK.Runtime`) has eleven members — all of them:
+
 | Member | Signature |
 |---|---|
 | `Read` | `byte[] Read(string path)` |
@@ -254,13 +256,41 @@ would hold, it needs no dependency, and it is **initialised before any mod's
 | `DirectoryExists` | `bool DirectoryExists(string path)` |
 | `CreateDirectory` | `void CreateDirectory(string path)` |
 | `Delete` | `void Delete(string path)` |
-| `GetFiles` | enumerate a directory |
+| `DeleteDirectory` | `void DeleteDirectory(string path)` |
+| `CopyDirectory` | `void CopyDirectory(string from, string to)` |
+| `GetFiles` | `IEnumerable<string> GetFiles(string path)` |
+| `GetAllFiles` | `IEnumerable<string> GetAllFiles()` |
+| `GetFileTime` | `DateTime GetFileTime(string path)` |
 
-Paths are relative to a per-mod root:
+Paths are relative to the API's root — the `mods/` directory — so your own files
+carry your mod's name as their first segment:
 
 ```text
 …/LocalLow/Pugstorm/Core Keeper/<platform>/<user-id>/mods/<ModName>/
 ```
+
+Four members are worth their implementation detail, which comes from
+`StandaloneFilesystem` — the one implementation `API.ConfigFilesystem` is
+constructed from, on the client and on the dedicated server alike:
+
+- **`GetFileTime` is the only timestamp in the API**, and it is
+  `File.GetLastWriteTimeUtc` underneath — **UTC**, so compare it against
+  `DateTime.UtcNow`. It is what a staleness check or a migration ("is my file
+  older than the save it belongs to?") has to be built on; nothing else here
+  reports a time. It has no passing-load evidence behind it, unlike the API's
+  well-trodden `Read`/`Write` pair — smoke-test it like any new surface.
+- **`GetFiles` recurses.** It enumerates with `SearchOption.AllDirectories` and
+  returns paths relative to the API root with forward slashes — and it filters
+  out `.pugbackup` and `.pugtmp` siblings, so the backups described
+  [below](#the-pugbackup-sibling--a-free-beforeafter-diff) are invisible to it.
+  `Read` still opens them by name.
+- **`GetAllFiles()` is `GetFiles("")`** — everything under the root, and that
+  root is shared, so the result spans every mod that has ever written there. To
+  see only your own, pass your mod's directory to `GetFiles`.
+- **`DeleteDirectory` really deletes** (`Directory.Delete(path, recursive: true)`),
+  and `CopyDirectory` copies recursively but with `overwrite: false`, so an
+  existing destination file throws. Neither shares `Delete`'s behaviour of
+  renaming the file onto its `.pugbackup` sibling.
 
 **Trap: `Write` does not create missing directories.** There is no `mkdir -p`
 behaviour — a first-run `Write` into a mod directory that does not exist yet

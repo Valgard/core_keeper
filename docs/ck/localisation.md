@@ -42,9 +42,21 @@ A typical installation holds roughly 7,500 terms, essentially all of them
 carrying ` [new]`; the handful without it arrived with a description of their
 own, not from a hand-authored core block. A value may contain newlines, so a
 term can span several lines of the file — a line count is not a term count. That
-matters, because it makes deleting the entire file a safe repair: the game
-rebuilds it in full on the next launch — base game *and* every installed mod —
-from the current TextDataBlocks.
+matters, because it makes deleting the entire file a safe repair: nothing renders
+*from* it that the bundle-derived source does not also hold, and when the game
+does rewrite the file it writes the whole table again — base game *and* every
+installed mod — from the current TextDataBlocks.
+
+**Two conditions gate that rewrite, and a full delete trips the second one.** The
+import and the rewrite are one block of startup code, skipped whole under
+`-safemode` — a flag you may never have typed, because the game restarts itself
+with it after an init failure with mods loaded. And the rewrite happens only when
+the import left at least one term in the CSV-backed source: `PostInit` returns
+`false` on an empty source, and the file is written only when it returns `true`.
+With the file deleted there is nothing to import, so unless some mod seeds terms
+through [the CSV route below](#the-escape-hatch-ship-your-own-localizationcsv),
+the file simply stays gone. **An absent `Localization.csv` is a healthy state, not
+a failed repair** — every term renders from the bundle-derived source either way.
 
 Lookup happens through `API.Localization.GetLocalizedTerm(term)`. It returns
 null for a term the table does not know, and the conventional mod-side helper
@@ -81,15 +93,80 @@ cold start again — the old text survives all of it.
 
 **Repair, in order of preference:**
 
-1. **Delete the whole CSV**, then cold-start. The file is fully regenerable (see
-   above), so this is the blunt but robust fix, and it is what a development
-   install should do automatically every time it deploys a loc-shipping mod.
+1. **Delete the whole CSV**, then cold-start. The blunt but robust fix, and what
+   a development install should do automatically every time it deploys a
+   loc-shipping mod. Whether the file comes back depends on the two conditions
+   above; the repair works either way, because the bundle-derived source is what
+   renders once the stale rows are gone.
 2. **Delete just the affected rows.** The game re-adds missing terms from the
    bundle on the next launch — but between deletion and re-export the term falls
    back to its raw key, which is a poor state for anything user-facing like a
    settings row.
 3. **Edit the stale rows in place.** Back the file up first (it is around 2.9 MB)
    and assert the old string is unique before any byte-level replace.
+
+All three are repairs you carry out on one machine. To reach a player who
+already has the frozen row, you need the one route the game itself re-reads
+every launch.
+
+## The escape hatch: ship your own `Localization.csv`
+
+The accumulator is not the only file the game reads at startup. For every mod it
+has loaded, the loader also looks for a `Localization` directory in that mod's
+**installed** directory — a sibling of `Scripts/` and `Bundles/` — and imports
+the `Localization.csv` inside it. That import runs in I2's **Merge** mode, and
+Merge is the mode that *overwrites*: `AddNewTerms` is the only one that skips a
+term the source already holds. A value shipped this way is therefore re-applied
+on every launch, on every player's machine, and first-write-wins never touches
+it.
+
+The startup order is what makes that work:
+
+1. the CSV-backed source is cleared and the game-wide `Localization.csv` is
+   imported into it;
+2. each loaded mod's `Localization/Localization.csv` is merged in **on top** —
+   overwriting whatever the accumulator had for those terms;
+3. the skip-if-present pass adds every term still missing, from the game's own
+   terms plus the bundles' `TextDataBlock`s;
+4. the whole source is written back out over the game-wide CSV.
+
+Step 4 is why this breaks the freeze rather than working around it: the merged
+value lands in the accumulator as well. It is also why a mod shipping a CSV is
+what re-creates the accumulator after you delete it — with no such mod installed,
+step 3 finds an empty source and step 4 never runs.
+
+Two consequences follow from the same mechanism. A term that exists *only* in
+this file still renders — the CSV-backed source is a lookup source in its own
+right, so text shipped this way needs no `TextDataBlock` behind it at all. And
+Merge does not distinguish your terms from the game's, so a row keyed on a
+base-game term overwrites the game's own string.
+
+**Getting the file into the build:** put it at `Localization/Localization.csv`
+inside your mod's folder in the Unity project. `ModBuilder` copies every `.csv`
+under that folder into the built mod directory verbatim and lists it in the
+generated manifest's `files[]`. The loader imports only the file named exactly
+`Localization.csv`; any other `.csv` ships and is never read.
+
+**The format is the accumulator's own** — tab-separated, a header row whose first
+cell reads `Key`, then `Type` and `Desc`, then one column per language *matched
+by name*. A language name the game does not know is not rejected; it is appended
+to the source as a new language. Published mods use that latitude: one ships the
+game's own language set exactly, another a 13-language superset.
+
+**Trap: a malformed file imports nothing and says nothing.** The importer bails
+out with a `"Bad Spreadsheet Format"` return value when the first header cell
+does not contain `Key`, and CK discards that return — only a thrown exception
+reaches the log. The `Loading extra localization from <path>` line proves the
+file was found, not that one term came out of it. Confirm by looking for the
+terms in the rewritten accumulator after the launch.
+
+**What it costs:** a second term source beside the generated `TextDataBlock`
+assets, in a format nothing validates, and the two can disagree silently. The
+generated-asset route keeps one source of truth, which is why it stays the
+default — this file is the answer to the one problem that route cannot solve. The
+mechanism above is read off the loader, the importer and the SDK's `ModBuilder`,
+and published mods do ship such a file; no build described in this chapter
+produces one.
 
 ## The four ways localisation has shipped broken
 
