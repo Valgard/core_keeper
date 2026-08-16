@@ -168,21 +168,40 @@ if (!__instance.isLocal)
 
 ### Check `[GhostField]` before assuming a write replicates
 
-Whether an ECS write reaches the other side is decided by the component's
-declaration, not by which world you wrote it in. Read the attribute before
-assuming either way:
+Two things decide whether an ECS write reaches the other side, and you need
+both of them.
+
+**The declaration decides whether the value is on the wire at all.** Codegen
+emits one `…GhostComponentSerializer` per replicated component, and its
+`Snapshot` struct holds exactly that component's `[GhostField]`s and nothing
+else — `PlacementCDGhostComponentSerializer` (`Pug.ECS.Components:42160`) is the
+worked example below.
+
+**The world you wrote it in decides the direction, and there is only one
+direction.** Snapshots are produced in the server world — `GhostSendSystem`,
+which `Manager.InitWorld` configures only in the world that has one
+(`Pug.Other:285325`) — and applied in the client world, `GhostUpdateSystem`,
+which CK fetches from `Manager.ecs.ClientWorld` (`:285380`). So a `[GhostField]`
+write in the server world replicates, and the identical write in the client
+world reaches nobody and is overwritten by the next snapshot. Client → server is
+a separate mechanism, not ghost fields: player input (`ClientInputData`, an
+`IInputComponentData`, `Pug.ECS.Components:3444`, carried by the generated
+command send/receive systems at `:15462` and `:15612`) and RPCs.
+
+Read the attribute before assuming either way — and read it per *field*, not per
+component:
 
 | Component | Replicated |
 |---|---|
 | `HealthCD` | yes — declared `[GhostField]`, so a server-side change travels to the client |
-| `PlacementCD` flags | no — not `[GhostField]`s (`Pug.ECS.Components:4297-4314`), so they are world-local state |
+| `PlacementCD`'s placement-permission flags — `canPlaceOnWalkableTiles` through `blockedByObjectsOnWalls` (`Pug.ECS.Components:4298-4316`) | no — the tail of the struct carries no `[GhostField]` and none of those fields appears in the generated snapshot, so they are world-local state. The rest of `PlacementCD` *is* replicated, `canPlaceGround` (`:4287`) and `canPlaceRoofHole` (`:4290`) included — this is a per-field answer, not a per-component one |
 
 What the client then *does* with a replicated value is a separate question: for
 `HealthCD` it is unverified whether a damage-stage sprite or a progress bar
 refreshes on its own.
 
-For `PlacementCD` the consequence runs the other way — writing those flags on one
-side changes nothing on the other. The surrounding code is present on both:
+For those flags the consequence runs the other way — writing them on one side
+changes nothing on the other. The surrounding code is present on both:
 `EquipmentSystemGroup` (`Pug.Other:418855`) runs in the server **and** the client
 simulation world, and `EquipmentUpdateSystem.UpdateJob` is a scheduled job.
 Whether a Harmony prefix in that area therefore behaves identically across

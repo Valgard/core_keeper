@@ -334,11 +334,13 @@ matching — is a separate problem, covered in [Harmony and ECS](harmony-and-ecs
 ## Chat commands
 
 A chat command is a trigger a player types in chat that runs code in your mod. The game
-exposes no mod-facing command API for this; commands come from **CoreLib's
-`CommandModule`**, and CoreLib dispatches them **server-side**. A mod that offers a command
-therefore takes a hard CoreLib dependency — which means both the assembly reference and the
-`.asset` entry, as under [dependencies](#dependencies-two-concepts-only-one-of-which-compiles)
-below.
+exposes no mod-facing API for *chat* commands. It does ship one for the developer console —
+`PugMod.SDK.Runtime`'s `[CommandWithModSupport]`, a subclass of Quantum Console's
+`CommandAttribute` and the attribute Pugstorm's own `Pug.Dev` commands carry — but that is a
+different surface with a different audience. Chat commands come from **CoreLib's
+`CommandModule`**. A mod that offers one therefore takes a hard CoreLib dependency — which
+means both the assembly reference and the `.asset` entry, as under
+[dependencies](#dependencies-two-concepts-only-one-of-which-compiles) below.
 
 Registration happens in `EarlyInit()`, in three steps:
 
@@ -346,15 +348,39 @@ Registration happens in `EarlyInit()`, in three steps:
 2. Load `CommandModule` — CoreLib submodules are opt-in and must be loaded before use.
 3. Call `CommandModule.AddCommands(modInfo.ModId, Name)`, where `Name` is your mod's name.
 
-The command itself is a class implementing `IServerCommandHandler`. It carries the trigger
-name — what the player types — and an `Execute(parameters, sender)` method that CoreLib
-calls when that trigger matches.
+That one call covers both kinds of command: `AddCommands` reflects over your assembly and
+takes every type assignable to either handler interface. A handler whose `GetTriggerNames()`
+returns an empty array is dropped with a log warning and nothing else.
+
+**CoreLib does not dispatch commands server-side only.** `CommandCommSystem` is registered
+for `ServerSimulation | ClientSimulation`, so a copy of it runs in **both** worlds and
+branches on `isServer` into `ServerHandleMessages()` or `ClientHandleMessages()`. Which
+branch ends up running your body is decided by the interface you implement:
+
+| Interface | `Execute` signature | Body runs in |
+|---|---|---|
+| `IServerCommandHandler` | `CommandOutput Execute(string[] parameters, Entity sender)` | the server world |
+| `IClientCommandHandler` | `CommandOutput Execute(string[] parameters)` — no `sender` | the client world |
+
+Both inherit `ICommandInfo`, which supplies `GetTriggerNames()` — an array, so one handler
+may answer to several triggers — and `GetDescription()`.
+
+**Trap: implementing both interfaces does not get you both.** CoreLib tests
+`handler is IServerCommandHandler` first and takes the server path whenever that holds, so
+the client `Execute` is never called.
+
+**Either way the server sees the command first.** The chat window RPCs the typed line to the
+server; the server resolves the trigger and applies its permission check, and only then
+either executes a server handler itself or relays the line back for the client to run in
+`ClientHandleCommand`. A client command is still refusable by the server — it is client-side
+in *where its body runs*, not in how it is dispatched.
 
 ### Where a command body runs, and what is allowed there
 
-CoreLib's `CommandCommSystem` is itself a `PugSimulationSystemBase`, and handlers are
-invoked from its `OnUpdate()`. Your `Execute` body therefore runs **on the ServerWorld main
-thread, inside the ECS frame**. Two consequences:
+This is the **server** case. CoreLib's `CommandCommSystem` is itself a
+`PugSimulationSystemBase`, and handlers are invoked from its `OnUpdate()`. An
+`IServerCommandHandler.Execute` body therefore runs **on the ServerWorld main thread, inside
+the ECS frame**. Two consequences:
 
 - **Writing to existing components is fine.** You are on the main thread inside a system
   update — the same position from which [reading and writing the live ECS

@@ -81,16 +81,28 @@ Four things about this pattern are load-bearing:
 
 ### Trap: `CraftingObject` is ambiguous — use `var`
 
-The element type of `requiredObjectsToCraft` exists twice: as a **class** in
-`Pug.Base` and as a **struct** in `Pug.ECS.Authoring`. Both are in the global
-namespace, and a mod's runtime asmdef references both DLLs. Naming the type
-anywhere in this code — a local declaration, a `foreach` element type, a method
-signature — is a hard `CS0104` ambiguous-reference compile error.
+The name `CraftingObject` is taken twice, by two unrelated types that identify an
+item in two different ways:
 
-Iterate with `var` and never write the type name. Reading the element into a
-`var` local, mutating it, and assigning back through the list indexer (as
-above) is also the shape that works regardless of which of the two it resolves
-to.
+| How you spell it | Where it is declared | Shape |
+|---|---|---|
+| `CraftingObject` | a **class**, global namespace (`Pug.Base:4541`) | `{ ObjectID objectID; int amount; }` |
+| `InventoryItemAuthoring.CraftingObject` | a **struct** nested inside `InventoryItemAuthoring` (`Pug.ECS.Authoring:2848`) | `{ string objectName; int amount; }` |
+
+Only the first is global, so a bare `CraftingObject` resolves to it and the
+compiler never has to choose between the two — there is no `CS0104` to trip over
+here. The ambiguity is the reader's: the bare name does not say which of the two
+you are holding, and they disagree about the one thing that matters, how the
+item is named.
+
+Iterate with `var` and never write the type name. Where you must name the nested
+one — in a method signature, say, where `var` is not available — qualify it in
+full; that is what CK's own bake code does
+(`foreach (InventoryItemAuthoring.CraftingObject item in …)`,
+`Pug.ECS.Authoring:2971`), and CoreLib too. Reading the element into a `var`
+local, mutating it, and assigning back through the list indexer (as above) is
+the shape that works for both — and is not optional for the nested struct, where
+the local is a copy.
 
 ### Trap: a config value the bake reads must be bound in `EarlyInit`
 
