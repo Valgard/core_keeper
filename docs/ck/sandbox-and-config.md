@@ -56,6 +56,12 @@ of its hooks exist and it simply does nothing. The binding rules for that third
 gate live in [Harmony and ECS](harmony-and-ecs.md); what a failed load does to
 *other* mods is in [troubleshooting](troubleshooting.md).
 
+**One change shape is exempt: a deletion-only fix.** The verification fires on
+*additions* of banned surface, so a change that only removes calls leaves a
+strict subset of a file that already passed — it cannot introduce a new banned
+reference, and it will still clear the sandbox gate. That is the one case where
+skipping the launch-and-grep cycle is justified rather than optimistic.
+
 ## What is banned
 
 Every entry below was verified by an actual failed load.
@@ -66,9 +72,15 @@ Every entry below was verified by an actual failed load.
 | `Manager.saves.X()` — the `SaveManager` instance-access path | The entire class as an access surface, even trivial getters such as `GetWorldId()` that just return a cached int. `SaveManager` aggregates filesystem-touching methods, and the whole class symbol is banned. |
 | `System.Diagnostics.Process` | Process spawning. |
 | `System.Reflection.Emit.*` | Runtime code generation. |
-| `HarmonyLib.Traverse` (and, by the same rule, `AccessTools.Field` / `Property`) | Banned even though it lives in the trusted `0Harmony.dll` — the reflection *wrapper class* is the banned symbol. `Traverse.Create(x).Field("y").GetValue<T>()` produces 1 illegal type ref plus 3 illegal member refs. Consequence: no private-field reflection from mod code. |
+| `HarmonyLib.Traverse` (and, by the same rule, `AccessTools.Field` / `Property`) | Banned even though it lives in the trusted `0Harmony.dll` — the reflection *wrapper class* is the banned symbol. `Traverse.Create(x).Field("y").GetValue<T>()` produces 1 illegal type ref plus 3 illegal member refs. Consequence: no private-field reflection *by this route* — there is a legal one, below. |
 | `System.Reflection.MemberInfo.get_Name()` — and anything that resolves to it through inheritance | `Type.Name` *is* `MemberInfo.Name`, so an innocent `ex.GetType().Name` yields 1 namespace + 1 type + 1 member illegal ref and fails the load. |
 | Some game-side ECS component reads | `em.HasComponent<CharacterGuidCD>(entity)` + `GetComponentData<CharacterGuidCD>(entity)` + `Hash128` together produced 1 namespace + 1 type + 1 member illegal ref. The exact blocked subset is not mapped — bisect when you hit it. |
+
+**Expected but not load-verified: `System.Security.Cryptography`.** It is not in
+the table because no failed load here has confirmed it — but it is the same
+class of BCL surface as the entries that are, and the one job that tempts you
+into it (hashing to skip a redundant write) has a better answer anyway; see
+[Writing in lockstep with the game's save](#writing-in-lockstep-with-the-games-save).
 
 **Trap: `Type.Name` is not a string operation.** The most common way to trip
 the sandbox by accident is a diagnostic log line. Three ways around it:
@@ -226,6 +238,17 @@ behaviour — a first-run `Write` into a mod directory that does not exist yet
 throws `Could not find a part of the path …`. Call
 `CreateDirectory("<ModName>")` before the first write.
 
+**Trap: a `Write` that did not throw is not a `Write` that landed.** The
+`StandaloneFilesystem.Write` path underneath ends in
+`catch (IOException) { Debug.LogError(...) }` with **no rethrow**, and its inner
+`File.Replace` / `File.Move` retry loop gives up after ten attempts with nothing
+but another `LogError`. A full disk, a file locked by something else, and the
+host-side filesystem faults covered in
+[macOS/CrossOver loader](../macos-crossover-loader.md) are therefore all
+invisible to your mod: no exception, no return value, nothing to branch on. If
+the data matters, **read the file back** before you record the write as done —
+above all before caching any "content unchanged, skip the write" hash.
+
 The API is `byte[]` in and `byte[]` out, which means you serialise yourself. A
 line-oriented format (`id:count;`) round-tripped through `(byte)char` /
 `(char)byte` loops is verified to work; that avoids leaning on the
@@ -252,6 +275,52 @@ mod.io listing — see [mod anatomy](mod-anatomy.md) and
 Take this route when the typed-entry ergonomics are worth the dependency, not
 because you assume route 1 cannot do it.
 
+**Every `ConfigFile` in the process is readable — and writable — by every other
+mod.** `ConfigFile.AllConfigFilesReadOnly` is a public static registry of every
+`ConfigFile` any mod has created, and the entries behind it expose a full
+non-generic read/write path. This is deliberate on CoreLib's side: the source
+comment on `ConfigEntryBase.Scope` reads "Used by GeneralConfigMenu". It cuts
+both ways — a settings-menu mod can enumerate and edit foreign settings with no
+cooperation from their authors, and your own entries are exposed on the same
+terms.
+
+| Member | What it gives you |
+|---|---|
+| `ConfigFile.AllConfigFilesReadOnly` | every `ConfigFile` in the process |
+| `cf.Entries` | `Dictionary<ConfigDefinition, ConfigEntryBase>` |
+| `cf.ConfigFilePath` | `"<ModName>/<file>.cfg"` |
+| `ConfigEntryBase.SettingType` | the entry's declared type |
+| `ConfigEntryBase.BoxedValue` | non-generic read/write path |
+| `ConfigEntryBase.DefaultValue` | the declared default |
+| `ConfigEntryBase.Description.AcceptableValues` | the range or allowed set |
+| `ConfigEntryBase.GetSerializedValue` / `SetSerializedValue` | the on-disk string form |
+
+Three things to know before writing against that registry:
+
+- **Enums survive the serialized round trip.** TOML writes an enum as its
+  *name*, so `GetSerializedValue` / `SetSerializedValue` carry enum tokens
+  losslessly without a per-type code path.
+- **The owning mod's display name is not part of the public surface.** It is
+  private on `ConfigFile`, so the first segment of `ConfigFilePath` is the label
+  you actually have to work with.
+- **`BoxedValue` casts must be type-exact.** An `int` range entry is a boxed
+  `int`, and `(float)` on it throws. Branch on `SettingType` — never on what
+  the value looks like.
+
+**`Scope` carries access semantics, and one of them can crash you.**
+`ConfigEntryBase.Scope` is a `ConfigScope` holding an `accessLevel`
+(`ConfigAccessLevel.ViewOnly` / `Client` / `Server` / `Admin`), a
+`requireReload` flag meaning the change takes effect only after a restart, and a
+`Changeable()` method.
+
+**Trap: `Changeable()` reads `Manager.main.player`.** On the title screen there
+is no player, so calling it there is a null-reference risk. Guard first:
+
+```csharp
+if (Manager.main == null || Manager.main.player == null)
+    return; // no player yet — do not ask whether the entry is changeable
+```
+
 ### 3. `skipSafetyChecks: true` — last resort
 
 Setting `skipSafetyChecks: true` in the ModBuilderSettings `.asset` disables
@@ -262,6 +331,39 @@ Two costs: you lose the guarantee that your mod is inspectable-by-construction,
 and the flag **feeds a derived mod.io tag** — the `Access Type` tag on your
 published listing is computed from it, so flipping the flag re-tags the mod on
 the next publish. See [publishing](../publishing.md).
+
+## What the rest of the catalogue does
+
+Useful if you are writing something that has to read foreign configuration, or
+just want to know which conventions a user will already recognise. A survey of
+the public Core Keeper catalogue on mod.io (game 5289) on **22 July 2026**:
+
+| Measured | Count |
+|---|---|
+| Public mods | 254 |
+| Declaring a CoreLib dependency | 68 |
+| Actually referencing `CoreLib.Data.Configuration` | 23 |
+| Of those, exposing real parameters | 21 |
+| Parameters found, across the 17 cleanly extractable mods | ~90 |
+
+Those are a snapshot of that date, not constants. The shape of the result is
+the durable part.
+
+Parameter types, most to least common: `bool` — dominant by a wide margin —
+then `int`, `float`, enum, and `string` used as a comma-separated list.
+
+The prevailing idiom is **one section per feature, containing an `IsEnabled`
+toggle plus that feature's tuning keys**. Following it is what makes your
+settings legible to a generic settings UI or a config migration.
+
+Two shapes to avoid:
+
+- **A section whose keys are generated per user object is not a settings
+  schema.** One catalogue mod stores its map-marker labels that way; nothing
+  generic can render, validate or migrate it.
+- **Importing `CoreLib.Data.Configuration` without ever calling `.Bind(...)`**
+  buys the dependency and configures nothing. Two mods in the survey do exactly
+  this.
 
 ## Writing in lockstep with the game's save
 
@@ -284,6 +386,41 @@ trigger.
 Saving in lockstep rather than ahead of CK also avoids a post-crash desync
 where the game reverts the character to an older state while your file is
 newer.
+
+### The cost of that hook is paid on the main thread
+
+**Trap: an unbounded persisted store turns every autosave into a frame spike.**
+A `WriteCharacter` postfix runs the full serialize-plus-write inline,
+synchronously, at every autosave. Measured on an 89 KB / 5503-entry ledger:
+12–37 ms per autosave — 8–24 ms to serialize, 4–13 ms to write. That was enough
+to push CK's **host simulation past its 55 ms frame budget**
+(`ServerUpdateFrequencyTracker` warnings; 626 of 1109 frames over budget in one
+session), which players experience as continuous rubber-banding rather than as
+the periodic hitch a heavy scan produces.
+
+So budget the serialize like any other frame operation, and keep the store
+small **at the source**. A radius-bounded self-heal only limits what it
+visits — it does not retroactively clear a backlog that is already on disk. The
+per-frame budget for scanning work is in
+[Harmony and ECS](harmony-and-ecs.md).
+
+### Eliding an unchanged write needs a 64-bit hash
+
+The obvious relief is to hash the serialized bytes and skip the write when the
+hash matches the previous one. Note what a collision costs here: **a skipped
+save that was needed** — silent data loss. The width of the hash *is* the
+safety margin, so hand-roll **FNV-1a/64**.
+
+- **Not `string.GetHashCode`.** 32 bits is not a negligible risk over a long
+  session, and the value is not stable across runtimes.
+- **Not SHA or MD5.** Cryptographic strength buys nothing against accidental
+  collisions, it costs more per byte on a main-thread path, it allocates a
+  `byte[]` — and `System.Security.Cryptography` is the kind of BCL surface the
+  sandbox bans.
+
+Record the hash only after a write you have **verified** by reading the file
+back (see the `IOException` trap above), and let the first save of a session
+always land.
 
 ## The `.pugbackup` sibling — a free before/after diff
 
