@@ -107,6 +107,34 @@ The player marker drawn on the map is rasterised independently, through
 two separate quantities, so reproducing vanilla's numbers exactly means copying
 its floor-then-measure order, not reading its marker position.
 
+### Map markers are entities, and the waypoint is its own kind
+
+Anything drawn on the map is an entity carrying `MapMarkerCD`, whose three
+fields are `mapMarkerType`, `userMapMarkerType` and `uniqueMarkerId`. Two enums
+divide the space:
+
+| `MapMarkerType` | |
+|---|---|
+| `None`, `Player`, `PlayerGrave`, `Ping`, `Portal` | transient or per-player |
+| `UniqueBoss`, `TitanShrine`, `UniqueScene`, `CoreAttention` | world content |
+| **`Waypoint`** | the waypoints you teleport between |
+| **`UserPlacedMarker`** | what the player pins by hand |
+
+A hand-placed pin then picks its icon through `UserMapMarkerType`: `None`,
+`Ping`, `Marker1` … `Marker4` — four icons, not an open set.
+
+Note that `Waypoint` is a **separate marker type from the Core**, which is the
+data-side counterpart of the origin offset above: the point at `(0, 0)` is the
+waypoint entity, and the Core is a different object north of it.
+
+`MapMarkerActivatedCD` carries a generated ghost serializer, so activation state
+is replicated rather than recomputed per client.
+
+**Reading the markers of a world means reading them at runtime.** They are
+ordinary entities, so a query over the server world returns each marker with its
+transform in one pass. Recovering them from a save file instead is impractical
+for the reasons in [savegame formats](savegame-formats.md).
+
 ## Tile layers: what may sit on what
 
 `TileType.GetNeededTile` (`Pug.Base:18111`) and `GetInvalidTile` (`:18155`) are
