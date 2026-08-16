@@ -3,10 +3,10 @@
 This chapter covers the asset side of a Core Keeper mod: when a prefab may be edited
 by script and when it must be touched in the Unity Editor, how sprites have to be
 imported so they survive the AssetBundle bake, and the rendering traps — on-grid
-distortion, Z-sorting ties, self-deactivating text, the font atlas system — that make
-a structurally correct prefab render wrong. It closes with the one geometric fact
-that surprises every HUD author: the world and the HUD are different coordinate
-spaces. Menu widgets, options entries, keybinds and scrolling belong to the
+distortion, Z-sorting ties, mask clipping, self-deactivating text, the font atlas
+system — that make a structurally correct prefab render wrong. It closes with how a
+HUD is mounted at all and with the one geometric fact that surprises every HUD
+author: the world and the HUD are different coordinate spaces. Menu widgets, options entries, keybinds and scrolling belong to the
 [UI framework](ui-framework.md); pixel-art authoring tooling is covered by
 [the Pixaki format notes](../pixaki-format.md).
 
@@ -32,6 +32,18 @@ The practical consequence when you work with an assistant or a script: structura
 gets *described* precisely and then done in the Editor by hand; the script side stays
 on code plus read-only prefab inspection.
 
+### A newly added serialized field is zero in every older prefab
+
+**Trap: adding a serialized field silently activates it everywhere.** A new `public`
+serialized field is simply **absent** from prefab YAML that was written before the field
+existed, so Unity deserialises it to `0`. The C# field initializer does *not* survive —
+the serialized value, here the implicit zero, wins.
+
+Pick the sentinel so that `0` means "off / no-op". A non-zero "off" — `float.MaxValue`
+for "unbounded", say — turns every prefab authored before the change into an *active
+broken* state instead of a neutral one, and mod prefabs ship inside your AssetBundle, so
+that includes the ones already in players' hands.
+
 ### Put the value in the prefab, not in runtime code
 
 If a value or a structure *can* live in the prefab, it belongs there. A box's sorting
@@ -40,6 +52,13 @@ everywhere. Reach for runtime `AddComponent` or per-frame field assignment only 
 data that is genuinely dynamic per instance. Copying static properties onto a
 `SpriteRenderer` on every `Populate()` is a shortcut around a prefab edit, and it hides
 the real layout in code where nobody looks for it.
+
+**The runtime-pool form of the same rule: clone a deactivated template child.** For a HUD
+that shows a varying number of like elements, keep one *deactivated* child in the prefab
+as the template and instantiate the pool from it. The clone inherits sprite, material,
+sorting layer, `sortingOrder` and Unity layer, so the C# has to set no render property at
+all. Let the pool **only ever grow**: switch surplus entries off with
+`sr.enabled = false` instead of destroying them.
 
 ### LinearLayout backgrounds must be a separate child
 
@@ -91,6 +110,12 @@ a small **interface seam** (`IPopupToggle`-style), type the chrome's reference t
 interface and wire it at runtime. That is usually what lets near-duplicate per-consumer
 classes collapse into one.
 
+**Trap: a mod prefab may only reference assets from its own AssetBundle.** A serialized
+field pointing at a CK *runtime* asset — `Manager.ui.GetCraftingUITheme(...).slotHoverSprite`,
+for instance — has no counterpart in the bundle, so the reference bundles broken and comes
+up null. There is no Editor-side fix for this one: either assign it at runtime from
+`Manager.ui` (which is sandbox-safe) or ship your own sprite.
+
 ### Verify every wire, and do not trust names
 
 **Verify each serialized widget reference against the expected component GUID after
@@ -103,6 +128,13 @@ widget.
 
 Variant YAML also defeats `grep`/`awk` — stripped objects, modification blocks and
 added objects do not read linearly. Use a real YAML parser for inspection.
+
+**Renaming the class is prefab-neutral; renaming a serialized field is not.** A prefab
+references a script as `m_Script: {fileID: 11500000, guid: <meta guid>}` — the class name
+appears **nowhere** in the prefab, so moving the `.cs` together with its `.cs.meta` keeps
+every reference intact. A *serialized field* is the opposite case: the prefab stores it
+**by key**, so renaming it needs a matching YAML edit in every prefab that carries it, and
+a mismatch deserialises silently to null with no compile error and no warning.
 
 ### Side effect: a component-less prefab leaves ModObjectLoaded
 
@@ -128,7 +160,7 @@ a `Sprite`.
 | Field | Value | Meaning |
 |---|---|---|
 | `textureType` | `8` | Sprite (2D and UI) — **not** `0` (default texture) |
-| `spriteMode` | `1` | Single — **not** `2` (multiple, sub-sprite strip) |
+| `spriteMode` | `1` | Single — the right value for the `LoadAsset<Sprite>(path)` route. A sheet atlas referenced from prefab YAML is `2`; see below |
 
 Recommended alongside, matching CK's pixel-art convention:
 
@@ -137,6 +169,13 @@ Recommended alongside, matching CK's pixel-art convention:
 | `spritePixelsToUnits` | `16` | one 16×16 base tile = 1 world unit |
 | `filterMode` | `0` | Point — no anti-aliasing smear |
 | `spriteBorder` | `{x: L, y: B, z: R, w: T}` | 9-slice borders; the xyzw order is **left, bottom, right, top**, not XYZW |
+
+**Drawing for that border.** Corners are border-sized and never stretch, so all corner
+detail has to fit inside the border. Edges stretch along one axis and must therefore be
+constant/tileable along it. The centre stretches both ways and has to stay flat. When
+several sprites are packed into one sheet, leave a **2 px gutter** between them so 9-slice
+tiling can never sample a neighbour's pixels — that is padding in the sheet layout, not
+bleed painted into the sprite by hand.
 
 **Why the defaults are wrong:** Unity's first import of a PNG in a folder writes
 `textureType: 0` / `spriteMode: 2`. In the Editor everything still *looks* right — the
@@ -154,8 +193,62 @@ wired in the Editor. The bundle baker then pulls the sprites in as dependencies 
 recognises them through the component references. The trade-off is an Editor touch for
 every UI element; for code-built UI, setting `textureType: 8` is the pragmatic route.
 
+### Sheet atlases: `spriteMode: 2` is correct on the prefab route
+
+CK's own UI sprite sources (`ui_icon.png`, `ui_group.png`) are **multiple-mode sheet
+atlases** — `textureType: 8`, `spriteMode: 2` — with named sub-sprites, referenced from
+prefab YAML as `{fileID: <internalID>, guid: <atlas guid>, type: 3}`. So the two modes are
+not a right-and-wrong pair: `1` belongs to the `LoadAsset<Sprite>(path)` route, `2` to the
+prefab-reference route.
+
+**Never extract a single sprite out of an atlas.** An individually exported PNG loses the
+sheet-atlas meta and typically comes back as `textureType: 0`, at which point
+`LoadAsset<Sprite>` returns null and the renderer silently shows nothing.
+
+**Corollary for inspection: an atlas GUID in a prefab tells you nothing about the
+graphic.** It only proves that *the atlas* is referenced, never which sub-sprite — two
+renderers on the same GUID with different `fileID`s show completely different pictures.
+Read the `fileID`.
+
+### When you actually want the `Texture2D`
+
+`ModBuilder` packs a PNG left at the default `textureType: 0` as a `Texture2D`, and then
+`LoadAsset<Sprite>` returns null — that is the trap above. The reverse case, needing the
+raw texture rather than a sprite, therefore does **not** get solved by leaving the
+defaults alone. Ship the PNG with the same sprite settings (`textureType: 8`,
+`spriteMode: 1`) and take `LoadAsset<Sprite>(path).texture` at runtime.
+
 For authoring the pixel art itself and converting it to sheets, see
 [the Pixaki format notes](../pixaki-format.md).
+
+## A freshly added SpriteRenderer starts out broken
+
+Two independent traps that co-occur often enough to look like one.
+
+**Trap: the default material does not exist.** "Add Component → SpriteRenderer" in this
+SDK project assigns material `guid 274d4544…`, which is not backed by any asset. A
+renderer with a missing material **draws nothing** — with a valid sprite, correct sorting
+and a fully opaque colour, in the Editor as well as in game. Every working CK UI renderer
+uses Unity's built-in **Sprites-Default**:
+`{fileID: 10754, guid: 0000000000000000f000000000000000, type: 0}`. The dangling GUID is a
+property of this SDK project's defaults; the Sprites-Default convention is CK-wide.
+
+**Trap: the sorting layer is `0`, not `"GUI"`.** A new renderer lands on sorting layer
+`0` ("Default"). This is not limited to runtime `AddComponent` — it recurs just as
+reliably on prefab children authored in the Editor.
+
+Duplicating an existing, working element inherits both correctly, which is the cheapest
+way to avoid the pair altogether.
+
+**A copied custom-shader material ignores `SpriteRenderer.m_Color` in the bundle.** If the
+sprite has to be tinted at all, put built-in Sprites-Default (`fileID: 10754`) on it.
+
+**Trap: `Shader.Find` returning non-null proves nothing.** CK's gradient shader is
+`Amplify/UISpriteColorReplace` — it is the one carrying `_GradientMap` and the
+`USE_GRADIENT_MAP` keyword. `Radical/SpritesDefault` *also* exists in the game, so a wrong
+guess at the name still yields a real shader: the sprite renders, the keyword is ignored,
+nothing is recoloured, and no error anywhere points at the cause. Identify a shader by the
+properties and keywords it exposes, never by the lookup having succeeded.
 
 ## On-grid distortion of small sprites
 
@@ -227,6 +320,64 @@ Set it in the **prefab transform**, not in runtime code. It is a layout property
 survives Editor reserialisation, and typical `SetLocalY`-style runtime positioning code
 only writes `.y`, so a prefab-side `.z` persists untouched.
 
+## Clipping with a SpriteMask
+
+CK's `UIScrollWindow` does not clip its content — a scrolling list needs a `SpriteMask`
+of your own (the scrolling machinery itself is in the
+[UI framework](ui-framework.md)). Adding the mask is only the first of several steps, and
+every one of the remaining ones fails *silently*, with a clean build: either a sprite that
+should be clipped is not, or a sprite that should be visible is gone.
+
+### A renderer is clipped only when both conditions hold
+
+1. **`maskInteraction = VisibleInsideMask`** — `m_MaskInteraction: 1` on a
+   `SpriteRenderer`, `style: maskInteraction` on a `PugText`. The default `0` (None)
+   ignores every mask there is.
+2. **Its sorting order lies inside the mask's custom sorting-layer range.** The range is
+   about *capture* — which renderers this mask governs — not about draw order.
+
+The corollary is the deliberate exemption: leaving a renderer at `maskInteraction: None`
+is how you keep it visible even though it sits inside the range. CK's own `ScrollBar` and
+handle sprites, at orders 46/47/48 inside a 40..55 mask range, need exactly that, or the
+row mask eats them.
+
+### `VisibleInsideMask` with no active mask renders nothing at all
+
+A renderer with `m_MaskInteraction: 1` is invisible whenever no `SpriteMask` covers it.
+Two consequences worth knowing before you go hunting:
+
+- **Opening such a prefab in Editor isolation renders blank.** That is expected, not a
+  bug. Do not "fix" it by setting `maskInteraction: None` — that breaks the runtime
+  clipping.
+- **The mask GameObject must stay active for as long as its content is shown.** Never gate
+  it on "is the content currently overflowing": a short or collapsed list then vanishes
+  entirely. Size the mask to the cap and let it clip only when there is something to clip.
+
+`PugText` glyphs inherit `style.maskInteraction`, so the same rule applies to them —
+which is the argument for leaving titles and chrome at `maskInteraction = 0`. They then
+never clip, and they need no sorting band of their own.
+
+### Trap: order equal to the mask's back-order is not reliably captured
+
+With a mask band's `m_BackSortingOrder` set to N, renderers at exactly order N render
+**invisible**, while N+1…N+4 show. A row background at order 56 against a
+`m_BackSortingOrder` of 56 disappeared; lowering the back order to 55 fixed it. Set the
+back order **strictly below** the lowest order you want clipped.
+
+The symptom — row backgrounds gone, labels on top of them fine — reads like a sprite or
+material bug, and it is a pure off-by-one.
+
+### Mask setup facts
+
+- A `SpriteMask` needs Unity's built-in **Sprites-Mask** material
+  (`fileID: 10758, guid: 0000000000000000f000000000000000`). Prefabs imported via
+  AssetRipper arrive with a placeholder sprite *and* a placeholder material
+  (`0000000deadbeef15deadf00d0000000`) — both have to be replaced.
+- **The mask's scale *is* its size.** A mask still carrying the calibration for a
+  different sprite clips nothing at all, and the whole screen then counts as "inside the
+  mask" — which looks like the `maskInteraction` flags being wrong.
+- The mask sprite itself is imported with `spritePixelsToUnits: 1`.
+
 ## PugText that switches itself off
 
 `PugText.Start()` (Pug.Other, decompile offset ~351420) is:
@@ -260,10 +411,63 @@ later flip of the flag cannot resurrect a placeholder.
 and CK's own widgets render unconditionally every `LateUpdate`, so the combination never
 bites them. Any prefab lifted from the game needs this pair checked.
 
+### Tinting: set the colour after `Render()`
+
+`PugText.color`'s setter goes through `SetTempColor`, which writes the glyph
+`SpriteRenderer`s that `Render(text)` (re)builds. A colour applied **before** the render
+call is therefore discarded — order matters, and the wrong order costs nothing at compile
+time.
+
+`renderOnStart: 1` adds a second failure on top: such a prefab re-renders once on `Start`
+— one frame after a freshly instantiated object first activates — which resets the glyphs
+to `style.color` and blanks the tint. `SetTempColor(c, keepColorOnStart: true)` makes it
+re-apply `tmpColor` on that start-render.
+
+**The symptom is distinctive:** the tint appears only seconds later on the **first** open
+after a world load, and is correct on every subsequent open.
+
 ## The font system
 
 CK UI text is `PugText` rendering through `TextManager` / `PugFont`, all in
 `Pug.Other.dll`. This matters for any mod with localised labels or a custom font.
+
+### Every PugText draws in front of every sprite
+
+`PugText.style.sortingLayer` defaults to `int.MinValue`, which is a **sentinel, not a
+layer**: `PugText.Render` resolves it to `SortingLayer.NameToID("GUI")` and then applies
+`style.orderInLayer` verbatim as the renderer's `sortingOrder`, with no runtime reset. The
+default `orderInLayer` is **9999**.
+
+Glyphs and `SpriteRenderer`s therefore share the GUI layer, and at 9999 every `PugText`
+draws in front of every sprite. A popup background at order 54 cannot cover a label until
+that label's order is lowered — the symptom (text bleeding through your own panel) reads
+like a Z-order bug and has no visible cause, because 9999 is not a number anyone guesses.
+
+`orderInLayer` is freely settable in prefab YAML (`style: orderInLayer`), and lowering it
+is the correct fix rather than a workaround. Two worked cases: a footer status line
+drawing over an open popup was fixed by moving it from 9999 to 50, below the popup
+background's 54; the popup's own labels were pulled from 9999 into a 56..63 band so that
+the popup's mask could clip them.
+
+### PugText fields that must be set in the prefab
+
+- **`maxWidth` must stay `0`.** Any non-zero value routes the text through CK's word-wrap
+  `PugFont.AddNewLinesToLinesExceedingMaxWidth`, which throws an
+  `IndexOutOfRangeException` **every frame**. Check this on any `PugText` copied out of
+  the game.
+- **Alignment is a real serialized field, not a transform trick.**
+  `PugTextStyle.HorizontalAlignment { left, center, right }` serialises as `0/1/2`, and
+  `verticalAlignment` likewise.
+
+### CK's drop shadow is a second text object
+
+CK's text shadow does **not** come from `PugText`'s built-in `outline` — that field is `0`
+on the widgets that have a shadow. The shadow is a second, black `PugText` carrying the
+same string, offset by `0.0625` world units to the right and down (exactly 1 px at 16
+pixels per unit) and drawn behind the real one with an `orderInLayer` one lower. Reaching
+for `outline` instead gives you a visible deviation from the vanilla look.
+
+### Faces and atlases
 
 `PugText.style.fontFace` is a `TextManager.FontFace` enum — a packed bitfield of
 `weightMask | sizeFlags`. Each face is a separate `PugFont` ScriptableObject with its own
@@ -281,7 +485,41 @@ atlas, resolved via `Manager.text.GetFont(fontFace)`.
 | `buttonFont` | `134217744` | `buttonfont_new` | 339×161 | 90 |
 
 The atlases live in the `rrs*` family inside `resources.assets` — see
-[reverse engineering](reverse-engineering.md) for getting at them.
+[reverse engineering](reverse-engineering.md) for getting at them. The table is not the
+complete set: `TextManager.Init2` calls `InitCodePoints()` on **twelve** faces.
+
+Which charset a face uses differs per face. `thinTiny` carries its own `_customCharset`
+starting at ASCII 33, `thinSmall` uses the shared static `latinCharset`; the `charset`
+property (`Pug.Other:350400`) picks `_customCharset` whenever it is not null or
+whitespace. `thinTiny`'s 114 codepoints are a **true subset** of `thinSmall`'s 331 — the
+difference measures empty, so going from one to the other is a pure gain of 217
+characters.
+
+### What the atlases do and do not contain
+
+**No CK font maps any whitespace codepoint.** Not `thinSmall` (331), not `thinTiny`
+(114), not `boldHuge` (341), not the Chinese font (3891): none of them contains `U+0020`,
+`U+00A0` or the typographic spaces `U+2000–U+200A`. CK handles spacing outside glyph
+resolution, so space width is neither definable nor changeable through a font atlas — and
+an empty-looking rect slot in an atlas is not a space glyph waiting to be widened.
+
+**Glyph coverage differs per face, so a character can be missing from one atlas only.**
+`♦` (U+2666) and `♢` (U+2662) exist **only** in the `boldLarge` atlas; `thinMedium`
+renders `?` for them. Reaching them means switching that `PugText`'s `fontFace` at
+runtime. When you write such a character in mod source, write it as a Unicode escape
+(`'\u2666'`, `'\u2662'`) and keep the source pure ASCII: a literal non-ASCII character is
+encoding-unsafe through the [Roslyn sandbox](sandbox-and-config.md) compile.
+
+**Some painted cells carry no codepoint and are structurally unreachable by character.**
+`PugFont.GetGlyphData` starts at `codePoints.TryGetValue(c, …)`, so a glyph slot without a
+codepoint cannot be addressed by a character at all. CK's coloured controller symbols
+(A/B/X/Y, `+`, `−`) are exactly that class — CK addresses them internally by glyph
+*index*. Characters that do carry codepoints behave normally; the two hearts `♥`/`♡`
+(`U+2665`/`U+2661`) are ordinary mapped glyphs. In the vanilla atlases the
+painted-but-codepointless indices are `{97, 98}` in `thinTiny` (unmapped `Ç`/`ç`) and
+`{2..7, 378..381}` in `thinSmall` — the six controller symbols plus four template orphans
+left over from the grid (`adv = 5`, `chars = []`), which are harmless precisely because
+nothing can reach them.
 
 ### Missing-glyph fallback
 
@@ -319,7 +557,7 @@ postfix sets `texture`, clears `_customCharset` so the face falls back to the sh
 static `PugFont.latinCharset`, rebuilds `glyphData`, then calls CK's own
 `InitCodePoints()`. Patch mechanics are in [Harmony and ECS](harmony-and-ecs.md).
 
-Three non-obvious constraints:
+Non-obvious constraints:
 
 - **`latinCharset` is exactly 384 characters = a 32×12 atlas grid.** Charset position,
   `glyphData` index and atlas cell are one and the same coordinate, which is what makes a
@@ -330,6 +568,17 @@ Three non-obvious constraints:
   lands the pivot on vanilla's baseline. `charDims` stays `(8, 10)` regardless — it is a
   layout metric (line advance, reported size), not atlas geometry, and does not track the
   rect inflation.
+- **The atlases are 257 px wide rather than 256 because of the horizontal inflation.**
+  `InitCodePoints` widens every rect by `x -= 1; width += 2` — but only while
+  `rect2.width + rect2.x + 2 < texture.width`. When that fails it leaves the glyph
+  un-inflated and logs *"you need to make the font texture 1 pixel wider to the right to
+  support outlines"*. The same pass **skips** two kinds of cell: one whose charset
+  character is a space, and one with a zero-size rect — a zero-size rect is the encoding
+  for "empty cell".
+- **A codepoint-keyed replacement cannot reach index-addressed glyphs.** The slots that
+  carry no codepoint (CK's controller symbols, template orphans) will receive your pixels
+  and never render them, because character lookup cannot address them at all. Glyphs with
+  real codepoints — the hearts, for example — are replaced normally.
 - **Kerning must be regenerated, not reused.** Vanilla `thinTiny` (`Font5.asset`) ships
   `enableKerning: 1` with a full 118×118 matrix, but the matrix is index-based and cannot
   survive a charset swap. A working generator derives a 384×384 matrix from glyph ink
@@ -340,6 +589,26 @@ Three non-obvious constraints:
   to about 84 % *by design* — the correctness criterion is "no collisions", not "matches
   vanilla". A welcome side effect: digit pairs stop kerning altogether, so counters and
   coordinate readouts keep a stable per-digit width.
+
+### Reading a vanilla atlas back
+
+Mapping an atlas cell to its character on the 32×12 `latinCharset` grid:
+
+```text
+col = rect.x // 8
+row = 11 - (rect.y // 12)
+```
+
+The subtraction is the part that bites: CK's glyph rects are in Unity coordinates with the
+origin at the **bottom left**, while a cell grid is read top-down. Miss it and you get a
+silent off-by-N-rows error rather than an obviously wrong result.
+
+Metrics of vanilla `thinTiny`, measured against the shipped `rrs5` atlas: cap height 6 px,
+digit height 6 px, x-height 4 px, and `C E F L` are 2 px wide. Digit advance is **3**.
+
+**Keep the digit advance when you replace a face.** Identical digit advance means every
+counter and coordinate readout in the game keeps its existing width, so no layout that was
+tuned around numbers shifts.
 
 ### Correction: thinTiny does not render damage numbers
 
@@ -367,6 +636,16 @@ spaces.
 Neither uses a RenderTexture. The UI camera maps the player's world-Y (≈0) to a constant
 viewport Y, so it cannot see the game-world position at all: **there is no clean
 projection between world XZ and HUD XY.**
+
+**The uiCamera shows a constant world area, so a fixed-size prefab is
+resolution-independent.** `Manager.camera.uiCamera.orthographicSize` is exactly
+**8.4375** — the 8.44 in the table rounded — so the visible height is
+`2 × orthoSize = 16.875` world units and the width is
+`height × aspect` — a **30 × 16.875** viewport at 16:9. That area does not change with
+resolution (confirmed empirically across several), and CK exposes no UI-scale option at
+all. A prefab authored at a fixed size is therefore "fullscreen with a border" at every
+resolution, and a mod window needs **no runtime sizing logic**. For matching the vanilla
+look, CK's own inventory margin is 0.25 world units.
 
 **Dead end — do not repeat it:** projecting a world position onto the HUD via
 `gameCamera.WorldToScreenPoint(...)` → `uiCamera.ScreenToWorldPoint(...)` (or the
@@ -410,22 +689,47 @@ geometry in general is covered by [world and mechanics](world-and-mechanics.md).
 load screen is up, and it survives the exit transition — a raw player-null check lets a
 world-anchored HUD flash over teleport and Save-&-Quit load screens.
 
+## Mounting an always-on HUD
+
+A non-modal HUD is **not** registered through CoreLib's
+`UserInterfaceModule.RegisterModUI` — that route belongs to modal windows (see the
+[UI framework](ui-framework.md)). The plain route is two steps:
+
+1. In `IMod.ModObjectLoaded`, fish the prefab out of the asset stream **by its GameObject
+   name**.
+2. In `IMod.Update`, instantiate it lazily under
+   `Manager.ui.chestInventoryUI.transform.parent` — the `IngameUI` root — as soon as
+   `Manager.ui != null && Manager.ui.chestInventoryUI != null`.
+
+That is the same parent modal CoreLib windows end up under; what differs between a HUD and
+a modal window is the layer and the activation path, not the mount point.
+
+**Trap: guard the lazy instantiation on a static `Instance` that the HUD class sets in
+`Awake`, not in `Start`.** With the assignment in `Start` there is a one-frame window in
+which the update loop still sees no instance and instantiates the HUD a second time.
+
 ## Why a mod HUD stays invisible
 
-Three unrelated mistakes produce the same complaint — "my HUD element exists,
-it is active, and I cannot see it". They are distinguishable, and the
-distinguishing signal is `SpriteRenderer.isVisible`.
+Four unrelated mistakes produce the same complaint — "my HUD element exists,
+it is active, and I cannot see it". They are distinguishable, and the first
+signal to read is `SpriteRenderer.isVisible`.
 
 | Cause | `isVisible` | What is happening |
 |---|---|---|
 | Wrong layer | `true` | The renderer is fine; the camera is not drawing that layer |
 | Wrong Z | `false` | Outside the uiCamera frustum, so it is culled |
 | Scaled to nothing | `true` | Drawn at zero size |
+| Fully transparent sprite | `true` | Drawn correctly — there is nothing in the pixels |
 
 **`isVisible == false` means culled, not occluded.** Nothing in this game hides
 a HUD element behind something else — if the flag is false, the element is
-outside the frustum or on an unrendered layer. That single check separates the
-first two rows from the third.
+outside the frustum or on an unrendered layer. That single check isolates the
+wrong-Z row from all the others.
+
+The last row is the meanest of the four, because *every* diagnostic reads healthy:
+a placeholder sprite whose pixels are fully transparent — an empty "frame", say — has
+the right layer, the right Z, a non-zero scale and `isVisible == true`, and renders
+nothing at all. Open the sprite, not the prefab.
 
 ### Layer: the HUD renders on 27, not on 5
 
@@ -481,15 +785,30 @@ Drive visibility with an explicit boolean instead of a scale. Which predicate
 depends on what the element does: a world-anchored element needs the stricter
 playability gate described above, while an element that merely has to stay out
 of the way of open interfaces can gate on `!Manager.ui.isAnyInventoryShowing &&
-!Manager.menu.IsAnyMenuActive()` in addition. Toggle the root with `SetActive`,
-and only when the value changes.
+!Manager.menu.IsAnyMenuActive()` in addition. Toggle with `SetActive`, and only
+when the value changes.
+
+**Trap: never put the component that drives visibility on the GameObject it
+switches off.** Deactivating that object stops the component's own `LateUpdate`
+from running, so it can never switch the display back on — hidden once means
+hidden for the rest of the session, with no error anywhere, and only a restart
+brings it back. The symptom looks like a random bug ("the HUD is sometimes
+gone").
+
+Give the prefab an intermediate level for this — `root` → `hudRoot` → contents.
+The driving component sits on the always-active `root`, holds `hudRoot` as a
+serialized field, and toggles *that*.
 
 **Trap: `isAnyInventoryShowing` is not a plain vanilla signal once CoreLib is
 loaded.** CoreLib patches that aggregate getter and forces it **true whenever
-any mod UI is open** — the per-UI getters such as
+any CoreLib-managed mod window is open — including windows belonging to other
+mods** — while the per-UI getters such as
 `Manager.ui.isPlayerInventoryShowing` stay unpatched. For a HUD that simply
-wants to disappear behind open interfaces, that is exactly right: your own
-window counts as an interface too. But it makes the aggregate useless as a
+wants to disappear behind open interfaces, that is exactly right, and it is the
+reason to prefer this one predicate over querying the individual UIs: your own
+window counts as an interface too, and so does a stranger's, without your
+knowing anything about it. (All of this holds only while CoreLib is loaded.)
+But the same patch makes the aggregate useless as a
 window's *own* guard — gate a window on it and the window blocks itself. Read a
 per-UI getter when you need to tell "a vanilla menu is open" from "my own window
 is open".
