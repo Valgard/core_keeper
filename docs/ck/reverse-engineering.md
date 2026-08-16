@@ -75,6 +75,13 @@ lines, `Pug.ECS.Components` ~4 MB (the `*CD` component-data structs),
 `Pug.Objects` ~1 MB, and `Pug.Base` holds the `ObjectInfo`, `ObjectType`,
 `Rarity` and `ObjectCategoryTag` enums.
 
+**The ECS naming triple makes those greps precise.** An authored
+`<X>Authoring` MonoBehaviour bakes through an `<X>Converter` into the runtime
+`<X>CD` component data. Whichever end of a mechanism you happen to hold, the
+convention gives you the other two by name — and it makes a negative finding
+legible: the decompile has `DiggableAuthoring` and `DiggableCD`, and no
+`DiggingSpotCD`.
+
 ### Record the build the checkout came from
 
 An answer found in a decompile is true **for that build only**. Note the exact
@@ -155,7 +162,23 @@ That property is not special to CoreLib. Source mods ship their `Scripts/*.cs`
 and are compiled at load time, so **every mod you have installed is a readable
 C# reference** sitting in its mod.io cache directory. When you want to know how
 someone solved a problem — or why their mod conflicts with yours — read their
-code rather than inferring from behaviour.
+code rather than inferring from behaviour. Two locations hold the same sources:
+
+| Location | What it is |
+|---|---|
+| `…/mod.io/5289/mods/<modId>_<modfileId>/Scripts/` | The downloaded mod file as published — the `<modfileId>` pins the exact release |
+| `ModLoader/<ModName>/Scripts/` | What the loader extracted from it to compile |
+
+The exception is a mod that ships a **precompiled assembly** rather than
+sources — an asset-only mod, or one declaring a `.dll` under
+`accessesExtraAssemblies`. For those you are back to a decompile.
+
+The catalogue is enumerable beyond what you happen to have installed: the
+mod.io REST API lists and downloads every published mod for game `5289`, which
+turns "which mod touches this namespace" into a byte scan over the downloaded
+set instead of a guess. **Exclude the bundled `CoreLib*.dll` files from such a
+scan** — they carry the very strings you are searching for and report every
+CoreLib-dependent mod as a hit.
 
 **Trap: a reference mod's own helper types are not game API.** This is the
 failure mode that makes the technique backfire. Reading a mod for a pattern is
@@ -172,6 +195,16 @@ own notes long after its shipped code had stopped doing it.
 Before adopting an identifier found in another mod, confirm it resolves in the
 decompiled *game* assemblies. If it only appears in that mod's `Scripts/`, it is
 that mod's, and you need the native mechanism underneath it.
+
+**Trap: a shipped mod's source records the build it was written against.** Run
+that same check even on identifiers that are unmistakably the game's, because a
+mod's `Scripts/` say what Core Keeper exposed when its author last touched them,
+not what it exposes now. PermaBreak ships a patch on
+`PlayerController.ReduceDurabilityOfEquipment` — a method the current build no
+longer has; the durability reduction that actually runs is in
+`PlayerEquipment.ChangeDurabilitySystem.OnUpdate`. A patch target lifted from
+another mod can be plausible, confidently documented and still bind against
+nothing.
 
 ## Unpacking the game's resources
 
@@ -217,6 +250,14 @@ All 55,493 MonoBehaviours come through, **most of them embedded inside
 `.prefab` files rather than standing alone**. 78.9 % carry named fields; the
 remaining 21.1 % are fieldless ECS tag components (`IndestructibleAuthoring`
 and its kind) — that is correct output, not a failure.
+
+**Where a vanilla UI widget lives.** CK's HUD and menu widgets are not
+individual prefabs; they are subtrees inside one giant
+`Resources/Assets/Resources/Global Objects (Main Manager).prefab` — 6.5 MB,
+2,626 GameObjects. `CoordinatesUI`, for example, sits there from around line
+7813 as five GameObjects. Reusing a CK widget therefore means lifting a subtree
+out of that file; [prefabs and rendering](prefabs-and-rendering.md) covers what
+has to travel with it.
 
 The export is a nominally openable Unity project, but next to a decompile
 checkout most of it is redundant: `GameAssemblies/`, `Assets/Plugins/`,
@@ -313,6 +354,15 @@ The last one is the trap that catches people who own the mod they are
 investigating. A behaviour you introduced three sessions ago looks exactly like
 game behaviour from the inside.
 
+### A reference mod is precedent only if it does the same thing
+
+"Another mod does it this way, so the approach works" is evidence only when that
+mod met your problem. Tool Resizer was weighed as proof that a standalone ECS
+system escapes Harmony ordering conflicts, and does not support the claim: it
+adjusts numeric values and places nothing, so it never faces the ordering
+problem it was being cited for. Check what the reference mod *does* before
+letting it settle a design question — not merely which mechanism it uses.
+
 ### A negative finding needs the whole type body
 
 "Type X does not have member Y" is the easiest claim in this codebase to be
@@ -364,6 +414,13 @@ simply never have been reached — see
 [multiplayer and server](multiplayer-and-server.md). A test that cannot
 distinguish "broken" from "not executed" proves nothing.
 
+**Test every case a change unlocks, separately.** Where one edit enables
+several variants — a bake-time change that permits building on both `Pit` and
+`Water` tiles, say — the shared code path is a reason to *expect* they behave
+alike, never evidence that they do. Exercise each variant in every verification
+round and record it as tested; "follows from the common path" is a derivation,
+not a result.
+
 ## When the local material runs out
 
 Third-party Core Keeper documentation exists, but it is **generic and shallow
@@ -377,10 +434,18 @@ consulted after the repo and the decompile, and ahead of a general web search.
 | Official Pugstorm modding site | `https://modding.corekeepergame.com/` | The vendor's own framing of the SDK |
 | Modding wiki (community, GitBook) | `https://core-keeper-modding.gitbook.io/modding-wiki` | Orientation; `creating-mods/getting-started-modding` and `playing-with-mods/discovering-mods` |
 | mod.io guide: SDK introduction | `/g/corekeeper/r/core-keeper-mod-sdk-introduction` | Editor-side workflow |
-| mod.io guide: ECS component compendium | `/g/corekeeper/r/ecs-component-compendium` | The most useful of the guides for game-logic work — a catalogue of components |
+| mod.io guide: ECS component compendium | `/g/corekeeper/r/ecs-component-compendium` | The most useful of the guides for game-logic work — a catalogue of components, and the one that also settles negatives |
 | mod.io guide: missing scripts | `/g/corekeeper/r/how-to-fix-missing-scripts` | The "Missing Script" symptom on prefabs |
 | mod.io guide: dnSpy | `/g/corekeeper/r/how-to-use-dnspy` | IL inspection, interactive |
 | mod.io guide: user guidelines | `/g/corekeeper/r/user-guidelines` | Publishing rules — see also [../publishing.md](../publishing.md) |
+
+**Cross-check the compendium, absences included.** ILSpy stays the authority,
+but the compendium is a cheap second opinion on a decompile finding — and the
+only external source that says anything about components which are *not* there.
+It lists `DiggableAuthoring → DiggableCD` and no `DiggingSpotCD`, matching the
+decompile exactly, so a name missing from both is far more likely genuinely
+absent than mis-grepped. It also documents the `Authoring`/`Converter`/`CD`
+convention itself, which is what makes the search grep-able in the first place.
 
 **On IL tools:** the community guides point at **dnSpy**, which is a good
 interactive browser when you want to click through call hierarchies. It is not
