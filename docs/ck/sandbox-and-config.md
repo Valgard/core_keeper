@@ -68,18 +68,31 @@ Every entry below was verified by an actual failed load.
 
 | Banned | Notes |
 |---|---|
-| The whole `System.IO.*` namespace | Including purely in-memory types: `MemoryStream`, `BinaryWriter`, `BinaryReader`, `EndOfStreamException`. Any byte encoding you need must be hand-rolled. |
+| The whole `System.IO.*` namespace | Including purely in-memory types: `MemoryStream`, `BinaryWriter`, `BinaryReader`, `EndOfStreamException`. `BinaryWriter`-style framing has to be hand-rolled; string-to-`byte[]` does not — `System.Text.Encoding` is legal, see below. |
 | `Manager.saves.X()` — the `SaveManager` instance-access path | The entire class as an access surface, even trivial getters such as `GetWorldId()` that just return a cached int. `SaveManager` aggregates filesystem-touching methods, and the whole class symbol is banned. |
 | `System.Diagnostics.Process` | Process spawning. |
 | `System.Reflection.Emit.*` | Runtime code generation. |
-| `HarmonyLib.Traverse` (and, by the same rule, `AccessTools.Field` / `Property`) | Banned even though it lives in the trusted `0Harmony.dll` — the reflection *wrapper class* is the banned symbol. `Traverse.Create(x).Field("y").GetValue<T>()` produces 1 illegal type ref plus 3 illegal member refs. Consequence: no private-field reflection *by this route* — there is a legal one, below. |
+| `HarmonyLib.Traverse` | Banned even though it lives in the trusted `0Harmony.dll` — the reflection *wrapper class* is the banned symbol. `Traverse.Create(x).Field("y").GetValue<T>()` produces 1 illegal type ref plus 3 illegal member refs. Consequence: no private-field reflection *by this route* — there is a legal one, below. |
 | `System.Reflection.MemberInfo.get_Name()` — and anything that resolves to it through inheritance | `Type.Name` *is* `MemberInfo.Name`, so an innocent `ex.GetType().Name` yields 1 namespace + 1 type + 1 member illegal ref and fails the load. |
 | Some game-side ECS component reads | `em.HasComponent<CharacterGuidCD>(entity)` + `GetComponentData<CharacterGuidCD>(entity)` + `Hash128` together produced 1 namespace + 1 type + 1 member illegal ref. The exact blocked subset is not mapped — bisect when you hit it. |
 
-**Expected but not load-verified: `System.Security.Cryptography`.** It is not in
-the table because no failed load here has confirmed it — but it is the same
-class of BCL surface as the entries that are, and the one job that tempts you
-into it (hashing to skip a redundant write) has a better answer anyway; see
+**Suspected but not load-verified: `AccessTools.Field` / `AccessTools.Property`.**
+They have the same shape as `Traverse` — reflection wrapper surface in
+`0Harmony.dll` — which is the whole reason to suspect them, and no load here has
+tested them in either direction. Do not read the `Traverse` row as covering them:
+the verifier resolves types one at a time by full name
+(`IsTypeReferenceAllowed` matches `reference.FullName` against its own list and
+only falls back to the namespace when the type is unlisted), and `Traverse` trips
+it as a *type*, not as a namespace — so a verdict on `HarmonyLib.Traverse`
+implies nothing about `HarmonyLib.AccessTools`. The question is also avoidable:
+the legal route below does the same job with no dependency.
+
+**Not banned, contrary to expectation: `System.Security.Cryptography`.** It
+looks like exactly the BCL surface the sandbox rejects, and it is not: CoreLib
+uses `MD5.Create()` and `ComputeHash` in its own sandboxed source
+(`skipSafetyChecks: false`) and passes verification. That does not make it the
+right tool for the job that tempts you into it — hashing to skip a redundant
+write — but the reason is cost and allocation rather than legality; see
 [Writing in lockstep with the game's save](#writing-in-lockstep-with-the-games-save).
 
 **Trap: `Type.Name` is not a string operation.** The most common way to trip
@@ -88,9 +101,10 @@ the sandbox by accident is a diagnostic log line. Three ways around it:
 - Catch the typed exception and write the type name as a string literal:
   `catch (NullReferenceException ex) { Debug.Log("NullReferenceException: " + ex.Message); }`
 - Log only `ex.Message` and drop the type entirely.
-- For non-exception cases, use CoreLib's `GetMembersChecked()` /
-  `GetNameChecked()` extension methods — they live in the trusted CoreLib DLL
-  and therefore bypass the sandbox. A reflective lookup written as
+- For non-exception cases, use the SDK's `GetMembersChecked()` /
+  `GetNameChecked()` extension methods (`PugMod.SDK.Runtime`) — the reflection
+  happens inside that trusted assembly, so it costs no reference of your own.
+  A reflective lookup written as
   `typeof(UIScrollWindow).GetMembersChecked().FirstOrDefault(x => x.GetNameChecked() == "_scrollable")`
   passes cleanly.
 
@@ -136,6 +150,13 @@ Verified by passing live loads:
 - **Harmony attributes that name banned types.** See the next section.
 - **`Newtonsoft.Json.*`** — trusted precompiled library; usable from mod code
   even though it uses `System.IO` internally.
+- **`System.Text` — `Encoding`, `UTF8Encoding` and `StringBuilder`.** CoreLib
+  compiles all three under the sandbox: `Encoding.UTF8.GetBytes` /
+  `GetString` wrapping its `API.ConfigFilesystem` calls, and
+  `new UTF8Encoding(false)` plus `StringBuilder` in its TOML writer. Its
+  manifest carries `skipSafetyChecks: false`, so it goes through exactly the
+  check your mod does, and its assembly logs `has passed code security
+  verification`.
 - **`Convert.ToBase64String` / `Convert.FromBase64String`** — these live in
   `System`, not `System.IO`.
 - **`UnityEngine.PlayerPrefs`** — Unity-native persistence, sandbox-safe.
@@ -146,9 +167,8 @@ Verified by passing live loads:
   just reads. The query patterns and the performance rules that govern them are
   in [Harmony and ECS](harmony-and-ecs.md).
 
-`Encoding`, `JsonUtility` and `StringBuilder` have not been verified either
-way. Where existing mods needed to serialise, they hand-packed bytes rather
-than find out.
+`JsonUtility` is the one serialisation entry point still unverified in either
+direction — no load here has exercised it.
 
 ## Harmony attributes are exempt — hook bodies are not
 
@@ -258,10 +278,15 @@ invisible to your mod: no exception, no return value, nothing to branch on. If
 the data matters, **read the file back** before you record the write as done —
 above all before caching any "content unchanged, skip the write" hash.
 
-The API is `byte[]` in and `byte[]` out, which means you serialise yourself. A
-line-oriented format (`id:count;`) round-tripped through `(byte)char` /
-`(char)byte` loops is verified to work; that avoids leaning on the
-sandbox-unverified `Encoding` and `JsonUtility`.
+The API is `byte[]` in and `byte[]` out, which means you serialise yourself.
+`Encoding.UTF8.GetBytes` / `GetString` is the normal way to get a string across
+that boundary, and `Newtonsoft.Json` covers the structured case — both are
+sandbox-legal, and CoreLib uses exactly that pair.
+
+Hand-packing a line-oriented format (`id:count;`) through `(byte)char` /
+`(char)byte` loops also works and is verified here, but treat it as a choice one
+mod made rather than as a requirement: that loop only round-trips characters
+below U+0100, and anything above truncates to its low byte without an error.
 
 That this is genuinely sufficient is not theory: CoreLib itself is a sandboxed
 source mod (`skipSafetyChecks: false`) with **zero** `System.IO` references,
@@ -423,9 +448,10 @@ safety margin, so hand-roll **FNV-1a/64**.
 - **Not `string.GetHashCode`.** 32 bits is not a negligible risk over a long
   session, and the value is not stable across runtimes.
 - **Not SHA or MD5.** Cryptographic strength buys nothing against accidental
-  collisions, it costs more per byte on a main-thread path, it allocates a
-  `byte[]` — and `System.Security.Cryptography` is the kind of BCL surface the
-  sandbox bans.
+  collisions, it costs more per byte on a main-thread path, and it allocates a
+  `byte[]`. Note that this is a cost argument, not a legality one:
+  `System.Security.Cryptography` passes the sandbox — CoreLib hashes with it —
+  so nothing stops you, it is simply the wrong tool here.
 
 Record the hash only after a write you have **verified** by reading the file
 back (see the `IOException` trap above), and let the first save of a session
