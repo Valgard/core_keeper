@@ -287,11 +287,21 @@ and `filterMode` unchanged throughout.
 
 ## uiCamera Z-sorting, and the tie that dims a sprite
 
-**CK's uiCamera sorts transparent renderers by Z position, not by `sortingOrder`.**
-That is the standing rule for all HUD and menu work.
+**Within one sorting layer and one `sortingOrder`, CK's uiCamera resolves transparent
+renderers by Z position.** Order is not inert: where it differs on the GUI layer it
+decides, which is why lowering a label's `orderInLayer` is the fix for text bleeding
+through your own panel — see [Every PugText draws in front of every
+sprite](#every-pugtext-draws-in-front-of-every-sprite). Z is what is left when layer and
+order do not separate two renderers.
 
-The trap follows from it: when a sprite and a box or panel **background** end up at the
-**same absolute Z**, the sort is a tie, the order is undefined, and the background
+**Where exactly the line between the two falls is not mapped.** One case is on record of
+chrome sprites at a far lower order still occluding `PugText` glyphs at `orderInLayer`
+9999 on the same GUI layer, fixed only by pushing the chrome back in Z (`z += 2`). If an
+order change does not produce the result you expect, compute the absolute Z of both
+renderers before concluding the order is wrong.
+
+The trap follows from all this: when a sprite and a box or panel **background** end up at the
+**same absolute Z**, the sort is a tie, the winner is undefined, and the background
 intermittently renders *in front* of the sprite — dimming it to a washed-out grey. It
 works whether the background is semi-transparent or opaque.
 

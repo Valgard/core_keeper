@@ -60,9 +60,16 @@ southern edge came out at `z = -1` in all eight, and the region reached `z = 10`
 or `z = 11`.
 
 Those are tile-quantised edges read off a fog-of-war raster, so treat them as
-±1 tile. What they support is the qualitative claim, and that is enough: **the
-origin sits near the southern edge of the Core base, not in its middle** — at the
-waypoint below the Core rather than in the Core.
+±1 tile. What they support is the qualitative claim: **the origin sits near the
+southern edge of the Core base, not in its middle** — at the waypoint below the
+Core rather than in the Core.
+
+**The game itself puts a number on it.** When `ECSManager` finds more than one
+entity carrying `TheCoreCD`, it cleans up the extras and repositions the survivor
+to a hardcoded `LocalTransform.FromPosition(new float3(0f, 0f, 4f))`
+(`Pug.Other:181802`) — the only hardcoded Core position anywhere in the assemblies,
+and it agrees with the map measurement. So `z = 4` is the figure to use, and the
+offset between origin and Core is four tiles north.
 
 **Trap: do not derive the offset from the region's midpoint.** Only the southern
 edge was stable across all eight worlds; the northern one came out at `10` or
@@ -78,6 +85,22 @@ Practical consequences:
   position, not `float3.zero`.
 - Conversely, if you want the *spawn point*, the origin is right — that is what
   sits there.
+
+**Getting the Core's position at runtime.** You do not have to measure anything:
+the Core carries a dedicated tag component, `TheCoreCD`
+(`Pug.ECS.Components:1390`) — zero bytes, and `[GhostComponent(PrefabType =
+GhostPrefabType.All)]`, so it exists on the client ghost as well as on the
+server. Query it, take the single entity, read its `LocalTransform.Position`.
+The game does exactly that query itself (`Pug.Other:181795`, in the routine that
+deletes duplicate cores). Two conditions apply: the Core resolves only while it
+is loaded — see [entity radii](#entity-radii-loaded-is-not-observed) — and the
+sandbox's verdict on ECS reads is per component type, so verify the load as
+described in [reading the live ECS world](harmony-and-ecs.md#reading-the-live-ecs-world-from-a-mod).
+
+Do not shortcut this with a constant. That same cleanup routine pins the
+surviving core at `float3(0, 0, 4)`, which corroborates that the Core sits north
+of the origin but is a repair value written on one code path, not where the Core
+is in a world that never needed repairing.
 
 ### Floor world coordinates, never cast them
 
@@ -226,17 +249,28 @@ costs the player a walk to pick it back up, nothing more.
 
 ### Never suppress an `AddTile` call to veto a placement
 
-`AddTile` is the convergence point of tile placement: writing into the
-`TileUpdateBuffer` is what "placing" means, and this is the utility that does
-it. Vanilla calls it at `Pug.Other:311379`/`:311382`, and third-party placement
-mods call it too. That makes it the right place to *change* a placement — but
-the wrong place to *cancel* one:
+`AddTile` is the convergence point of **equipment-driven** tile placement: every
+path where the player's held item produces a tile — placing, digging, watering,
+painting, roofing — routes through it. Vanilla calls it at
+`Pug.Other:311379`/`:311382`, and third-party placement mods call it too. That
+makes it the right place to *change* a placement — but the wrong place to
+*cancel* one:
 
 **Both vanilla and the placement mods debit the item from the inventory
 *after* calling `AddTile`.** Blocking the call therefore consumes the item and
 produces nothing: a straight item loss. Letting the call through and having it
 fail validation only drops a pickup (see above). If you need to veto, veto
 earlier, at the placement decision, not at the tile write.
+
+**Trap: `AddTile` is not the only writer of the buffer.** Nine call sites reach
+it, and outside them `Pug.Other` builds a `TileUpdateBuffer` entry with
+`command = Add` directly at 29 further places — world spawning
+(`SpawnObjectAtPosition`), the `SpawnTileOnDeathCD` handler, plant growth
+(`RootPlantCD`), caveling territory, melee-attack state code, and a private
+`AddTile(ref EntityCommandBuffer, …)` helper with a different signature. Patching
+`EntityUtility.AddTile` therefore sees what the player's equipment does and
+nothing else; a mod that means to observe *every* tile the world gains has to
+work at the buffer or at `ApplyAdd`, not here.
 
 `AddTile`'s parameters carry no player or inventory reference, so a mod that
 needs that context has to capture it upstream. The patch mechanics — priority,
