@@ -7,8 +7,8 @@ distortion, Z-sorting ties, mask clipping, self-deactivating text, the font atla
 system — that make a structurally correct prefab render wrong. It closes with how a
 HUD is mounted at all and with the one geometric fact that surprises every HUD
 author: the world and the HUD are different coordinate spaces. Menu widgets, options entries, keybinds and scrolling belong to the
-[UI framework](ui-framework.md); pixel-art authoring tooling is covered by
-[the Pixaki format notes](../pixaki-format.md).
+[UI framework](ui-framework.md). What the game requires of a sprite is covered
+here; which program you draw it in is up to you.
 
 ## Editing a prefab: script or Editor
 
@@ -218,8 +218,12 @@ raw texture rather than a sprite, therefore does **not** get solved by leaving t
 defaults alone. Ship the PNG with the same sprite settings (`textureType: 8`,
 `spriteMode: 1`) and take `LoadAsset<Sprite>(path).texture` at runtime.
 
-For authoring the pixel art itself and converting it to sheets, see
-[the Pixaki format notes](../pixaki-format.md).
+**Which program you draw in is entirely your choice.** Core Keeper never sees your
+source file — it sees the imported PNG, so the only requirements are the import
+settings above and the pixel conventions that follow from the game's art: 16 pixels
+per unit and point filtering. Any editor that can produce that works.
+[One such workflow](../pixaki-format.md), including sheet conversion, is written up
+in this repository because it happens to be the one used here.
 
 ## A freshly added SpriteRenderer starts out broken
 

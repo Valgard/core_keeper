@@ -13,6 +13,40 @@ Knowledge is against Core Keeper **1.2.1.5** unless a passage names a different
 version. Facts read out of a decompile are true for the build they were read
 from; game updates can and do invalidate them.
 
+## Start from nothing
+
+If you have not built a Core Keeper mod before, read three chapters in this
+order. They are the ones whose absence causes the most wasted time, and together
+they cover what every mod does regardless of what it is for.
+
+1. **[Mod anatomy](mod-anatomy.md)** — what a mod consists of, what the loader
+   reads, and how it is configured. Without this the rest has no frame.
+2. **[Sandbox and configuration](sandbox-and-config.md)** — what your code may
+   reference at all. This is the chapter that prevents the classic first
+   experience: a mod that builds perfectly and dies at load.
+3. **[Harmony and ECS](harmony-and-ecs.md)** — how to hook into the game. Read
+   at least the first section; a patch that binds but never fires is the single
+   most common early confusion.
+
+Then branch by what you actually want to build:
+
+| Your first mod is… | Read next |
+|---|---|
+| a tweak to recipes, item stats, drop rates | [Database and baking](database-and-baking.md) |
+| a HUD element or a window | [UI framework](ui-framework.md) and [Prefabs and rendering](prefabs-and-rendering.md) |
+| a change to placement, tiles, creatures, world rules | [World and mechanics](world-and-mechanics.md) |
+| anything others will play together | [Multiplayer and server](multiplayer-and-server.md) — before publishing, not after |
+
+**Setting up the toolchain is a separate matter** and is not covered here: the
+SDK, the exact Unity version, building and installing live in
+[`../../README.md`](../../README.md). This handbook starts where that leaves
+off — you can build and install *something*, and now you need to know how the
+game behaves.
+
+One habit worth adopting from the start: when something does not work, come back
+to the symptom table below rather than reading a chapter end to end. Nearly
+every entry in it exists because it cost somebody hours.
+
 ## Start from the symptom
 
 Most visits here begin with something not working. The fastest route is the
@@ -84,7 +118,7 @@ elsewhere in this repository:
 | Publishing to mod.io | [`../publishing.md`](../publishing.md) |
 | Running a dedicated server locally | [`../dedicated-server.md`](../dedicated-server.md) |
 | macOS/CrossOver loader specifics and the game-DLL patches | [`../macos-crossover-loader.md`](../macos-crossover-loader.md) |
-| Pixel-art source format for sprite authoring | [`../pixaki-format.md`](../pixaki-format.md) |
+| One pixel-art authoring workflow — the one used in this repo, not a requirement | [`../pixaki-format.md`](../pixaki-format.md) |
 
 Individual mods document their own architecture, iteration history and
 mod-specific traps in their own repositories. Nothing about a particular mod
