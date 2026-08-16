@@ -281,11 +281,30 @@ slot number therefore does not select anything — you always get the one hosted
 world, and a mod that treats a differing id as a differing world will be wrong
 in a way that no error reports.
 
-**Trap: the setters were not rewritten to match.** `SetWorldMode` and
-`SetWorldName` still write into `worldInfo[_worldId]` — the array the getters
-no longer consult. On a dedicated server such a write lands in a structure
-nothing reads back, so it appears to succeed and changes nothing. Configuration
-is the only path that reaches the server's world properties.
+**The array itself is not dead** — be precise here, because the obvious
+generalisation is wrong. It is allocated normally, still loaded from disk, and
+still read for `activatedCrystals`, `creationDate`, `iconIndex` and
+`ActivatedContentBundles`. A mod reading *those* through the save manager gets
+real data on a server. Only mode, name, seed and the assembled `WorldInfo`
+bypass it.
+
+**Trap: the setters were not rewritten to match the getters.** `SetWorldMode`
+and `SetWorldName` are character-identical to their client versions and still
+write into `worldInfo[_worldId]`. The write genuinely happens — it just cannot
+matter, for two independent reasons:
+
+1. None of the four rewritten getters consults the array, so nothing reads the
+   value back.
+2. The write-back path is gone. `WriteWorldInfo(int)` is replaced server-side by
+   a single `Debug.LogError("Trying to write world info as server")`, and the
+   parameterless overload delegates to it — so the value never reaches disk
+   either.
+
+Configuration is the only path that reaches a server's world properties.
+
+**Trap: that error line is not your bug.** A mod calling `WriteWorldInfo` on a
+server plants `[Error] Trying to write world info as server` in the log. It
+reads like a fault in the caller; it is the server's ordinary refusal path.
 
 ### Achievements and RGB peripherals are compiled out
 
