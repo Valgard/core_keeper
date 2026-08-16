@@ -149,6 +149,30 @@ CoreLib also ships that identical source inside its own mod.io download, under
 `Scripts/` in its cache directory — that copy is version-precise ground truth
 for exactly the build the game loaded.
 
+### Every installed mod is readable source
+
+That property is not special to CoreLib. Source mods ship their `Scripts/*.cs`
+and are compiled at load time, so **every mod you have installed is a readable
+C# reference** sitting in its mod.io cache directory. When you want to know how
+someone solved a problem — or why their mod conflicts with yours — read their
+code rather than inferring from behaviour.
+
+**Trap: a reference mod's own helper types are not game API.** This is the
+failure mode that makes the technique backfire. Reading a mod for a pattern is
+sound; copying an identifier out of it is not, because you cannot tell from the
+call site whether a type belongs to the game or to that mod.
+
+The worked example is `ClientWorldStateSystem.HasRunAtLeastOnce`, which reads
+exactly like a Core Keeper world-state API and is an ItemBrowser-internal
+`ISystem` in `ItemBrowser.Common.Api` — unreachable from your mod. The
+CK-native equivalent is waiting on `Manager.main.player`. The pattern is
+persistent enough that a mod in this repo carried the wrong description in its
+own notes long after its shipped code had stopped doing it.
+
+Before adopting an identifier found in another mod, confirm it resolves in the
+decompiled *game* assemblies. If it only appears in that mod's `Scripts/`, it is
+that mod's, and you need the native mechanism underneath it.
+
 ## Unpacking the game's resources
 
 Prefabs, sprites, textures and every authored MonoBehaviour live in

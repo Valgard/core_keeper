@@ -473,3 +473,13 @@ playability gate described above, while an element that merely has to stay out
 of the way of open interfaces can gate on `!Manager.ui.isAnyInventoryShowing &&
 !Manager.menu.IsAnyMenuActive()` in addition. Toggle the root with `SetActive`,
 and only when the value changes.
+
+**Trap: `isAnyInventoryShowing` is not a plain vanilla signal once CoreLib is
+loaded.** CoreLib patches that aggregate getter and forces it **true whenever
+any mod UI is open** — the per-UI getters such as
+`Manager.ui.isPlayerInventoryShowing` stay unpatched. For a HUD that simply
+wants to disappear behind open interfaces, that is exactly right: your own
+window counts as an interface too. But it makes the aggregate useless as a
+window's *own* guard — gate a window on it and the window blocks itself. Read a
+per-UI getter when you need to tell "a vanilla menu is open" from "my own window
+is open".
