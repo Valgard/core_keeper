@@ -64,6 +64,39 @@ Feeding it to `gzip` fails, which reads as a corrupt save and is not.
 From there it is a full ECS world dump: archetype tables, 16 KB chunks, entity
 remapping.
 
+### The file contains no type names, which is what makes it opaque
+
+This is the fact that decides whether a given question can be answered from the
+world file at all, so it is worth stating before you start.
+
+**Component types appear as numeric indices, never as names.** Searching a
+decompressed world for `MapMarkerCD`, `LocalTransform` or `ObjectDataCD` returns
+**zero** hits; the only readable string in a 23 MB dump is `EntityBinaryFile` in
+its header. Which index means which component is decided by the build's
+`TypeManager` registry, and which component sits at which offset inside a chunk
+comes from that chunk's archetype table.
+
+So reading a specific component out of a save needs two things you do not get
+from the file: the type registry of **exactly** that game build, and an
+archetype-aware chunk walker. Without both you cannot tell that a field is a
+`MapMarkerCD`, and you cannot pair it with the `LocalTransform` of the same
+entity — which is usually the half you actually wanted.
+
+**Trap: a byte-pattern search will produce convincing false positives.** Looking
+for a plausible struct layout — say three little-endian `int32`s whose values
+fall inside two enums — finds matches, and they even cluster the way real chunk
+arrays would. Dumping the surrounding bytes is what settles it: a run of small
+integers with no consistent stride is an index or tile array, not a component
+array. Test any such hit by its context before believing it.
+
+**The practical route is the running game, not the file.** Inside the process
+the type registry exists and the entity-to-component mapping is free, so a query
+like `WithAll<MapMarkerCD>()` over the server world hands you the component and
+its transform together. See
+[reading the live ECS world](harmony-and-ecs.md) — for anything entity-shaped,
+that is the cheaper answer by a wide margin. The file is worth parsing only for
+what a running game cannot show you, such as a world you are not in.
+
 ### Unloaded segments are a recycled entity pool
 
 Anything outside the loaded area is not stored as loose objects.
