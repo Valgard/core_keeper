@@ -45,6 +45,35 @@ world — a HUD arrow on a ring is `cos(bearing)` for its screen X and
 `sin(bearing)` for its screen Y. Screen versus world coordinate handling is
 covered in [prefabs and rendering](prefabs-and-rendering.md).
 
+### The origin is not the Core
+
+Every world is generated around `(0, 0)`, and the Core sits there — which makes
+it natural to treat "the origin" and "the Core" as the same point. They are not,
+and a mod that measures distance or draws a direction to the Core will be
+consistently wrong if it uses `(0, 0)`.
+
+Measured across the map data of eight separate worlds, the Core structure is
+**exactly symmetric about `x = 0`** but sits **north of the origin in z**: in
+every one of those worlds its southern edge is at `z = -1`, with the structure
+extending to `z = 10`–`11`. The origin therefore lies on the Core's centre line,
+at its southern edge rather than in its middle — at the waypoint below the Core,
+not in the Core.
+
+**Trap: do not derive the offset from the map's midpoint.** The southern edge is
+stable at `z = -1` because it is always explored; the northern extent varies with
+how far the player has walked, since the map is a fog-of-war record (see
+[savegame formats](savegame-formats.md)). Averaging the two produces a number
+that changes per save.
+
+Practical consequences:
+
+- The parenthesised distance in vanilla's coordinate readout is a distance to
+  the **origin**, not to the Core.
+- A "distance to Core" or "arrow pointing home" feature needs the Core's actual
+  position, not `float3.zero`.
+- Conversely, if you want the *spawn point*, the origin is right — that is what
+  sits there.
+
 ### Floor world coordinates, never cast them
 
 `math.floor` and an `(int)` cast agree on positive numbers and part company on
