@@ -1,35 +1,82 @@
-# Core Keeper modding handbook — index
+# Core Keeper modding handbook — where to start
 
-**The handbook starts at [README.md](README.md).**
+Three ways in, depending on why you are here. What each chapter contains is
+listed in [README.md](README.md).
 
-It is called that so it renders automatically when this directory is opened on
-GitHub or Forgejo; this file exists because `index.md` is what you look for when
-you are reading the files directly.
+## Start from nothing
 
-[README.md](README.md) is the wayfinder: it routes by **symptom** ("my patch
-never fires"), by **task** ("add an options-menu entry"), and by **starting from
-nothing** if you have never built a mod for this game.
+If you have not built a Core Keeper mod before, read three chapters in this
+order. They are the ones whose absence causes the most wasted time, and together
+they cover what every mod does regardless of what it is for.
 
-## The chapters
+1. **[Mod anatomy](mod-anatomy.md)** — what a mod consists of, what the loader
+   reads, and how it is configured. Without this the rest has no frame.
+2. **[Sandbox and configuration](sandbox-and-config.md)** — what your code may
+   reference at all. This is the chapter that prevents the classic first
+   experience: a mod that builds perfectly and dies at load.
+3. **[Harmony and ECS](harmony-and-ecs.md)** — how to hook into the game. Read
+   at least the first section; a patch that binds but never fires is the single
+   most common early confusion.
 
-| File | Covers |
+Then branch by what you actually want to build:
+
+| Your first mod is… | Read next |
 |---|---|
-| [mod-anatomy.md](mod-anatomy.md) | `IMod` lifecycle, assembly definitions, the ModBuilderSettings `.asset` vs. the generated manifest, GUIDs, dependencies, chat commands, `requiredOn` |
-| [sandbox-and-config.md](sandbox-and-config.md) | What load-time verification rejects and what it does not; the three ways a sandboxed mod stores settings |
-| [harmony-and-ecs.md](harmony-and-ecs.md) | Burst-compiled systems and `BurstDisabler`, patch binding, instrumenting generated DOTS code, reading the live ECS world |
-| [database-and-baking.md](database-and-baking.md) | Editing baked object data, `objectsByType`, variations and paint, item level and sell value, adding a craftable item, fileIDs |
-| [ui-framework.md](ui-framework.md) | Sprite UI instead of uGUI, mounting windows, options entries, keybinds, the hint bar, text input, scrolling, disabled options |
-| [prefabs-and-rendering.md](prefabs-and-rendering.md) | Prefab editing, nested prefabs and variants, sprite import, masking, Z-sorting, PugText and fonts, HUD vs. world space |
-| [world-and-mechanics.md](world-and-mechanics.md) | World geometry and the origin, tile layers and placement, map markers, entity radii, ore boulders, livestock and pets, food |
-| [multiplayer-and-server.md](multiplayer-and-server.md) | Ghost protocol and what changes its hashes, the mod set as a second compatibility layer, how the dedicated server differs |
-| [localisation.md](localisation.md) | The game-wide table, first-write-wins, the ways localisation ships broken, term conventions |
-| [savegame-formats.md](savegame-formats.md) | World, map and character files — what is readable, what is not, and why |
-| [troubleshooting.md](troubleshooting.md) | Symptom-first index for mods that fail after building successfully |
-| [reverse-engineering.md](reverse-engineering.md) | Decompiling, unpacking assets, querying prefab YAML, how much evidence a claim needs |
+| a tweak to recipes, item stats, drop rates | [Database and baking](database-and-baking.md) |
+| a HUD element or a window | [UI framework](ui-framework.md) and [Prefabs and rendering](prefabs-and-rendering.md) |
+| a change to placement, tiles, creatures, world rules | [World and mechanics](world-and-mechanics.md) |
+| anything others will play together | [Multiplayer and server](multiplayer-and-server.md) — before publishing, not after |
 
-## Not in the handbook
+**Setting up the toolchain is a separate matter** and is not covered here: the
+SDK, the exact Unity version, building and installing live in
+[`../../README.md`](../../README.md). This handbook starts where that leaves
+off — you can build and install *something*, and now you need to know how the
+game behaves.
 
-Building and installing a mod, publishing to mod.io, running a local dedicated
-server and host-specific setup live one directory up, in
-[`../`](../) and in the [repository README](../../README.md). This handbook
-covers the game and the SDK; that side covers the workflow around them.
+One habit worth adopting from the start: when something does not work, come back
+to the symptom table below rather than reading a chapter end to end. Nearly
+every entry in it exists because it cost somebody hours.
+
+## Start from the symptom
+
+Most visits here begin with something not working. The fastest route is the
+symptom, not the topic.
+
+| What you are seeing | Go to |
+|---|---|
+| Patch loads cleanly, prefix never fires | [Harmony and ECS](harmony-and-ecs.md) — the target is Burst-compiled |
+| Works in single-player, does nothing in multiplayer | [Harmony and ECS](harmony-and-ecs.md) — the dedicated-server trap |
+| `Undefined target method for patch method …` | [Harmony and ECS](harmony-and-ecs.md) — `in`/`ref` parameter binding |
+| Mod fails to compile (`CompileFailed`) | [Sandbox and configuration](sandbox-and-config.md), then [Troubleshooting](troubleshooting.md) |
+| Scripts are not compiled at all, and the log says nothing | [Troubleshooting](troubleshooting.md) — the mod.io type tag |
+| An unrelated, previously working mod stopped patching | [Troubleshooting](troubleshooting.md) — the CompileFailed cascade |
+| Game closes at the loading screen | [Troubleshooting](troubleshooting.md) — Steam Cloud conflict, not your mod |
+| You changed a string, the game still shows the old one | [Localisation](localisation.md) — first-write-wins |
+| The UI shows a raw term key like `MyMod-General/Label` | [Localisation](localisation.md) |
+| `LoadAsset<Sprite>` returns null | [Prefabs and rendering](prefabs-and-rendering.md) — sprite import settings |
+| A sprite renders grey or dimmed for no reason | [Prefabs and rendering](prefabs-and-rendering.md) — the uiCamera Z tie |
+| Your text element is invisible until the string changes | [Prefabs and rendering](prefabs-and-rendering.md) — PugText self-deactivation |
+| Your HUD element exists, is active, and does not show | [Prefabs and rendering](prefabs-and-rendering.md) — wrong layer, wrong Z, or scaled to nothing |
+| Players are blocked from joining your server | [Multiplayer and server](multiplayer-and-server.md), [Mod anatomy](mod-anatomy.md) — `requiredOn` |
+| "Wrong game version" between client and server | [Multiplayer and server](multiplayer-and-server.md) — it is a mod-set mismatch |
+| Dedicated server fails to generate a world | [Multiplayer and server](multiplayer-and-server.md) — the server renders, so `-nographics` breaks it |
+| A call works in single-player but not on a server | [Multiplayer and server](multiplayer-and-server.md) — some subsystems are compiled out server-side |
+
+## Start from the task
+
+| What you want to do | Go to |
+|---|---|
+| Understand what a mod is made of and what the loader reads | [Mod anatomy](mod-anatomy.md) |
+| Give your mod a config file | [Sandbox and configuration](sandbox-and-config.md) |
+| Know what you may reference at compile time | [Sandbox and configuration](sandbox-and-config.md) |
+| Patch a DOTS system, or read the live ECS world | [Harmony and ECS](harmony-and-ecs.md) |
+| Change a recipe, an item stat, or any baked object data | [Database and baking](database-and-baking.md) |
+| Add an options-menu entry or a rebindable keybind | [UI framework](ui-framework.md) |
+| Build a HUD element or a menu window | [UI framework](ui-framework.md), [Prefabs and rendering](prefabs-and-rendering.md) |
+| Work with prefabs, sprites or fonts | [Prefabs and rendering](prefabs-and-rendering.md) |
+| Place tiles, or understand where things may be built | [World and mechanics](world-and-mechanics.md) |
+| Read or place map markers | [World and mechanics](world-and-mechanics.md) |
+| Ship a mod that works in multiplayer | [Multiplayer and server](multiplayer-and-server.md) |
+| Translate your mod's text | [Localisation](localisation.md) |
+| Read data out of a save | [Savegame formats](savegame-formats.md) |
+| Answer a question nothing here answers | [Reverse engineering](reverse-engineering.md) |
