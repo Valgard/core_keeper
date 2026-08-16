@@ -448,9 +448,19 @@ LayerMask.NameToLayer("HUD")`. `ObjectLayerID` (`Pug.Base`) resolves its layers
 by name rather than hard-coding numbers, so use the name and let it resolve; in
 stock Core Keeper it comes out as 27.
 
-Doing this buys a feature for free: because the whole gameplay HUD hangs off
-that one layer, `ShowHUD(false)` culls your element along with the rest during
-cutscenes and loading. No suppression code of your own.
+Doing this buys most of a feature for free: because the whole gameplay HUD hangs
+off that one layer, `ShowHUD(false)` culls your element along with the rest
+wherever the game calls it.
+
+**But it does not cover every hiding case, and the gap is the one you will see
+first.** The spawn-from-Core intro cutscene does not go through `ShowHUD` at all
+— it calls `FadeOutAllGameplayUI()`, which fades CK's **own registered** gameplay
+UI and not arbitrary renderers that merely happen to sit on the HUD layer. Your
+element stays visible straight through the cutscene.
+
+So the layer buys you the ordinary cases, and cutscenes still need an explicit
+gate on `!sceneHandler.cutsceneIsPlaying` — which the playability predicate
+below includes for exactly this reason.
 
 ### Z: the parent sits at −10, so content needs local z = 10
 

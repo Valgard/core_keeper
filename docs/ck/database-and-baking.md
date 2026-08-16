@@ -304,8 +304,22 @@ little-endian signed int32, of `MD4("s\x00\x00\x00" + namespace + className)`
 | `ScrollBar` | `-277093456` |
 | `ScrollBarHandle` | `-1490357010` |
 
-For **a mod's own MonoBehaviours** there is no hash at all: they always use
+For **a mod's own MonoBehaviours** there is usually no hash: they use
 `fileID: 11500000`.
+
+**Trap: that only holds for the class whose name matches the filename.** Unity
+gives `11500000` to the one type it considers the file's script. A *second*
+`MonoBehaviour` declared in the same `.cs` gets an MD4-hash fileID like a game
+type — and prefab wiring against it then fails **silently**, with the component
+simply never bound. Nothing in the Editor or the build complains.
+
+The rule that avoids the whole class of problem: **one `MonoBehaviour` per
+file, named after the file.**
+
+One named exception is safe: an **abstract** `MonoBehaviour` base is
+prefab-neutral. Unity serialises inherited public fields by name and never
+instantiates the base, so hoisting shared serialized fields into an abstract
+base needs no prefab change at all.
 
 **Never copy a `guid` out of another repo's prefab.** The fileID transplants
 cleanly; the GUID does not — read yours from any existing game-component
