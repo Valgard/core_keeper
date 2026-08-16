@@ -967,7 +967,7 @@ single-value row model. CK's own idiom for a collection is a **pushed, scrollabl
 sub-menu** — the controls/keybinding screen is exactly that — with its own
 `MenuType` id, resolved in the same `RadicalMenu.TypeToMenu` prefix you already
 have. The price is that every additional screen brings its own [first-enable
-cascade](#the-first-setactivetrue-costs-a-second).
+cascade](#the-first-setactivetrue-can-cost-a-second).
 
 **Red herring: `IScrollable.IsTopElementSelected` / `IsBottomElementSelected` /
 `UpdateContainingElements` have nothing to do with selection-follow.** They are
