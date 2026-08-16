@@ -29,10 +29,15 @@ Editor build, which compiled the same file happily against the Editor's own asse
 After adding a source file, check that it reached both the install `Scripts/` directory
 and the generated `ModManifest.json`.
 
-Because the SDK's ModBuilder assigns **every** file under the mod's `modPath` to the
+Because the SDK's ModBuilder assigns everything under the mod's `modPath` to the
 AssetBundle, and Unity imports text files as `TextAsset`s, any `.yaml`/`.md`/`.json`
-sitting in the mod folder is baked into the shipped bundle too. The only way to keep a
-file out of the bundle is to keep it out of the mod folder.
+sitting in the mod folder is baked into the shipped bundle too. Two things keep a file
+out: keeping it out of the mod folder, or putting it in an `Editor/` or `CodeGen/`
+subdirectory of it. `ModBuilder.BuildAssets` skips every asset whose path passes through
+a directory of either name on the way up to `modPath` — the same `IsInEditorFolder`
+filter that keeps editor-only `.cs` out of the shipped `Scripts/` and editor-only DLLs
+out of the shipped assemblies. That is why a mod's `Editor/logo.png` and its
+`Editor/<Mod>_modio.asset` sit inside the mod folder and still do not ship.
 
 In the repo, a mod is authored as:
 
@@ -207,7 +212,7 @@ so a mod may have more than one handler. Conventionally the bootstrap `IMod` cla
 
 | Method | When it runs | What is safe here |
 |---|---|---|
-| `EarlyInit()` | Immediately after your mod's assemblies are loaded, in dependency order | Resolve your own `LoadedMod` via `API.ModLoader.LoadedMods`; load framework submodules; register keybinds. `API.ConfigFilesystem` is already initialised. |
+| `EarlyInit()` | After **all** mods have compiled and loaded, in dependency order — the loader runs a full load pass over the whole sorted list first, then a second pass that calls `EarlyInit` | Resolve your own `LoadedMod` via `API.ModLoader.LoadedMods`; load framework submodules; register keybinds. `API.ConfigFilesystem` is already initialised. |
 | `ModObjectLoaded(obj)` | Once per asset loaded from your bundles, right after your `EarlyInit` | Capture and register prefabs by name. This is the only place you see your own loaded assets. |
 | `Init()` | On the **first loader `Update` tick** after loading, once per handler | Anything needing a running game loop. The game database is *not* baked yet. |
 | `Update()` | Every frame, after `Init` | Hotkey polling, timers. |
@@ -258,13 +263,14 @@ anything that requires the game's object database to be populated.
 client.** That has concrete consequences for Burst-disabling; see
 [Harmony and ECS](harmony-and-ecs.md).
 
-**Trap: only the first lifecycle exception is ever logged.** The loader wraps `Init`,
-`Update`, `Shutdown` and the post-load `ModObjectLoaded` in try/catch blocks that share a
-single `_hasPrintedException` latch. Once *any* mod throws once from *any* of those, every
-later exception from every mod is swallowed silently for the rest of the process. A
-per-frame `NullReferenceException` in `Update` therefore shows up as one stack trace and
-then nothing. `EarlyInit` and the load-time `ModObjectLoaded` calls sit outside that latch
-and always log.
+**Trap: only the first `Init` or `Update` exception is ever logged.** Those two are the
+only lifecycle methods the loader routes through its `LoadedMods.ModContainer` wrapper,
+whose try/catch blocks share a single `_hasPrintedException` latch. Once *any* mod throws
+once from either, every later exception from every mod is swallowed silently for the rest
+of the process. A per-frame `NullReferenceException` in `Update` therefore shows up as one
+stack trace and then nothing. `EarlyInit`, `ModObjectLoaded` and `Shutdown` are invoked on
+a different path — the load pass and the reset routine call them directly — and always
+log.
 
 ### The world-load anchor
 
@@ -368,14 +374,19 @@ the box. Its shape:
 | Key | Value | Why |
 |---|---|---|
 | `references` | The `Unity.*` DOTS assemblies (`Unity.Entities`, `Unity.Burst`, `Unity.Collections`, `Unity.Mathematics`, `Unity.NetCode`, `Unity.Physics`, `Unity.Transforms`, …) plus `PugMod.SDK` | Managed assembly references. A hard-coded 14-entry constant list in the wizard — it is not derived from anything. |
-| `precompiledReferences` | Every `*.dll` found by recursively scanning `Assets/Plugins/CoreKeeper` and `Assets/Plugins/CoreKeeperModSDK`, reduced to base names and sorted — `Pug.Base.dll`, `Pug.Other.dll`, `Pug.ECS.Components.dll`, `Pug.ECS.Authoring.dll`, `ScriptableData.Addressables.dll`, `I2.dll`, `Rewired.dll`, `0Harmony.dll`, the BCL assemblies | The game itself |
+| `precompiledReferences` | Every `*.dll` found by recursively scanning `Assets/Plugins/CoreKeeper` and `Assets/Plugins/CoreKeeperModSDK`, reduced to file names in whatever order the directory scan returned — `Pug.Base.dll`, `Pug.Other.dll`, `Pug.ECS.Components.dll`, `Pug.ECS.Authoring.dll`, `ScriptableData.Addressables.dll`, `I2.dll`, `Rewired.dll`, `0Harmony.dll`, the BCL assemblies | The game itself |
 | `overrideReferences` | `true` | Required for `precompiledReferences` to be honoured |
 | `autoReferenced` | `false` | Keeps the mod assembly out of Unity's default reference graph |
 
 The distinction between the two lists answers a question that comes up after every game
-update: **there is nothing to re-sync.** `precompiledReferences` is a live scan of the
-installed game and SDK assemblies rather than a constant the SDK would have to keep
-current, so an update that refreshes those DLLs in place leaves the list correct.
+update. `precompiledReferences` is not a constant the SDK maintains, but it is not a live
+scan either: the wizard scanned the installed game and SDK assemblies at the moment it
+created your mod and froze the result into the asmdef. Nothing re-runs that scan at build
+time. So an update that refreshes those DLLs **in place** leaves the list correct and
+there is nothing to re-sync — but an update that *adds* an assembly never reaches an
+existing mod's asmdef, and neither does anything the original scan missed. That is what
+the trap below is about, and why two mods scaffolded at different times against the same
+SDK clone carry lists of different lengths.
 
 You normally never edit this list. There are two exceptions.
 
@@ -394,8 +405,8 @@ have come up:
 
 | Type | Lives in | Note |
 |---|---|---|
-| `SpriteObject` | `PugSprite.dll` | |
-| `GradientMapDataBlock` | `ScriptableData.dll` | It extends `ScriptableDataBlock`; the generated asmdef carried `ScriptableData.Addressables.dll` but not `ScriptableData.dll` |
+| `SpriteObject` | `PugSprite.dll` | The type's own assembly was missing from the list |
+| `GradientMapDataBlock` | `PugSprite.dll` — but its base type `ScriptableDataBlock` is in `ScriptableData.dll` | The asmdef carried `PugSprite.dll` and `ScriptableData.Addressables.dll` but not `ScriptableData.dll`. `CS0012` names the assembly of the **base** type, so the DLL you have to add is not the one the type you used lives in |
 
 Adding the missing DLL to `precompiledReferences` by hand is the sanctioned fix. Unity
 assembly definitions have no package manager — hand-editing the list is how they are
@@ -413,10 +424,14 @@ involved**:
 | `accessesExtraAssemblies: 1` | The `.asset`'s `metadata` block | The **Roslyn compile at load time**: with it set, the loader adds every assembly loaded at game start as a metadata reference |
 | The DLL in `precompiledReferences` | The **runtime** asmdef | The **Unity Editor build**, which happens long before the loader exists |
 
-**Trap: the wizard puts `modio.UnityPlugin.dll` in the *editor* asmdef only** (see the
-example below). Set only the metadata switch and the Editor build fails with `CS0246` — an
-unknown-type error that reads like a loader or sandbox problem and is neither, because
-neither is running yet. Add the DLL to the runtime asmdef as well.
+**Trap: the runtime asmdef may not carry `modio.UnityPlugin.dll`.** The wizard writes
+exactly one asmdef — the runtime one — and its `precompiledReferences` is the frozen scan
+described above, so whether the DLL is in there at all depends on when the mod was
+scaffolded. Where it is missing, the DLL is usually present only in the hand-written
+`*.Editor.asmdef` (see the example below), which does nothing for your runtime assembly.
+Set only the metadata switch and the Editor build fails with `CS0246` — an unknown-type
+error that reads like a loader or sandbox problem and is neither, because neither is
+running yet. Check the runtime asmdef and add the DLL there too.
 
 Neither switch requires giving up the sandbox; this works with `skipSafetyChecks: 0`. What
 is established here is the two-switch mechanism. Whether a particular foreign assembly's
@@ -532,17 +547,21 @@ Pugstorm embedded it rather than rebuilding it, so what you see there is mod.io'
 behaviour, not the game's.
 
 That matters for when the game learns that a mod has a new release.
-`ModIOUnity.FetchUpdates()` has exactly two callers:
+`ModIOUnity.FetchUpdates()` has four callers, all four inside that embedded UI:
 
 | Caller | When |
 |---|---|
-| `Browser.Open()` | Opening the mod menu — and only when the session is already authenticated |
-| `Collection.CheckForUpdates()` | From inside that same UI |
+| `Browser.IsInitialized()` | Opening the mod menu (`Browser.Open()` runs into it) — and only when the session is already authenticated |
+| `Authentication.CodeSubmitted(Result)` | After an email-code login succeeds |
+| `Authentication.ThirdPartyAuthenticationSubmitted(…)` | After a Steam/portal login succeeds |
+| `Collection.CheckForUpdates()` | The "check for updates" button in that same UI |
 
-**There is no timer and no startup hook.** A session that never opens the mod menu never
-asks mod.io whether anything changed. `ModIOUnity.EnableModManagement(...)` sits right
-beside it, so the automatic download-and-install machinery is likewise armed only by
-opening the menu.
+**There is no timer and no startup hook.** A session that never opens the mod menu and
+never authenticates from it never asks mod.io whether anything changed.
+`ModIOUnity.EnableModManagement(...)` has four call sites of its own, all in the same UI
+and three of them the same members — in `Browser.IsInitialized()` it sits *after* the
+authentication branch and therefore runs unconditionally. So the automatic
+download-and-install machinery is likewise armed only by going through that UI.
 
 The locally held state, by contrast, is readable at any time with no network traffic:
 `ModIOUnity.GetSubscribedMods(out Result)` returns entries of
