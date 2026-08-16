@@ -1,7 +1,13 @@
 # Core Keeper Modding — Build & Publish
 
 Shared build/publish tooling for every Core Keeper mod under this directory.
-Project-wide conventions and SDK/runtime details live in `CLAUDE.md`.
+Project-wide conventions live in `CLAUDE.md`.
+
+**Looking for how the game works rather than how to build for it?**
+[`docs/ck/`](docs/ck/README.md) is a reference handbook on Core Keeper modding
+itself — the load-time sandbox, Harmony and ECS patching, the object database,
+UI and prefabs, world mechanics, multiplayer, localisation, save formats,
+troubleshooting and reverse engineering.
 
 ## Build & install
 
