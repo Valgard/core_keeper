@@ -263,6 +263,30 @@ buffer, the server synchronously with a camera render followed by `ReadPixels`.
 `-nographics`:** world generation genuinely requires a graphics device, and
 removing it breaks world creation rather than merely suppressing output.
 
+### The server has no world list
+
+A client holds an array of world slots and indexes into it. A dedicated server
+hosts exactly one world and takes its properties from the server configuration
+instead — the accessors are rewritten accordingly:
+
+| Accessor | Client | Server |
+|---|---|---|
+| `GetWorldInfo(int id)` | bounds-checks `id`, returns `worldInfo[id]` | builds a fresh `WorldInfo` from `Manager.prefs.server*`, ignoring `id` |
+| `GetWorldMode(int id)` | from the array | returns `Manager.prefs.serverWorldMode` |
+| `GetWorldName(int id)` | from the array | returns `Manager.prefs.serverWorldName` |
+| `IsWorldModeEnabled(int id, …)` | from the array | tests `Manager.prefs.serverWorldMode` |
+
+In every server case the id parameter is accepted and **never read**. Passing a
+slot number therefore does not select anything — you always get the one hosted
+world, and a mod that treats a differing id as a differing world will be wrong
+in a way that no error reports.
+
+**Trap: the setters were not rewritten to match.** `SetWorldMode` and
+`SetWorldName` still write into `worldInfo[_worldId]` — the array the getters
+no longer consult. On a dedicated server such a write lands in a structure
+nothing reads back, so it appears to succeed and changes nothing. Configuration
+is the only path that reaches the server's world properties.
+
 ### Achievements and RGB peripherals are compiled out
 
 Two build defines are absent server-side, which removes every achievement
