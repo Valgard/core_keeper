@@ -2,8 +2,9 @@
 
 This chapter describes what a Core Keeper mod consists of, which file is the real
 configuration surface, and how the PugMod loader sees it: the `IMod` lifecycle and its
-ordering, Harmony auto-discovery, the assembly definitions, the two kinds of dependency,
-`requiredOn`, and the GUID rules that matter when you create files by hand. Read it when
+ordering, Harmony auto-discovery, chat commands, the assembly definitions, the two kinds
+of dependency, `requiredOn`, and the GUID rules that matter when you create files by
+hand. Read it when
 a mod does not load, a lifecycle hook fires at the wrong time, or a manifest field does
 not seem to take effect.
 
@@ -45,6 +46,19 @@ Assets/<Mod>/Editor/        editor-only helpers, with their own asmdef
 How that source tree becomes an install directory is the build workflow — see
 [the repo README](../../README.md).
 
+### What the "Create New Mod" wizard actually creates
+
+`ModBuilderWindow.CreateNewMod` emits four things and no more: the ModBuilderSettings
+`.asset`, the runtime `.asmdef`, the mod folder, and the `.meta` GUIDs that go with them.
+Its template-unpacking step is a no-op in this SDK clone — the `ModTemplate.zip` it looks
+for is not present.
+
+The one wizard step with no equivalent outside the Editor is
+`ScriptableDataEditorUtility.AddContext`, a call into a compiled SDK assembly that
+registers the mod's `Data/` folder as a scriptable-data context. **Only an item or content
+mod needs that step.** A pure script mod — Harmony patches, UI — has no `Data/` directory,
+so everything the wizard would do for it is ordinary file creation.
+
 ## The ModBuilderSettings `.asset` is the configuration surface
 
 `ModBuilderSettings` is a plain `ScriptableObject` holding one `ModMetadata metadata`
@@ -80,9 +94,27 @@ authoritative for months and change nothing. Delete it; edit the `.asset`.
 Without `accessesExtraAssemblies`, loading a shipped `.dll` fails with
 `Tried to load dll for <name>, but accessesExtraAssemblies not set`.
 
+### There is no mod version at runtime
+
+That table is the whole of `ModMetadata`, and the runtime `LoadedMod` wrapper around it
+adds only `ModId`, `Handlers`, `Assets` and `AssetBundles`. **No version field exists
+anywhere in the loader's view of a mod.** A mod that wants to know which build of itself —
+or of another mod — is running has to derive it.
+
+The one derivable identifier is the **modfile ID**. Installations live in a directory
+named `<modId>_<modfileId>`, and `API.ModLoader.GetDirectory(long modId)`
+(`PugMod.SDK.Runtime`) hands you that path as a `string`. Splitting a string needs no
+`System.IO`, so the derivation is [sandbox](sandbox-and-config.md)-legal. Whether a
+locally installed development build yields a parsable ID this way is untested.
+
+**Trap: the GUIDs in `files` are not a version hash.** They are per-asset GUIDs, and the
+list only changes when a file is added or removed. A release that changes nothing but C#
+source produces an identical set — so `files` used as a version proxy is not merely
+approximate, it is silently wrong for exactly the case you most want to detect.
+
 ### Fields the SDK's Editor GUI gets wrong
 
-Two of these cannot be trusted to the mod-settings inspector:
+Two of the metadata fields cannot be trusted to the mod-settings inspector:
 
 - **`displayName` is `[HideInInspector]`.** The field is real and is read at build and
   publish time, but the GUI does not draw it. Set it in the `.asset` YAML.
@@ -134,6 +166,18 @@ look nothing alike.
 The `.asset`'s own `.meta` GUID is referenced by the `_modio.asset`'s `modSettings` field,
 which is why remapping has to be a global replace rather than per-file edits.
 
+The two `m_Script` values are the same in every mod, so you can check a suspect file
+against them directly:
+
+| File | `m_Script.guid` | Binds to |
+|---|---|---|
+| `<Mod>.asset` | `bc43e4983a160e543856e5ba0421c9e1` | The SDK's `ModBuilderSettings` class |
+| `<Mod>_modio.asset` | `d83df2ae64ce1e94f9c006b9d326bf02` | The SDK's mod.io settings class |
+
+They are stable across SDK clones — every mod built against this SDK carries the same
+pair — but they are the SDK's own asset GUIDs, so an SDK update can in principle move
+them. Treat a mismatch as something to verify, not as proof of corruption.
+
 **Trap: a duplicated `metadata.guid` breaks asset loading, not identity.** The loader
 registers each mod's asset-bundle data-block loader under that GUID
 (`ScriptableData.AddDataBlocksLoader(mod.Metadata.guid, …)`), so a second mod carrying the
@@ -170,6 +214,25 @@ so a mod may have more than one handler. Conventionally the bootstrap `IMod` cla
 | `Shutdown()` | On mod reset/reload, **before** the asset bundles are unloaded and before the Harmony patches are undone | Persist state; drop references to bundle-owned objects. |
 | `CanBeUnloaded()` | Polled before a hot reload | Returning `false` (the default) blocks the reload, logging `Mod reload blocked by <type>`. |
 
+### Reaching your own `LoadedMod` and asset bundle
+
+Nothing is handed to you — you look yourself up in the loader's list, matching on your
+internal `metadata.name`. The bundle handle that
+[prefab and sprite loading](prefabs-and-rendering.md) needs comes off the same object:
+
+```csharp
+foreach (var mod in API.ModLoader.LoadedMods)
+{
+    if (mod.Metadata.name == ModName)
+    {
+        _bundle = mod.AssetBundles.FirstOrDefault();
+        break;
+    }
+}
+```
+
+`EarlyInit` is early enough for this.
+
 ### Ordering details that matter
 
 `EarlyInit` and `ModObjectLoaded` are **interleaved per mod**, not run as two global
@@ -177,6 +240,14 @@ phases. The loader walks the sorted mod list and, for each mod, calls `EarlyInit
 its handlers and then `ModObjectLoaded` for each of its assets — before moving to the next
 mod. So your `ModObjectLoaded` runs before a later mod's `EarlyInit`, and a dependency's
 `ModObjectLoaded` has already run by the time yours does.
+
+**Against the *game's* own boot code there is no such guarantee.** If a patch of yours
+fires from a game initialiser — `TextManager.Init2`, for instance — and needs an asset out
+of your bundle, whether that initialiser runs before or after your `ModObjectLoaded` is
+not established in either direction. Do not pick a winner. Write a single idempotent
+`TryApply()` that checks both preconditions and returns early unless both hold, and call
+it from *both* sites: whichever runs second is the one that does the work, and every
+further call is a no-op.
 
 `Init` is **not** part of the load pass. The loader calls it from its own `Update`, guarded
 by a per-handler "already initialised" flag, and then immediately calls `Update`. That is
@@ -194,6 +265,47 @@ later exception from every mod is swallowed silently for the rest of the process
 per-frame `NullReferenceException` in `Update` therefore shows up as one stack trace and
 then nothing. `EarlyInit` and the load-time `ModObjectLoaded` calls sit outside that latch
 and always log.
+
+### The world-load anchor
+
+No lifecycle method is late enough to touch the ECS world or the finished object database,
+and the obvious "later" candidates are worse than useless: `PugDatabase.UpdateEntityMonos`,
+`SaveManager.SetWorldId` and `IMod.Init` itself all throw a `NullReferenceException` whose
+message points at nothing.
+
+The anchor that works is a Harmony postfix on `PlayerController.OnOccupied` that starts a
+coroutine on the player instance:
+
+```csharp
+[HarmonyPatch(typeof(PlayerController), nameof(PlayerController.OnOccupied))]
+public static class WorldLoadHook
+{
+    [HarmonyPostfix]
+    public static void Postfix(PlayerController __instance)
+    {
+        __instance.StartCoroutine(AfterWorldLoad());
+    }
+
+    private static IEnumerator AfterWorldLoad()
+    {
+        yield return new WaitUntil(() => Manager.main != null && Manager.main.player != null);
+        // first database or ECS query goes here
+    }
+}
+```
+
+**The `WaitUntil` condition is already true when it is reached — that is the point.** At
+`OnOccupied` both `Manager.main` and `Manager.main.player` exist, so this is not a
+readiness test; it is a deliberate one-frame settle. Yielding gives the ECS world an update
+cycle to bring up its singletons — the localisation sources, the database bank — before
+your first query or before `GetObjectName(localize: true)` runs. Read as a guard the line
+looks redundant and invites deletion; it is a proxy for "a frame has passed", not a signal,
+and removing it produces the worst failure shape there is: correct-looking code that fails
+sporadically.
+
+This is the anchor for *reading* the world and the baked database. It is **not** the anchor
+for changing baked data — that has to happen far earlier, from `EarlyInit`; see
+[database and baking](database-and-baking.md).
 
 ## Harmony patches are auto-discovered
 
@@ -213,6 +325,38 @@ patches (unless `disableHarmonyPatching` is set) as part of the same reset that 
 Whether a given patch actually *binds* — generated DOTS code, Burst, method signature
 matching — is a separate problem, covered in [Harmony and ECS](harmony-and-ecs.md).
 
+## Chat commands
+
+A chat command is a trigger a player types in chat that runs code in your mod. The game
+exposes no mod-facing command API for this; commands come from **CoreLib's
+`CommandModule`**, and CoreLib dispatches them **server-side**. A mod that offers a command
+therefore takes a hard CoreLib dependency — which means both the assembly reference and the
+`.asset` entry, as under [dependencies](#dependencies-two-concepts-only-one-of-which-compiles)
+below.
+
+Registration happens in `EarlyInit()`, in three steps:
+
+1. Resolve your own `LoadedMod` (as above), giving you `modInfo.ModId`.
+2. Load `CommandModule` — CoreLib submodules are opt-in and must be loaded before use.
+3. Call `CommandModule.AddCommands(modInfo.ModId, Name)`, where `Name` is your mod's name.
+
+The command itself is a class implementing `IServerCommandHandler`. It carries the trigger
+name — what the player types — and an `Execute(parameters, sender)` method that CoreLib
+calls when that trigger matches.
+
+### Where a command body runs, and what is allowed there
+
+CoreLib's `CommandCommSystem` is itself a `PugSimulationSystemBase`, and handlers are
+invoked from its `OnUpdate()`. Your `Execute` body therefore runs **on the ServerWorld main
+thread, inside the ECS frame**. Two consequences:
+
+- **Writing to existing components is fine.** You are on the main thread inside a system
+  update — the same position from which [reading and writing the live ECS
+  world](harmony-and-ecs.md) is described.
+- **Creating or destroying entities is not.** Structural changes from inside a running
+  system are the standard ECS prohibition, applied here for the ordinary reason; this
+  boundary has not been probed empirically in a command body.
+
 ## Assembly definitions
 
 ### The runtime asmdef
@@ -223,17 +367,61 @@ the box. Its shape:
 
 | Key | Value | Why |
 |---|---|---|
-| `references` | The `Unity.*` DOTS assemblies (`Unity.Entities`, `Unity.Burst`, `Unity.Collections`, `Unity.Mathematics`, `Unity.NetCode`, `Unity.Physics`, `Unity.Transforms`, …) plus `PugMod.SDK` | Managed assembly references |
-| `precompiledReferences` | The shipped game DLLs, exhaustively — `Pug.Base.dll`, `Pug.Other.dll`, `Pug.ECS.Components.dll`, `Pug.ECS.Authoring.dll`, `ScriptableData.dll`, `I2.dll`, `Rewired.dll`, `0Harmony.dll`, and the BCL assemblies | The game itself |
+| `references` | The `Unity.*` DOTS assemblies (`Unity.Entities`, `Unity.Burst`, `Unity.Collections`, `Unity.Mathematics`, `Unity.NetCode`, `Unity.Physics`, `Unity.Transforms`, …) plus `PugMod.SDK` | Managed assembly references. A hard-coded 14-entry constant list in the wizard — it is not derived from anything. |
+| `precompiledReferences` | Every `*.dll` found by recursively scanning `Assets/Plugins/CoreKeeper` and `Assets/Plugins/CoreKeeperModSDK`, reduced to base names and sorted — `Pug.Base.dll`, `Pug.Other.dll`, `Pug.ECS.Components.dll`, `Pug.ECS.Authoring.dll`, `ScriptableData.Addressables.dll`, `I2.dll`, `Rewired.dll`, `0Harmony.dll`, the BCL assemblies | The game itself |
 | `overrideReferences` | `true` | Required for `precompiledReferences` to be honoured |
 | `autoReferenced` | `false` | Keeps the mod assembly out of Unity's default reference graph |
 
-You normally never edit this list. The exception is a **framework dependency**: adding
-CoreLib or another mod requires *two* independent edits — the assembly name in
-`references` (so `using CoreLib;` compiles) **and** a `dependencies` entry in the `.asset`
-(so it loads and compiles first). Doing only one of them is a classic scaffolding defect:
-either the Editor build fails on an unresolved namespace, or it succeeds and the mod fails
-at runtime in the sandbox compile.
+The distinction between the two lists answers a question that comes up after every game
+update: **there is nothing to re-sync.** `precompiledReferences` is a live scan of the
+installed game and SDK assemblies rather than a constant the SDK would have to keep
+current, so an update that refreshes those DLLs in place leaves the list correct.
+
+You normally never edit this list. There are two exceptions.
+
+The first is a **framework dependency**: adding CoreLib or another mod requires *two*
+independent edits — the assembly name in `references` (so `using CoreLib;` compiles)
+**and** a `dependencies` entry in the `.asset` (so it loads and compiles first). Doing only
+one of them is a classic scaffolding defect: either the Editor build fails on an unresolved
+namespace, or it succeeds and the mod fails at runtime in the sandbox compile.
+
+The second is a game type whose DLL the scan did not pick up.
+
+**Trap: broad is not exhaustive.** Using a game type directly whose assembly is missing
+from `precompiledReferences` fails the Editor compile with `CS0012` — "defined in an
+assembly that is not referenced" — for a type that is plainly part of the game. Two that
+have come up:
+
+| Type | Lives in | Note |
+|---|---|---|
+| `SpriteObject` | `PugSprite.dll` | |
+| `GradientMapDataBlock` | `ScriptableData.dll` | It extends `ScriptableDataBlock`; the generated asmdef carried `ScriptableData.Addressables.dll` but not `ScriptableData.dll` |
+
+Adding the missing DLL to `precompiledReferences` by hand is the sanctioned fix. Unity
+assembly definitions have no package manager — hand-editing the list is how they are
+maintained, and doing so is not a workaround.
+
+### Using an assembly the game loads but does not expose
+
+Some assemblies are live in the running game without being part of what the SDK wires up
+for mods — mod.io's `modio.UnityPlugin` is the case that has come up. Calling into one from
+mod source needs **two independent switches, because two different compilers are
+involved**:
+
+| Switch | Where | Which compiler it satisfies |
+|---|---|---|
+| `accessesExtraAssemblies: 1` | The `.asset`'s `metadata` block | The **Roslyn compile at load time**: with it set, the loader adds every assembly loaded at game start as a metadata reference |
+| The DLL in `precompiledReferences` | The **runtime** asmdef | The **Unity Editor build**, which happens long before the loader exists |
+
+**Trap: the wizard puts `modio.UnityPlugin.dll` in the *editor* asmdef only** (see the
+example below). Set only the metadata switch and the Editor build fails with `CS0246` — an
+unknown-type error that reads like a loader or sandbox problem and is neither, because
+neither is running yet. Add the DLL to the runtime asmdef as well.
+
+Neither switch requires giving up the sandbox; this works with `skipSafetyChecks: 0`. What
+is established here is the two-switch mechanism. Whether a particular foreign assembly's
+API is then usable in practice is a separate question per assembly — for
+`modio.UnityPlugin` specifically that has not been carried through to a working build.
 
 ### Why an editor helper needs its own `*.Editor.asmdef`
 
@@ -334,3 +522,35 @@ disable the mod (and restart) or cancel the connection. What exactly a mismatch 
 join, on either side, is covered in
 [multiplayer and server](multiplayer-and-server.md); `requiredOn` also feeds a mod.io
 catalogue tag, which is described in [publishing](../publishing.md).
+
+## The in-game mod menu, and when mod.io is contacted
+
+The mod browser behind the main menu is not Pugstorm's UI.
+`RadicalMainMenuOption_OpenMods` (`Pug.Other`, decompiled ~338577) calls `Browser.Open()`
+on mod.io's embedded drop-in UI package — `modio.UI.dll`, namespace `ModIOBrowser`.
+Pugstorm embedded it rather than rebuilding it, so what you see there is mod.io's
+behaviour, not the game's.
+
+That matters for when the game learns that a mod has a new release.
+`ModIOUnity.FetchUpdates()` has exactly two callers:
+
+| Caller | When |
+|---|---|
+| `Browser.Open()` | Opening the mod menu — and only when the session is already authenticated |
+| `Collection.CheckForUpdates()` | From inside that same UI |
+
+**There is no timer and no startup hook.** A session that never opens the mod menu never
+asks mod.io whether anything changed. `ModIOUnity.EnableModManagement(...)` sits right
+beside it, so the automatic download-and-install machinery is likewise armed only by
+opening the menu.
+
+The locally held state, by contrast, is readable at any time with no network traffic:
+`ModIOUnity.GetSubscribedMods(out Result)` returns entries of
+
+```csharp
+SubscribedMod { SubscribedModStatus status; string directory; ModProfile modProfile; bool enabled; }
+```
+
+with the status enum at `modio.UnityPlugin`, decompiled ~29014. Reaching any of this from
+mod source is the two-switch case described above under *Using an assembly the game loads
+but does not expose*.
