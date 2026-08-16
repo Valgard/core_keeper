@@ -1,9 +1,10 @@
 # Troubleshooting
 
-Symptom-first index of the ways a Core Keeper mod fails after it has already
-built successfully — silently disabled scripts, a mod that takes an unrelated
-mod down with it, a game that closes at the loading screen, an Editor that
-hangs, a build that produces nothing. Each entry names what you observe, then
+Symptom-first index of the ways Core Keeper modding fails without telling you
+why — silently disabled scripts, a mod that takes an unrelated mod down with it,
+a game that closes at the loading screen, an SDK clone that refuses to compile,
+an Editor that hangs, a build that produces nothing. Each entry names what you
+observe, then
 the mechanism, then the fix. Where a symptom has more than one cause, the
 cheapest check comes first.
 
@@ -278,6 +279,31 @@ the global switch reliably makes Steam skip `CloudSyncDown`, after which the
 local saves load and the loading screen completes. Resolve the actual conflict
 afterwards, deliberately — do not blind-delete save files.
 
+## `Player.log` fills with `GarbageCollector disposing of ComputeBuffer`
+
+A block of these warnings after a session that felt laggy is tempting to read as
+the cause of the lag. **Check where in the log they sit before you believe it.**
+
+Normally they bunch in the **last lines of `Player.log`**, immediately after
+
+```text
+Input System module state changed to: Shutdown
+```
+
+That position identifies them as the GC's process-exit cleanup of buffers that
+were never explicitly `Release()`d — a shutdown artifact, not a mid-play hitch.
+A collection that actually ran during play would spread its warnings through the
+log rather than cluster them at the very end. Do not promote them to "the
+gameplay lag".
+
+**The warning count is not a performance metric.** In one measured case of real
+stutter the count stayed **unchanged at 40** with the suspected mod disabled —
+while the stutter was gone.
+
+So isolate a suspected render mod the ordinary way: disable it in `state.json`'s
+`disabledMods` (the list described above), then judge smoothness directly rather
+than by counting warnings.
+
 ## Works in singleplayer, not in multiplayer
 
 A Harmony prefix on a DOTS system fires in a local world and never fires on a
@@ -288,6 +314,47 @@ mechanism and the fix are in
 (`Error/BadProtocolVersion`) and the join-blocking dialog raised by a mod's
 `requiredOn` flags belong to
 [multiplayer and the dedicated server](multiplayer-and-server.md).
+
+## A fresh SDK clone will not compile on a macOS Editor host
+
+The first open of a newly cloned `CoreKeeperModSDK` on macOS ends in compilation
+errors and the "Enter Safe Mode" prompt, with `CS0246` naming `Steamworks`.
+Nothing else in the SDK can be reached until it is resolved — the failure blocks
+the SDK from initialising at all.
+
+**It is a platform gate, not a missing Steam installation.** The SDK ships two
+Facepunch.Steamworks managed DLLs, each restricted to one Editor platform and
+both explicitly off for macOS:
+
+| Plugin | `Editor.OS` | `OSXUniversal.enabled` |
+|---|---|---|
+| `Facepunch.Steamworks.Win64.dll` | `Windows` | `0` |
+| `Facepunch.Steamworks.Posix.dll` | `Linux` | `0` |
+
+So on a macOS Editor neither loads, and the two SDK sources carrying
+`using Steamworks;` fail to compile.
+
+**Fix — four single-value YAML edits** in
+`Assets/Plugins/CoreKeeperModSDK/Facepunch.Steamworks.Posix.dll.meta`:
+
+| Key | Value |
+|---|---|
+| `Exclude OSXUniversal` | `0` |
+| `OS` | `AnyOS` |
+| `enabled` | `1` |
+| `CPU` | `AnyCPU` |
+
+Then close Unity and delete `CoreKeeperModSDK/Library/` to force a clean
+re-import.
+
+**Enabling the managed DLL is safe although `libsteam_api.dylib` is absent on
+macOS.** The Steamworks references are confined to the Editor's Steam Workshop
+upload tab; the runtime mod contains none, so nothing reaches the missing native
+library at play time.
+
+This is an SDK-level, Editor-only issue: it is inert on Windows and Linux Editor
+hosts, unrelated to the Wine/CrossOver game host, and it costs one fix per SDK
+clone — a fresh clone reproduces it.
 
 ## The Unity Editor hangs at "Initial Asset Database Refresh"
 
