@@ -45,6 +45,39 @@ world — a HUD arrow on a ring is `cos(bearing)` for its screen X and
 `sin(bearing)` for its screen Y. Screen versus world coordinate handling is
 covered in [prefabs and rendering](prefabs-and-rendering.md).
 
+### Floor world coordinates, never cast them
+
+`math.floor` and an `(int)` cast agree on positive numbers and part company on
+negative ones: `-14.3` floors to `-15` but casts to `-14`. Core Keeper worlds
+sit around the origin, so negative coordinates are the ordinary case rather than
+an edge case, and CK's own code floors.
+
+**A systematic off-by-one that shows up only in the negative half of the world
+is the signature of this mistake.** It is invisible in any test run east and
+south of the Core.
+
+### What the map's coordinate readout actually shows
+
+Vanilla's coordinate display is not a player readout. `CoordinatesUI.LateUpdate`
+computes
+
+```csharp
+int2 x = (int2)math.floor(mapUI.GetCursorWorldPosition());
+```
+
+— the **mouse cursor**, not the player — and renders it as `"%d, %d"` followed
+by `"(%d)"`. That parenthesised number is the straight-line distance to the world
+origin, computed **from the already-floored ints** rather than from the float
+position. Measured: at `63, -14` the readout shows `(65)`, matching
+`sqrt(63² + 14²) = 64.5 → 65`.
+
+The player marker drawn on the map is rasterised independently, through
+`RoundToMultiple(0.0625f)`.
+
+**Trap: at a tile boundary the readout and the marker may differ by 1.** They are
+two separate quantities, so reproducing vanilla's numbers exactly means copying
+its floor-then-measure order, not reading its marker position.
+
 ## Tile layers: what may sit on what
 
 `TileType.GetNeededTile` (`Pug.Base:18111`) and `GetInvalidTile` (`:18155`) are
@@ -62,6 +95,29 @@ present at that position and none of its invalid ones is.
 `GetInvalidTile` contains exactly one mirror pair: **`bridge` is invalid where
 `ground` is present, and `ground` is invalid where `bridge` is.** A bridge can
 therefore never be laid over normal ground.
+
+### The bridge family
+
+Nine objects produce the `bridge` tile (`Pug.Base:2755-2799`):
+
+| `ObjectID` | Object |
+|---|---|
+| 4703 | `WoodBridge` |
+| 4707 | `StoneBridge` |
+| 4712 | `ScarletBridge` |
+| 4717 | `CoralBridge` |
+| 4721 | `GalaxiteBridge` |
+| 4724 | `GlassBridge` |
+| 4729 | `GleamWoodBridge` |
+| 4773 | `MetalGrateBridge` |
+| 4802 | `ExcavationBridge` |
+
+`ObjectID.Rail` is `6550` (`Pug.Base:3357`).
+
+Pugstorm hands out IDs as content ships, so the numeric order *roughly* tracks
+biome progression and hence roughly tracks scarcity. Treat that as a heuristic
+for ordering a fallback list, never as a rule — `GlassBridge` and
+`MetalGrateBridge` are both counterexamples.
 
 **Do not substitute `TileType.IsWalkableTile()` for this check.**
 `IsWalkableTile` (`Pug.Base:17781`) also accepts `floor`, `rug`, `litFloor`,
@@ -226,6 +282,37 @@ every invocation — not because vanilla forgets to, but because a hook cannot
 know what state it is entered in, nor the relative ordering of the two systems.
 Idempotence that depends on another system's cadence is not idempotence.
 
+### Reaching the player's inventory from a placement hook
+
+The two placement entry points are not interchangeable: only one of them carries
+the player at all.
+
+| Method | What it receives | Inventory reachable |
+|---|---|---|
+| `PlacementHandler.UpdatePlaceablePosition` (`Pug.Other:295381`) | the full `EquipmentUpdateAspect`, and through `LookupEquipmentUpdateData` the `BufferLookup<ContainedObjectsBuffer> containedObjectsBufferLookup` (`Pug.Other:419083`) | yes |
+| `PlacementHandler.Activate` | `(ref PlacementCD, Entity placementPrefab, ComponentLookup<ObjectPropertiesCD>, ComponentLookup<TileCD>, ComponentLookup<PseudoTileCD>)` | no — there is no player entity in the signature |
+
+Vanilla reads that buffer lookup exactly this way in `UpdateJob.Execute`
+(`Pug.Other:419886`), so it is a supported route rather than a trick. If your
+hook sits on `Activate`, no amount of lookup juggling will get you an inventory;
+move the work to `UpdatePlaceablePosition` instead.
+
+## Consuming an item from an inventory slot
+
+`InventoryUtility.ConsumeEntityAt` (`Pug.Other:409859`) takes an
+`optionalTargetObjectID`.
+
+**Trap: despite the name, it is not optional.** The slot's ObjectID is compared
+**only** when that argument is set. Left at `ObjectID.None`, the call consumes
+whatever happens to lie in the slot at that instant — so an inventory operation
+that gets queued in between makes your mod eat the wrong item. That is silent
+data loss for the player, and because it needs a race to happen it will not show
+up in an unhurried manual test. With the argument set, the consume fails
+instead, which is the direction you want this failure to go.
+
+An overload `ConsumeEntityAt(Entity inventory, int index, …)`
+(`Pug.Other:407732`) accepts any inventory entity.
+
 ## Entity radii: loaded is not observed
 
 Core Keeper keeps chunks loaded in a bubble around the **player**, driven by
@@ -257,10 +344,23 @@ resolves the ServerWorld therefore sees entities out to 200-300 tiles, not the
 ~24-tile client ghost set; multiplayer world separation is covered in
 [multiplayer and server](multiplayer-and-server.md).
 
+### `IncludeDisabledEntities` is mandatory for a world scan
+
+Beyond `DISTANCE_FROM_PLAYER_TO_UPDATE_ENTITY` (40 tiles) Core Keeper
+**disables** entities while keeping them loaded out to the 200-300 radii above.
+Disabled is not unloaded — but a DOTS query skips disabled entities by default.
+
+**A query built without `EntityQueryOptions.IncludeDisabledEntities` therefore
+stops at 40 tiles**, no matter how large the load bubble is. This is the first
+thing to check when a world scan "only finds the ones near me": it is a query
+option, not a radius problem, and no amount of walking around fixes it.
+
 ### The trap
 
-**A loaded entity is not necessarily an observed one.** Measured in game, base
-placed-object entities leave a mod's per-scan query set at only **~91-115 tiles**
+**A loaded entity is not necessarily an observed one.** Rule out the query option
+above first — the two effects are numerically distinct, one cutting off at 40
+tiles and the one below at around 91. Measured in game, base placed-object
+entities leave a mod's per-scan query set at only **~91-115 tiles**
 from the player — far inside the 200-tile load floor. That boundary matches no
 named constant. The best-supported explanation is DOTS `ArchetypeChunk` unload
 granularity: a container and a workbench standing next to each other are
@@ -277,6 +377,48 @@ and quietly destroys your own records. A safe threshold is well below the
 observed dropout (48 is comfortable), ideally combined with a
 "would-be-observed" gate that mirrors whatever coverage rule your scan itself
 uses.
+
+## Player-placed versus world-spawned
+
+Core Keeper has no concept of a "base" and no per-object provenance. Both
+questions that follow from that sound easy and are not.
+
+### There is no "world-spawned vs. player-placed" signal — stop looking for one
+
+Three rounds of in-game probing turned up no object-level discriminator, and the
+collisions are not near-misses:
+
+| Candidate | Why it fails |
+|---|---|
+| `cat`, `stack`, `icon` | Uniformly true on both sides |
+| `craft` (is it craftable) | Collides — a potted bush is craftable, a trophy is not, and both are furniture |
+| Object tags | Collide — `Stalagmite` (5610) and `WaterLily` (5614) are tag-less, exactly like `WayPoint` (6514), which the classification has to include |
+| `DontDropSelfCD` | An `IEnableableComponent` present on *everything*, and its enabled state is not stable from inside the sandbox |
+| `DiggableCD` / `DestructibleObjectCD` | Collide — `Stalagmite` ≡ `CavelingFloorTile`, and `GraveTree` ≡ `WayPoint` ≡ `Idol` ≡ `RuinsPiece` |
+| `MineableCD` | Not a discriminator either |
+
+This is a property of Core Keeper's data, not a search that was given up on too
+early. The sanctioned fallback is a curated tag + `ObjectID` list that the user
+can edit.
+
+### A workbench is CK's de-facto "the player built this" marker
+
+Neither position nor cluster density separates a base from a world structure,
+because CK's generated structures **pack** functional crafting stations: an
+abandoned camp ships with a campfire and a cooking pot, a mechanical vault with a
+seed extractor and a generator. A "two or more stations close together" filter
+fires on every one of them.
+
+What CK places in **no** world structure is a workbench. Validated against a real
+save: 11 workbenches, all at the Core base, none out in the world.
+
+So anchor on workbenches and take the stations inside a workbench's radius. Link
+**workbench → station only, never station → station** — chaining station to
+station walks straight back into the packed world structures.
+
+The reusable form of this: when you need "does the player own this place?",
+reach for a player-built marker object before any spatial or type-based
+heuristic.
 
 ## Ore boulders
 
@@ -300,6 +442,23 @@ some 1,400 heal opportunities. "The drill speed skips the window" is arithmetic
 that does not work out; when the numbers say a window cannot be missed, look for
 a situation in which the system is not running at all rather than for a
 collision.
+
+### `RequiresDrillCD` selects exactly the ore boulders
+
+Exactly one converter hands out `RequiresDrillCD`: `DestructibleObjectConverter`,
+gated on `DestructibleObjectAuthoring.requiresDrill`
+(`Pug.ECS.Conversion:1146-1156`). Of the 177 prefabs carrying
+`DestructibleObjectAuthoring`, exactly **12** set `requiresDrill: 1` — the ten
+ore types plus two scene variants. Counted against the unpacked prefabs, not
+assumed.
+
+Amber Boulder and Crystal Meteor Boulder are *not* in that set. The flag draws
+precisely the line between a renewable ore source and a one-off world object,
+which makes it the discriminator you want.
+
+**Query for the component instead of hardcoding an ObjectID list.** A hardcoded
+list is not just more work — it silently misses any ore tier a future game update
+adds, and it fails quietly, as a mod that simply does nothing to the new boulder.
 
 ### Ore boulders are ordinary placeable prefabs
 
