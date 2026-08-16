@@ -207,8 +207,24 @@ its value.
 
 The client shows **"wrong game version"**. The actual error is
 `Error/BadProtocolVersion`, and it almost never has anything to do with the game
-version — a mod-set difference produces exactly this message, because the mod set
-is upstream of the hashes NetCode compares. Nothing in the message mentions mods.
+version — a mod set that differs in mods which **register ECS components or ghost
+prefabs** produces exactly this message, because those are the mods that move the
+hashes the two sides compare. Nothing in the message mentions mods.
+
+**No mod name appears anywhere in the protocol**, which is why the split in the
+table above decides who can hit this. CK's own connect handshake rejects on two
+values (`Pug.Other:126187`, `:126203`): `localVersionHash`, which is
+`PlayerConnectRequestRPC.GetVersionHash(Manager.version)` — the game version and
+nothing else (`:126655`) — and `ghostCollectionHash`, the XOR of every
+`GhostCollectionPrefab.Hash` in the default world
+(`ECSManager.TryCalculateGhostCollectionHash`, `:2450`). NetCode's own
+`NetworkProtocolVersion` check compares the same kind of thing one layer down.
+A mod set differing only in Harmony-patch or bake-time mods leaves all of it
+untouched and the join **succeeds** — which is exactly the gap `requiredOn`
+exists to close. In practice that puts content mods on the hash-moving side:
+adding an entity through CoreLib's `EntityModule` clones a prefab and stamps the
+clone's `GhostAuthoringComponent` with a fresh `prefabId` — a change to exactly
+the set `ghostCollectionHash` fingerprints.
 
 Diagnose in `Player.log`: hundreds of `ComponentHash[N]` lines followed by
 `Client disconnected because Error/BadProtocolVersion`.
@@ -217,11 +233,12 @@ Diagnose in `Player.log`: hundreds of `ComponentHash[N]` lines followed by
 mod declares a `required` dependency that is not installed on the server, the
 loader's `SortMods` drops the *dependent* mod there and says so only in a log
 warning — see [mod anatomy](mod-anatomy.md) for that drop. The two sides then
-hold different mod sets, and the client reports the same
-`Error/BadProtocolVersion`; nothing in it names a dependency. So when you publish
-a mod that depends on another, the server needs **both** installed, not just
-yours — and this is the diagnostically expensive case, because the symptom points
-at the game version while the cause is one absent dependency on one machine.
+hold different mod sets, and if the dropped mod is one of the hash-moving kind
+the client reports the same `Error/BadProtocolVersion`; nothing in it names a
+dependency. So when you publish a mod that depends on another, the server needs
+**both** installed, not just yours — and this is the diagnostically expensive
+case, because the symptom points at the game version while the cause is one
+absent dependency on one machine.
 
 ### Version filtering is client-side only
 

@@ -67,6 +67,18 @@ tags into `state.json`) and restart. The publish tooling in this repo also
 synchronises this tag group and removes a hand-set `Asset` as surplus — see
 [publishing](../publishing.md).
 
+**Trap: opening that menu deletes every local dev install on the machine.** The
+sync it triggers is destructive by design. `SyncUsersSubscriptions` **clears**
+the local subscription set and rebuilds it from the account's `/me/subscribed`
+response, then wakes the mod-management pass, which uninstalls every mod in the
+local registry that no user subscribes to (`ShouldThisModBeUninstalled` →
+`PerformOperation_Delete`) — installation directory and modfile archive both
+gone. A locally installed dev build has a placeholder mod ID that resolves to
+nothing in the catalog, so it can never appear in that response and is removed
+without a prompt or a dialog. Starting the game, loading a world and playing do
+not trigger the sync; the mod browser does. Reinstall each dev build afterwards
+— details in [macOS / CrossOver](../macos-crossover-loader.md).
+
 ### Then: a stale game-version compatibility tag
 
 **This one is not silent — check it first if you have a log.** A published mod
@@ -141,7 +153,8 @@ for mf in …/Public/mod.io/5289/mods/*/ModManifest.json; do jq -r .guid "$mf"; 
 **Fix:** give the *newer* mod's `.asset` a fresh 32-hex `metadata.guid`
 (`uuidgen | tr -d -`), rebuild, republish; leave the established mod alone.
 After publishing, open the in-game Mods menu once to re-sync the corrected
-modfile, then restart.
+modfile, then restart — at the price named above: **that visit deletes every
+local dev install**, so budget a reinstall of each.
 
 **Two traps while verifying the fix:**
 
@@ -208,13 +221,25 @@ A mod you did not touch starts throwing — classically a `NullReferenceExceptio
 inside a `[HarmonyPrefix]` dereferencing something that was reliably non-null
 before — right after you subscribed to, updated or built *other* mods.
 
-**Cause: the loader compiles every source mod into one shared
-`RoslynCSharp.ScriptDomain`** (visible in stack frames as
-`PugMod.Loader:LoadScripts (..., RoslynCSharp.ScriptDomain, ...)`). A
-`CompileFailed` leaves diagnostics and partial type state in that domain.
-Subsequent mods compile against it and register their Harmony patches in an
-order that differs from the all-mods-clean baseline. A prefix that was safe
-under patch order A is a NullRef under patch order B.
+**Cause: mod loading is one shared, all-or-nothing pass.** The loader compiles
+every source mod into a single `RoslynCSharp.ScriptDomain` (visible in stack
+frames as `PugMod.Loader:LoadScripts (..., RoslynCSharp.ScriptDomain, ...)`), and
+a mod that fails to load aborts that pass where it stands: the failing mod is
+dropped from the list and every mod sorted after it is not loaded at all this
+time round. The ones sorted *before* it are already compiled and already
+Harmony-patched — patching happens per mod inside `LoadScripts`, right after the
+compile — but the pass returns before the loop that calls `EarlyInit`, so none of
+them is initialised.
+
+**It is not compile residue.** Nothing survives a pass: the next one `Reset`s
+every mod first — `Shutdown()` on each handler, `UndoHarmonyPatch`, bundles
+unloaded — then disposes the domain and builds a new one with
+`ScriptDomain.CreateDomain("PugMod")`. What a `CompileFailed` actually changes is
+*which* mods are live and *when* the survivors' patches bind: the retry re-does
+the whole set at a later point in the game's own initialisation. A prefix that
+was safe binding at startup is a NullRef binding mid-initialisation. (The
+observation below is verified directly; that the re-bind timing is what breaks
+the prefix is the mechanism that fits it, not something proven in isolation.)
 
 **Logical independence between mods is a wrong prior.** In the verified case a
 chest-UI mod's `UIManager.Init` prefix started dereferencing a null
@@ -225,8 +250,8 @@ chest-UI mod.
 
 **Heuristic:** when a previously working Harmony patch NullRefs, do not stop at
 the loudest error. Scan `Player.log` for **any** `CompileFailed` earlier in the
-same load pass. A failed compile anywhere is a silent partial corruption of the
-shared domain, not a contained failure.
+same load pass. A failed compile anywhere is not a contained failure — it aborts
+the pass every other mod is riding on.
 
 **Bisect** by disabling one mod at a time rather than unsubscribing — see the
 two lists below.
