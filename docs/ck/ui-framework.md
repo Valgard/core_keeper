@@ -3,10 +3,12 @@
 Core Keeper's interface is not built the way a Unity developer expects. There is
 no Canvas, no `RectTransform`, no `Image` — the entire UI is sprites on a
 dedicated layer, driven by the game's own `UIelement` hierarchy. This chapter
-covers the pattern every UI mod follows, how to mount a window, how to add a row
-to the options menu and a rebindable key to the controls screen, what the footer
-hint bar will and will not let you do, how to make a scroll window follow the
-selection, and how to grey out a setting the player may not change right now.
+covers the pattern every UI mod follows, how to mount a window and suppress the
+gameplay UI behind it, how to show a vanilla item tooltip, how to add a row to
+the options menu and a rebindable key to the controls screen, what the footer
+hint bar will and will not let you do, how to get a text field, how to make a
+scroll window clip its content and follow the selection, and how to grey out a
+setting the player may not change right now.
 
 ## Sprite UI, not uGUI
 
@@ -30,7 +32,7 @@ building one.
 | Layer | `5` (UI) — windows only; a HUD element goes on `27` |
 | Renderer | `SpriteRenderer` — never `Image` |
 | Transform | plain `Transform` — never `RectTransform` |
-| Sorting | a custom Sorting Layer plus an explicit `sortingOrder` |
+| Sorting | the `"GUI"` sorting layer plus an explicit `sortingOrder` |
 | Root class | `class MyUI : UIelement, IModUI` — inheritance *and* interface |
 | Navigation | chain neighbours via `UIelement.bottomUIElements` / `topUIElements` |
 
@@ -38,9 +40,89 @@ The `bottomUIElements` / `topUIElements` chaining is what gives you controller
 navigation and correct `UIMouse` integration. An element that is not in the
 chain is drawn but not reachable.
 
+**Trap: there is no `"UI"` sorting layer, and "layer" means two unrelated
+things here.** `TagManager.asset` defines no sorting layer named `"UI"` — CK UI
+sprites sort on **`"GUI"`** (uniqueID `1241602095`). Unity's *layer 5* is also
+called "UI", but that is a tag-layer used for `Physics.Raycast` filtering, an
+entirely separate axis. Setting one does not set the other, and both must be
+right. Watch the round-trip too: an Editor-authored prefab child has come back
+with `m_SortingLayerID: 0` while its tag-layer 5 was correct.
+
 Inheriting from `UIelement`, reading `Manager.input` and touching
 `API.Rendering.UICamera` are all permitted inside the Roslyn sandbox — see
 [the sandbox and mod configuration](sandbox-and-config.md).
+
+### How `UIMouse` picks and selects an element
+
+`UIMouse.UpdateMouseUIInput()` (`Pug.Other` ~355773) re-runs
+`Physics.RaycastNonAlloc` against `ObjectLayerID.UILayerMask` **every frame**
+and calls `TrySelectNewElement`. `Manager.ui.currentSelectedUIElement` is
+therefore owned by that raycast: a selection you assign from code is clobbered
+on the next frame.
+
+There is **no `isSelectable` flag**. What makes an element selectable is a
+**3D collider on the same GameObject that carries the `UIelement`** — that is
+where `UIMouse`'s `GetComponent<UIelement>()` resolves — on the UI layer,
+passing `isVisibleOnScreen` (active + enabled + non-zero lossy scale).
+Deselection runs through `DeselectAnySelectedUIElement` (~273433) via
+`UIManager.OnUIElementSelected` (~273416).
+
+**Trap: it must be a `BoxCollider`, not a `BoxCollider2D`.** The raycast is 3D,
+so `!u!65` is hit and `!u!61` never is — and the 2D component is the natural
+first choice for a 2D sprite UI. It fails silently.
+
+**Overlapping clickables are arbitrated by Z.** The ray starts at
+`pointer + back * 5` along `Vector3.forward` and the smallest-distance hit wins.
+Two colliders both at z-centre `0` are a nondeterministic tie; pull the one that
+must win forward via `m_Center.z` (`-0.1` was enough in two cases, `-0.5` in
+another). The collider's `z` extent is raycast depth (`4` in the shipped
+scrollbar handle). Two consequences worth knowing: an open popup drawn over a
+list does **not** leak hover to the elements behind it, so a guard for that is
+dead weight; and `ScrollBar.UpdateHandleSize` overwrites the handle collider's
+`y` every frame, so authoring that value is pointless.
+
+**Hover, not click, drives selection.** `RadicalMenu.SelectOptionIndex` fires
+`OnDeselected()` on mere hover exactly as it does on arrow-key navigation, and
+`TrySelectNewElement` contains a hardcoded
+`Manager.input.activeInputField.Deactivate(commit: false)`. Moving the mouse
+into empty space calls `Manager.ui.DeselectAnySelectedUIElement()` and sets
+`selectedIndex = -1` regardless of any override of yours. What that does to a
+field the player is editing is in
+[text rendering and text input](#text-rendering-and-text-input).
+
+### Subclassing a CK UI component
+
+**CK's lifecycle methods are non-virtual.** They are declared
+`protected void Awake()`, so a subclass cannot `override` them. Hide the method
+with `private new void Awake()` and call `base.Awake()` explicitly: Unity
+dispatches the message once, to the most-derived method, so the base body runs
+only if you call it. That is also the only way to correct state a base `Awake`
+writes.
+
+**Mirror a virtual's signature exactly.** `UIelement.OnDeselected(bool
+playEffect = true)`, `GetHoverStats(bool)` — a near-miss compiles as a *new*
+method and the override silently never binds, or fails with `CS0115`. Grep the
+decompile before writing the override.
+
+**An overridden `UIelement.LateUpdate` must end with `base.LateUpdate()`.** The
+base implementation runs CK's UI-element tracking; without it input blocking and
+other housekeeping quietly stop working.
+
+### Hit-testing without a collider
+
+`Manager.camera.uiCamera.ScreenToWorldPoint(Input.mousePosition)` gives the
+cursor position in world space, and because the uiCamera is **orthographic** the
+resulting world X/Y are z-independent — no z calibration, no near-plane
+fiddling. Comparing that against a panel's world rect
+(`popupPanel.position ± panel.size / 2`) is a complete, collider-free hit test.
+`Manager.camera` is sandbox-safe.
+
+One mechanic solves two problems with it: **click-outside-to-close** (a naive
+"any mouse-down closes" also fires on clicks *inside* the popup) and
+[mouse-wheel ownership](#mouse-wheel-ownership). Note the direction: screen →
+uiCamera world is fine and useful; the dead end that
+[prefabs and rendering](prefabs-and-rendering.md) warns about is the opposite
+projection, world → HUD.
 
 ## Mounting a standalone window
 
@@ -72,6 +154,50 @@ What you get for free: the window is mounted under
 vanilla runs `HideAllInventoryAndCraftingUI`; and cursor, input capture, pause
 behaviour and mouse mode all arrive through a postfix on
 `isAnyInventoryShowing`, meaning vanilla's own logic does the work.
+
+**Trap: that auto-hide disqualifies route A for an always-on HUD.**
+`RegisterModUI` is meant for **modal** UI and hides it at
+`HideAllInventoryAndCraftingUI` — the opposite of what a permanent HUD needs. An
+always-on element is instead instantiated by the mod itself under
+`Manager.ui.chestInventoryUI.transform.parent`; the layer and visibility rules
+for that are in [prefabs and rendering](prefabs-and-rendering.md).
+
+**Trap: the `root` child is the visibility carrier; the parent stays active
+forever.** CoreLib keeps the GameObject carrying the
+`Window` / `UIelement` / `IModUI` component active for the window's whole life,
+and `HideUI` toggles `root.SetActive(false)` on the **child**. So any guard
+meaning "only while the window is open" has to test `root.activeSelf`.
+`gameObject.activeSelf` is always true, never gates anything, and the guarded
+code — usually a per-frame path — keeps running while the window is hidden.
+
+**Trap: `OpenModUI` has no toggle, and a bare `HideUI()` freezes the player.**
+One key to open and close means toggling yourself, and the close must not be a
+direct `HideUI()`. CoreLib's postfix on `HideAllInventoryAndCraftingUI` does two
+things: it calls `IModUI.HideUI()` on every registered mod UI **and** clears
+`UserInterfaceModule.currentInterface` (via `ClearModUIData`). Clearing that
+field is what releases the player from menu state, so a bare `HideUI()` leaves
+`currentInterface` dangling and **movement stays blocked** — a symptom that
+reads as a completely unrelated bug. Close through
+
+```csharp
+Manager.ui.HideAllInventoryAndCraftingUI(forceClose: false);
+```
+
+mirroring `PlayerController.CloseAnyOpenInventory`. For the open-vs-closed
+decision itself, read *real* visibility (`Instance.Root.activeSelf`) rather than
+`currentInterface`, which can be transiently stale.
+
+**CoreLib forces `isAnyInventoryShowing` true for mod UIs — and only that
+getter.** The per-UI getters (`Manager.ui.isPlayerInventoryShowing` and
+friends) are **not** patched. Two consequences that pull in opposite directions:
+
+- The game now treats your window as an inventory. The keyboard-shortcuts
+  panel's **S** toggle key goes live over your window and the HUD's
+  inventory-context elements stay up — see [suppressing the gameplay
+  UI](#suppressing-the-gameplay-ui-while-a-modal-window-is-open).
+- To distinguish "a vanilla menu is open" from "my own window is open" you must
+  read a per-UI getter. The aggregate cannot tell them apart, and gating on it
+  makes your own window block itself.
 
 **Trap: `ModUIManager` does not exist.** CoreLib's official v3 and v4 docs show
 `ModUIManager.OpenModUI(...)`. The real type is `UserInterfaceModule`. Read
@@ -105,6 +231,52 @@ mods](reverse-engineering.md#every-installed-mod-is-readable-source) before
 lifting an identifier out of it: several of its most API-looking types are its
 own, not the game's.
 
+### Suppressing the gameplay UI while a modal window is open
+
+Four separate things stay up behind a modal mod window, and each defeats the
+naive attempt in its own way:
+
+| What | The call that works |
+|---|---|
+| The gameplay HUD | `Manager.ui.TemporarilyDisableGameplayUI()` / `EnableTemporarilyDisabledGameplayUI()` |
+| The keyboard-shortcuts panel (`ShortCutsWindow`) | a per-frame `LateUpdate` **prefix** calling its public `HideUI()` |
+| Button hints (`InGameButtonHintsUI`) | a `LateUpdate` **prefix** forcing its public `container` inactive |
+| ESC opening the pause menu | force `MenuManager.IsPauseDisabled` true while the window is open |
+
+**Never use `Manager.prefs.hideInGameUI` for the HUD.** It `SetDirty()`s to the
+player's prefs on disk — the same class of damage as writing through
+`PrefsData`. The `TemporarilyDisableGameplayUI` pair instead flips a private
+*runtime* scale-multiplier field; it is CK's own mechanism for opening a
+`RadicalMenu`, and roughly 51 HUD elements self-scale to zero from it.
+
+The shortcuts panel needs the per-frame prefix because
+`InventoryShortCutsButton.ShortcutsCanBeToggled()` gates only the "?" prompt
+visuals — the **S keybind itself** checks `isAnyInventoryShowing` directly and
+is not gated by it. The patch does bind:
+`ShortCutsWindow.LateUpdate` is a `protected override` declared on the type, and
+`HideUI()` is public. `InGameButtonHintsUI` needs its own prefix for a different
+reason: its `LateUpdate` re-asserts `container.SetActive(showKeyHints)` every
+frame, so a one-shot hide is simply overwritten.
+
+The list applies to any modal mod window. On route A, *why* the shortcuts panel
+and the inventory-context HUD are up at all is CoreLib forcing
+`isAnyInventoryShowing` true.
+
+### The first `SetActive(true)` costs a second
+
+The first time you activate a prefab instance created from your own AssetBundle,
+about 98 % of the time goes into the `OnEnable` cascade — first-time asset
+loading and shader-variant compilation. Measured: **1039 ms**, and worse on a
+Wine host.
+
+The cost is **instance-specific, not global**: opening a vanilla menu that uses
+the same font beforehand does not warm it. Pre-instantiating does not help
+either — `Instantiate` itself is ~1.3 ms. The lever is a `SetActive(true)`
+immediately followed by `SetActive(false)` **in the same frame** at load time:
+the cost is paid synchronously inside `SetActive(true)`, so no frame is rendered
+in between and nothing flashes on screen. The first real open after that
+measured 15.7 ms.
+
 ### Sprites and pixel alignment
 
 UI sprites are authored at **pixels-per-unit 16**, and every position snaps to a
@@ -129,6 +301,55 @@ runtime if you need one. The call is sandbox-clean, and the theme sprite
 **overrides whatever sprite you assigned in the Editor**, so the Editor
 assignment is only a design-time preview.
 
+## Item slots, icons and tooltips
+
+### The vanilla tooltip is selection-driven, not entity-driven
+
+`UIMouse.UpdateHoverText` (`Pug.Other` ~356342) reads
+`Manager.ui.currentSelectedUIElement` and calls four `UIelement` virtuals on it:
+`GetHoverTitle()`, `GetHoverDescription()`, `GetHoverStats(bool)` and
+`GetContainedObject()`. **No live ECS entity appears anywhere in that path.** To
+show the vanilla tooltip for an arbitrary catalog item, a `UIelement` need only
+return a `ContainedObjectsBuffer` wrapping a synthetic
+`ObjectDataCD { objectID, variation, amount = 1, variationUpdateCount = 0,
+auxDataIndex = 0 }`. Spawning an entity, or porting your element onto the slot
+grid, is the expensive wrong answer.
+
+The tooltip is positioned relative to the `pointer` transform (~357077) — it is
+**cursor-anchored**, so the selected element's own transform position is
+irrelevant and an off-screen proxy element works.
+
+**Stat lines need a `SlotUIBase` instance.**
+`SlotUIBase.GetHoverStats(ContainedObjectsBuffer, bool, bool)` (~327477) is an
+**instance** method. A bare `new GameObject().AddComponent<MySlot>()` throws an
+NRE inside `SlotUIBase.Awake` on `animator.enabled`; giving the subclass an
+empty `Awake` body (see [subclassing a CK UI
+component](#subclassing-a-ck-ui-component)) fixes it, and the helper then
+returns title, description and stats correctly **without** `base.world` and
+without any of the serialized slot fields — verified by spike: a coin gave title
+and description and correctly no stats, a Copper Sword gave `statLines = 2`. The
+helper needs no prefab instantiation at all.
+
+### Icons are not scaled to fit — the slot is sized around them
+
+`Sprite.bounds.size` and `Sprite.rect` always report the **full sprite rect**,
+never the tight visible bounding box. Any "fit to visible content" scale
+computed from `bounds` therefore shrinks a padded 40×40 icon to a dot. CK's own
+inventory slots do not scale at all: slot background and rarity border are
+**1.25 u** (20 px at PPU 16), and the icon renders inside at native scale.
+(`ItemBrowser`'s `ApplyObjectIconTransform` *does* apply a scale-to-fit; that
+half of it is a dead end for padded sprites.)
+
+Position the icon with
+
+```csharp
+icon.transform.localPosition = objectInfo.iconOffset;
+```
+
+**`iconOffset` is slot-relative**, so the icon transform must be a **child of
+the slot**. As a sibling, the assignment discards the slot position and snaps
+the icon to the row origin.
+
 ## Adding an entry to the options menu
 
 There is **no API for this** — not in the SDK, not in CoreLib. You clone
@@ -144,6 +365,14 @@ vanilla's own menu objects with Harmony. Three classes matter:
 `GetComponentsInChildren(includeInactive, menuOptions)`, so any
 `RadicalMenuOption` sitting under the menu at `Awake` time is registered
 automatically. That single fact dictates *when* you must inject.
+
+**A row already has a second text field.** `RadicalMenuOption`
+(`Pug.Other:343031`) declares `labelText` (`:343056`) **and**
+`public PugText valueText` (`:343058`) — the latter is what CK uses for the
+right-aligned value of a toggle row. Where it is wired, a value or badge suffix
+costs no prefab, no new GameObject and no layout, only a string. Whether it is
+wired on a *particular* row is a per-row question: check the extracted prefab
+before building on it.
 
 **Do not persist through `PrefsManager` / `PrefsData`.** `PrefsData` is a fixed
 `[Serializable]` class of hardcoded vanilla fields with no slot for mods;
@@ -247,6 +476,37 @@ stacker: `RenderUIComponent(true)` plus `GetUIComponentRenderHeight()` replaces
 hand-rolled box positioning. A scrollable own menu is
 `: RadicalMenu, IScrollable` with a `UIScrollWindow` alongside.
 
+**But build and render are two steps, in that order around
+`base.Activate()`.** `LinearLayout` skips children that sit in an inactive
+hierarchy and computes their heights as `0`. So an own menu screen builds its
+structure **before** `base.Activate()` and renders the layouts **after** it,
+innermost first. Do it in one pass and every box collapses to zero height.
+
+### Reusing CK's "restart required" dialog
+
+CK's own confirm dialog, localised in every language and wired to a real
+relaunch, is reachable without shipping a dialog or a translation of your own:
+
+```csharp
+Manager.menu.centerPopUpText.StartNewDisplaySequence(
+    "Menu/RestartToApplyModChanges",
+    /* … */
+    localize: true,
+    TextManager.FontFace.boldMedium,
+    response => { if (response.IsConfirm) Manager.platform.Restart(); },
+    new List<string> { "cancelDialogue", "yes" },
+    /* … */);
+```
+
+**Trap: this is a menu-stack push, and pushing out of a pop orphans the
+buttons.** `StartNewDisplaySequence` → `ShowPopUpMenu` → `PushMenu(POP_UP)`.
+Called from inside `RadicalMenu.Deactivate` it runs *within* the pop: the popup
+never pops, and its Cancel/Yes buttons then survive across every later menu, all
+the way into the main menu. An Editor build does not show this — only the game
+does. CK itself sidesteps it with `Invoke("RestartToApplyModChanges", 0.1f)`;
+the delay is the whole point, and a frame countdown out of `IMod.Update` does
+the same job.
+
 ### Localising menu strings
 
 Menu labels come from `TextDataBlock` assets, one per language, and `PugText`
@@ -269,6 +529,78 @@ Two behaviours to know about, because they pull in opposite directions:
 The inherited `localize = true` also means a **missing term renders as
 `missing: <term>` in red**. The file format and merge behaviour that decide
 whether a term exists at all are in [localisation](localisation.md).
+
+## Text rendering and text input
+
+### A non-zero `maxWidth` crashes `PugFont.Render` on overflow
+
+`PugFont.Render` enters `AddNewLinesToLinesExceedingMaxWidth` only when
+`maxWidth > 0f`, and that method indexes out of range on text that actually
+overflows. It is a vanilla CK bug that English text often dodges and longer
+translations — German above all — hit routinely. The fix is
+`PugText.maxWidth = 0f` on every single-line label, **before** `Render`.
+
+**The symptom points nowhere near the cause.** The throw happens inside
+`ShowUI()`, so CoreLib never reaches the point where it sets `currentInterface`:
+the window opens but cannot be closed with ESC or E, and world input leaks
+through it.
+
+### Text input: `TextInputField`
+
+CK ships `TextInputField : UIelement, InputManager.TextInputInterface`
+(`Pug.Other.dll`). **uGUI's `InputField` is the wrong abstraction and unusable
+here.** Subclassing `TextInputField` inherits PugText rendering (`pugText` /
+`hintText`), the blinking caret (a `CharacterMarkBlinker` whose single
+serialized field `sr` is the caret `SpriteRenderer`), click-to-focus
+(`OnLeftClicked` calls `Manager.input.SetActiveInputField(this)`) and WASD
+suppression.
+
+Five details you must handle yourself:
+
+| Detail | Why |
+|---|---|
+| leave the serialized `trim` at `0` | otherwise leading and trailing spaces are stripped on every keystroke |
+| set `dontDeactivateOnDeselect = true` | CK selection is hover-based, so the moment the cursor leaves the collider `OnDeselected` → `Deactivate` fires and typing stops |
+| call `Deactivate(false)` when you close | otherwise **WASD stays blocked after the window is gone** |
+| clear `maxWidth` from code, not the prefab | `Awake` sets `pugText.maxWidth = maxWidth + (dontAllowNewLines ? 1 : 0)`, forcing the crash path above — a prefab `maxWidth = 0` is a no-op |
+| put the caret `SpriteRenderer` on a **child** GameObject | `Update()` re-asserts `characterMarkBlinker.transform.position = pugText.position` (world X/Y, Z preserved) every frame, clobbering any offset on the caret GameObject itself; a child at a constant `localPosition` inherits the per-frame position and adds the nudge |
+
+Because [hover drives selection](#how-uimouse-picks-and-selects-an-element),
+three further rules apply to any field inside a menu:
+
+- **Never commit the value from `OnDeselected`** — it fires on mere hover. The
+  usable signal is the transition of `Manager.input.activeInputField`.
+- **A guard in `OnLeftClicked` is structurally too late**: CK has already set
+  `activeInputField` to null by then (verified with `Debug.Log` against the
+  running game).
+- Moving the mouse into empty space sets `selectedIndex = -1`, and
+  `PugTextEffectMenuOption` then greys the row out **while it is still being
+  edited**. No override of yours prevents that.
+
+### A text row in a menu: `RadicalMenuOptionTextInput`
+
+Inside a `RadicalMenu` you do not need `TextInputField` directly.
+`RadicalMenuOptionTextInput` is CK's own base class for editable menu rows — the
+same one `CharacterCustomizationOption_NameInput`, the character-name field,
+uses. Deriving from it gives you the on-screen keyboard for controller sessions,
+focus and blink handling, the visual read-vs-edit split, an inherited `readOnly`
+field, `GetInputText()`, and `OnActivated → Manager.input.SetActiveInputField(this)`
+— no input plumbing of your own.
+
+**Trap: never shadow the inherited `public bool readOnly`.** A same-named field
+of your own compiles (with `CS0108`), but CK's internals read the *base* field
+and your shadow copy stays `false` forever.
+
+**Trap: `RadicalMenuOptionTextInput.Update()` does not call `base.Update()`.**
+So `RadicalMenuOption.UpdateClickCollider()` never runs, and every text row keeps
+Unity's default `BoxCollider` — 1×1×1, centred on the origin — no matter what it
+contains. Call it explicitly.
+
+**Then widen what it produces.** `UpdateClickCollider()` sizes the collider to
+the *rendered text width*, so backspacing shrinks it out from under a stationary
+mouse and CK's hover system reacts as though the pointer had left the row. Size
+the collider to the maximum row width instead. This second half applies to every
+`RadicalMenuOption` whose text changes, not only to text-input rows.
 
 ## Rebindable keybinds
 
@@ -305,6 +637,15 @@ ReInput.players.GetPlayer(0).GetButtonDown("MyMod-ToggleThing");
 
 `AddControllerBind` and `AddMouseBind` with the **same name** extend that one
 action onto other devices.
+
+**Trap: do not mirror the key into your own config file.** Storing a
+`KeyboardKeyCode` / `ModifierKey` in a `.cfg` just to seed
+`ControlMappingModule.AddKeyboardBind(...)` looks tidy and is an anti-pattern:
+after the seeding, the Controls menu (Rewired) is the sole authority. The moment
+the player rebinds there, the config value has no effect at all — a silent
+contradiction between two surfaces the player can both see. Pass the literal
+straight to `AddKeyboardBind` and keep the key out of the config; QuickToolSwap
+does it that way.
 
 ### The localisation terms CK derives
 
@@ -441,16 +782,29 @@ action in a mod-owned `player` category, visible and rebindable in Controls.
 ### Wiring a scroll window
 
 `UIScrollWindow` handles **scrolling only — not clipping.** Rows will render
-past the window edge until you add a `SpriteMask` yourself.
+past the window edge until you add a `SpriteMask` yourself — see [clipping with
+a `SpriteMask`](#clipping-with-a-spritemask).
 
 **Trap: `UIScrollWindow.scrollable` is the public serialized field.** Do not
 confuse it with the private `_scrollable`. `UIScrollWindow.Awake()` reads
-`scrollable` directly and, if it is null, sets `base.enabled = false`
-permanently — the window is dead for the rest of its life, with no error beyond
-a warning. Wire your `IScrollable` implementor into that slot in the Editor, or
-in the prefab YAML as `scrollable: {fileID: <your MonoBehaviour id>}`. Setting
-the private field later via reflection does not help; `Awake` has already
-disabled the component.
+`scrollable` directly, copies it into `_scrollable` itself and, if it is null,
+sets `base.enabled = false` permanently — the window is dead for the rest of its
+life, with no error beyond a warning. Wire your `IScrollable` implementor into
+that slot in the Editor, or in the prefab YAML as
+`scrollable: {fileID: <your MonoBehaviour id>}`. Setting the private field later
+via reflection does not help; `Awake` has already disabled the component. And
+because `Awake` does that copy, a mod never needs to write `_scrollable` at all:
+the older three-call pattern (reflect `_scrollable` into place,
+`UpdateScrollHeight`, `SetScrollValue`) collapses to two calls.
+
+**`UpdateScrollHeight` is private, and must run before the reset.** It computes
+`scrollHeight = <full content height> − scrollWindow.windowHeight`, and it is
+private, so a mod invokes it by reflection. After **any** change to what your
+`IScrollable` reports — row count, row height — the sequence is
+`UpdateScrollHeight` **first**, then `ResetScroll()`. The order matters, and
+skipping the first leaves a stale scroll range that lets the list scroll past its
+end or stop short. A virtualising list changes its reported height on every open,
+so this sits on the hot path.
 
 **Trap: `SetScrollValue(t)` runs backwards from expectation.** It is a lerp
 anchor where `t = 0f` is scroll-**bottom** (`ScrollHeight`) and `t = 1f` is
@@ -481,6 +835,56 @@ component** or the whole thing is a no-op; `autoHideScrollbar` hides it at
 `VisibleRatio >= 1`. The optional arrow slots (`arrowUp`, `arrowUpInactive`,
 `arrowDown`, `arrowDownInactive`) may stay at `fileID: 0`. Mouse-wheel scrolling
 works without any scrollbar at all — the bar is purely the visible affordance.
+
+**Trap: `ButtonUIElement.LateUpdate` toggles GameObject *activity* every
+frame**, and the wrong list makes your button vanish. Everything in
+`spritesShownUnpressed` is set active while `!leftClickIsHeldDown`, everything in
+`spritesShownPressed` while it is held — and the pressed loop runs **last and
+wins**. A GameObject listed in *both* is therefore visible only while the button
+is held down; at rest the button appears to have no sprite, with no diagnostic
+signal whatsoever. For a single always-visible sprite leave **both lists empty**
+and let the owning component render it, and put a hover/selection border in
+`optionalSelectedMarker` instead, toggled by `OnSelected` / `OnDeselected`. This
+holds for `ScrollBarHandle` and for every other `ButtonUIElement` subclass.
+
+### Clipping with a `SpriteMask`
+
+Clipping in CK's sprite UI is a `SpriteMask` with a **Custom Sorting-Layer
+Range** on the `"GUI"` layer. Four preconditions, each of which silently clips
+*nothing* when violated:
+
+| Precondition | What goes wrong |
+|---|---|
+| every renderer in the region is already on `"GUI"` | one left on `"Default"` is not clipped at all |
+| every renderer's `sortingOrder` falls inside the band | outside the band it is not clipped |
+| `PugText` needs `style.sortingLayer` and `style.orderInLayer` set too | the prefab keys are `sortingLayer:` / `orderInLayer:` — **not** `m_SortingLayer` / `m_SortingOrder`, which are `SpriteRenderer` keys and are silently ignored on a `PugText` |
+| the mask sprite's `.meta` needs `spritePixelsToUnits: 1` | at CK's default of 16 a 1×1 white PNG is 0.0625 units, so a Transform scale of (11, 6) yields a 0.69 × 0.375 mask |
+
+`PugText` has a `SetOrderInLayer` method but **no** sorting-layer setter — assign
+`style.sortingLayer` directly, it is a public field.
+
+Building the mask sprite at runtime with `Texture2D` + `Sprite.Create` does not
+get you out of the layer requirement: the sprite is not the problem, the render
+domain is.
+
+**A mask clips sprites, never colliders.** A row scrolled out of the viewport
+still hover-selects from the surrounding chrome if its collider reaches past the
+visible area, so a viewport bounds check has to be explicit.
+
+### Mouse-wheel ownership
+
+`UIScrollWindow.UpdateScroll` — called from its own `LateUpdate` — reads the
+wheel **independently**, via `Manager.input.GetScrollValue()`, and scrolls
+whenever the cursor is inside the window bounds (`bounds.Contains`). An overlay
+your mod draws on top of a scroll window therefore scrolls the list underneath as
+well.
+
+Take the wheel with a Harmony **prefix on `UIScrollWindow.UpdateScroll`**
+returning `false` for the frames your overlay owns it, and compute that condition
+fresh inside the prefix so no `LateUpdate` ordering can make it stale. Harmony
+lives in trusted `0Harmony.dll`, so the patch is sandbox-clean. A collider-free
+way to decide whether the cursor is over your overlay is in [hit-testing without
+a collider](#hit-testing-without-a-collider).
 
 ### Following the selection
 
@@ -542,6 +946,17 @@ edge just under the window top with a direct `MoveScroll` instead:
 float delta = -margin - (contentRoot.localPosition.y + topEdge);
 scrollWindow.MoveScroll(delta);
 ```
+
+**Better still: do not build a row taller than the viewport.** CK's menu
+navigation works per option, not per pixel — it brings the row's *top edge* into
+view and then jumps to the next *setting*, so the middle and bottom of an
+over-tall row are unreachable by D-pad. That is a controller dead zone, and its
+cause is architectural: a collection value pressed into CK's two-column,
+single-value row model. CK's own idiom for a collection is a **pushed, scrollable
+sub-menu** — the controls/keybinding screen is exactly that — with its own
+`MenuType` id, resolved in the same `RadicalMenu.TypeToMenu` prefix you already
+have. The price is that every additional screen brings its own [first-enable
+cascade](#the-first-setactivetrue-costs-a-second).
 
 **Red herring: `IScrollable.IsTopElementSelected` / `IsBottomElementSelected` /
 `UpdateContainingElements` have nothing to do with selection-follow.** They are
@@ -612,6 +1027,20 @@ V-Sync row calls `ResetEffects()` by hand on its neighbour's label *and* value.
 `PugText` that switches itself on exactly while a named option is `GRAYED_OUT` —
 the player gets told *why*, not just that they are locked out. Ship the note
 with the lock.
+
+### `INACTIVE` and the phantom row
+
+**Trap: a deactivated GameObject is still a menu row.** `RadicalMenu` collects
+its options with `includeInactive`, so a disabled prefab **template** row is
+registered like any other and is reachable by D-pad — an invisible entry the
+player can navigate onto. The remedy is to override
+`GetActiveStateInCurrentScene()` and return
+`gameObject.activeSelf ? ACTIVE : INACTIVE`.
+
+The mirror case: an option cloned from an **in-game-only** entry reports
+`INACTIVE` on the title screen. A mod widget that should work there has to return
+`ACTIVE` explicitly — but gated on the row actually being bound to something,
+otherwise the phantom row is straight back.
 
 ### Three traps
 

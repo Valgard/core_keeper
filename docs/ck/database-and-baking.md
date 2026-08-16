@@ -4,9 +4,10 @@ Core Keeper's object catalog — every item, placeable, creature and recipe — 
 authored in the Unity project as `ObjectInfo` data and *baked* into immutable
 ECS blobs at world-conversion time. This chapter covers how to read that catalog
 at runtime (`PugDatabase`), how to change a vanilla object's baked values before
-they freeze, and the data conventions around it: variations and paint, item
-level and sell value, display names for foreign-mod items, and the script
-fileIDs that let you reference game components from a mod's prefab YAML.
+they freeze, how a new item becomes craftable at a vanilla station, and the data
+conventions around it: naming objects in the enums, variations and paint, item
+level and sell value, display names for foreign-mod items, and the fileIDs that
+let a mod's prefab YAML reference game components and sprites.
 
 ## Changing a vanilla object's baked data
 
@@ -89,12 +90,132 @@ Iterate with `var` and never write the type name. Reading the element into a
 above) is also the shape that works regardless of which of the two it resolves
 to.
 
+### Trap: a config value the bake reads must be bound in `EarlyInit`
+
+The loader's order is: **`EarlyInit` (all mods) → database and world conversion
+(`PugDatabasePostConverter.PostConvert`) → `Init` (all mods)**. A value your
+prefix consumes *during* the conversion must therefore already be read and bound
+in `EarlyInit`.
+
+Bound in `Init`, the bake has already run and copied the **hard-coded default**
+instead — and the idempotency guard that `PostConvert` needs anyway then freezes
+that default in place. Restarting does not repair it: the ordering is the same
+every session, so a one-line timing mistake becomes a permanent one.
+
+`API.ConfigFilesystem` is initialised before any mod's `EarlyInit`, so reading
+configuration that early does work — see
+[Sandbox and config](sandbox-and-config.md). The lifecycle itself is in
+[Mod anatomy](mod-anatomy.md).
+
+| A value that is… | Read it in | Tell the player |
+|---|---|---|
+| read live at runtime | `Init` | takes effect immediately |
+| consumed by the bake | `EarlyInit` | requires a restart |
+
 ### Why bake time and not the craft path
 
 The obvious alternative — patching the runtime craft — is closed. The path is
 `InventoryUpdateSystem` → `ProcessCraftingJob` → `InventoryUtility.Craft`, and
 it is **double Burst-compiled**: not patchable, and not rescuable with
 `BurstDisabler`. Bake time is the supported seam, not a shortcut.
+
+## Adding an item and making it craftable
+
+**A new item needs no CoreLib.** It is a prefab authored in the Editor carrying
+`ObjectAuthoring` + `InventoryItemAuthoring`. Its own craft materials sit on
+`InventoryItemAuthoring.requiredObjectsToCraft`, a `List<CraftingObject>` whose
+elements are `{ objectName: string, amount: int }`. CoreLib is needed for UI,
+not for the item.
+
+**The two ways of naming an item in recipe data are asymmetric** — this is the
+part that catches people:
+
+| Data | Keyed by |
+|---|---|
+| an item's own ingredient list (`InventoryItemAuthoring.requiredObjectsToCraft`) | **string** — `objectName` |
+| a station's craftable list (`CraftingAuthoring.canCraftObjects`) | **`ObjectID`**, with a string fallback |
+
+The element type of `requiredObjectsToCraft` is the ambiguous `CraftingObject`
+from the trap above — write `var`, never the type name. Which of the two
+declarations the field actually resolves to is not established.
+
+### The recipe entry: `CraftingAuthoring.CraftableObject`
+
+A station's craftable list is `CraftingAuthoring.canCraftObjects`, declared
+`public List<CraftableObject>`. `CraftableObject` is a struct **nested inside
+`CraftingAuthoring`**, not a top-level type — reference it accordingly.
+
+Beside `objectID`, `moddedObjectID`, `amount` and `entityAmountToConsume`, the
+struct carries `allowCraftingNone`, `craftingTime`, `hasPrerequisites` and a
+nested `Prerequisites` struct.
+
+**`Prerequisites` gates a recipe on game progress.** It keys off the presence or
+absence of content bundles and off individual boss kills — fields such as
+`birdBossKilled`, `octopusBossKilled`, `scarabBossKilled` and
+`hydraBossNatureKilled`.
+
+**Trap: `moddedObjectID` is only read while `objectID` is `ObjectID.None`.** The
+string field carries `[ShowIf("objectID", ObjectID.None)]`, so a modded recipe
+entry must leave `objectID` unset. A `[ShowIf]`-gated field looks optional; for
+a modded item it *is* the mechanism.
+
+**Reuse an `ObjectID.None` slot rather than appending.** Vanilla
+`canCraftObjects` lists carry `ObjectID.None` placeholders, and the established
+idiom overwrites the first of those instead of adding an entry. Why the
+convention exists is not verified — treat it as the idiom other mods follow.
+
+**Trap: `CraftingAuthoring.OnValidate` silently discards `moddedObjectID`.** Any
+entry with `amount <= 0` is rewritten to a fresh `CraftableObject` carrying only
+`objectID` and `amount = 1` — the string id is gone, with no error and nothing
+in the console. This is Editor-only and does not affect the runtime injection
+below, but it destroys a hand-written modded entry in a prefab. Give every
+modded entry an `amount` of at least 1.
+
+### Injecting a craftable into a vanilla station at runtime
+
+There is a runtime path that bypasses the bake entirely, and **CoreLib is not
+involved in it**: walk the prefab list off the live database, find the station,
+and mutate its authoring list.
+
+| Step | Expression |
+|---|---|
+| 1 | `DatabaseConversionUtility.GetPrefabList(Manager.ecs.pugDatabase)` |
+| 2 | pick the `PrefabData` whose `ObjectInfo.objectID` is the station |
+| 3 | `ObjectInfo.prefabInfos[0].ecsPrefab` |
+| 4 | its `CraftingAuthoring.canCraftObjects` |
+
+**What is not established:** this path is known to work when called from `Init`
+— that is, *after* the bake — and it mutates the authoring list rather than the
+blob. Whether the change survives a further world conversion, or has to be
+reapplied (or guarded against re-applying) the way a `PostConvert` prefix must
+be, is open. Treat the idempotency question above as unanswered here rather than
+as settled either way.
+
+## Naming objects: `ObjectID`, `ObjectType` and class names
+
+**Constant names are not derivable.** `ObjectID.IronWorkBench` capitalises the
+B. Neither the in-game name nor the spelling of a sibling constant tells you how
+a given constant is written — read it out of the enum instead of reconstructing
+it. A wrong constant is at least a compile error, so this one fails loudly.
+
+**Trap: the same identifier exists in unrelated enums.** `ObjectID.Slime` is
+`1630`; `AreaLevel.Slime` is `0`. A grep hit proves the name exists, not that
+you found the enum you meant — and picking the wrong enum fails *silently*,
+which makes it the more expensive of the two mistakes.
+
+**Trap: one identifier, three different things.** `DiggingSpot` resolves to an
+`ObjectType` enum value (`50`), an `ObjectID` enum value (`5530`) **and** an
+`EntityMonoBehaviour` class, with numerically unrelated values. Confirm which of
+the three a search hit belongs to before using its number.
+
+**Biome variants split one logical object over several ObjectIDs.** Digging
+spots occupy `5532`–`5536` for five biome variants beside the generic `5530`,
+while CK's own checks (`objectID == ObjectID.DiggingSpot`, in `Pug.Other` at
+`296438` and `310904`) test only the generic one. Filtering on a single
+`ObjectID` then produces a mod that works in one biome and not in another —
+which reads like a bug everywhere except at the filter. Biome variants are
+common but not universal, so the rule is: **check the enum neighbourhood before
+filtering on one ObjectID.**
 
 ## `PugDatabase.objectsByType` and the `(objectID, variation)` key
 
@@ -124,6 +245,43 @@ found roughly 600 DB-authored non-zero keys spread over 204 objectIDs (about
 mixes paintable decor with pure state-junk — chest open/closed states (driven
 by `variationToToggleTo` / `variationIsDynamic`) and seed growth stages. Any
 catalog that enumerates variations needs a filter, not an assumption.
+
+**Two fields look like a variation count and are not.**
+`RandomObjectEnabler.variations` and `SpriteObject.SpriteAsset.staticVariantCount`
+are appearance-randomisation mechanisms for sprites and GameObjects; neither
+ever sets `ObjectDataCD.variation`, so both are irrelevant to discovering which
+variations an object has. Do not re-chase them as a variant-count source — the
+real palette source for cattle is the `PossibleChildVariation[]` property below.
+
+### Trap: `ObjectDataCD.amount` is not a stack size everywhere
+
+The third field of the key struct is double-purposed. For **equipment**,
+`amount` carries **durability**, not a stack count — a break check reads
+`objectData.amount <= 0` immediately after a durability reduction. Counting a
+full-durability tool as a stack of 50 is a real, shipped bug class.
+
+This is verified for the equipment/durability case; establish which meaning
+applies to the objects you enumerate before reading the field.
+
+### Trap: `ObjectType.NonUsable` is where the raw materials live
+
+Excluding `NonUsable` as engine junk silently drops every ore, bar, raw wood,
+scrap and plain Wood from a catalogue. Measured on 1.2.1.4 the type held **126**
+entries: **117** real materials, all of which carry an icon, and **9** internal
+engine entities with neither an icon nor a localised name (four territory
+spawners, `TheCore`, the `DroppedItem` entity, and three boss-statue prefab
+stubs).
+
+Filter on icon presence, not on the type:
+
+```csharp
+if (objectType == ObjectType.NonUsable && smallIcon == null && icon == null)
+    continue;   // internal engine entity, not an item
+```
+
+The 117/9 split is pinned to 1.2.1.4; the predicate is not. Note that
+ItemBrowser's `ObjectUtility.IsNonObtainable` does not exclude `NonUsable` at
+all, so it is no substitute for this filter.
 
 ## Variations and paint
 
@@ -160,9 +318,10 @@ back to the brush's enum name and strip the `PaintBrush` prefix:
 word, which you then run through your own localisation terms — see
 [Localisation](localisation.md).
 
-**Reading a list-valued property** (for example a breeding palette of possible
-child variations) goes through `Pug.Properties.ObjectPropertiesCD.TryGetList`.
-That type needs `PugProperties.dll` in your runtime asmdef's
+**Reading a list-valued property** goes through
+`Pug.Properties.ObjectPropertiesCD.TryGetList`. The cattle breeding palette is
+one of these: `ObjectPropertiesCD.PossibleChildVariation[]`, property id
+`239678920`. That type needs `PugProperties.dll` in your runtime asmdef's
 `precompiledReferences` — check for it before assuming the type is reachable.
 
 **Floors and walls are tilemap, not entities**, so per-colour tracking of a
@@ -338,6 +497,32 @@ If you ever do need the hash by hand (no decompile available): **MD4 is often
 disabled** in OpenSSL 3 and on macOS, so `hashlib.new('md4')` may simply fail
 — use a pure-Python MD4 implementation, and always validate a new computation
 against a known anchor from your own prefab before trusting derived values.
+
+### Sprite references: the fileID comes from the sprite's name
+
+A prefab references a sub-sprite of a sheet the same way, with a third kind of
+fileID:
+
+```yaml
+m_Sprite: {fileID: <internalID>, guid: <sheet guid>, type: 3}
+```
+
+The `guid` is the sheet's; the `fileID` is that sub-sprite's `internalID` from
+the sheet `.meta`. And that `internalID` is **derived from the sprite's name** —
+a signed int32 taken from the first 4 bytes, little-endian, of
+`SHA1(final sprite name)`. (That is how this repo's sheet generator reproduces
+the IDs Unity assigns, matching Unity's output; it is not a documented Unity
+algorithm.)
+
+Two consequences follow:
+
+- **Regenerating a sheet is safe** as long as the names do not change. Every
+  sprite keeps its ID, and every prefab reference keeps resolving.
+- **Trap: renaming a sub-sprite breaks every prefab reference to it, silently.**
+  The new name yields a new `internalID`; the prefab still carries the old one,
+  and the result is a missing or wrong sprite with no error anywhere. A rename
+  is therefore never a one-step operation — every `m_Sprite` fileID that
+  referenced the sprite has to be updated with it.
 
 The practice of editing prefab YAML itself — nesting, variants, what the Editor
 will and will not preserve — belongs to
