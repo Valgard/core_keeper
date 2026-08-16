@@ -103,10 +103,11 @@ for something that is perfectly legal.
 
 The other half is the SDK's own reflection surface:
 
-| Call | Purpose |
-|---|---|
-| `PugMod.API.Reflection.Invoke(member, target)` | call a private method |
-| `PugMod.API.Reflection.SetValue(member, target, value)` | write a private field |
+| Call | Extension form | Purpose |
+|---|---|---|
+| `API.Reflection.Invoke(member, target, params…)` | `member.InvokeChecked(target, …)` | call a private method |
+| `API.Reflection.GetValue(member, target)` | `member.GetValueChecked(target)` | read a private field |
+| `API.Reflection.SetValue(member, target, value)` | `member.SetValueChecked(target, value)` | write a private field |
 
 Note the type: these take a **`PugMod.MemberInfo`**, not a
 `System.Reflection.MemberInfo` — which is exactly what `GetMembersChecked()`
@@ -122,9 +123,10 @@ static readonly MemberInfo UpdateScrollHeight = typeof(UIScrollWindow)
 API.Reflection.Invoke(UpdateScrollHeight, scrollWindow);
 ```
 
-`API.Reflection` is SDK surface and costs no dependency. The `GetMembersChecked`
-half comes from CoreLib — so the *resolution* step is what pulls that dependency
-in, not the invocation.
+**Both halves are SDK surface, so the whole recipe costs no dependency at all.**
+`GetMembersChecked` and `GetNameChecked` are extension methods in
+`PugMod.SDK.Runtime` (`:602`, `:642`) alongside `API.Reflection` itself — CoreLib
+is not involved anywhere in this.
 
 ## What is not banned
 
@@ -182,19 +184,26 @@ read a public field and a value-type argument.
 
 ## Finding the banned identifier
 
-The verification log reliably gives you **counts** — `Illegal Namespace/Type/
-Member References = N`. Read those first: they tell you which *category* you
-violated, which usually narrows it to one or two candidate calls.
+**The log names the offending member. Grep for it and skip the detective work.**
 
-Whether it ever also names the offending member is unresolved. A second-hand
-account describes lines of the form `Referenced in method body: '<Type>.<Method>()'`
-with an `IL_` instruction, but that record is schematic rather than a captured
-log, so it may reflect the underlying verifier's documented format rather than
-what Core Keeper actually prints. **Check your own log for such a line before
-assuming you have to work without one** — if it is there, it answers the
-question outright and the strategies below are unnecessary.
+A failed verification writes **two** separate error entries, back to back:
 
-Two strategies otherwise, in the order that pays off:
+1. the counts summary — `Illegal Namespace/Type/Member References = N`
+2. a full occurrence report, one line per usage site, of the form
+   `Referenced in method body: '<Type>.<Method>()' at instruction: '<IL_…>'`
+
+The second is not conditional on any setting: `RegisterAssemblyImpl` calls
+`GetAllText(reportAllOccurences: true)` with the flag as a hardcoded literal
+(`RoslynCSharp:3865`), through the same log gate as the summary. If the counts
+line reached your `Player.log`, the naming lines did too.
+
+**Trap: grepping for `Illegal` finds only the summary.** The two entries are
+separate `Debug.LogError` calls, so Unity puts a stack trace between them and the
+detail block scrolls out of a narrow grep window. Search for
+**`Referenced in method body`** instead — that lands on the culprit directly.
+
+Fall back on these only when the log was truncated or the detail entry is
+genuinely absent:
 
 1. **Bisect.** Comment out the most recently added external API call, rebuild,
    reload. If verification passes, that call was it. This is how the
