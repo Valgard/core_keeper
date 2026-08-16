@@ -116,10 +116,27 @@ configuration that early does work — see
 
 ### Why bake time and not the craft path
 
-The obvious alternative — patching the runtime craft — is closed. The path is
-`InventoryUpdateSystem` → `ProcessCraftingJob` → `InventoryUtility.Craft`, and
-it is **double Burst-compiled**: not patchable, and not rescuable with
-`BurstDisabler`. Bake time is the supported seam, not a shortcut.
+The obvious alternative — patching the runtime craft — is closed to a plain
+Harmony patch. The path is `InventoryUpdateSystem` → `ProcessCraftingJob` →
+`InventoryUtility.Craft`, and it is **Burst-compiled twice over**:
+`InventoryUpdateSystem` is a `[BurstCompile] ISystem` (`Pug.Other:408486`), and
+the work sits in the separately `[BurstCompile]`d `IJob` it schedules
+(`ProcessCraftingJob`, `:408848`; scheduled at `:409176`, calling
+`InventoryUtility.Craft` at `:408902`).
+
+**The distinction that matters is which `BurstDisabler` call.**
+`DisableBurstForSystem<InventoryUpdateSystem>()` does not reach it — that takes
+the *system's* `OnUpdate` off Burst and leaves the job it schedules to run its
+own Burst-compiled form. A nested job needs
+`DisableBurstForSystemAndJobs<T>()` (`PugMod.SDK.Runtime:783`), which additionally
+completes the system's job dependency inside the un-Bursted window. That variant
+is verified to make patches fire on another `ISystem` whose work sits in a nested
+`[BurstCompile]` job, but nobody has run it against the craft path — see
+[Harmony and ECS](harmony-and-ecs.md) for how it works and what it costs.
+
+Bake time remains the seam this chapter recommends: one edit at conversion time,
+against a per-craft patch on a hot simulation path that has to be taken off Burst
+to exist at all.
 
 ## Adding an item and making it craftable
 

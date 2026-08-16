@@ -117,11 +117,24 @@ Settling it is cheap: decompile the backup and diff it against a checkout known
 to be stock. A zero-line diff proves it. A backup verified that way is a
 legitimate source and saves the Steam re-verify round trip.
 
-**Trap: an anchor test proves nothing about a file it did not test.** The
-patched DLLs are backed up independently, so their histories differ — verifying
-one backup and then decompiling from a *different* one leaves exactly the gap
-the test was meant to close. Test the backup you intend to use, not a
-convenient neighbour.
+**Trap: an anchor test proves nothing about a file it did not test.** Client and
+dedicated server are separate installs, each carrying its own `Pug.Other`,
+`PugMod.Loader` and `modio.UnityPlugin` backup, and every one of those files has
+its own history. Verifying one and then decompiling from a *different* one leaves
+exactly the gap the test was meant to close.
+
+What the trap demands is a proof per file, not an anchor test per file. Two
+others settle it after the fact, on the checkout you already have:
+
+- **Diff the finished file against a known-stock counterpart.** A zero-line diff
+  settles it outright, whatever backup it came from — that is how the server's
+  `modio.UnityPlugin` is settled without ever anchor-testing its backup.
+- **Read the patched region in the output.** Each patch has a recognisable shape,
+  so its absence is the answer. Stock `StandaloneFilesystem.DeleteDirectory`
+  (`Pug.Other:435027`) reads `Directory.Delete(Rel2Abs(path), recursive: true)`
+  and stock `SystemIOWrapper.DeleteDirectory` (`modio.UnityPlugin:39200`) reads
+  `Directory.Delete(path, recursive: true)` — neither is the iterate-and-delete
+  rewrite the host patches install in their place.
 
 **Trap: decompile from `Managed/`, never from AssetRipper's re-emitted
 `GameAssemblies/`.** The extractor's re-emit changes synthetic variable names
