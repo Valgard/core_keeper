@@ -99,7 +99,11 @@ Manager.ui.mapUI.transform.Find("container/largeMapBorder")
 The cost is roughly a dozen extra Harmony patches for cursor, pause, input,
 mouse mode, hotbar and shortcut suppression — everything route A inherits from
 vanilla — plus the maintenance of those patches across game updates. `moorowl`'s
-`ItemBrowser` is the complete worked template for this route.
+`ItemBrowser` is the complete worked template for this route — read it for the
+*pattern*, but see [the warning about reference
+mods](reverse-engineering.md#every-installed-mod-is-readable-source) before
+lifting an identifier out of it: several of its most API-looking types are its
+own, not the game's.
 
 ### Sprites and pixel alignment
 

@@ -82,6 +82,38 @@ the sandbox by accident is a diagnostic log line. Three ways around it:
   `typeof(UIScrollWindow).GetMembersChecked().FirstOrDefault(x => x.GetNameChecked() == "_scrollable")`
   passes cleanly.
 
+### Reaching a private member: resolving it is only half the job
+
+The lookup above finds a private member. It does not let you *use* it — and
+that gap is worth stating plainly, because stopping there makes the sandbox look
+far more restrictive than it is, and sends people to `skipSafetyChecks: true`
+for something that is perfectly legal.
+
+The other half is the SDK's own reflection surface:
+
+| Call | Purpose |
+|---|---|
+| `PugMod.API.Reflection.Invoke(member, target)` | call a private method |
+| `PugMod.API.Reflection.SetValue(member, target, value)` | write a private field |
+
+Note the type: these take a **`PugMod.MemberInfo`**, not a
+`System.Reflection.MemberInfo` — which is exactly what `GetMembersChecked()`
+hands you, so the two halves fit together directly.
+
+```csharp
+// resolve once, cache in a static — the lookup is not free
+static readonly MemberInfo UpdateScrollHeight = typeof(UIScrollWindow)
+    .GetMembersChecked()
+    .FirstOrDefault(m => m.GetNameChecked() == "UpdateScrollHeight");
+
+// call it
+API.Reflection.Invoke(UpdateScrollHeight, scrollWindow);
+```
+
+`API.Reflection` is SDK surface and costs no dependency. The `GetMembersChecked`
+half comes from CoreLib — so the *resolution* step is what pulls that dependency
+in, not the invocation.
+
 ## What is not banned
 
 Verified by passing live loads:
