@@ -88,6 +88,43 @@ how to choose a value. What matters here is the network consequence.
 So a client-only HUD mod that carries `Server` does not "declare itself
 client-side" — it declares that every server you join must also run it.
 
+### What the server actually sends
+
+Once the connection is up the client sends an empty `ModInfoRequestRPC`, and the
+server answers with one `ModInfoRPC` per loaded mod
+(`Pug.ECS.Components:3682`):
+
+| Field | Type |
+|---|---|
+| `modId` | `long` |
+| `modGuid` | `Hash128` |
+| `modName` | `FixedString32Bytes` |
+| `required` | `bool` |
+| `lastMod` | `bool` |
+
+Identity is matched on `modId` **or** `modGuid` (`Pug.Other:124570`) — the name
+is never compared. `modName` travels only so the missing-mod dialogue has
+something to print; it ends up in `ModCheck.modName`.
+
+**Trap: that name is truncated to 14 characters.** The server fills the field
+with `name.Substring(0, min(UTF8MaxLengthInBytes / 2, len))`
+(`Pug.Other:125924`), and `FixedString32Bytes` holds 29 UTF-8 bytes — so 14
+characters are all that survive. A 26-character internal name such as
+`SimpleCraftingPoolExtender` reaches the player as `SimpleCrafting`. Matching is
+unaffected, so this is not a bug to hunt; but the first 14 characters of
+`metadata.name` are the whole of what a player sees when your mod is the one
+blocking their join.
+
+**If you patch this layer:** `ModInfoRpcSystem.OnCreate` builds its mod list
+exactly **once**, not per request, and — unlike `OnUpdate` and `OnDestroy` in the
+same struct — carries **no `[BurstCompile]` attribute**. On the client,
+`NetworkClientStartSystem.OnUpdate` (`Pug.Other:124905`) is a plain
+`protected override void OnUpdate()` and already holds the client's copy of the
+list; the job that receives the RPCs is an `IJobChunk` and may be Burst-compiled.
+Whether a Harmony patch on `OnCreate` binds early enough on a **dedicated
+server** — where `IMod.Init()` runs after the worlds are built, see below — is
+untested.
+
 ### What a mismatch looks like to the player
 
 It is a hard block, not a warning (~124940-124978). Joining a server that lacks a
@@ -106,6 +143,45 @@ provides.
 This is why an over-broad `requiredOn` costs real usability: it turns "my HUD
 mod does nothing on unmodded servers" into "my HUD mod cannot be installed by
 anyone who plays on public servers".
+
+## Writing patches that behave in multiplayer
+
+### `PlayerController` methods fire for every player
+
+A patch on a `PlayerController` method runs for **every connected player**, not
+just for the one at the keyboard. Singleplayer has exactly one player, so a
+missing check is invisible in the very place mods get tested; in a session with
+several players the same hook does the work — or mutates the same client-side
+state — once per player. Gate every client-side `PlayerController` patch on the
+instance:
+
+```csharp
+if (!__instance.isLocal)
+    return;
+```
+
+### Check `[GhostField]` before assuming a write replicates
+
+Whether an ECS write reaches the other side is decided by the component's
+declaration, not by which world you wrote it in. Read the attribute before
+assuming either way:
+
+| Component | Replicated |
+|---|---|
+| `HealthCD` | yes — declared `[GhostField]`, so a server-side change travels to the client |
+| `PlacementCD` flags | no — not `[GhostField]`s (`Pug.ECS.Components:4297-4314`), so they are world-local state |
+
+What the client then *does* with a replicated value is a separate question: for
+`HealthCD` it is unverified whether a damage-stage sprite or a progress bar
+refreshes on its own.
+
+For `PlacementCD` the consequence runs the other way — writing those flags on one
+side changes nothing on the other. The surrounding code is present on both:
+`EquipmentSystemGroup` (`Pug.Other:418855`) runs in the server **and** the client
+simulation world, and `EquipmentUpdateSystem.UpdateJob` is a scheduled job.
+Whether a Harmony prefix in that area therefore behaves identically across
+singleplayer, a hosted session and a dedicated server is an open question — treat
+it as "can run on either side" and verify on the topology you care about.
 
 ## The dedicated server
 
@@ -130,6 +206,16 @@ is upstream of the hashes NetCode compares. Nothing in the message mentions mods
 
 Diagnose in `Player.log`: hundreds of `ComponentHash[N]` lines followed by
 `Client disconnected because Error/BadProtocolVersion`.
+
+**A missing required dependency is one of the ways the sets drift apart.** If a
+mod declares a `required` dependency that is not installed on the server, the
+loader's `SortMods` drops the *dependent* mod there and says so only in a log
+warning — see [mod anatomy](mod-anatomy.md) for that drop. The two sides then
+hold different mod sets, and the client reports the same
+`Error/BadProtocolVersion`; nothing in it names a dependency. So when you publish
+a mod that depends on another, the server needs **both** installed, not just
+yours — and this is the diagnostically expensive case, because the symptom points
+at the game version while the cause is one absent dependency on one machine.
 
 ### Version filtering is client-side only
 
