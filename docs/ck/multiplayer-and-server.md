@@ -203,3 +203,73 @@ silent no-op on the server, with no error and no log line. `BurstDisabler` is th
 case this bites in practice; the mechanism and the fix belong to
 [Harmony and ECS](harmony-and-ecs.md). If your mod is server-authoritative and
 works alone but not in multiplayer, start there.
+
+## How the server build actually differs
+
+The dedicated server is not a different game. Decompiling both installations of
+the same version and diffing them assembly by assembly, **117 of 122 curated
+assemblies come out identical**; only five differ at all — `Pug.Other`,
+`WorldGen`, `Pug.Objects`, `Pug.Dev` and `PugMod.Loader`. Almost everything you
+learn from the client decompile is therefore true of the server as well.
+
+Within `Pug.Other`, only 43 types differ, and most of that volume is not game
+logic: a generated type table, the client-only account/session layer, the Steam
+platform wrapper and the preferences manager. The modding-relevant residue is
+roughly 450 lines across `NetworkingManager`, `NetworkCommandServerSystem`,
+`SerializeWorldSystem`, `SaveManager`, `ModManager`, `Manager` and `ECSManager`.
+
+The type inventory is lopsided in the direction you would expect: exactly **one
+server-exclusive type**, `NetworkUpdateServerLateSystem` (a `SystemBase` filtered
+to `ServerSimulation`, ordered last in the `SimulationSystemGroup` after
+`GhostSendSystem` and `RpcSystem`), against **18 client-exclusive** ones — the
+account, lobby, authentication and cross-platform session types.
+
+### Why an idle server stops simulating — the actual condition
+
+The `timescale = 0` behaviour described above is not a heuristic. `ECSManager`
+pauses when the world has finished loading, **no connection exists**, and no save
+is in flight; otherwise it resumes. So the server idles precisely when the last
+player disconnects, and resumes the moment one connects.
+
+### The server builds no client world
+
+`CreateClientWorld` is still *defined* in the server build — but it is never
+called, and `SaveClientSystem`, though present as a class, is never registered.
+Only `SaveSystem` runs, on the server world.
+
+**Trap:** the presence of a class in the decompiled server assembly is not
+evidence that it runs. Both of these types survive the build and do nothing.
+Check for the call site, not for the definition.
+
+### Mod scripts extract to a fresh directory every start
+
+| Build | Extract path |
+|---|---|
+| Client | `<temporaryCachePath>/ModLoader/<mod name>` |
+| Server | `<temporaryCachePath>/ModLoader/DedicatedServer/<fresh GUID>` |
+
+The server never reuses a directory, so it accumulates one extract directory per
+start. It also means a stale-extract problem cannot occur there — and any host
+patch that exists to repair a leftover extract directory is inert on the server
+side.
+
+### The server renders, so it needs a graphics device
+
+Both builds rasterise the procedural world texture during generation; they only
+differ in how they read it back — the client asynchronously through a command
+buffer, the server synchronously with a camera render followed by `ReadPixels`.
+
+**This is the reason a dedicated server may run with `-batchmode` but never with
+`-nographics`:** world generation genuinely requires a graphics device, and
+removing it breaks world creation rather than merely suppressing output.
+
+### Achievements and RGB peripherals are compiled out
+
+Two build defines are absent server-side, which removes every achievement
+trigger and every RGB-peripheral event from the compiled code — that difference
+alone accounts for the entire `Pug.Objects` and `Pug.Dev` diff. Correspondingly,
+the RGB SDK library ships with the client installation and not with the server.
+
+A mod that triggers an achievement or drives peripheral lighting is therefore
+calling into something that does not exist on a server. Guard such calls, or
+keep them on the client side of your mod.

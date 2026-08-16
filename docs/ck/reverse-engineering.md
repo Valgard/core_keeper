@@ -93,8 +93,11 @@ IL patches — on macOS/CrossOver hosts it does, see
 bakes those patches in and presents them as the game's own code. A checkout made
 this way silently misrepresents `PugMod.Loader` and `Pug.Other`. Verify the
 install through Steam to restore stock DLLs first, decompile, then re-apply the
-patches to play. Do not trust `.prepatch-backup` files as the stock source; at
-least one of them was itself patched.
+patches to play. Do not trust `.prepatch-backup` files as the stock source on
+faith — at least one has been found already patched. They can, however, be
+*proven* stock cheaply: decompile the backup and diff it against a checkout
+known to be stock. A zero-line diff settles it. Backups verified that way are
+a legitimate source, and avoid a Steam re-verify round trip.
 
 **Trap: decompile from `Managed/`, never from AssetRipper's re-emitted
 `GameAssemblies/`.** The extractor's re-emit changes synthetic variable names
@@ -105,6 +108,23 @@ lines.
 assemblies decompile identically for client and server. Only `Pug.Other`,
 `WorldGen`, `Pug.Objects`, `Pug.Dev` and `PugMod.Loader` genuinely differ — for
 everything else the client checkout already *is* the server's code.
+
+**Trap: in a partial server checkout, a failed grep means "identical", not
+"absent".** Because only the differing assemblies are kept, searching the server
+directory for anything else returns nothing — which reads exactly like the type
+does not exist on the server. For everything outside those five assemblies, the
+client checkout is the authority. Do not search both trees.
+
+**Trap: MD5 and file size are both worthless as difference indicators.** Two
+separate Unity builds stamp different MVIDs and timestamps, so the great
+majority of shared DLLs differ by hash while being functionally identical. The
+converse also happens: an assembly can be *smaller* on one side and still
+decompile identically, because PE sections pad to a fixed boundary. Only a
+decompile diff answers the question.
+
+**Maintenance:** regenerate a partial server checkout after every game update.
+Otherwise the retained files are compared against a parent directory that has
+moved on, and plain version drift reads as a client/server difference.
 
 ### Open-source dependencies: read the source, not a decompile
 
