@@ -91,6 +91,29 @@ is **not** evidence that your hooks are live. It comes from the `AndJobs`
 variant's dependency patch, which is applied regardless of the per-world
 snapshot — so it appears even while the bypass is inactive.
 
+### What it costs
+
+Taking a system off Burst means its `OnUpdate` runs as managed code, which
+sounds expensive enough to worry about. In practice it has not been:
+
+- A mod that Burst-disables `EquipmentUpdateSystem` showed **no perceptible
+  frame cost** in the operation that hammers it — laying rails while bridges are
+  auto-placed underneath across pits and water.
+- Several mods on the same installation held systems un-Bursted at once without
+  the sum becoming noticeable.
+
+Two honest caveats. This is **play-testing, not measurement** — no profiler
+numbers back it, so treat it as "do not pre-optimise against this", not as a
+guarantee. And attributing a slowdown correctly is harder than it looks: the one
+place that did feel slower was a large base, which is also where an unrelated
+inventory-scanning mod does its heaviest work. A cost that appears only where two
+mods overlap belongs to neither until you have isolated it.
+
+The scaling factor that actually matters is **how often the system runs and how
+much it does per tick**, not the Burst switch itself. A per-input-tick system is
+cheap to un-Burst; a system that walks large entity sets every frame is where you
+should look first if something does get slow.
+
 ## The dedicated-server trap
 
 **`DisableBurstForSystem<T>()` in `IMod.Init()` is a silent no-op on a dedicated
