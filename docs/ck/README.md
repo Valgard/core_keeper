@@ -34,6 +34,8 @@ symptom, not the topic.
 | Your text element is invisible until the string changes | [Prefabs and rendering](prefabs-and-rendering.md) — PugText self-deactivation |
 | Players are blocked from joining your server | [Multiplayer and server](multiplayer-and-server.md), [Mod anatomy](mod-anatomy.md) — `requiredOn` |
 | "Wrong game version" between client and server | [Multiplayer and server](multiplayer-and-server.md) — it is a mod-set mismatch |
+| Dedicated server fails to generate a world | [Multiplayer and server](multiplayer-and-server.md) — the server renders, so `-nographics` breaks it |
+| A call works in single-player but not on a server | [Multiplayer and server](multiplayer-and-server.md) — some subsystems are compiled out server-side |
 
 ## Start from the task
 

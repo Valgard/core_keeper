@@ -98,8 +98,14 @@ server.** No error, no log line; the prefix simply never fires. The mod works in
 single-player and does nothing in multiplayer.
 
 The cause is an inverted lifecycle. `BurstDisabler.AddWorld` is called from
-exactly one place, `ECSManager.StartEcs` (`Pug.Other:2675`), and it **snapshots**
-the types registered up to that moment. Nothing ever back-fills it.
+exactly one place, `ECSManager.StartEcs` (`Pug.Other:2675` in the client build,
+`:2656` in the server build), and it **snapshots** the types registered up to
+that moment. Nothing ever back-fills it.
+
+Note what this does *not* mean: the call is present and runs on both builds,
+immediately after authoring-data conversion in each. The server does not skip
+it. So "`AddWorld` never runs server-side" is the wrong diagnosis — it runs, it
+is simply reached before your `Init()` had a chance to register anything.
 
 | Process | Order (measured in the logs) | Result |
 |---|---|---|
