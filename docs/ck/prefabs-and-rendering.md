@@ -409,3 +409,67 @@ geometry in general is covered by [world and mechanics](world-and-mechanics.md).
 `isInGame && player != null`. The player object already exists at `OnOccupied` while the
 load screen is up, and it survives the exit transition — a raw player-null check lets a
 world-anchored HUD flash over teleport and Save-&-Quit load screens.
+
+## Why a mod HUD stays invisible
+
+Three unrelated mistakes produce the same complaint — "my HUD element exists,
+it is active, and I cannot see it". They are distinguishable, and the
+distinguishing signal is `SpriteRenderer.isVisible`.
+
+| Cause | `isVisible` | What is happening |
+|---|---|---|
+| Wrong layer | `true` | The renderer is fine; the camera is not drawing that layer |
+| Wrong Z | `false` | Outside the uiCamera frustum, so it is culled |
+| Scaled to nothing | `true` | Drawn at zero size |
+
+**`isVisible == false` means culled, not occluded.** Nothing in this game hides
+a HUD element behind something else — if the flag is false, the element is
+outside the frustum or on an unrendered layer. That single check separates the
+first two rows from the third.
+
+### Layer: the HUD renders on 27, not on 5
+
+During ordinary gameplay the uiCamera draws the **HUD** layer. Layer 5 ("UI") is
+*not* in its culling mask then — it is switched on only for the modal UI path.
+So a HUD element built like a UI window renders reliably in menus and never
+during play.
+
+`CameraManager.ShowHUD(bool)` is the mechanism, and it operates on exactly that
+one layer:
+
+```csharp
+if (show) uiCamera.cullingMask |=  1 << ObjectLayerID.HUD;
+else      uiCamera.cullingMask &= ~(1 << ObjectLayerID.HUD);
+```
+
+Put **every** GameObject of the HUD prefab on the HUD layer — in the prefab via
+the `m_Layer` field, at runtime via `gameObject.layer =
+LayerMask.NameToLayer("HUD")`. `ObjectLayerID` (`Pug.Base`) resolves its layers
+by name rather than hard-coding numbers, so use the name and let it resolve; in
+stock Core Keeper it comes out as 27.
+
+Doing this buys a feature for free: because the whole gameplay HUD hangs off
+that one layer, `ShowHUD(false)` culls your element along with the rest during
+cutscenes and loading. No suppression code of your own.
+
+### Z: the parent sits at −10, so content needs local z = 10
+
+`IngameUI` sits at world z = −10, which is outside the uiCamera frustum. A child
+left at local z = 0 inherits that position and is never rendered. Give the HUD
+content **local z = 10**, bringing it to world z ≈ 0 — the plane the camera
+actually renders, and the same z CoreLib moves modal UIs to when it opens them.
+
+### Never scale a mod HUD with `CalcGameplayUITargetScaleMultiplier`
+
+`Manager.ui.CalcGameplayUITargetScaleMultiplier()` is CK's own idiom — the
+vanilla health bar and its siblings assign it to `localScale` every frame. For a
+mod HUD mounted under `IngameUI` it returns **`(0, 0, 0)`**. Used as a scale
+source it collapses the element to nothing, while every other diagnostic still
+looks healthy.
+
+Drive visibility with an explicit boolean instead of a scale. Which predicate
+depends on what the element does: a world-anchored element needs the stricter
+playability gate described above, while an element that merely has to stay out
+of the way of open interfaces can gate on `!Manager.ui.isAnyInventoryShowing &&
+!Manager.menu.IsAnyMenuActive()` in addition. Toggle the root with `SetActive`,
+and only when the value changes.

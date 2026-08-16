@@ -19,9 +19,15 @@ raycast into Layer 5** and therefore only ever finds a `SpriteRenderer` with a
 
 The canonical shape of a modded UI object:
 
+This shape describes an **interactive UI window** — something the player opens,
+clicks and navigates. A passive HUD element belongs on a different layer and
+follows different rules; see [why a mod HUD stays
+invisible](prefabs-and-rendering.md#why-a-mod-hud-stays-invisible) before
+building one.
+
 | Element | What it must be |
 |---|---|
-| Layer | `5` (UI) |
+| Layer | `5` (UI) — windows only; a HUD element goes on `27` |
 | Renderer | `SpriteRenderer` — never `Image` |
 | Transform | plain `Transform` — never `RectTransform` |
 | Sorting | a custom Sorting Layer plus an explicit `sortingOrder` |
