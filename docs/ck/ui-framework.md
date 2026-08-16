@@ -36,9 +36,11 @@ building one.
 | Root class | `class MyUI : UIelement, IModUI` — inheritance *and* interface |
 | Navigation | chain neighbours via `UIelement.bottomUIElements` / `topUIElements` |
 
-The `bottomUIElements` / `topUIElements` chaining is what gives you controller
-navigation and correct `UIMouse` integration. An element that is not in the
-chain is drawn but not reachable.
+The four `UIelement` neighbour lists — `top`, `bottom`, `left` and
+`rightUIElements` — feed `UIelement.GetAdjacentUIElement` and nothing else: they
+are **directional keyboard and controller navigation**. An element left out of
+the chain still works with the mouse but cannot be reached with a D-pad or the
+arrow keys. Mouse reachability is a separate mechanism entirely — see below.
 
 **Trap: there is no `"UI"` sorting layer, and "layer" means two unrelated
 things here.** `TagManager.asset` defines no sorting layer named `"UI"` — CK UI
@@ -82,13 +84,19 @@ dead weight; and `ScrollBar.UpdateHandleSize` overwrites the handle collider's
 `y` every frame, so authoring that value is pointless.
 
 **Hover, not click, drives selection.** `RadicalMenu.SelectOptionIndex` fires
-`OnDeselected()` on mere hover exactly as it does on arrow-key navigation, and
-`TrySelectNewElement` contains a hardcoded
-`Manager.input.activeInputField.Deactivate(commit: false)`. Moving the mouse
-into empty space calls `Manager.ui.DeselectAnySelectedUIElement()` and sets
-`selectedIndex = -1` regardless of any override of yours. What that does to a
-field the player is editing is in
-[text rendering and text input](#text-rendering-and-text-input).
+`OnDeselected()` on mere hover exactly as it does on arrow-key navigation.
+Moving the mouse into empty space calls
+`Manager.ui.DeselectAnySelectedUIElement()` and sets `selectedIndex = -1`
+regardless of any override of yours. What that does to a field the player is
+editing is in [text rendering and text input](#text-rendering-and-text-input).
+
+**Clicking a *different* element is a second, separate path — and it discards.**
+`TrySelectNewElement` opens with a hardcoded
+`Manager.input.activeInputField.Deactivate(commit: false)`, but that line is
+gated on its `interactDownThisFrame` argument, which the caller fills with
+`WasButtonPressedDownThisFrame(UI_INTERACT)` — a real click, never a hover. So
+hover-deactivation and click-deactivation are two mechanisms with two different
+remedies; only the first one is what `dontDeactivateOnDeselect` suppresses.
 
 ### Subclassing a CK UI component
 
@@ -172,10 +180,15 @@ always-on element is instead instantiated by the mod itself under
 for that are in [prefabs and rendering](prefabs-and-rendering.md).
 
 **Trap: the `root` child is the visibility carrier; the parent stays active
-forever.** CoreLib keeps the GameObject carrying the
-`Window` / `UIelement` / `IModUI` component active for the window's whole life,
-and `HideUI` toggles `root.SetActive(false)` on the **child**. So any guard
-meaning "only while the window is open" has to test `root.activeSelf`.
+forever.** CoreLib never touches the GameObject carrying the
+`Window` / `UIelement` / `IModUI` component: it instantiates the prefab once in
+its `UIManager.Init` postfix and leaves it active for the window's whole life.
+Visibility is entirely your own code's job — `ShowUI()` and `HideUI()` are
+`IModUI` methods *you* implement, and they enable and disable `Root`, the
+**child**; CoreLib only calls `HideUI()` from its
+`HideAllInventoryAndCraftingUI` postfix. So any guard meaning "only while the
+window is open" has to test `root.activeSelf` (or the interface's own
+`IsVisible()`, which returns `Root.activeInHierarchy`).
 `gameObject.activeSelf` is always true, never gates anything, and the guarded
 code — usually a per-frame path — keeps running while the window is hidden.
 
@@ -250,7 +263,7 @@ naive attempt in its own way:
 | The gameplay HUD | `Manager.ui.TemporarilyDisableGameplayUI()` / `EnableTemporarilyDisabledGameplayUI()` |
 | The keyboard-shortcuts panel (`ShortCutsWindow`) | a per-frame `LateUpdate` **prefix** calling its public `HideUI()` |
 | Button hints (`InGameButtonHintsUI`) | a `LateUpdate` **prefix** forcing its public `container` inactive |
-| ESC opening the pause menu | force `MenuManager.IsPauseDisabled` true while the window is open |
+| ESC opening the pause menu | a **postfix** on `MenuManager.IsPauseDisabled` forcing `__result = true` |
 
 **Never use `Manager.prefs.hideInGameUI` for the HUD.** It `SetDirty()`s to the
 player's prefs on disk — the same class of damage as writing through
@@ -266,6 +279,14 @@ is not gated by it. The patch does bind:
 `HideUI()` is public. `InGameButtonHintsUI` needs its own prefix for a different
 reason: its `LateUpdate` re-asserts `container.SetActive(showKeyHints)` every
 frame, so a one-shot hide is simply overwritten.
+
+`IsPauseDisabled` is **not** a flag you can set. It is a private method
+computing an expression over `preventPausing`, scene state,
+`isAnyInventoryShowing` and two frame latches, so the patch has to name it as a
+string — `[HarmonyPatch(typeof(MenuManager), "IsPauseDisabled")]`; the usual
+`nameof` form does not reach a private member. The public
+`MenuManager.PreventPausing(bool)`, which writes the `preventPausing` field that
+expression reads, is the blunter alternative.
 
 The list applies to any modal mod window. On route A, *why* the shortcuts panel
 and the inventory-context HUD are up at all is CoreLib forcing
@@ -570,7 +591,7 @@ Five details you must handle yourself:
 
 | Detail | Why |
 |---|---|
-| leave the serialized `trim` at `0` | otherwise leading and trailing spaces are stripped on every keystroke |
+| **set** the serialized `trim` to `0` — CK's default is `true` | `AppendString` runs `s.Trim()` over the frame's `Input.inputString`, so with the default a typed space is trimmed to nothing and never arrives at all |
 | set `dontDeactivateOnDeselect = true` | CK selection is hover-based, so the moment the cursor leaves the collider `OnDeselected` → `Deactivate` fires and typing stops |
 | call `Deactivate(false)` when you close | otherwise **WASD stays blocked after the window is gone** |
 | clear `maxWidth` from code, not the prefab | `Awake` sets `pugText.maxWidth = maxWidth + (dontAllowNewLines ? 1 : 0)`, forcing the crash path above — a prefab `maxWidth = 0` is a no-op |
@@ -758,9 +779,19 @@ per-platform glyph**. There is no clean way to add an eighth.
 
 For a custom prompt — "[Y] Toggle view" and the like — **roll your own hint
 object**: a `PugText` plus a sprite, parented under your own menu, toggled with
-`SetActive` from `OnSelectedOptionChanged`. Do not hijack the closed enum;
-mutating the shared singleton means fighting a per-frame diff, and it breaks the
-moment vanilla wants the slot back.
+`SetActive` from `OnSelectedOptionChanged`. Do not hijack the closed enum — it
+breaks the moment vanilla wants the slot back.
+
+**Trap: never call `base.GetHelpButtonsToShow().Add(...)`.** The base
+implementation returns `Manager.menu.defaultHelpButtons` — a **public field on
+the menu-manager singleton**, and the very list instance the default path hands
+to every other menu. A single `Add` therefore mutates global state permanently:
+from the first time your UI opens, the pause menu, the options menu and the main
+menu all show your extra prompt, and the damage outlives your menu. Copy the
+list before you touch it. `MenuHelperButtons.UpdateShowingButtons` stores the
+reference it is handed and compares the next frame's list against it with
+`SequenceEqual`, so an in-place edit is invisible to that check and the bar
+stops refreshing as well.
 
 ## Which input actions you can use inside a menu
 
@@ -808,14 +839,20 @@ because `Awake` does that copy, a mod never needs to write `_scrollable` at all:
 the older three-call pattern (reflect `_scrollable` into place,
 `UpdateScrollHeight`, `SetScrollValue`) collapses to two calls.
 
-**`UpdateScrollHeight` is private, and must run before the reset.** It computes
+**`UpdateScrollHeight` is private, and must run before you reposition.** It computes
 `scrollHeight = <full content height> − scrollWindow.windowHeight`, and it is
 private, so a mod invokes it by reflection. After **any** change to what your
 `IScrollable` reports — row count, row height — the sequence is
-`UpdateScrollHeight` **first**, then `ResetScroll()`. The order matters, and
-skipping the first leaves a stale scroll range that lets the list scroll past its
-end or stop short. A virtualising list changes its reported height on every open,
-so this sits on the hot path.
+`UpdateScrollHeight` **first**, then the reposition. The staleness is not
+lasting: `UIScrollWindow.LateUpdate` calls `UpdateScrollHeight()` itself every
+frame, immediately before `UpdateScroll()`. But it lasts for the frame your own
+call runs in, and everything that reads `ScrollHeight` in that frame works off
+the old content height — `SetScrollValue(t)` for any `t` between the ends,
+`MoveScroll`'s clamp to `[minScrollPos, ScrollHeight]`, and the scrollbar's
+`VisibleRatio`. `ResetScroll()` is the one call that does not care: it is
+`SetScrollValue(1f)`, and the lerp lands on `minScrollPos` whatever the height
+says. A virtualising list changes its reported height on every open, so this
+sits on the hot path.
 
 **Trap: `SetScrollValue(t)` runs backwards from expectation.** It is a lerp
 anchor where `t = 0f` is scroll-**bottom** (`ScrollHeight`) and `t = 1f` is
