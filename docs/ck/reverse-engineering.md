@@ -93,11 +93,24 @@ IL patches — on macOS/CrossOver hosts it does, see
 bakes those patches in and presents them as the game's own code. A checkout made
 this way silently misrepresents `PugMod.Loader` and `Pug.Other`. Verify the
 install through Steam to restore stock DLLs first, decompile, then re-apply the
-patches to play. Do not trust `.prepatch-backup` files as the stock source on
-faith — at least one has been found already patched. They can, however, be
-*proven* stock cheaply: decompile the backup and diff it against a checkout
-known to be stock. A zero-line diff settles it. Backups verified that way are
-a legitimate source, and avoid a Steam re-verify round trip.
+patches to play.
+
+**A `.prepatch-backup` is not stock by definition — it is stock by history.** It
+holds whatever the *last* patch run found in place. Run the patcher against an
+already-patched DLL and the backup it writes is patched too; run it after a
+Steam integrity verification and the backup is stock. This is why the same file
+can be untrustworthy at one point in time and a perfectly good source at
+another, and why the question can only be settled per file and per moment.
+
+Settling it is cheap: decompile the backup and diff it against a checkout known
+to be stock. A zero-line diff proves it. A backup verified that way is a
+legitimate source and saves the Steam re-verify round trip.
+
+**Trap: an anchor test proves nothing about a file it did not test.** The
+patched DLLs are backed up independently, so their histories differ — verifying
+one backup and then decompiling from a *different* one leaves exactly the gap
+the test was meant to close. Test the backup you intend to use, not a
+convenient neighbour.
 
 **Trap: decompile from `Managed/`, never from AssetRipper's re-emitted
 `GameAssemblies/`.** The extractor's re-emit changes synthetic variable names
