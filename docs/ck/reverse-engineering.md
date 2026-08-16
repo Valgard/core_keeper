@@ -53,8 +53,8 @@ for a quick look that does not deserve a multi-megabyte file in the checkout.
 **What to decompile.** The useful default is the game-authored core: every
 `Pug.*` assembly, all the ECS gameplay assemblies, `PugMod.*`, `ScriptableData`,
 `ObjectLookup`, `WorldGen`, `ZipSaveFolder` — the surface a mod binds against.
-Beyond that, six third-party libraries matter for modding and are worth having
-locally:
+Beyond that, a handful of third-party libraries matter for modding and are worth
+having locally:
 
 | Assembly | Why you want it |
 |---|---|
@@ -72,8 +72,8 @@ with the same command.
 
 **Grep, do not read.** The big files are big: `Pug.Other` is ~16 MB / ~441k
 lines, `Pug.ECS.Components` ~4 MB (the `*CD` component-data structs),
-`Pug.Objects` ~1 MB, and `Pug.Base` holds the `ObjectInfo`, `ObjectType`,
-`Rarity` and `ObjectCategoryTag` enums.
+`Pug.Objects` ~1 MB, and `Pug.Base` holds the `ObjectInfo` class plus the
+`ObjectType`, `Rarity` and `ObjectCategoryTag` enums.
 
 **The ECS naming triple makes those greps precise.** An authored
 `<X>Authoring` MonoBehaviour bakes through an `<X>Converter` into the runtime
@@ -103,11 +103,15 @@ install through Steam to restore stock DLLs first, decompile, then re-apply the
 patches to play.
 
 **A `.prepatch-backup` is not stock by definition — it is stock by history.** It
-holds whatever the *last* patch run found in place. Run the patcher against an
-already-patched DLL and the backup it writes is patched too; run it after a
-Steam integrity verification and the backup is stock. This is why the same file
-can be untrustworthy at one point in time and a perfectly good source at
-another, and why the question can only be settled per file and per moment.
+holds whatever some earlier patch run found in place. The patcher used here
+refuses to make that worse: it writes or refreshes a backup only when the live
+DLL was fully unpatched, and against a part-patched one it leaves the backup
+alone and tells you to Steam-verify instead. What no such guard can repair is a
+backup that predates it, or one written against an older game version and never
+refreshed because the patcher was not re-run while the DLL was stock. This is
+why the same file can be untrustworthy at one point in time and a perfectly good
+source at another, and why the question can only be settled per file and per
+moment.
 
 Settling it is cheap: decompile the backup and diff it against a checkout known
 to be stock. A zero-line diff proves it. A backup verified that way is a
@@ -135,12 +139,13 @@ directory for anything else returns nothing — which reads exactly like the typ
 does not exist on the server. For everything outside those five assemblies, the
 client checkout is the authority. Do not search both trees.
 
-**Trap: MD5 and file size are both worthless as difference indicators.** Two
-separate Unity builds stamp different MVIDs and timestamps, so the great
-majority of shared DLLs differ by hash while being functionally identical. The
-converse also happens: an assembly can be *smaller* on one side and still
-decompile identically, because PE sections pad to a fixed boundary. Only a
-decompile diff answers the question.
+**Trap: a differing MD5 or file size proves nothing.** Two separate Unity builds
+stamp different MVIDs and timestamps, so 190 of the 356 shared DLLs differ by
+hash while being functionally identical. The converse also happens: an assembly
+can be *smaller* on one side and still decompile identically, because PE
+sections pad to a fixed boundary. The test only runs one way — an **identical**
+hash does settle identity, and that alone clears the other 166 for free. For
+everything that differs, only a decompile diff answers the question.
 
 **Maintenance:** regenerate a partial server checkout after every game update.
 Otherwise the retained files are compared against a parent directory that has
@@ -200,17 +205,19 @@ that mod's, and you need the native mechanism underneath it.
 that same check even on identifiers that are unmistakably the game's, because a
 mod's `Scripts/` say what Core Keeper exposed when its author last touched them,
 not what it exposes now. PermaBreak ships a patch on
-`PlayerController.ReduceDurabilityOfEquipment` — a method the current build no
-longer has; the durability reduction that actually runs is in
-`PlayerEquipment.ChangeDurabilitySystem.OnUpdate`. A patch target lifted from
-another mod can be plausible, confidently documented and still bind against
+`PlayerController.ReduceDurabilityOfEquipment` — a method `PlayerController` no
+longer has. The name itself is still in the build, which is what makes the
+mistake easy to miss: it now lives as a private job method inside
+`PlayerEquipment.ChangeDurabilitySystem`, whose `OnUpdate` is where the
+durability reduction actually runs. A patch target lifted from another mod can
+be plausible, confidently documented, greppable — and still bind against
 nothing.
 
 ## Unpacking the game's resources
 
 Prefabs, sprites, textures and every authored MonoBehaviour live in
 `resources.assets` (~143 MB, plus a ~227 MB `.resS` stream): 130,172 objects, of
-which 55,492 are MonoBehaviours, 7,918 Sprites and 6,954 Texture2Ds.
+which 55,493 are MonoBehaviours, 7,918 Sprites and 6,954 Texture2Ds.
 
 **Trap: the obvious Python route does not work.** UnityPy alone cannot read
 Core Keeper MonoBehaviours, because the shipped build has **stripped type
