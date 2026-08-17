@@ -278,7 +278,11 @@ has registered a quit-blocking callback that waits on mod.io async operations.
 Those operations never complete, because the init crash never let them start, so
 the quit hangs forever. What you see is a frozen loading screen.
 
-Tells in `Player.log`:
+**The four lines everyone greps for are not the tell — a clean exit logs all
+four too.** The block is deliberate: `ModManager`'s handler logs
+`waiting for ModIO shutdown`, calls `ModIOUnity.Shutdown(…)` and returns **false
+whenever mod.io is initialised**, and `Manager`'s dispatcher reports every
+refusal by handler type before giving up on the attempt.
 
 ```text
 Got quit request
@@ -287,32 +291,59 @@ Exit blocked by ModManager
 Quit blocked
 ```
 
-plus a sibling `UnityCrashHandler64.exe --attach <pid>` process next to
-`CoreKeeper.exe`. SIGTERM is absorbed by the deadlock; recovery needs SIGKILL on
-all of `CoreKeeper.exe`, `UnityCrashHandler64.exe` and `crashpad_handler.exe`.
+On a healthy exit the shutdown callback then sets `_pendingQuit`, the next
+`ModManager.Update()` calls `Manager.QuitGame()` again, and a **second**
+`Got quit request` follows on the very next line — this time unblocked, so
+`Running quit handlers` comes right after it and the log runs on through
+`CloudSyncUp`, `PlatformManager was destroyed` and the Input-System shutdown
+lines.
+
+**The deadlock is that second pair never arriving.** The mod.io shutdown
+callback never fires, so no retry is ever scheduled and the log simply stops
+after `Quit blocked`. Check what follows those four lines, not that they are
+there.
+
+Alongside that, a sibling `UnityCrashHandler64.exe --attach <pid>` process sits
+next to `CoreKeeper.exe`. SIGTERM is absorbed by the deadlock; recovery needs
+SIGKILL on all of `CoreKeeper.exe`, `UnityCrashHandler64.exe` and
+`crashpad_handler.exe`.
 
 ## The game window simply closes at the loading screen
 
 A hard, native crash before the main menu — the window disappears, with no
-managed exception and no hang. **Suspect Steam Cloud, not your mods.**
+managed exception and no hang. It typically appears right after you changed
+assets, which is exactly why it gets blamed on the build.
 
-A Steam Cloud save conflict crashes Core Keeper at the pre-main-menu loading
-screen. It typically appears right after you changed assets, which is exactly
-why it gets blamed on the build.
+**Check Steam Cloud before you suspect your mods** — it is one grep, and a Steam
+Cloud save conflict has been the cause of exactly this symptom at least once:
+verified on a CrossOver/Wine host, where the game crashed at the pre-main-menu
+loading screen until cloud sync was switched off. That is one incident on one
+host, so treat it as the cheap first check rather than as the identification.
+The conflict arises from, for instance, starting the game on a second device or
+an interrupted sync.
 
 **Diagnosis in `Player.log`, very early and *before* the mod load:** a
 `CloudSyncDown` block with diverging local/cloud timestamps for all save files
 (`Admins.json`, `PlayerBans.json`, `worldgenparams/*`, `worldinfos`, `worlds/*`,
-`saves/*`, `maps`), followed by 20+ lines of
+`saves/*`, `maps`). That block is the host-independent part — grep for
+`CloudSyncDown`.
+
+In the observed case it was followed by 20+ lines of the host failing to write
+the conflict backups:
 
 ```text
 Write failed: Erfolg : '…\cloudconflicts\…pugbackup' (-2147024896)
 ```
 
-The conflict arises from, for instance, starting the game on a second device or
-an interrupted sync.
+Those write failures are a Wine artifact
+([macOS / CrossOver](../macos-crossover-loader.md)), and the word after
+`Write failed:` is the Windows locale's name for `ERROR_SUCCESS` — `Erfolg`
+because that host runs a German locale. Grep the `cloudconflicts` path, not the
+message; on a
+host that writes the backups successfully, the `CloudSyncDown` block and the
+diverging timestamps are all this entry gives you to go on.
 
-**Why it is not a mod:**
+**Why a mod is the wrong suspect once you see that block:**
 
 - A native crash (window closes) is not a managed exception. A mod NRE or
   `CompileFailed` would be logged and the game would keep running.
@@ -401,9 +432,10 @@ Then close Unity and delete `CoreKeeperModSDK/Library/` to force a clean
 re-import.
 
 **Enabling the managed DLL is safe although `libsteam_api.dylib` is absent on
-macOS.** The Steamworks references are confined to the Editor's Steam Workshop
-upload tab; the runtime mod contains none, so nothing reaches the missing native
-library at play time.
+macOS.** The runtime mod contains no Steamworks references, so nothing that ships
+reaches the missing native library at play time. The edit makes the SDK compile;
+it does not make Steam Workshop upload work — the Editor's upload tab would still
+fail on macOS for want of that native library.
 
 This is an SDK-level, Editor-only issue: it is inert on Windows and Linux Editor
 hosts, unrelated to the Wine/CrossOver game host, and it costs one fix per SDK
