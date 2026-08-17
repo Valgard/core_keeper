@@ -174,10 +174,18 @@ Every object whose data has `appearInMapUI: 1` is drawn into the tile in its own
 colour** — and note the map is the *only* place that colour appears: the world
 save does not store it.
 
-An object occupies a pixel block matching its `prefabTileSize` — a boulder is a
-clean 2×2 cluster. Connected-component clustering per colour therefore recovers
-individual objects, and the cluster shape doubles as a correctness check: if
-your clusters are not the expected size, your decode is wrong.
+An object is drawn over the tiles it occupies, so a boulder — 2×2 and square —
+comes out as a clean 2×2 cluster, and connected-component clustering per colour
+recovers individual boulders.
+
+**Do not turn the cluster shape into a decode check.** The drawing loop
+(`UpdateAppearanceInMapUI`) uses the *direction-adjusted* size and corner offset,
+not the raw ones: `EntityUtility.GetPrefabSize` returns `prefabTileSize` verbatim
+only for an object without a `DirectionCD`, and otherwise routes it through
+`DirectionCD.GetPrefabTileSize`, which **transposes** it when
+`abs(direction.x) > 0.5`. A square prefab is unaffected — which is why the
+boulder example holds — but a 3×1 prefab is drawn 3×1 or 1×3 depending on how it
+was placed, so an unexpected cluster shape says nothing about your decode.
 
 ### Tile index and in-tile position
 
