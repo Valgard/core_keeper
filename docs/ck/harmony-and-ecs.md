@@ -348,10 +348,9 @@ list in `state.json` (see
 [../macos-crossover-loader.md](../macos-crossover-loader.md)) and count your own
 patch's invocations in both states.
 
-Do not plan around an upstream fix either. Checked in August 2026, the
-PlacementPlus repository (`limoka/CoreKeeperMods`) had merged no PR since early
-2025. Treat that as a dated observation rather than a permanent property — but
-"upstream will fix it" is not something you can ship.
+And do not design around a change in the other mod. Whatever you ship has to
+work against the version players actually have installed, so a fix that depends
+on someone else's release is not a fix you can ship.
 
 Four strategies exist for a patch target another mod replaces, and three of them
 lose:
