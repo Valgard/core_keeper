@@ -88,11 +88,13 @@ An answer found in a decompile is true **for that build only**. Note the exact
 version string (e.g. `1.2.1.5-8be0`) with the checkout and re-decompile after a
 game update if a type you rely on may have moved.
 
-In practice a checkout ages slowly. Across the `1.2.1.4` → `1.2.1.5` update,
-119 of 121 assemblies were byte-identical; only `Pug.Other` (42 lines) and
-`PugMod.Loader` (4 lines) differed at all — and that difference was locally
-applied host patches disappearing, not the game changing. The point of the
-version stamp is not that drift is large; it is that you cannot tell without it.
+Between patch releases the drift can be nil. Across the `1.2.1.4` → `1.2.1.5`
+update, 119 of 121 assemblies were byte-identical; only `Pug.Other` (42 lines)
+and `PugMod.Loader` (4 lines) differed at all — and that difference was locally
+applied host patches disappearing, not the game changing. That is **one**
+measured update, and only at the fourth version component; nothing here says
+anything about a minor or major one. The point of the version stamp is not that
+drift is large; it is that you cannot tell without it.
 
 **Trap: decompile from stock DLLs.** If the installation carries locally applied
 IL patches — on macOS/CrossOver hosts it does, see
@@ -185,7 +187,7 @@ code rather than inferring from behaviour. Two locations hold the same sources:
 | Location | What it is |
 |---|---|
 | `…/mod.io/5289/mods/<modId>_<modfileId>/Scripts/` | The downloaded mod file as published — the `<modfileId>` pins the exact release |
-| `ModLoader/<ModName>/Scripts/` | What the loader extracted from it to compile |
+| `ModLoader/<ModName>/Scripts/` | What the loader extracted from it to compile — **client only**. A dedicated server extracts to `ModLoader/DedicatedServer/<GUID>/` instead, with a fresh GUID minted per mod load: the path differs on every start, and its name does not say which mod it holds |
 
 The exception is a mod that ships a **precompiled assembly** rather than
 sources — an asset-only mod, or one declaring a `.dll` under
@@ -271,13 +273,24 @@ All 55,493 MonoBehaviours come through, **most of them embedded inside
 remaining 21.1 % are fieldless ECS tag components (`IndestructibleAuthoring`
 and its kind) — that is correct output, not a failure.
 
-**Where a vanilla UI widget lives.** CK's HUD and menu widgets are not
-individual prefabs; they are subtrees inside one giant
+**Where a vanilla UI widget lives — check both places.** A menu is ordinarily
+its own file. The export carries 4,607 `.prefab` files, 4,172 of them standalone
+in `Resources/Assets/GameObject/`, and that is where `SettingsMenu.prefab`,
+`Pause Menu.prefab`, `UISettings.prefab`, `ControlMappingMenu.prefab` and
+`CreateWorldMenu.prefab` sit — 17 of the standalone prefabs have "Menu" in the
+name. `utils/import_vanilla_prefab.py` takes exactly such a name.
+
+In-world HUD widgets are the other case: some have no prefab file at all and
+exist only as subtrees inside one giant
 `Resources/Assets/Resources/Global Objects (Main Manager).prefab` — 6.5 MB,
-2,626 GameObjects. `CoordinatesUI`, for example, sits there from around line
-7813 as five GameObjects. Reusing a CK widget therefore means lifting a subtree
-out of that file; [prefabs and rendering](prefabs-and-rendering.md) covers what
-has to travel with it.
+2,626 GameObjects. `CoordinatesUI` is one of those; nothing in the export
+matches `*Coordinates*`, and it lives in that file from around line 7813 as
+five GameObjects.
+
+So look for a standalone prefab first, and fall back to
+`grep -n "m_Name: <Widget>"` in the Main Manager prefab. Lifting a subtree out
+of it means carrying its dependencies by hand — [prefabs and
+rendering](prefabs-and-rendering.md) covers what has to travel with it.
 
 The export is a nominally openable Unity project, but next to a decompile
 checkout most of it is redundant: `GameAssemblies/`, `Assets/Plugins/`,
