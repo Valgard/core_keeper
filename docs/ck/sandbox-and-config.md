@@ -298,15 +298,15 @@ throws `Could not find a part of the path …`. Call
 `CreateDirectory("<ModName>")` before the first write.
 
 **Trap: a `Write` that did not throw is not a `Write` that landed.** The
-`StandaloneFilesystem.Write` path underneath ends in
-`catch (IOException) { Debug.LogError(...) }` with **no rethrow**, and its inner
-`File.Replace` / `File.Move` retry loop gives up after ten attempts with nothing
-but another `LogError`. A full disk, a file locked by something else, and the
-host-side filesystem faults covered in
-[macOS/CrossOver loader](../macos-crossover-loader.md) are therefore all
-invisible to your mod: no exception, no return value, nothing to branch on. If
-the data matters, **read the file back** before you record the write as done —
-above all before caching any "content unchanged, skip the write" hash.
+`StandaloneFilesystem.Write` path underneath ends in `catch (IOException) {
+Debug.LogError(...) }` with **no rethrow**, and its inner `File.Replace` /
+`File.Move` retry loop gives up after ten attempts with nothing but another
+`LogError`. A full disk, a file locked by something else, and the host-side
+filesystem faults covered in [macOS/CrossOver
+loader](../macos-crossover-loader.md) are therefore all invisible to your mod:
+no exception, no return value, nothing to branch on. If the data matters, **read
+the file back** before you record the write as done — above all before caching
+any "content unchanged, skip the write" hash.
 
 The API is `byte[]` in and `byte[]` out, which means you serialise yourself.
 `Encoding.UTF8.GetBytes` / `GetString` is the normal way to get a string across
@@ -462,11 +462,10 @@ to push CK's **host simulation past its 55 ms frame budget**
 session), which players experience as continuous rubber-banding rather than as
 the periodic hitch a heavy scan produces.
 
-So budget the serialize like any other frame operation, and keep the store
-small **at the source**. A radius-bounded self-heal only limits what it
-visits — it does not retroactively clear a backlog that is already on disk. The
-per-frame budget for scanning work is in
-[Harmony and ECS](harmony-and-ecs.md).
+So budget the serialize like any other frame operation, and keep the store small
+**at the source**. A radius-bounded self-heal only limits what it visits — it
+does not retroactively clear a backlog that is already on disk. The per-frame
+budget for scanning work is in [Harmony and ECS](harmony-and-ecs.md).
 
 ### Eliding an unchanged write needs a 64-bit hash
 

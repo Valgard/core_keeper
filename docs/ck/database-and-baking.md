@@ -97,12 +97,11 @@ item is named.
 
 Iterate with `var` and never write the type name. Where you must name the nested
 one — in a method signature, say, where `var` is not available — qualify it in
-full; that is what CK's own bake code does
-(`foreach (InventoryItemAuthoring.CraftingObject item in …)`,
-`Pug.ECS.Authoring:2971`), and CoreLib too. Reading the element into a `var`
-local, mutating it, and assigning back through the list indexer (as above) is
-the shape that works for both — and is not optional for the nested struct, where
-the local is a copy.
+full; that is what CK's own bake code does (`foreach
+(InventoryItemAuthoring.CraftingObject item in …)`, `Pug.ECS.Authoring:2971`),
+and CoreLib too. Reading the element into a `var` local, mutating it, and
+assigning back through the list indexer (as above) is the shape that works for
+both — and is not optional for the nested struct, where the local is a copy.
 
 ### Trap: a config value the bake reads must be bound in `EarlyInit`
 
@@ -117,9 +116,9 @@ that default in place. Restarting does not repair it: the ordering is the same
 every session, so a one-line timing mistake becomes a permanent one.
 
 `API.ConfigFilesystem` is initialised before any mod's `EarlyInit`, so reading
-configuration that early does work — see
-[Sandbox and config](sandbox-and-config.md). The lifecycle itself is in
-[Mod anatomy](mod-anatomy.md).
+configuration that early does work — see [Sandbox and
+config](sandbox-and-config.md). The lifecycle itself is in [Mod
+anatomy](mod-anatomy.md).
 
 | A value that is… | Read it in | Tell the player |
 |---|---|---|
@@ -139,12 +138,12 @@ the work sits in the separately `[BurstCompile]`d `IJob` it schedules
 **The distinction that matters is which `BurstDisabler` call.**
 `DisableBurstForSystem<InventoryUpdateSystem>()` does not reach it — that takes
 the *system's* `OnUpdate` off Burst and leaves the job it schedules to run its
-own Burst-compiled form. A nested job needs
-`DisableBurstForSystemAndJobs<T>()` (`PugMod.SDK.Runtime:783`), which additionally
-completes the system's job dependency inside the un-Bursted window. That variant
-is verified to make patches fire on another `ISystem` whose work sits in a nested
-`[BurstCompile]` job, but nobody has run it against the craft path — see
-[Harmony and ECS](harmony-and-ecs.md) for how it works and what it costs.
+own Burst-compiled form. A nested job needs `DisableBurstForSystemAndJobs<T>()`
+(`PugMod.SDK.Runtime:783`), which additionally completes the system's job
+dependency inside the un-Bursted window. That variant is verified to make
+patches fire on another `ISystem` whose work sits in a nested `[BurstCompile]`
+job, but nobody has run it against the craft path — see [Harmony and
+ECS](harmony-and-ecs.md) for how it works and what it costs.
 
 Bake time remains the seam this chapter recommends: one edit at conversion time,
 against a per-craft patch on a hot simulation path that has to be taken off Burst
@@ -583,5 +582,5 @@ Two consequences follow:
   referenced the sprite has to be updated with it.
 
 The practice of editing prefab YAML itself — nesting, variants, what the Editor
-will and will not preserve — belongs to
-[Prefabs and rendering](prefabs-and-rendering.md).
+will and will not preserve — belongs to [Prefabs and
+rendering](prefabs-and-rendering.md).

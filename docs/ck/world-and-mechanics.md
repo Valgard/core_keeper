@@ -370,10 +370,11 @@ prefix you walk `PugDatabaseAuthoring` →
 `ObjectInfo.objectID` matches → `ObjectInfo.prefabInfos` →
 `prefabInfo.ecsPrefab.TryGetComponent<PlaceableObjectAuthoring>()` → mutate
 `canBePlacedOnObjects`, a `List<ObjectID>` (`Pug.ECS.Authoring:3150`). Identify
-prefabs by their `objectID` enum, never by `objectName` string. Useful constants:
-`ObjectID.Pit = 233`, `ObjectID.Water = 232`. The bake runs after `EarlyInit` and
-before `Init`, so the patch must be bound in `IMod.EarlyInit`; the full
-`PostConvert` pattern is in [database and baking](database-and-baking.md).
+prefabs by their `objectID` enum, never by `objectName` string. Useful
+constants: `ObjectID.Pit = 233`, `ObjectID.Water = 232`. The bake runs after
+`EarlyInit` and before `Init`, so the patch must be bound in `IMod.EarlyInit`;
+the full `PostConvert` pattern is in [database and
+baking](database-and-baking.md).
 
 **Permission has to exist before placement runs.** `canPlaceObject` is computed
 in `UpdatePlaceablePosition`, and `PlaceItem` returns early at `:311322` when it
@@ -747,8 +748,8 @@ seen** — a skin collection is necessarily mod-owned state.
 | Stacking | Pets are non-stackable, one per slot |
 
 Reading `skinIndex` is sandbox-safe:
-`InventoryHandler.TryGetExtraInventoryData<PetSkinCD>(containedObject, out data)`
-(static; works for inventory and chest alike, since the aux data is
+`InventoryHandler.TryGetExtraInventoryData<PetSkinCD>(containedObject, out
+data)` (static; works for inventory and chest alike, since the aux data is
 world-global). For the currently summoned pet, go `PetOwnerCD.PetEntity` →
 `PetCD.inventoryAuxDataIndex` → the same lookup.
 

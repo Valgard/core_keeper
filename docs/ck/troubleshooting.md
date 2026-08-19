@@ -4,9 +4,8 @@ Symptom-first index of the ways Core Keeper modding fails without telling you
 why — silently disabled scripts, a mod that takes an unrelated mod down with it,
 a game that closes at the loading screen, an SDK clone that refuses to compile,
 an Editor that hangs, a build that produces nothing. Each entry names what you
-observe, then
-the mechanism, then the fix. Where a symptom has more than one cause, the
-cheapest check comes first.
+observe, then the mechanism, then the fix. Where a symptom has more than one
+cause, the cheapest check comes first.
 
 Most in-game diagnosis happens in `Player.log`. Under Wine the file is
 **UTF-16**, so `grep` reports "binary file matches" and prints nothing useful —
@@ -335,13 +334,12 @@ the conflict backups:
 Write failed: Erfolg : '…\cloudconflicts\…pugbackup' (-2147024896)
 ```
 
-Those write failures are a Wine artifact
-([macOS / CrossOver](../macos-crossover-loader.md)), and the word after
-`Write failed:` is the Windows locale's name for `ERROR_SUCCESS` — `Erfolg`
-because that host runs a German locale. Grep the `cloudconflicts` path, not the
-message; on a
-host that writes the backups successfully, the `CloudSyncDown` block and the
-diverging timestamps are all this entry gives you to go on.
+Those write failures are a Wine artifact ([macOS /
+CrossOver](../macos-crossover-loader.md)), and the word after `Write failed:` is
+the Windows locale's name for `ERROR_SUCCESS` — `Erfolg` because that host runs
+a German locale. Grep the `cloudconflicts` path, not the message; on a host that
+writes the backups successfully, the `CloudSyncDown` block and the diverging
+timestamps are all this entry gives you to go on.
 
 **Why a mod is the wrong suspect once you see that block:**
 
@@ -393,11 +391,10 @@ than by counting warnings.
 A Harmony prefix on a DOTS system fires in a local world and never fires on a
 dedicated server, with no error and no log line. The cause is Burst bypass
 registration being world-scoped and the server's different init ordering — the
-mechanism and the fix are in
-[Harmony and ECS](harmony-and-ecs.md). Version-compatibility rejections
-(`Error/BadProtocolVersion`) and the join-blocking dialog raised by a mod's
-`requiredOn` flags belong to
-[multiplayer and the dedicated server](multiplayer-and-server.md).
+mechanism and the fix are in [Harmony and ECS](harmony-and-ecs.md).
+Version-compatibility rejections (`Error/BadProtocolVersion`) and the
+join-blocking dialog raised by a mod's `requiredOn` flags belong to [multiplayer
+and the dedicated server](multiplayer-and-server.md).
 
 ## A fresh SDK clone will not compile on a macOS Editor host
 

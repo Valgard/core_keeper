@@ -284,11 +284,11 @@ player's prefs on disk — the same class of damage as writing through
 The shortcuts panel needs the per-frame prefix because
 `InventoryShortCutsButton.ShortcutsCanBeToggled()` gates only the "?" prompt
 visuals — the **S keybind itself** checks `isAnyInventoryShowing` directly and
-is not gated by it. The patch does bind:
-`ShortCutsWindow.LateUpdate` is a `protected override` declared on the type, and
-`HideUI()` is public. `InGameButtonHintsUI` needs its own prefix for a different
-reason: its `LateUpdate` re-asserts `container.SetActive(showKeyHints)` every
-frame, so a one-shot hide is simply overwritten.
+is not gated by it. The patch does bind: `ShortCutsWindow.LateUpdate` is a
+`protected override` declared on the type, and `HideUI()` is public.
+`InGameButtonHintsUI` needs its own prefix for a different reason: its
+`LateUpdate` re-asserts `container.SetActive(showKeyHints)` every frame, so a
+one-shot hide is simply overwritten.
 
 `IsPauseDisabled` is **not** a flag you can set. It is a private method
 computing an expression over `preventPausing`, scene state,
@@ -665,12 +665,12 @@ ControlMappingModule.AddKeyboardBind(
 
 **Trap: `categoryId: -1` gives you a header-less row.** `-1` is CoreLib's
 default "Mods" bucket, and CoreLib *deliberately* suppresses that bucket's
-sub-header: `AddNewCategory_Internal` sets
-`_showActionCategoryName = (categoryName != "Mods")`, on the reasoning that the
-Controls tab is already called "Mods" and a redundant sub-header would be noise.
-The consequence for you is a loose row at the top of the tab with no mod name
-and no description. Any named category other than `"Mods"` gets the header.
-CoreLib migrates an already-persisted action into the new category on load via
+sub-header: `AddNewCategory_Internal` sets `_showActionCategoryName =
+(categoryName != "Mods")`, on the reasoning that the Controls tab is already
+called "Mods" and a redundant sub-header would be noise. The consequence for you
+is a loose row at the top of the tab with no mod name and no description. Any
+named category other than `"Mods"` gets the header. CoreLib migrates an
+already-persisted action into the new category on load via
 `ChangeActionCategory`, so switching later is safe.
 
 Actions created this way get an id `>= 1000` and live in a mod-owned `player`
@@ -710,11 +710,11 @@ Commands"), not per-action — it stays correct as you add more binds.
 
 ### An unbound default renders the literal "None"
 
-`AddKeyboardBind` always calls
-`keyboardMap.AddNewActionElementMap(..., keyCode: defaultKeyCode)`; there is no
-branch that skips it for `KeyboardKeyCode.None`. So a bind you registered as
-"unbound" still owns an `ActionElementMap`, and CK renders that map's
-`elementIdentifierName` — the string `"None"`. A genuinely unbound CK action has
+`AddKeyboardBind` always calls `keyboardMap.AddNewActionElementMap(..., keyCode:
+defaultKeyCode)`; there is no branch that skips it for `KeyboardKeyCode.None`.
+So a bind you registered as "unbound" still owns an `ActionElementMap`, and CK
+renders that map's `elementIdentifierName` — the string `"None"`. A genuinely
+unbound CK action has
 **no map at all**, and `ControlMappingMenu`'s setup loop simply renders nothing
 for it.
 
@@ -993,14 +993,14 @@ yours. Two idiomatic hooks:
   screens do.
 
 **The position is the row's position in `contentRoot` (scrollingContent) local
-space, pivot-corrected.** CK's canonical `UIComponentMonoBehaviour.ScrollIntoView`
-computes `transform.position.y - scrollingContent.position.y` — a world delta,
-valid because UI scale is 1 — and then, if
-`GetUIComponentPivotPosition() == PivotPosition.TopLeft`, subtracts `height / 2`
-to arrive at the **centre**. `PivotPosition { TopLeft, MiddleLeft }` is nested in
-`UIComponentMonoBehaviour`, and `WrapperUIComponent.pivot` is the authority on
-which one a given row uses (list rows tend to be `TopLeft`, ordinary rows
-`MiddleLeft`).
+space, pivot-corrected.** CK's canonical
+`UIComponentMonoBehaviour.ScrollIntoView` computes `transform.position.y -
+scrollingContent.position.y` — a world delta, valid because UI scale is 1 — and
+then, if `GetUIComponentPivotPosition() == PivotPosition.TopLeft`, subtracts
+`height / 2` to arrive at the **centre**. `PivotPosition { TopLeft, MiddleLeft
+}` is nested in `UIComponentMonoBehaviour`, and `WrapperUIComponent.pivot` is
+the authority on which one a given row uses (list rows tend to be `TopLeft`,
+ordinary rows `MiddleLeft`).
 
 For **nested** rows — row inside box inside section inside `contentRoot`, deeper
 than vanilla's one-level menus — sum `localPosition.y` up the parent chain
@@ -1125,8 +1125,8 @@ with the lock.
 its options with `includeInactive`, so a disabled prefab **template** row is
 registered like any other and is reachable by D-pad — an invisible entry the
 player can navigate onto. The remedy is to override
-`GetActiveStateInCurrentScene()` and return
-`gameObject.activeSelf ? ACTIVE : INACTIVE`.
+`GetActiveStateInCurrentScene()` and return `gameObject.activeSelf ? ACTIVE :
+INACTIVE`.
 
 The mirror case: an option cloned from an **in-game-only** entry reports
 `INACTIVE` on the title screen. A mod widget that should work there has to return

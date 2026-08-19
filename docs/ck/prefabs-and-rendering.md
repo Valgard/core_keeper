@@ -842,13 +842,12 @@ serialized field, and toggles *that*.
 **Trap: `isAnyInventoryShowing` is not a plain vanilla signal once CoreLib is
 loaded.** CoreLib patches that aggregate getter and forces it **true whenever
 any CoreLib-managed mod window is open — including windows belonging to other
-mods** — while the per-UI getters such as
-`Manager.ui.isPlayerInventoryShowing` stay unpatched. For a HUD that simply
-wants to disappear behind open interfaces, that is exactly right, and it is the
-reason to prefer this one predicate over querying the individual UIs: your own
-window counts as an interface too, and so does a stranger's, without your
-knowing anything about it. (All of this holds only while CoreLib is loaded.)
-But the same patch makes the aggregate useless as a
-window's *own* guard — gate a window on it and the window blocks itself. Read a
-per-UI getter when you need to tell "a vanilla menu is open" from "my own window
-is open".
+mods** — while the per-UI getters such as `Manager.ui.isPlayerInventoryShowing`
+stay unpatched. For a HUD that simply wants to disappear behind open interfaces,
+that is exactly right, and it is the reason to prefer this one predicate over
+querying the individual UIs: your own window counts as an interface too, and so
+does a stranger's, without your knowing anything about it. (All of this holds
+only while CoreLib is loaded.) But the same patch makes the aggregate useless as
+a window's *own* guard — gate a window on it and the window blocks itself. Read
+a per-UI getter when you need to tell "a vanilla menu is open" from "my own
+window is open".
