@@ -47,24 +47,29 @@ to save. Close it before touching those files from outside.
 
 ### On macOS, a fresh clone does not compile at all
 
-A newly cloned SDK fails on a macOS Editor with `CS0246: … 'Steamworks'`. The
-SDK ships Steamworks DLLs gated to Windows and Linux Editors, and neither loads
-on macOS.
+The first open of a newly cloned SDK on a macOS Editor ends in compilation
+errors and the "Enter Safe Mode" prompt, with `CS0246` naming `Steamworks`.
+Nothing else in the SDK is reachable until it is resolved.
 
-The fix is one meta-file setting: enable
-`Assets/Plugins/CoreKeeperModSDK/Facepunch.Steamworks.Posix.dll.meta` for `OS:
-AnyOS`. It is a one-time change per SDK clone, and it works because the Posix
-DLL is a *managed* assembly — once the Editor is allowed to load it, the
-`Steamworks` namespace and its types resolve at compile time on macOS like
-anywhere else.
+It is a platform gate rather than a missing Steam installation: the SDK's
+Steamworks DLLs are each restricted to one Editor platform, and both are
+explicitly off for macOS. The fix is a handful of values in one `.meta` file
+plus a clean re-import, once per SDK clone — [the full procedure is in
+troubleshooting](troubleshooting.md#a-fresh-sdk-clone-will-not-compile-on-a-macos-editor-host),
+including why enabling the managed DLL is safe with no `libsteam_api.dylib`
+present.
 
-Runtime calls into Facepunch.Steamworks would still fail on macOS for want of
-`libsteam_api.dylib`, and the Editor's Steam Workshop upload tab is unusable
-there — but a mod's own runtime code carries no Steamworks references, so
-nothing reaches the missing library at play time. See
-[the sandbox chapter](sandbox-and-config.md) for what a mod may reference at
-all.
+### When the setup itself misbehaves
 
+Four failures belong to getting a toolchain running rather than to any mod, and
+each is written up under the symptom you actually see:
+
+| Symptom | Where |
+|---|---|
+| A fresh SDK clone will not compile on macOS | [Troubleshooting](troubleshooting.md#a-fresh-sdk-clone-will-not-compile-on-a-macos-editor-host) |
+| The Editor hangs at "Initial Asset Database Refresh" | [Troubleshooting](troubleshooting.md#the-unity-editor-hangs-at-initial-asset-database-refresh) |
+| A newly linked mod builds to an empty file list | [Troubleshooting](troubleshooting.md#a-newly-linked-mod-builds-to-an-empty-file-list) |
+| An edit to a shared editor helper appears to have no effect | [Troubleshooting](troubleshooting.md#an-edit-to-a-shared-editor-helper-appears-to-have-no-effect) |
 ### Where the game's own files live
 
 Two locations matter, and neither is the SDK:

@@ -583,8 +583,8 @@ assembly.
 **Fix ladder — both rungs, in order:**
 
 1. **Re-link every mod**, not just the one you are building, so all the symlinks
-   get a fresh mtime and the AssetDatabase reimports the sources (see
-   [the build workflow](../../README.md)).
+   get a fresh mtime and the AssetDatabase reimports the sources (the re-link
+   command is in [the repository README](../../README.md)).
 2. **`rm -rf CoreKeeperModSDK/Library/{ScriptAssemblies,Bee}`** with the Editor
    closed, so Unity recompiles every editor assembly from source on the next
    batchmode launch.

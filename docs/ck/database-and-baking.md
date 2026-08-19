@@ -546,7 +546,7 @@ reference in your own prefab.
 game type, produced from the decompile and aborting on any hash collision
 rather than guessing — an earlier hand-maintained table had eyeballed-and-wrong
 entries, which is exactly the failure mode the generated map removes. See
-[the README](../../README.md) for the tooling, and
+[the repository README](../../README.md) for the tooling, and
 [Reverse engineering](reverse-engineering.md) for producing the decompile it
 reads.
 
