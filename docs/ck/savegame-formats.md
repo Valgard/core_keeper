@@ -105,10 +105,10 @@ array. Test any such hit by its context before believing it.
 **The practical route is the running game, not the file.** Inside the process
 the type registry exists and the entity-to-component mapping is free, so a query
 like `WithAll<MapMarkerCD>()` over the server world hands you the component and
-its transform together. See
-[reading the live ECS world](harmony-and-ecs.md) — for anything entity-shaped,
-that is the cheaper answer by a wide margin. The file is worth parsing only for
-what a running game cannot show you, such as a world you are not in.
+its transform together. See [reading the live ECS world](harmony-and-ecs.md) —
+for anything entity-shaped, that is the cheaper answer by a wide margin. The
+file is worth parsing only for what a running game cannot show you, such as a
+world you are not in.
 
 ### Unloaded segments are a recycled entity pool
 

@@ -1,12 +1,12 @@
 # Mod anatomy
 
-This chapter describes what a Core Keeper mod consists of, which file is the real
-configuration surface, and how the PugMod loader sees it: the `IMod` lifecycle and its
-ordering, Harmony auto-discovery, chat commands, the assembly definitions, the two kinds
-of dependency, `requiredOn`, and the GUID rules that matter when you create files by
-hand. Read it when
-a mod does not load, a lifecycle hook fires at the wrong time, or a manifest field does
-not seem to take effect.
+This chapter describes what a Core Keeper mod consists of, which file is the
+real configuration surface, and how the PugMod loader sees it: the `IMod`
+lifecycle and its ordering, Harmony auto-discovery, chat commands, the assembly
+definitions, the two kinds of dependency, `requiredOn`, and the GUID rules that
+matter when you create files by hand. Read it when a mod does not load, a
+lifecycle hook fires at the wrong time, or a manifest field does not seem to
+take effect.
 
 ## What ships, and what the loader reads
 
@@ -558,11 +558,11 @@ The question to ask is: **does the server need this mod for it to work?**
 | `0` | Enforcement *and* side-of-execution are both honestly "either" — e.g. a pure diagnostic that must never gate a connection in either direction. This is a legitimate loader value; CoreLib itself ships it. |
 
 **Do not default to `3`.** An over-broad value is a hard block, not a hint: joining a
-server that lacks a `Server`-flagged mod raises a dialogue whose only options are to
-disable the mod (and restart) or cancel the connection. What exactly a mismatch does to a
-join, on either side, is covered in
-[multiplayer and server](multiplayer-and-server.md); `requiredOn` also feeds a mod.io
-catalogue tag, which is described in [publishing](../publishing.md).
+server that lacks a `Server`-flagged mod raises a dialogue whose only options
+are to disable the mod (and restart) or cancel the connection. What exactly a
+mismatch does to a join, on either side, is covered in [multiplayer and
+server](multiplayer-and-server.md); `requiredOn` also feeds a mod.io catalogue
+tag, which is described in [publishing](../publishing.md).
 
 ## The in-game mod menu, and when mod.io is contacted
 

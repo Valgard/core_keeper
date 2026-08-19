@@ -532,9 +532,9 @@ side in its `requiredOn` — see [mod anatomy](mod-anatomy.md).
 **The `OnUpdate` body you are reading in a mod's `.cs` file is not the one that
 executes.** For any system using `Entities.ForEach` or `SystemAPI.*`, the DOTS
 source generator has moved the body into
-`Scripts/Generated/<System>__System_<id>.g.cs` as
-`__OnUpdate_<hash>()`, marked `[DOTSCompilerPatchedMethod("OnUpdate_T0")]`, and
-the mod loader rewires the method at runtime. Player.log states it per mod:
+`Scripts/Generated/<System>__System_<id>.g.cs` as `__OnUpdate_<hash>()`, marked
+`[DOTSCompilerPatchedMethod("OnUpdate_T0")]`, and the mod loader rewires the
+method at runtime. Player.log states it per mod:
 
 ```text
 Replacing method <Ns>.<System>/OnUpdate_T0 with __OnUpdate_<hash>

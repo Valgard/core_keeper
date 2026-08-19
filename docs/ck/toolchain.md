@@ -52,9 +52,9 @@ SDK ships Steamworks DLLs gated to Windows and Linux Editors, and neither loads
 on macOS.
 
 The fix is one meta-file setting: enable
-`Assets/Plugins/CoreKeeperModSDK/Facepunch.Steamworks.Posix.dll.meta` for
-`OS: AnyOS`. It is a one-time change per SDK clone, and it works because the
-Posix DLL is a *managed* assembly — once the Editor is allowed to load it, the
+`Assets/Plugins/CoreKeeperModSDK/Facepunch.Steamworks.Posix.dll.meta` for `OS:
+AnyOS`. It is a one-time change per SDK clone, and it works because the Posix
+DLL is a *managed* assembly — once the Editor is allowed to load it, the
 `Steamworks` namespace and its types resolve at compile time on macOS like
 anywhere else.
 

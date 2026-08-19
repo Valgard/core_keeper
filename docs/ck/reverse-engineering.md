@@ -281,11 +281,10 @@ in `Resources/Assets/GameObject/`, and that is where `SettingsMenu.prefab`,
 name. `utils/import_vanilla_prefab.py` takes exactly such a name.
 
 In-world HUD widgets are the other case: some have no prefab file at all and
-exist only as subtrees inside one giant
-`Resources/Assets/Resources/Global Objects (Main Manager).prefab` — 6.5 MB,
-2,626 GameObjects. `CoordinatesUI` is one of those; nothing in the export
-matches `*Coordinates*`, and it lives in that file from around line 7813 as
-five GameObjects.
+exist only as subtrees inside one giant `Resources/Assets/Resources/Global
+Objects (Main Manager).prefab` — 6.5 MB, 2,626 GameObjects. `CoordinatesUI` is
+one of those; nothing in the export matches `*Coordinates*`, and it lives in
+that file from around line 7813 as five GameObjects.
 
 So look for a standalone prefab first, and fall back to
 `grep -n "m_Name: <Widget>"` in the Main Manager prefab. Lifting a subtree out
@@ -443,9 +442,9 @@ twice is the signal to stop and go looking for that assumption.
 
 **Design the test so the code can actually run.** An idle dedicated server sits
 at `timescale = 0` and never simulates, so a patch that "never fires" there may
-simply never have been reached — see
-[multiplayer and server](multiplayer-and-server.md). A test that cannot
-distinguish "broken" from "not executed" proves nothing.
+simply never have been reached — see [multiplayer and
+server](multiplayer-and-server.md). A test that cannot distinguish "broken" from
+"not executed" proves nothing.
 
 **Test every case a change unlocks, separately.** Where one edit enables
 several variants — a bake-time change that permits building on both `Pit` and
