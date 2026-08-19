@@ -49,7 +49,7 @@ Assets/<Mod>/Editor/        editor-only helpers, with their own asmdef
 ```
 
 How that source tree becomes an install directory is the build workflow — see
-[the repo README](../../README.md).
+[Toolchain](toolchain.md).
 
 ### What the "Create New Mod" wizard actually creates
 
