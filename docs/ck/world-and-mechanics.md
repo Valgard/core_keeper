@@ -64,12 +64,14 @@ Those are tile-quantised edges read off a fog-of-war raster, so treat them as
 southern edge of the Core base, not in its middle** — at the waypoint below the
 Core rather than in the Core.
 
-**The game itself puts a number on it.** When `ECSManager` finds more than one
-entity carrying `TheCoreCD`, it cleans up the extras and repositions the survivor
-to a hardcoded `LocalTransform.FromPosition(new float3(0f, 0f, 4f))`
-(`Pug.Other:181802`) — the only hardcoded Core position anywhere in the assemblies,
-and it agrees with the map measurement. So `z = 4` is the figure to use, and the
-offset between origin and Core is four tiles north.
+**One number in the code agrees with that.** When `ECSManager` finds more than
+one entity carrying `TheCoreCD`, it deletes the extras and repositions the
+survivor to a hardcoded `LocalTransform.FromPosition(new float3(0f, 0f, 4f))`
+(`Pug.Other:181802`) — the only hardcoded Core position in the assemblies, and it
+lands inside the range the map measurement gives. Read it as corroboration of the
+direction and rough size of the offset, not as the Core's position: it is a repair
+value on one code path, and a world that never needed repairing never went through
+it. For an actual position, query the entity (below).
 
 **Trap: do not derive the offset from the region's midpoint.** Only the southern
 edge was stable across all eight worlds; the northern one came out at `10` or
@@ -122,11 +124,18 @@ computes
 int2 x = (int2)math.floor(mapUI.GetCursorWorldPosition());
 ```
 
-— the **mouse cursor**, not the player — and renders it as `"%d, %d"` followed
+— the map **cursor**, not the player — and renders it as `"%d, %d"` followed
 by `"(%d)"`. That parenthesised number is the straight-line distance to the world
 origin, computed **from the already-floored ints** rather than from the float
 position. Measured: at `63, -14` the readout shows `(65)`, matching
 `sqrt(63² + 14²) = 64.5 → 65`.
+
+**Which cursor depends on the input device.** `MapUI.GetCursorScreenPosition`
+(`Pug.Other:333982`) branches on `inputModule.PrefersKeyboardAndMouse()`: with
+keyboard and mouse it returns the mouse pointer, and otherwise the map's own
+centre transform. So on a gamepad the readout follows where the map is centred,
+not a pointer — and reproducing vanilla's number means reading the same source it
+does, rather than assuming a mouse exists.
 
 The player marker drawn on the map is rasterised independently, through
 `RoundToMultiple(0.0625f)`.
@@ -137,9 +146,12 @@ its floor-then-measure order, not reading its marker position.
 
 ### Map markers are entities, and the waypoint is its own kind
 
-Anything drawn on the map is an entity carrying `MapMarkerCD`, whose three
-fields are `mapMarkerType`, `userMapMarkerType` and `uniqueMarkerId`. Two enums
-divide the space:
+Every marker icon vanilla draws on the map comes from an entity carrying
+`MapMarkerCD`, whose three fields are `mapMarkerType`, `userMapMarkerType` and
+`uniqueMarkerId`. That covers the icons, not the map as a whole: the explored
+terrain itself is map data rather than entities (see
+[savegame formats](savegame-formats.md)), and another mod may draw client-side
+markers of its own that no entity backs. Two enums divide the vanilla space:
 
 | `MapMarkerType` | |
 |---|---|
@@ -256,11 +268,19 @@ painting, roofing — routes through it. Vanilla calls it at
 makes it the right place to *change* a placement — but the wrong place to
 *cancel* one:
 
-**Both vanilla and the placement mods debit the item from the inventory
-*after* calling `AddTile`.** Blocking the call therefore consumes the item and
+**The item is debited from the inventory *after* the `AddTile` call.** Vanilla
+does it in the same method, one statement later: `EntityUtility.AddTile(...)`
+followed immediately by `Create.ConsumeEntityAt(..., destroy: true, ...)` pushed
+onto the inventory update buffer (`Pug.Other:311379`, then `:311382`). The one
+foreign placement mod measured here, PlacementPlus, behaves the same way. Blocking the call therefore consumes the item and
 produces nothing: a straight item loss. Letting the call through and having it
 fail validation only drops a pickup (see above). If you need to veto, veto
 earlier, at the placement decision, not at the tile write.
+
+Another placement mod probably orders it the same way — it is the natural shape,
+since the debit belongs to a placement that succeeded — but that is an
+expectation, not a measurement. If your veto matters, measure the mod you are
+actually running against, as described above.
 
 **Trap: `AddTile` is not the only writer of the buffer.** Nine call sites reach
 it, and outside them `Pug.Other` builds a `TileUpdateBuffer` entry with
@@ -421,7 +441,6 @@ The named constants:
 | `PLAYER_DISTANCE_TO_UNLOAD_ENTITIES` | 300 |
 | `PLAYER_DISTANCE_TO_START_LOAD_ENTITIES` | 250 |
 | `PLAYER_DISTANCE_TO_LOAD_ENTITIES` | 200 |
-| `DISTANCE_FROM_PLAYER_TO_UPDATE_ENTITY` | 40 |
 | `DISTANCE_TO_RESPAWN_ENVIRONMENT` | 200 |
 | `UNLOADED_WORLD_SEGMENT_SIZE_LOG2` | 7 (serialized world segment = 128 tiles) |
 
@@ -442,14 +461,23 @@ resolves the ServerWorld therefore sees entities out to 200-300 tiles, not the
 
 ### `IncludeDisabledEntities` is mandatory for a world scan
 
-Beyond `DISTANCE_FROM_PLAYER_TO_UPDATE_ENTITY` (40 tiles) Core Keeper
-**disables** entities while keeping them loaded out to the 200-300 radii above.
-Disabled is not unloaded — but a DOTS query skips disabled entities by default.
+Well inside the load bubble, Core Keeper **disables** entities while keeping them
+loaded out to the 200-300 radii above. Disabled is not unloaded — but a DOTS
+query skips disabled entities by default.
 
 **A query built without `EntityQueryOptions.IncludeDisabledEntities` therefore
-stops at 40 tiles**, no matter how large the load bubble is. This is the first
-thing to check when a world scan "only finds the ones near me": it is a query
-option, not a radius problem, and no amount of walking around fixes it.
+sees only a fraction of what is loaded**, no matter how large the load bubble is.
+Measured in one world, such a scan reached roughly 40 tiles against a 300-tile
+load radius. This is the first thing to check when a world scan "only finds the
+ones near me": it is a query option, not a radius problem, and no amount of
+walking around fixes it.
+
+**Do not pin that distance to a constant.** `Pug.Base` declares
+`DISTANCE_FROM_PLAYER_TO_UPDATE_ENTITY = 40`, which is tempting to cite and is
+**dead** — the name occurs exactly once in the whole decompile, at its own
+declaration, with no reader anywhere. Whatever governs the disable distance now,
+it is not that field, so treat the measured figure as a measurement and re-measure
+it rather than trusting the number.
 
 ### The trap
 
