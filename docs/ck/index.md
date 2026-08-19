@@ -27,11 +27,11 @@ Then branch by what you actually want to build:
 | a change to placement, tiles, creatures, world rules | [World and mechanics](world-and-mechanics.md) |
 | anything others will play together | [Multiplayer and server](multiplayer-and-server.md) — before publishing, not after |
 
-**Setting up the toolchain is a separate matter** and is not covered here: the
-SDK, the exact Unity version, building and installing live in
-[`../../README.md`](../../README.md). This handbook starts where that leaves
-off — you can build and install *something*, and now you need to know how the
-game behaves.
+**If nothing builds yet, start with [the toolchain](toolchain.md)** — the exact
+Unity version, the build modules, the one-time wizard steps and the macOS
+meta-file fix, plus one worked example of a build arrangement. The rest of this
+handbook assumes you can already build and install *something* and now need to
+know how the game behaves.
 
 One habit worth adopting from the start: when something does not work, come back
 to the symptom table below rather than reading a chapter end to end. Nearly
@@ -80,3 +80,4 @@ symptom, not the topic.
 | Translate your mod's text | [Localisation](localisation.md) |
 | Read data out of a save | [Savegame formats](savegame-formats.md) |
 | Answer a question nothing here answers | [Reverse engineering](reverse-engineering.md) |
+| Get a build running in the first place | [Toolchain](toolchain.md) |

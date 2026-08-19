@@ -6,11 +6,13 @@ directory. Each mod also has its own `CLAUDE.md` with mod-specific detail
 true for *all* mods built against Pugstorm's `CoreKeeperModSDK` on this
 machine — change it only when an insight is genuinely mod-agnostic.
 
-**Game and SDK reference — `docs/ck/`, 12 chapters.** Deliberately NOT an
+**Game and SDK reference — `docs/ck/`.** Deliberately NOT an
 `@`-reference: it is ~7,000 lines and most sessions need none of it. Open
 `docs/ck/index.md` when a question is about the game rather than about this
 repo — it routes by symptom and by task, so one read usually lands on the right
-chapter. Triggers: the load-time sandbox and `CompileFailed`; Harmony or ECS
+chapter. Triggers: getting a build to run at all — Unity version, modules,
+wizard steps, the project lock, the macOS Steamworks fix (`toolchain.md`); the
+load-time sandbox and `CompileFailed`; Harmony or ECS
 patching that binds but never fires; the object database and bake-time edits;
 UI, prefabs, sprites, fonts; world geometry, tiles, placement, creatures;
 multiplayer and dedicated-server differences; localisation; save file formats;
@@ -49,14 +51,11 @@ absolute paths, so they dangle after a worktree switch or repo move;
 
 ## Required setup (per machine / per SDK clone)
 
-- **Unity Editor `6000.0.59f2`** — exact patch version, pinned in the SDK's
-  `ProjectVersion.txt` (the SDK `README.md` is one patch behind — do not trust
-  it). Install via Unity Hub with **Linux Build Support (Mono)** and, on
-  macOS, **Windows Build Support (Mono)**.
-- **`CoreKeeperModSDK` clone** — the wizard's "Create New Mod" + "Update Game
-  Files" must be run once.
-- The Unity Editor **locks the project** — it must be closed during any
-  `-batchmode` build.
+**The SDK-level requirements are in `docs/ck/toolchain.md`** — the exact Unity
+patch version and why the SDK's own README misstates it, the build modules, the
+one-time wizard steps, the project lock, and the macOS Steamworks meta-file fix.
+Read it rather than reproducing it here; what follows is what this file adds.
+
 - **While the user is actively in the Unity Editor, do NOT edit or write files**
   in the mod or SDK tree — restrict to read-only inspection (`prefab_query.py`,
   `grep`/Read). Concurrent file writes collide with the Editor's own saves /
@@ -85,14 +84,6 @@ absolute paths, so they dangle after a worktree switch or repo move;
   Rationale + canonical commands in the `corekeeper-roslyn-locale-bug` memory.
 
 ## SDK quirks (apply to every mod)
-
-### macOS Editor — Steamworks compile errors
-A fresh SDK clone fails to compile on a macOS Editor host with
-`CS0246: ... 'Steamworks'`. The SDK ships Steamworks DLLs gated to Windows/
-Linux Editors only; neither loads on macOS. Fix: enable
-`Assets/Plugins/CoreKeeperModSDK/Facepunch.Steamworks.Posix.dll.meta` for
-`OS: AnyOS`. One-time per SDK clone — see
-`disable-durability/docs/research/macos-sdk-steamworks-fix.md`.
 
 ### Manifest fields — edit the `.asset`, not `ModManifest.json`
 A mod's `ModManifest.json` is **build-generated** from its ModBuilderSettings
@@ -255,8 +246,9 @@ of the mod set.
 ## Build pattern (shared `utils/`)
 
 The shared `utils/` build/publish scripts and the `.envrc` inheritance chain
-are documented in `README.md` (§ Build & install). Human-facing build/publish
-instructions live there.
+are documented in `README.md` (§ Build & install) — script names, variables, the
+exact commands. `docs/ck/toolchain.md` carries the same arrangement's *reasoning*,
+framed as one setup among possible ones.
 
 - **Concurrent build/publish locks the shared SDK project for every session.**
   All mods share one `CoreKeeperModSDK` clone, so any session's batchmode
@@ -442,9 +434,8 @@ Background / history: the `project_corekeeper_mod_logo_pipeline` memory.
 - Each mod is an independent git repo with its own `CLAUDE.md` for
   mod-specific detail.
 
-> Note: the two `docs/research/` notes referenced above still live inside the
-> `disable-durability/` repo, since that is where they were first written. Their
-> content is mod-agnostic — if a second mod needs them, promote them to `docs/`
-> here, the way `docs/pixaki-format.md` was promoted out of `item-checklist`
-> once the shared `utils/pixaki_*` tools gave it a second consumer. A note that
-> two mods depend on is not a mod's note.
+> Note: some mod-agnostic research notes still live under `disable-durability/docs/research/`,
+> since that is where they were first written. **A note that two mods depend on is
+> not a mod's note** — promote it to `docs/` here as soon as a second mod needs it,
+> the way `docs/pixaki-format.md` was promoted out of `item-checklist` once the
+> shared `utils/pixaki_*` tools gave it a second consumer.

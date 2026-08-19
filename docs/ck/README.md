@@ -22,6 +22,7 @@ from; game updates can and do invalidate them.
 
 | Chapter | Covers |
 |---|---|
+| [Toolchain](toolchain.md) | What the SDK requires of any setup — the exact Unity version, the build modules, the one-time wizard steps, the project lock, the macOS meta-file fix — then one worked example of a build arrangement |
 | [Mod anatomy](mod-anatomy.md) | The `IMod` lifecycle, assembly definitions, the ModBuilderSettings `.asset` versus the generated manifest, the two kinds of GUID, dependencies, chat commands, and `requiredOn` with its crossed checks |
 | [Sandbox and configuration](sandbox-and-config.md) | What the load-time verification rejects and what it does not, why an Editor build proves nothing, and the three ways a sandboxed mod stores settings |
 | [Harmony and ECS](harmony-and-ecs.md) | Why Burst-compiled systems swallow patches, `BurstDisabler` and its silent failure on dedicated servers, patch binding, instrumenting generated DOTS code, live ECS access |
@@ -42,7 +43,7 @@ elsewhere in this repository:
 
 | Topic | Document |
 |---|---|
-| Building and installing a mod, the formatting gate | [`../../README.md`](../../README.md) |
+| This repository's own scripts, variables and commands — the concrete form of [Toolchain](toolchain.md) | [`../../README.md`](../../README.md) |
 | Publishing to mod.io | [`../publishing.md`](../publishing.md) |
 | Running a dedicated server locally | [`../dedicated-server.md`](../dedicated-server.md) |
 | macOS/CrossOver loader specifics and the game-DLL patches | [`../macos-crossover-loader.md`](../macos-crossover-loader.md) |
