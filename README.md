@@ -3,6 +3,13 @@
 Shared build/publish tooling for every Core Keeper mod under this directory.
 Project-wide conventions live in `CLAUDE.md`.
 
+**Start with [`docs/ck/toolchain.md`](docs/ck/toolchain.md)** if nothing builds
+yet. It carries what the SDK requires of any setup — the exact Unity patch
+version, the build modules, the one-time wizard steps, the Editor's project
+lock, and the meta-file change without which a fresh clone does not compile on
+macOS — followed by the reasoning behind the arrangement described here. This
+file is the concrete form: script names, variables, commands.
+
 **Looking for how the game works rather than how to build for it?**
 [`docs/ck/`](docs/ck/README.md) is a reference handbook on Core Keeper modding
 itself — the load-time sandbox, Harmony and ECS patching, the object database,
