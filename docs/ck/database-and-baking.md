@@ -344,20 +344,27 @@ applies. Measured in game, `paintIndex` ran **1–14** and matched the item
 variations 1:1 — no off-by-one. Read it with
 `PugDatabase.TryGetComponent<PaintToolCD>(brushOd, out var pt)`.
 
-**`PaintableObjectCD` is the clean cosmetic filter.** It is an (essentially
-empty) marker component on objects the player can paint, and it is exactly what
-separates real colour variants from the chest/seed state-junk above. Note the
+**`PaintableObjectCD` is the clean cosmetic filter, and it carries the colour.**
+Its presence marks objects the player can paint, which is exactly what separates
+real colour variants from the chest/seed state-junk above. It is not an empty
+marker: it holds one field, `[GhostField] public PaintableColor color`. Note the
 namespace — and note that `Pug.ECS.Components` is not one: `PaintableObjectCD`,
 `PaintToolCD` and `PaintableObjectSerializedCD` all sit in the **global**
 namespace, `Pug.ECS.Components` being the assembly they ship in. No `using`
 reaches them and none is needed. The genuinely namespaced type in this section
 is `ObjectPropertiesCD` — `Pug.Properties`, in `PugProperties.dll`.
 
-To display a real colour name instead of "variation 7", map the `paintIndex`
-back to the brush's enum name and strip the `PaintBrush` prefix:
-`((ObjectID)id).ToString()` is sandbox-safe. The result is an English colour
-word, which you then run through your own localisation terms — see
-[Localisation](localisation.md).
+To display a real colour name instead of "variation 7", read that field and name
+its enum value — `paintable.color.ToString()`. `PaintableColor` (`Pug.Base`)
+spells the colours out: `Unpainted`, then `Yellow`, `Green`, `Red`, `Purple`,
+`Blue`, `Brown`, `White`, `Black`, `Orange`, `Cyan`, `Pink`, `Gray`, `Peach`,
+`Teal`, closed by a `__max__` sentinel you should filter out. The result is an
+English colour word, which you then run through your own localisation terms —
+see [Localisation](localisation.md).
+
+There is no need to go via the brushes for this. Enumerating `ObjectID` 70-83,
+reading each brush's `PaintToolCD.paintIndex` and matching it back is a longer
+route to the same word, and it breaks if the brush block ever moves.
 
 **Reading a list-valued property** goes through
 `Pug.Properties.ObjectPropertiesCD.TryGetList<T>`. The cattle breeding palette

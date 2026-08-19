@@ -239,14 +239,26 @@ locally.
 
 ### Look for a public event before you patch
 
-Not every hook has to be a patch. Some of CK's extension points are plain public
-multicast delegates that any assembly can subscribe to. `Mods.OnModManagementEvent`
-is one: the game's own `RadicalMainMenuOption_OpenMods.Awake` attaches its handler
-to it with `+=` at `Pug.Other:338594`, and a mod can attach to the same delegate
-**without any Harmony patch**, so none of the binding mechanics below apply to it.
+Not every hook has to be a patch. Some extension points are plain public
+multicast delegate **fields** — not `event`s — which any assembly can assign to
+or combine onto. `Mods.OnModManagementEvent` is one: it is declared
+`public static ModManagementEventDelegate` in `modio.UI` (`Modio.Mods`), and the
+game's own `RadicalMainMenuOption_OpenMods.Awake` combines its handler onto it
+via `Delegate.Combine` at `Pug.Other:338594`. A field rather than an event
+matters, because an `event` would only let you `+=` from inside its declaring
+type.
 
-Whether CK has further events of this kind has not been surveyed — but checking
-the decompile for a public event on the type you were about to patch is cheap.
+**Untested: whether a mod's reference to it survives the sandbox.** The field
+lives in `modio.UI`, and no load here has referenced that assembly from mod
+code in either direction. Weigh that before reaching for it as the cheap
+alternative — a rejected reference is not a compile warning but a
+`CompileFailed`, which [can take unrelated mods down with
+it](troubleshooting.md). If you try it, verify the load before building
+anything on top.
+
+Whether CK has further hooks of this kind has not been surveyed — but checking
+the decompile for a public delegate field on the type you were about to patch is
+cheap.
 
 ### `in`/`ref` parameters need `argumentVariations`
 
