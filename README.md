@@ -99,8 +99,8 @@ removes a fake-ID local dev install from the CrossOver bottle.
 
 ### The Discord forum post
 
-Each mod carries a `discord-post.md` beside its `modio-description.md` — the
-text for its thread in the Core Keeper Discord's `#available-mods` channel.
+A mod with a forum thread carries a `discord-post.md` beside its
+`modio-description.md` — the text for that thread in the Core Keeper Discord's `#available-mods` channel.
 The two are written separately on purpose: mod.io is a store page, the forum
 post is a message in a conversation, and only one of them has a 2000-character
 ceiling.
@@ -111,7 +111,7 @@ exactly what gets pasted:
 
 ```
 python3 ../utils/discord_post.py            # from the mod repo root
-python3 ../utils/discord_post.py --check    # validate only, no output
+python3 ../utils/discord_post.py --check    # validate only, no post on stdout
 ```
 
 Three things are generated rather than written by hand:

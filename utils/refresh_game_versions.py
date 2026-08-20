@@ -8,11 +8,13 @@ would have invented a build and hidden a real one.
 
 Neither feed is complete on its own, in different ways:
 
-  * Steam's update feed misses builds that shipped without their own post —
-    0.7.4.1, 0.7.5.4, 1.0.0.1 and 1.1.0.1, three of them the `.1` right after
-    a `.0` release, i.e. day-one hotfixes folded into the launch notes.
-  * mod.io's Game Version tags miss builds nobody tagged (1.0.0.7, 1.0.0.12,
-    1.2.1.2) and start at 0.6.3.0, the build the Mod SDK shipped with.
+  * Steam's update feed misses 0.7.5.4, 1.0.0.1 and 1.1.0.1 — builds that
+    shipped without their own post, two of them the `.1` right after a `.0`
+    release, i.e. day-one hotfixes folded into the launch notes. It misses
+    0.7.4.1 for a different reason: its post exists, mistyped, as above.
+  * mod.io's Game Version tags miss the builds named in
+    CK_MODIO_VERSION_UNLISTED (parent `.envrc`, which is where that list is
+    kept) and start at 0.6.3.0, the build the Mod SDK shipped with.
 
 Usage:
     python3 utils/refresh_game_versions.py
@@ -46,11 +48,18 @@ STEAM_EVENTS_URL = (
 )
 
 MODIO_GAME_URL = "https://g-5289.modapi.io/v1/games/5289?api_key="
+TAG_GROUP_GAME_VERSION = "Game Version"
 
 VERSION_IN_TITLE = re.compile(r"\b(\d+\.\d+(?:\.\d+){1,3})\b")
 
-# A build seen in two entries more than this far apart is not a repost.
-TYPO_GAP_DAYS = 30
+# The feed is a few hundred events; this only bounds a runaway loop.
+MAX_PAGES = 40
+
+# A build seen in two entries more than this far apart is not one release
+# announced twice. Steam's archive is immutable, so 0.7.5.1 is reported on
+# every run, forever — a *second* suspect is the signal, not the first.
+TYPO_GAP_DAYS = 30  # 0.7.5.1's real gap is 86 days; same-day pairs are two
+# releases sharing a number (0.7.3, 2024-01-31), not a mistake.
 
 
 @dataclass
@@ -101,49 +110,112 @@ def _get(url):
     gets a 403 that looks like the server's) and Homebrew's curl, so
     /usr/bin/curl is the one client that reaches out.
     """
+    # --fail-with-body, because plain `curl -sS` exits 0 on every HTTP status and
+    # hands the error body to json.loads. Both APIs answer errors with
+    # well-formed JSON, so the parse succeeds and the failure arrives disguised
+    # as data: an empty tag list, an empty first page.
     done = subprocess.run(
-        ["/usr/bin/curl", "-sS", url], capture_output=True, text=True, check=True
+        ["/usr/bin/curl", "-sS", "--fail-with-body", "--max-time", "30", url],
+        capture_output=True,
+        text=True,
     )
+    if done.returncode != 0:
+        raise RuntimeError(
+            f"curl exit {done.returncode} for {url}: "
+            f"{done.stderr.strip() or done.stdout[:200]}"
+        )
     return json.loads(done.stdout)
 
 
 def fetch_steam_updates():
-    """{version: iso-date} and {version: [dates]} from the store's update feed."""
+    """{version: earliest date} and {version: [dates]} from the store's updates."""
     events, offset = {}, 0
-    while True:
+    for _ in range(MAX_PAGES):
         page = _get(STEAM_EVENTS_URL + str(offset)).get("events") or []
         if not page:
             break
+        before = len(events)
         for event in page:
-            events[event.get("gid")] = event
+            gid = event.get("gid")
+            if not gid:
+                raise RuntimeError(
+                    f"Steam event without a gid at offset {offset}: "
+                    f"{event.get('event_name')!r}"
+                )
+            events[gid] = event
+        # The dict is keyed by gid so overlapping pages are harmless -- which is
+        # also what would make a feed that ignores `offset` invisible: the loop
+        # would run forever while the result stopped growing.
+        if len(events) == before:
+            raise RuntimeError(
+                f"offset={offset} returned {len(page)} events, all already seen — "
+                "the feed is ignoring the offset parameter"
+            )
         offset += 50
+    else:
+        raise RuntimeError(
+            f"stopped after {MAX_PAGES} pages ({len(events)} events) without "
+            "reaching the end of the feed"
+        )
+    if not events:
+        raise RuntimeError(
+            "Steam's update feed returned nothing at all — an HTTP error answers "
+            "like this too, and an empty first page is indistinguishable from the "
+            "end of the feed"
+        )
+    return parse_events(events.values())
 
+
+def parse_events(events):
+    """({version: earliest date}, {version: [dates]}) from store events.
+
+    Split out of the fetching so the two rules that carry the module can be
+    tested: which event types count as an update -- the reason this reads store
+    events rather than the news API at all -- and what makes a repeated version
+    a duplicate.
+    """
     versions, seen_at = {}, {}
-    for event in events.values():
+    for event in events:
         if event.get("event_type") not in (EVENT_SMALL_UPDATE, EVENT_MAJOR_UPDATE):
+            continue
+        stamp = event.get("rtime32_start_time")
+        if not stamp:
+            # Defaulting to 0 would date the event to 1970; because the earliest
+            # sighting wins, that fabricated date would beat the real one and
+            # then surface as a "mistyped title" suspect -- a script built to
+            # find hand-typed errors manufacturing one of its own.
+            print(
+                f"  ! skipping {event.get('event_name', '?')!r}: no release date",
+                file=sys.stderr,
+            )
             continue
         # UTC explicitly: a local-time conversion moves a release across the
         # date line for anyone in the wrong zone, and these dates are compared.
-        day = (
-            datetime.datetime.fromtimestamp(
-                event.get("rtime32_start_time", 0), tz=datetime.UTC
-            )
-            .date()
-            .isoformat()
-        )
-        for version in VERSION_IN_TITLE.findall(event["event_name"]):
+        day = datetime.datetime.fromtimestamp(stamp, tz=datetime.UTC).date().isoformat()
+        for version in VERSION_IN_TITLE.findall(event.get("event_name", "")):
             seen_at.setdefault(version, []).append(day)
             if version not in versions or day < versions[version]:
                 versions[version] = day
-    duplicates = {v: d for v, d in seen_at.items() if len(d) > 1}
+    duplicates = {v: sorted(set(d)) for v, d in seen_at.items() if len(set(d)) > 1}
     return versions, duplicates
 
 
 def fetch_modio_tags(game_key):
-    game = _get(MODIO_GAME_URL + urllib.parse.quote(game_key))
-    for group in game.get("tag_options", []):
-        if group.get("name") == "Game Version":
-            return [t for t in group["tags"] if re.fullmatch(r"\d+(\.\d+)+", t)]
+    return version_tags(_get(MODIO_GAME_URL + urllib.parse.quote(game_key)))
+
+
+def version_tags(game):
+    """The Game Version vocabulary, or an error naming what came back instead."""
+    groups = {g.get("name") for g in game.get("tag_options", [])}
+    if TAG_GROUP_GAME_VERSION not in groups:
+        raise RuntimeError(
+            f"mod.io returned no '{TAG_GROUP_GAME_VERSION}' tag group "
+            f"(got {sorted(g for g in groups if g)}) — an expired gameKey answers "
+            "like this too; check Assets/Resources/mod.io/config.asset"
+        )
+    for group in game["tag_options"]:
+        if group.get("name") == TAG_GROUP_GAME_VERSION:
+            return [t for t in group.get("tags", []) if re.fullmatch(r"\d+(\.\d+)+", t)]
     return []
 
 
@@ -153,11 +225,16 @@ def read_game_key():
     if not sdk:
         sys.exit("SDK_PATH is not set — source the mod's .envrc first")
     config = pathlib.Path(sdk) / "Assets/Resources/mod.io/config.asset"
-    match = re.search(
-        r"gameKey:\s*(\S+)", config.read_text() if config.is_file() else ""
-    )
+    text = config.read_text() if config.is_file() else ""
+    # [ \t] rather than \s: `\s*` spans newlines, so a blank `gameKey:` captured
+    # the next YAML key ("serverURL:") and the not-found guard never fired.
+    match = re.search(r"gameKey:[ \t]*([A-Za-z0-9]{8,})[ \t]*$", text, re.MULTILINE)
     if not match:
-        sys.exit(f"no gameKey in {config}")
+        sys.exit(
+            f"gameKey in {config} is empty or malformed"
+            if "gameKey:" in text
+            else f"no gameKey field in {config}"
+        )
     return match.group(1)
 
 
@@ -184,7 +261,10 @@ def main():
             print(f"  {version:10} {', '.join(duplicates[version])}")
     if not report.missing and not report.suspects:
         print(f"{len(doc['versions'])} versions, both feeds agree.")
-    return 0
+        return 0
+    # Non-zero so the report can gate something; the findings are printed
+    # either way.
+    return 1
 
 
 if __name__ == "__main__":

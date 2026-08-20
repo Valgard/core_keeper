@@ -71,13 +71,24 @@ fi
 
 # Discord preflight — before Unity, so a broken post surfaces in seconds rather
 # than after a ten-minute build, and at the top of the output rather than buried
-# in the batchmode log. Deliberately non-fatal: a post 30 characters over the
-# limit is no reason to hold back a mod release. The hard gate is the pytest
-# suite (utils/tests/test_discord_post_content.py), where prose problems belong.
-# A repo without a discord-post.md prints nothing and exits 0.
-if ! python3 "$UTILS_DIR/discord_post.py" --check "$REPO_ROOT"; then
-    echo "  (continuing — the Discord post is not part of the mod.io release)" >&2
-fi
+# in the batchmode log. A repo without a discord-post.md prints nothing.
+#
+# Exit 3 means the post itself is wrong, and that is waved through: nothing
+# about a forum thread should hold back a mod.io release. Any other non-zero
+# code is the tooling being broken (no python3, a corrupt data file, a syntax
+# error) and aborts, because continuing would publish while silently skipping a
+# check. Note the posts live in the *mod* repos, whose pre-commit hooks run
+# csharpier only — utils/tests/test_discord_post_content.py sees them just when
+# somebody commits under utils/ here, so it is a backstop, not a gate.
+discord_rc=0
+python3 "$UTILS_DIR/discord_post.py" --check "$REPO_ROOT" || discord_rc=$?
+case "$discord_rc" in
+    0) ;;
+    3) echo "  (continuing — the Discord post is not part of the mod.io release)" >&2 ;;
+    *) echo "ERROR: discord_post.py failed with exit $discord_rc — that is a tooling" >&2
+       echo "       failure, not a problem with the post. Fix it or publish without it." >&2
+       exit "$discord_rc" ;;
+esac
 
 # Refresh SDK symlinks (idempotent; self-heals after worktree moves).
 "$UTILS_DIR/link.sh" "$REPO_ROOT" >/dev/null
@@ -99,13 +110,22 @@ if timeout 600 "$UNITY_BIN" \
         -executeMethod CoreKeeperModUtils.CLIPublishHelper.Publish \
         -logFile -; then
     echo "✓ Publish complete."
-    # The release is the moment the Discord thread goes stale, so hand over the
-    # post right here instead of making it a separate thing to remember.
-    if [ "$DRY_RUN" != "1" ] && [ -f "$REPO_ROOT/discord-post.md" ]; then
-        echo
-        echo "--- #available-mods post ---------------------------------------"
-        python3 "$UTILS_DIR/discord_post.py" "$REPO_ROOT" || true
-        echo "----------------------------------------------------------------"
+    # A release is the moment the Discord thread goes stale, so hand the post
+    # over right here instead of making it a separate thing to remember. Only
+    # for a real release: --profile-only stops before the upload and
+    # --changelog-only edits an existing modfile, so neither leaves the thread
+    # out of date, and printing the post there is a false prompt to go post.
+    if [ "$DRY_RUN" != "1" ] && [ "$PROFILE_ONLY" != "1" ] && [ "$CHANGELOG_ONLY" != "1" ]; then
+        # Captured rather than streamed: on failure the banner would otherwise
+        # frame an empty post, which reads as "this mod has none".
+        if post="$(python3 "$UTILS_DIR/discord_post.py" "$REPO_ROOT")" && [ -n "$post" ]; then
+            printf '\n--- #available-mods post -------------------------------------\n'
+            printf '%s\n' "$post"
+            printf -- '--------------------------------------------------------------\n'
+        elif [ -f "$REPO_ROOT/discord-post.md" ]; then
+            echo "! The Discord post did not render (see above). The mod.io release" >&2
+            echo "  is published; the forum thread is not updated." >&2
+        fi
     fi
 else
     code=$?

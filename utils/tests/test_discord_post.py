@@ -1,6 +1,6 @@
 """Unit tests for `discord_post.py` — the renderer, not the posts.
 
-The 13 `discord-post.md` files are checked by `test_discord_post_content.py`;
+The written `discord-post.md` files are checked by `test_discord_post_content.py`;
 everything here runs on synthetic input. That split is deliberate: a test that
 reads the real posts fails when prose is edited, which says nothing about the
 renderer, and it would only ever exercise the branches the current texts happen
@@ -129,17 +129,19 @@ def test_render_rejects_more_tags_than_discord_accepts():
         )
 
 
-def test_render_turns_h2_into_bold_because_discord_has_no_heading_levels():
+def test_render_turns_h2_into_bold_because_a_heading_outweighs_a_short_post():
     post = _render("# T\n\n## Requirements\n\nCoreLib.\n")
 
     assert "**Requirements**" in post
     assert "## Requirements" not in post
 
 
-def test_a_repo_without_a_discord_post_is_skipped_not_an_error(tmp_path):
-    """Most mods have no `discord-post.md` while this is being rolled out, and
-    `CLIPublishHelper` treats a missing `modio-description.md` the same way."""
-    assert dp.render_repo(tmp_path, _ENV, ["1.2.1.5"]) is None
+def test_a_repo_without_a_post_or_tags_is_skipped_not_an_error(tmp_path):
+    """A mod need not have a forum thread — that is a permanent state, not a
+    stage of some rollout. Neither file nor tags means nobody started one."""
+    env = {k: v for k, v in _ENV.items() if k != "CK_DISCORD_TAGS"}
+
+    assert dp.render_repo(tmp_path, env, ["1.2.1.5"]) is None
 
 
 def test_render_repo_reads_the_post_beside_the_mod(tmp_path):
@@ -201,3 +203,44 @@ def test_version_line_never_claims_a_minor_the_span_leaves():
     assert dp.version_line(supported, known) == (
         "**Compatible with Core Keeper 1.1.0.1 – 1.2.1.5**"
     )
+
+
+def test_forum_tags_without_a_post_file_are_a_misconfiguration(tmp_path):
+    """Skipping a repo without a post is right while one is not written yet —
+    but filled-in tags say one was. The likely cause is the filename: the script
+    is discord_post.py with an underscore, the file is discord-post.md with a
+    hyphen."""
+    (tmp_path / "discord_post.md").write_text("# T\n\nBody.\n")
+
+    with pytest.raises(ValueError, match="discord-post.md"):
+        dp.render_repo(tmp_path, _ENV, ["1.2.1.5"])
+
+
+def test_a_build_the_version_list_does_not_know_is_refused(tmp_path):
+    """CK_GAME_VERSION reaching a build that never shipped means a typo, and a
+    typo only ever widens the '1.2.x' claim — set arithmetic cannot notice an
+    extra element."""
+    (tmp_path / "discord-post.md").write_text("# T\n\nBody.\n")
+    env = dict(_ENV, CK_GAME_VERSION="1.2.1.5 1.2.1.55")
+
+    with pytest.raises(ValueError, match="1.2.1.55"):
+        dp.render_repo(tmp_path, env, ["1.2.1.5"])
+
+
+def test_a_heading_further_down_the_file_is_not_the_thread_title(tmp_path):
+    """`#\\s+` spans newlines, so a file starting with a bare '#' took the first
+    prose line as the title while render() left it in the body — the same words
+    twice, once as the thread name."""
+    (tmp_path / "discord-post.md").write_text("#\n\nActually the first paragraph.\n")
+
+    with pytest.raises(ValueError, match="# Title"):
+        dp.render_repo(tmp_path, _ENV, ["1.2.1.5"])
+
+
+def test_a_thread_title_over_discords_limit_is_refused(tmp_path):
+    """Length and tag count are both enforced; the title was the one ceiling
+    that was not, and it is the field Discord rejects first."""
+    (tmp_path / "discord-post.md").write_text("# " + "T" * 101 + "\n\nBody.\n")
+
+    with pytest.raises(ValueError, match="100"):
+        dp.render_repo(tmp_path, _ENV, ["1.2.1.5"])

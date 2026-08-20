@@ -14,15 +14,24 @@ import re
 import sys
 
 POST_FILENAME = "discord-post.md"
+
+# A distinct code for 'the post is wrong', so upload.sh can wave that through
+# while still failing on a broken interpreter, a missing data file or a
+# syntax error -- which a bare 1 made indistinguishable.
+EXIT_CONTENT = 3
 VERSIONS_FILENAME = "ck-game-versions.json"
 
-# Discord's own ceilings for a forum post.
+# Discord's own ceilings for a forum post. LIMIT is the non-Nitro message
+# ceiling -- do not 'correct' it to 4000, since readers without Nitro are
+# irrelevant here but the *author* posting it is not.
 LIMIT = 2000
+TITLE_LIMIT = 100
 MAX_TAGS = 5
 
 # The forum's own tag set, read off the channel. Discord offers these as
 # checkboxes when a thread is created, so a value outside the list cannot be
-# set at all — catching it here means finding out before the text is written.
+# set at all — catching it here means finding out before you are standing in
+# the thread-creation dialog with the text already written.
 FORUM_TAGS = frozenset(
     {
         "Automation",
@@ -83,7 +92,6 @@ def version_line(supported, known):
 
 
 def render(markdown, *, supported, known, tags, slug):
-    """The finished post body, ready to paste into a forum thread."""
     unknown = sorted(set(tags) - FORUM_TAGS)
     if unknown:
         raise ValueError(f"not offered by #available-mods: {', '.join(unknown)}")
@@ -91,13 +99,18 @@ def render(markdown, *, supported, known, tags, slug):
         raise ValueError(f"{len(tags)} tags — Discord accepts {MAX_TAGS} per post")
 
     body = re.sub(r"\A#[^\n]*\n+", "", markdown).strip()
+    # Discord *does* have headings (`#`, `##`, `###`); this is a style choice,
+    # not a compatibility one. At forum-post length a `##` renders larger than
+    # the paragraph it introduces and pulls the eye off the text.
     body = re.sub(r"^##+\s+(.*)$", r"**\1**", body, flags=re.MULTILINE)
     # Discord does not reflow: a newline in the source is a line break in the
     # post. mod.io never shows this because it receives HTML, where the browser
     # rewraps — same source format, two different consequences.
     blocks = [_unwrap(b) for b in body.split("\n\n")]
     body = "\n\n".join(b for b in blocks if b)
-    # Exactly one bare link, so the post carries a single mod.io preview card.
+    # One bare link, so the post carries a single mod.io preview card. A bare
+    # URL in the authored prose would add a competing one -- an invariant the
+    # author keeps, not something this can enforce.
     # The source link is bracketed to keep a second card from competing with it.
     links = (
         f"**Download:** https://mod.io/g/corekeeper/m/{slug}\n"
@@ -119,12 +132,23 @@ def _unwrap(block):
 def render_repo(repo, env, known):
     """Render the post for one mod repo, or None when it has no `discord-post.md`.
 
-    A missing file is the normal state for a mod nobody has written a post for
-    yet, so it is skipped rather than reported -- the same call CLIPublishHelper
-    makes for a missing `modio-description.md`.
+    A mod need not have a forum thread, so a missing file is skipped. That is
+    the same decision CLIPublishHelper makes for a missing `modio-description.md`
+    -- though that one logs a line, and this returns in silence, because
+    `upload.sh` calls it for every mod including the ones that will never have a
+    post.
     """
     source = pathlib.Path(repo) / POST_FILENAME
     if not source.is_file():
+        # Tags filled in with no post file is not "no post yet" -- somebody wrote
+        # one. The likely cause is the filename: this script is discord_post.py
+        # with an underscore, the file is discord-post.md with a hyphen.
+        if env.get("CK_DISCORD_TAGS", "").strip():
+            near = sorted(q.name for q in pathlib.Path(repo).glob("*ost*.md"))
+            raise ValueError(
+                f"CK_DISCORD_TAGS is set but there is no {POST_FILENAME} in "
+                f"{repo} — found instead: {', '.join(near) or 'nothing similar'}"
+            )
         return None
     for name in ("CK_GAME_VERSION", "MOD_NAME_ID"):
         if not env.get(name, "").strip():
@@ -142,8 +166,22 @@ def render_repo(repo, env, known):
             "forum tags to .envrc and .envrc.example, pipe-separated"
         )
     tags = [t.strip() for t in env["CK_DISCORD_TAGS"].split("|") if t.strip()]
+    unknown = sorted(
+        v
+        for v in env["CK_GAME_VERSION"].split()
+        if _norm(v) not in {_norm(k) for k in known}
+    )
+    if unknown:
+        raise ValueError(
+            f"CK_GAME_VERSION names {', '.join(unknown)}, which "
+            f"{VERSIONS_FILENAME} does not list as a shipped build — a typo, or "
+            "a build to add (utils/refresh_game_versions.py)"
+        )
+
     markdown = source.read_text()
-    heading = re.match(r"#\s+(.*)", markdown)
+    # [^\S\n] rather than \s: the latter spans newlines, so a bare '#' line took
+    # the first paragraph as the title while render() left it in the body.
+    heading = re.match(r"#[^\S\n]+(\S.*)", markdown)
     if not heading:
         raise ValueError(f"{source.name} has no '# Title' heading to post under")
     post = render(
@@ -153,13 +191,25 @@ def render_repo(repo, env, known):
         tags=tags,
         slug=env["MOD_NAME_ID"],
     )
-    return post, tags, heading.group(1).strip()
+    title = heading.group(1).strip()
+    if len(title) > TITLE_LIMIT:
+        raise ValueError(
+            f"thread title is {len(title)} characters — Discord accepts {TITLE_LIMIT}"
+        )
+    return post, tags, title
 
 
 def known_versions():
-    """The builds that shipped, from the data file beside this script."""
     path = pathlib.Path(__file__).with_name(VERSIONS_FILENAME)
-    return json.loads(path.read_text())["versions"]
+    try:
+        doc = json.loads(path.read_text())
+    except FileNotFoundError:
+        sys.exit(f"discord_post: {path} is missing — restore it from git")
+    except json.JSONDecodeError as err:
+        sys.exit(f"discord_post: {path} is not valid JSON: {err}")
+    if "versions" not in doc:
+        sys.exit(f"discord_post: {path} has no 'versions' key")
+    return doc["versions"]
 
 
 def main(argv=None):
@@ -172,13 +222,24 @@ def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     check_only = "--check" in argv
     paths = [a for a in argv if a != "--check"]
+    # Without this, `--chek` becomes a path, render_repo finds no post there and
+    # the run succeeds in silence -- the same outcome as "all fine".
+    unknown = [a for a in paths if a.startswith("-")]
+    if unknown or len(paths) > 1:
+        print(
+            f"usage: discord_post.py [mod-repo-path] [--check]\n"
+            f"       got: {' '.join(argv)}",
+            file=sys.stderr,
+        )
+        return 2
     repo = pathlib.Path(paths[0]) if paths else pathlib.Path.cwd()
 
+    known = known_versions()
     try:
-        result = render_repo(repo, os.environ, known_versions())
-    except (ValueError, KeyError) as err:
-        print(f"discord_post: {repo.name}: {err}", file=sys.stderr)
-        return 1
+        result = render_repo(repo, os.environ, known)
+    except ValueError as err:
+        print(f"discord_post: {repo.name or repo}: {err}", file=sys.stderr)
+        return EXIT_CONTENT
     if result is None:
         return 0
 
