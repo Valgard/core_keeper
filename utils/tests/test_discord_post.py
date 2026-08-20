@@ -179,3 +179,13 @@ def test_an_empty_tag_list_is_as_wrong_as_a_missing_one(tmp_path):
 
     with pytest.raises(ValueError, match="CK_DISCORD_TAGS"):
         dp.render_repo(tmp_path, env, ["1.2.1.5"])
+
+
+def test_a_missing_game_version_says_so_instead_of_naming_a_key(tmp_path):
+    """Running outside direnv is the usual way to hit this, and a bare KeyError
+    prints just the variable name — which reads like the value, not the fault."""
+    (tmp_path / "discord-post.md").write_text("# T\n\nBody.\n")
+    env = {k: v for k, v in _ENV.items() if k != "CK_GAME_VERSION"}
+
+    with pytest.raises(ValueError, match="CK_GAME_VERSION is not set"):
+        dp.render_repo(tmp_path, env, ["1.2.1.5"])
