@@ -7,14 +7,28 @@ renderer, and it would only ever exercise the branches the current texts happen
 to reach — the over-limit abort among them would never run at all.
 """
 
+import os
+
 import discord_post as dp
 import pytest
 
 _ENV = {
-    "MOD_NAME_ID": "reusable-cattle-box",
+    "MOD_NAME_ID": "probe-mod",
     "CK_GAME_VERSION": "1.2.1.5",
     "CK_DISCORD_TAGS": "Tweaks|Equipment",
 }
+
+
+def _run_main(repo, monkeypatched, args=None):
+    """main() with a controlled environment, since it reads os.environ."""
+    saved = dict(os.environ)
+    os.environ.clear()
+    os.environ.update(monkeypatched)
+    try:
+        return dp.main([*(args or []), str(repo)])
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
 
 
 def _render(markdown, **overrides):
@@ -23,7 +37,7 @@ def _render(markdown, **overrides):
         "supported": ["1.2.1.5"],
         "known": ["1.2.1.5"],
         "tags": ["Tweaks"],
-        "slug": "reusable-cattle-box",
+        "slug": "probe-mod",
     }
     args.update(overrides)
     return dp.render(markdown, **args)
@@ -98,11 +112,11 @@ def test_render_opens_with_the_version_line_the_channel_rules_ask_for():
 def test_render_suppresses_the_embed_on_source_but_not_on_download():
     """One link without angle brackets gives the post a single mod.io preview
     card; a second bare link would add a competing one."""
-    post = _render("# T\n\nBody.\n", slug="reusable-cattle-box")
+    post = _render("# T\n\nBody.\n", slug="probe-mod")
 
     assert post.endswith(
-        "**Download:** https://mod.io/g/corekeeper/m/reusable-cattle-box\n"
-        "**Source:** <https://github.com/Valgard/ck_reusable_cattle_box>"
+        "**Download:** https://mod.io/g/corekeeper/m/probe-mod\n"
+        "**Source:** <https://github.com/Valgard/ck_probe_mod>"
     )
 
 
@@ -166,11 +180,11 @@ def test_a_post_without_forum_tags_names_the_variable_it_wants(tmp_path):
 def test_the_h1_becomes_the_thread_title_rather_than_being_discarded(tmp_path):
     """The heading is dropped from the body because Discord shows it as the
     thread title -- so it is authored, not derived from a directory name."""
-    (tmp_path / "discord-post.md").write_text("# Reusable Cattle Box\n\nBody.\n")
+    (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
 
     _, _, title = dp.render_repo(tmp_path, _ENV, ["1.2.1.5"])
 
-    assert title == "Reusable Cattle Box"
+    assert title == "Probe Mod"
 
 
 def test_an_empty_tag_list_is_as_wrong_as_a_missing_one(tmp_path):
@@ -244,3 +258,84 @@ def test_a_thread_title_over_discords_limit_is_refused(tmp_path):
 
     with pytest.raises(ValueError, match="100"):
         dp.render_repo(tmp_path, _ENV, ["1.2.1.5"])
+
+
+def test_a_post_of_exactly_the_limit_is_accepted():
+    """The abort was only ever exercised from 100 characters past the ceiling,
+    so `>` and `>=` were indistinguishable — and so was measuring the body
+    without the generated link block, which the author cannot shorten."""
+    filler = "x" * 10
+    overhead = len(_render(f"# T\n\n{filler}\n")) - len(filler)
+
+    exact = _render("# T\n\n" + "x" * (dp.LIMIT - overhead) + "\n")
+
+    assert len(exact) == dp.LIMIT
+    with pytest.raises(ValueError, match=str(dp.LIMIT)):
+        _render("# T\n\n" + "x" * (dp.LIMIT - overhead + 1) + "\n")
+
+
+def test_the_largest_allowed_number_of_tags_is_accepted():
+    post = _render(
+        "# T\n\nBody.\n", tags=["Tweaks", "Mining", "Cheats", "Combat", "Food"]
+    )
+
+    assert post
+
+
+def test_a_missing_mod_name_id_says_so(tmp_path):
+    """It builds both URLs, and was the one env var with no test."""
+    (tmp_path / "discord-post.md").write_text("# T\n\nBody.\n")
+    env = {k: v for k, v in _ENV.items() if k != "MOD_NAME_ID"}
+
+    with pytest.raises(ValueError, match="MOD_NAME_ID is not set"):
+        dp.render_repo(tmp_path, env, ["1.2.1.5"])
+
+
+def test_a_blank_game_version_is_as_wrong_as_a_missing_one(tmp_path):
+    """direnv exporting an empty value is the realistic failure, not an absent
+    key — and the sibling tag check already treats the two alike."""
+    (tmp_path / "discord-post.md").write_text("# T\n\nBody.\n")
+
+    with pytest.raises(ValueError, match="CK_GAME_VERSION is not set"):
+        dp.render_repo(tmp_path, dict(_ENV, CK_GAME_VERSION="   "), ["1.2.1.5"])
+
+
+def test_spaces_around_the_tag_separator_are_not_part_of_the_tag(tmp_path):
+    """`Tweaks | Equipment` is how a person writes it into an .envrc by hand."""
+    (tmp_path / "discord-post.md").write_text("# T\n\nBody.\n")
+    env = dict(_ENV, CK_DISCORD_TAGS="Tweaks | Equipment")
+
+    _, tags, _ = dp.render_repo(tmp_path, env, ["1.2.1.5"])
+
+    assert tags == ["Tweaks", "Equipment"]
+
+
+def test_main_puts_the_post_on_stdout_and_everything_else_on_stderr(tmp_path, capsys):
+    """The documented contract: `discord_post.py | pbcopy` must copy the post
+    and not the title or the character count."""
+    (tmp_path / "discord-post.md").write_text("# Some Mod\n\nBody.\n")
+    _run_main(tmp_path, monkeypatched=_ENV)
+
+    out, err = capsys.readouterr()
+    assert out.startswith("**Compatible with Core Keeper")
+    assert "Some Mod" in err and "Some Mod" not in out
+
+
+def test_main_check_prints_nothing_on_stdout(tmp_path, capsys):
+    (tmp_path / "discord-post.md").write_text("# Some Mod\n\nBody.\n")
+    _run_main(tmp_path, monkeypatched=_ENV, args=["--check"])
+
+    out, err = capsys.readouterr()
+    assert out == ""
+    assert "Some Mod" in err
+
+
+def test_main_reports_a_bad_post_with_the_content_exit_code(tmp_path, capsys):
+    """upload.sh waves 3 through and aborts on anything else, so the code is the
+    difference between 'your prose is long' and 'the tooling is broken'."""
+    (tmp_path / "discord-post.md").write_text("# Some Mod\n\nBody.\n")
+
+    code = _run_main(tmp_path, monkeypatched=dict(_ENV, CK_DISCORD_TAGS="Nope"))
+
+    assert code == dp.EXIT_CONTENT
+    assert "Nope" in capsys.readouterr().err

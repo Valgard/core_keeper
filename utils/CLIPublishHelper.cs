@@ -498,12 +498,24 @@ namespace CoreKeeperModUtils
             }
 
             // CK_GAME_VERSION says what the mod runs on. mod.io's Game Version
-            // vocabulary is a *subset* of the builds that shipped — 1.0.0.7,
-            // 1.0.0.12 and 1.2.1.2 have no tag — and the guard further down
-            // rightly refuses a value the live taxonomy does not know. Naming
-            // those builds in CK_MODIO_VERSION_UNLISTED drops them here, so the
-            // list stays honest for everything that reads it (the Discord post
-            // does) without softening the guard for the typo it exists to catch.
+            // vocabulary is a *subset* of the builds that shipped, and the guard
+            // further down rightly refuses a value the live taxonomy does not
+            // know. Naming the untagged builds in CK_MODIO_VERSION_UNLISTED (the
+            // parent .envrc.example carries the list and the reasoning) drops
+            // them here, so CK_GAME_VERSION stays honest for everything that
+            // reads it — utils/discord_post.py renders the Discord post from it.
+            //
+            // This does soften the guard for exactly what it names, which is why
+            // utils/tests/test_discord_post_content.py checks every entry
+            // against utils/ck-game-versions.json: a build that never shipped is
+            // a typo, and a typo parked here would disable the guard forever,
+            // since the staleness check below only fires for entries mod.io
+            // later offers.
+            //
+            // Note the taxonomy spells some builds with three segments (1.1.2,
+            // 0.7.4) where this repo writes four, and the comparison below is
+            // exact-string — extending CK_GAME_VERSION back past 1.1.2 will hit
+            // that before it hits anything else.
             var unlistedRaw = Environment.GetEnvironmentVariable("CK_MODIO_VERSION_UNLISTED");
             var unlisted = new HashSet<string>((unlistedRaw ?? string.Empty).Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries));
             gameVersions.RemoveAll(v => unlisted.Contains(v));
@@ -598,8 +610,15 @@ namespace CoreKeeperModUtils
                 // An entry in CK_MODIO_VERSION_UNLISTED that mod.io meanwhile
                 // offers is worse than a stale comment: the publish keeps
                 // excluding a tag it could now set, so the listing quietly
-                // advertises one version fewer than it supports. It happens once
-                // per build and the fix is deleting a word.
+                // advertises one version fewer than it supports.
+                //
+                // Deliberately checked across the whole list, not just the
+                // entries that filtered something here: it lives in the shared
+                // parent .envrc, so the first mod published after mod.io
+                // backfills a tag is the one that reports it, whichever mod that
+                // is. The fix is deleting a word — but the abort lands after the
+                // build and after EditModProfile has run, so --dry-run (which
+                // reaches this check) is the cheap way to find out.
                 var nowListed = new List<string>();
                 foreach (var value in unlisted)
                 {

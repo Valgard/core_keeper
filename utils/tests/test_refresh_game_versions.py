@@ -7,7 +7,6 @@ the part that can be wrong.
 """
 
 import pytest
-
 import refresh_game_versions as rg
 
 
@@ -72,9 +71,7 @@ def _event(gid, name, day, kind=rg.EVENT_SMALL_UPDATE):
     import datetime
 
     stamp = int(
-        datetime.datetime.fromisoformat(day)
-        .replace(tzinfo=datetime.timezone.utc)
-        .timestamp()
+        datetime.datetime.fromisoformat(day).replace(tzinfo=datetime.UTC).timestamp()
     )
     return {
         "gid": gid,
@@ -146,3 +143,32 @@ def test_the_version_group_is_read_when_it_is_there():
     }
 
     assert rg.version_tags(game) == ["1.2.1.5"]
+
+
+def test_two_entries_on_nearby_days_are_not_a_suspected_typo():
+    """Without this the threshold is unasserted: `if True` in its place passed
+    the whole suite, because only the flagging half was ever tested."""
+    report = rg.compare(
+        known=[],
+        steam={},
+        modio=[],
+        duplicates={"1.2.0.3": ["2026-05-01", "2026-05-10"]},
+    )
+
+    assert report.suspects == []
+
+
+def test_the_gap_is_measured_regardless_of_the_order_the_dates_arrive_in():
+    """They arrive in feed order, not sorted, so dropping the sort turns an
+    86-day gap into -86 and the heuristic silently stops firing."""
+    assert rg._spread_days(["2024-06-05", "2024-03-11"]) == 86
+
+
+def test_the_shipped_version_list_is_sorted_newest_first_without_duplicates():
+    """Curated by hand from two feeds that disagree, so ordering and duplicates
+    are the failure modes a reader would not notice."""
+    import discord_post as dp
+
+    versions = [rg.norm(v) for v in dp.known_versions()]
+
+    assert versions == sorted(set(versions), reverse=True)

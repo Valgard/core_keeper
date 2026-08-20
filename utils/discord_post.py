@@ -215,8 +215,8 @@ def known_versions():
 def main(argv=None):
     """Print one mod's post: the text on stdout, everything else on stderr.
 
-    The split is what makes `utils/discord_post.py | pbcopy` copy the post and
-    nothing else, while the title and tags -- which are typed into Discord's UI,
+    The split is what makes `python3 utils/discord_post.py | pbcopy` copy the
+    post and nothing else, while the title and tags -- which are typed into Discord's UI,
     not pasted -- stay visible in the terminal.
     """
     argv = list(sys.argv[1:] if argv is None else argv)
