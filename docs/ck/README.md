@@ -18,22 +18,14 @@ from; game updates can and do invalidate them.
 > fires"), by **task** ("add an options-menu entry"), and by **starting from
 > nothing** if you have never built a mod for this game.
 
-## What is not here
+## Scope
 
-This handbook covers the game and the SDK. The surrounding workflow lives
-elsewhere in this repository:
-
-| Topic | Document |
-|---|---|
-| This repository's own scripts, variables and commands — the concrete form of [Toolchain](toolchain.md) | [`../../README.md`](../../README.md) |
-| Publishing to mod.io | [`../publishing.md`](../publishing.md) |
-| Running a dedicated server locally | [`../dedicated-server.md`](../dedicated-server.md) |
-| macOS/CrossOver loader specifics and the game-DLL patches | [`../macos-crossover-loader.md`](../macos-crossover-loader.md) |
-| One pixel-art authoring workflow — the one used in this repo, not a requirement | [`../pixaki-format.md`](../pixaki-format.md) |
-
-Individual mods document their own architecture, iteration history and
-mod-specific traps in their own repositories. Nothing about a particular mod
-belongs here — this handbook only records what holds for the game itself.
+This handbook covers the game and the SDK. Individual mods document their own
+architecture, iteration history and mod-specific traps in their own
+repositories — nothing about a particular mod belongs here, only what holds
+for the game itself. The workflow around modding, from building to publishing,
+is this repository's business rather than the game's; [index.md](index.md)
+lists where each part of it is written down.
 
 ## Licence note
 
