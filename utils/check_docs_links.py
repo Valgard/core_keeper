@@ -123,20 +123,25 @@ def check(files, root):
 
 
 def check_handbook_complete(files, root):
-    """Every docs/ck chapter must be linked from both its README and its index."""
+    """Every docs/ck chapter must be reachable from index.md.
+
+    index.md is the entry point and carries the chapter list; README.md
+    describes the work and deliberately does not enumerate it. So the
+    completeness rule belongs to the index alone — requiring it of both would
+    force the duplicate list that separating them was meant to avoid.
+    """
     docs = root / "docs" / "ck"
-    chapters = [
-        f for f in files if f.parent == docs and f.name not in ("README.md", "index.md")
+    index = docs / "index.md"
+    if not index.exists():
+        return []
+    text = index.read_text()
+    return [
+        f"docs/ck/index.md  does not link chapter {f.name}"
+        for f in files
+        if f.parent == docs
+        and f.name not in ("README.md", "index.md")
+        and f.name not in text
     ]
-    problems = []
-    for nav in ("README.md", "index.md"):
-        if not (docs / nav).exists():
-            continue
-        text = (docs / nav).read_text()
-        for chapter in chapters:
-            if chapter.name not in text:
-                problems.append(f"docs/ck/{nav}  does not link chapter {chapter.name}")
-    return problems
 
 
 def main(argv):

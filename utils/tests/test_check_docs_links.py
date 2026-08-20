@@ -118,14 +118,20 @@ class TestHandbookComplete:
         assert docs.exists()
         return files
 
-    def test_silent_when_both_link_every_chapter(self, tmp_path):
-        files = self._handbook(tmp_path, "[c](chapter.md)\n", "[c](chapter.md)\n")
+    def test_silent_when_the_index_links_every_chapter(self, tmp_path):
+        files = self._handbook(tmp_path, "no list here\n", "[c](chapter.md)\n")
         assert mod.check_handbook_complete(files, tmp_path) == []
 
     def test_reports_a_chapter_missing_from_the_index(self, tmp_path):
         files = self._handbook(tmp_path, "[c](chapter.md)\n", "nothing\n")
         (problem,) = mod.check_handbook_complete(files, tmp_path)
         assert "index.md" in problem and "chapter.md" in problem
+
+    def test_the_readme_is_not_required_to_enumerate_chapters(self, tmp_path):
+        # README.md describes the work; enumerating it there too would be the
+        # duplicate list that splitting the two files was meant to avoid.
+        files = self._handbook(tmp_path, "just prose\n", "[c](chapter.md)\n")
+        assert mod.check_handbook_complete(files, tmp_path) == []
 
     def test_silent_in_a_repo_without_a_handbook(self, tmp_path):
         a = write(tmp_path, "a.md", "# Nothing to do\n")

@@ -250,8 +250,9 @@ needs no equivalent, as it honours `.gitignore` itself.
 `utils/check_docs_links.py` runs at `pre-commit` and `pre-push` whenever a
 `.md` file is staged, and blocks on a relative link that does not resolve, an
 `#anchor` with no matching heading, two headings in one file that produce the
-same anchor, an unbalanced code fence, or a `docs/ck/` chapter that neither
-`README.md` nor `index.md` links.
+same anchor, an unbalanced code fence, or a `docs/ck/` chapter that
+`index.md` does not link — the index carries the chapter list, so a new
+chapter cannot be added and left unreachable.
 
 A broken anchor is the quietest defect documentation has: the file still
 renders and the link is still blue, it just lands nowhere. It happens whenever
