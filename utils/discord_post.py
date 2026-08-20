@@ -99,10 +99,6 @@ def render(markdown, *, supported, known, tags, slug):
         raise ValueError(f"{len(tags)} tags — Discord accepts {MAX_TAGS} per post")
 
     body = re.sub(r"\A#[^\n]*\n+", "", markdown).strip()
-    # Discord *does* have headings (`#`, `##`, `###`); this is a style choice,
-    # not a compatibility one. At forum-post length a `##` renders larger than
-    # the paragraph it introduces and pulls the eye off the text.
-    body = re.sub(r"^##+\s+(.*)$", r"**\1**", body, flags=re.MULTILINE)
     # Discord does not reflow: a newline in the source is a line break in the
     # post. mod.io never shows this because it receives HTML, where the browser
     # rewraps — same source format, two different consequences.
@@ -123,10 +119,32 @@ def render(markdown, *, supported, known, tags, slug):
 
 
 def _unwrap(block):
-    lines = [line.strip() for line in block.split("\n") if line.strip()]
-    if any(line.startswith(("- ", "* ")) for line in lines):
-        return "\n".join(lines)
-    return " ".join(lines)
+    """Join a block's lines into one paragraph, except where a break is meaning.
+
+    List items and headings each own their line: Discord renders `##` as a
+    heading, and folding one into the text under it would make it prose.
+    """
+    out, pending = [], []
+    for line in (raw.strip() for raw in block.split("\n")):
+        if not line:
+            continue
+        if line.startswith("#"):
+            # A heading owns its line and takes nothing with it.
+            if pending:
+                out.append(" ".join(pending))
+                pending = []
+            out.append(line)
+        elif line.startswith(("- ", "* ")):
+            # A new item ends the previous one; a continuation line does not,
+            # so a bullet wrapped across lines stays one bullet.
+            if pending:
+                out.append(" ".join(pending))
+            pending = [line]
+        else:
+            pending.append(line)
+    if pending:
+        out.append(" ".join(pending))
+    return "\n".join(out)
 
 
 def render_repo(repo, env, known):

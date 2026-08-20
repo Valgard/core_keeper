@@ -97,6 +97,14 @@ deleted. Tags outside these four groups are never touched.
 | `Application Type` | derived from the `.asset`'s `metadata.requiredOn` (`Client`=1, `Server`=2, both=3; **0 is valid** and publishes with no tag in this group, for a mod that must never gate a connection — it logs a warning, because 0 is also what an unset field reads as) |
 | `Access Type` | derived from `metadata.skipSafetyChecks` (`false` → `Script`, `true` → `Script (Elevated Access)`) |
 
+- **Every version is checked against the shipped builds first.**
+  `utils/upload.sh` exports `CK_KNOWN_GAME_VERSIONS` from
+  `utils/ck-game-versions.json`, and both `CK_GAME_VERSION` and
+  `CK_MODIO_VERSION_UNLISTED` are validated against it before any mod.io call.
+  This is repo data, so it works where the live-taxonomy check below cannot:
+  when `GetTagCategories` fails, tagging degrades to additive and mod.io drops
+  an unknown value without a word. A typo caught here is caught on both paths.
+
 - **`CK_MODIO_VERSION_UNLISTED` is subtracted before anything is sent.**
   mod.io's `Game Version` vocabulary is a *subset* of the builds that shipped —
   `1.2.1.2`, `1.0.0.7` and `1.0.0.12` have Steam patch notes and no tag — so

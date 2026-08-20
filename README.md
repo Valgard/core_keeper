@@ -125,7 +125,10 @@ Three things are generated rather than written by hand:
   bare so the post carries one preview card; the GitHub link is bracketed so a
   second one does not compete with it.
 * **The paragraph flow**. Discord does not rewrap, so the source file's hard
-  line breaks are joined back into paragraphs — list items excepted.
+  line breaks are joined back into paragraphs. A heading keeps its own line and
+  a wrapped list item stays one item; `##` passes through, because Discord
+  renders it as a heading and that reads differently from the bold runs the
+  prose itself uses.
 
 The forum tags live in `CK_DISCORD_TAGS` (pipe-separated, because
 `Misc / Other` contains spaces), in `.envrc.example` as well as `.envrc` so
