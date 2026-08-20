@@ -497,6 +497,22 @@ namespace CoreKeeperModUtils
                 return;
             }
 
+            // CK_GAME_VERSION says what the mod runs on. mod.io's Game Version
+            // vocabulary is a *subset* of the builds that shipped — 1.0.0.7,
+            // 1.0.0.12 and 1.2.1.2 have no tag — and the guard further down
+            // rightly refuses a value the live taxonomy does not know. Naming
+            // those builds in CK_MODIO_VERSION_UNLISTED drops them here, so the
+            // list stays honest for everything that reads it (the Discord post
+            // does) without softening the guard for the typo it exists to catch.
+            var unlistedRaw = Environment.GetEnvironmentVariable("CK_MODIO_VERSION_UNLISTED");
+            var unlisted = new HashSet<string>((unlistedRaw ?? string.Empty).Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries));
+            gameVersions.RemoveAll(v => unlisted.Contains(v));
+            if (gameVersions.Count == 0)
+            {
+                Fail($"CK_MODIO_VERSION_UNLISTED removed every value of CK_GAME_VERSION ('{gameVersionsRaw}') — nothing left to tag.");
+                return;
+            }
+
             var types = new List<string>();
             foreach (var raw in (Environment.GetEnvironmentVariable("CK_MODIO_TYPE") ?? string.Empty).Split('|'))
             {
@@ -541,10 +557,10 @@ namespace CoreKeeperModUtils
                 new TagGroupPlan { group = TagGroupApplicationType, desired = appTypes },
                 new TagGroupPlan { group = TagGroupAccessType, desired = accessTypes },
             };
-            SyncTags(modIo, plans);
+            SyncTags(modIo, plans, unlisted);
         }
 
-        private static void SyncTags(ModSettings modIo, List<TagGroupPlan> plans)
+        private static void SyncTags(ModSettings modIo, List<TagGroupPlan> plans, HashSet<string> unlisted)
         {
             var modId = new ModId(modIo.modId);
             ModIOUnity.GetTagCategories(catRes =>
@@ -577,6 +593,23 @@ namespace CoreKeeperModUtils
                         FallBackToAdditiveTags(modIo, plans, $"mod.io reports no '{plan.group}' tag group " + $"(got [{string.Join(", ", groupValues.Keys)}])");
                         return;
                     }
+                }
+
+                // An entry in CK_MODIO_VERSION_UNLISTED that mod.io meanwhile
+                // offers is worse than a stale comment: the publish keeps
+                // excluding a tag it could now set, so the listing quietly
+                // advertises one version fewer than it supports. It happens once
+                // per build and the fix is deleting a word.
+                var nowListed = new List<string>();
+                foreach (var value in unlisted)
+                {
+                    if (groupValues[TagGroupGameVersion].Contains(value))
+                        nowListed.Add(value);
+                }
+                if (nowListed.Count > 0)
+                {
+                    Fail($"mod.io now offers [{string.Join(", ", nowListed)}] as '{TagGroupGameVersion}' tags — remove them from CK_MODIO_VERSION_UNLISTED.");
+                    return;
                 }
 
                 // Validate BEFORE changing anything: mod.io accepts an unknown
