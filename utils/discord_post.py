@@ -13,7 +13,6 @@ import pathlib
 import re
 import sys
 
-
 POST_FILENAME = "discord-post.md"
 VERSIONS_FILENAME = "ck-game-versions.json"
 
@@ -90,7 +89,7 @@ def render(markdown, *, supported, known, tags, slug):
         raise ValueError(f"{len(tags)} tags — Discord accepts {MAX_TAGS} per post")
 
     body = re.sub(r"\A#[^\n]*\n+", "", markdown).strip()
-    body = re.sub(r"^##+\s+(.*)$", r"**\1**", body, flags=re.M)
+    body = re.sub(r"^##+\s+(.*)$", r"**\1**", body, flags=re.MULTILINE)
     # Discord does not reflow: a newline in the source is a line break in the
     # post. mod.io never shows this because it receives HTML, where the browser
     # rewraps — same source format, two different consequences.
