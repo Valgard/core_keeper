@@ -41,10 +41,11 @@ PROBE_KEBAB = "probe-mod"
 PROBE_PASCAL = "ProbeMod"
 
 # Prose the generator refuses to template. A static README, listing text or
-# forum post would be dead prose in every new mod; all three are written from
-# the mod's actual purpose straight after scaffolding, and CLAUDE.md comes from `/init` (see the
-# new-ck-mod skill). This is the one hand-maintained list here, and it is short
-# on purpose -- anything else universal is the generator's job.
+# forum post would be dead prose in every new mod; all three are written
+# from the mod's actual purpose straight after scaffolding, and CLAUDE.md
+# comes from `/init` (see the new-ck-mod skill). This is the one hand-kept
+# list here, and it is short on purpose -- anything else universal is the
+# generator's job.
 DELIBERATELY_OMITTED = {
     "README.md",
     "modio-description.md",

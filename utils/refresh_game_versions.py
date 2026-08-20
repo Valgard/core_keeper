@@ -13,8 +13,9 @@ Neither feed is complete on its own, in different ways:
     release, i.e. day-one hotfixes folded into the launch notes. It misses
     0.7.4.1 for a different reason: its post exists, mistyped, as above.
   * mod.io's Game Version tags miss the builds named in
-    CK_MODIO_VERSION_UNLISTED (parent `.envrc`, which is where that list is
-    kept) and start at 0.6.3.0, the build the Mod SDK shipped with.
+    CK_MODIO_VERSION_UNLISTED — the parent `.envrc.example` is where that list
+    is kept, and the only place the numbers are written down — and start at
+    0.6.3.0, the build the Mod SDK shipped with.
 
 Usage:
     python3 utils/refresh_game_versions.py
@@ -118,6 +119,7 @@ def _get(url):
         ["/usr/bin/curl", "-sS", "--fail-with-body", "--max-time", "30", url],
         capture_output=True,
         text=True,
+        check=False,  # the status is read below, with the body in the message
     )
     if done.returncode != 0:
         raise RuntimeError(

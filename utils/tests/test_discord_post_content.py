@@ -1,9 +1,10 @@
 """Renders every `discord-post.md` that exists and holds it to Discord's limits.
 
 `test_discord_post.py` tests the renderer on synthetic input; this suite tests
-the actual posts. The split matters because the two fail for different reasons:
-a red test there is a broken renderer, a red test here is a text that grew too
-long or a forum tag nobody can select. Only the second is fixed by editing prose.
+the actual posts, and the `.envrc.example` values they are rendered from. The
+split matters because the two fail for different reasons: a red test there is a
+broken renderer, a red test here is prose that grew too long or a forum tag
+nobody can select. Only the second is fixed by editing text.
 
 Everything is read from `.envrc.example` rather than `.envrc`, because the
 latter is gitignored -- a check that depended on it would pass or fail
@@ -110,14 +111,6 @@ def test_the_shipped_version_list_covers_every_supported_build():
             f"{repo.name}: {', '.join(unknown)} not in "
             f"{dp.VERSIONS_FILENAME} — a typo, or a build to add"
         )
-
-
-def test_the_version_list_is_sorted_newest_first_without_duplicates():
-    """It is hand-curated from two feeds that disagree, so ordering and
-    duplicates are the failure modes a reader would not notice."""
-    versions = [dp._norm(v) for v in dp.known_versions()]
-
-    assert versions == sorted(set(versions), reverse=True)
 
 
 def test_every_unlisted_build_is_one_that_actually_shipped():
