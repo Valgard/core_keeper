@@ -97,6 +97,51 @@ git, so re-runs reuse the profile instead of creating a second one.
 `utils/uninstall-macos.sh` is the counterpart to `install-macos.sh`: it
 removes a fake-ID local dev install from the CrossOver bottle.
 
+### The Discord forum post
+
+Each mod carries a `discord-post.md` beside its `modio-description.md` — the
+text for its thread in the Core Keeper Discord's `#available-mods` channel.
+The two are written separately on purpose: mod.io is a store page, the forum
+post is a message in a conversation, and only one of them has a 2000-character
+ceiling.
+
+`utils/discord_post.py` renders it. The post's text on stdout, the title, tags
+and length on stderr, so `python3 ../utils/discord_post.py | pbcopy` copies
+exactly what gets pasted:
+
+```
+python3 ../utils/discord_post.py            # from the mod repo root
+python3 ../utils/discord_post.py --check    # validate only, no output
+```
+
+Three things are generated rather than written by hand:
+
+* **The compatibility line**, from `CK_GAME_VERSION`. The channel asks for it
+  in one of the first lines, and a new game build invalidates it in every mod
+  at once. It collapses to `1.2.x` only when that claim checks out against
+  `utils/ck-game-versions.json`, the list of builds that shipped; otherwise it
+  prints the exact span.
+* **The download and source links**, from `MOD_NAME_ID`. The mod.io link is
+  bare so the post carries one preview card; the GitHub link is bracketed so a
+  second one does not compete with it.
+* **The paragraph flow**. Discord does not rewrap, so the source file's hard
+  line breaks are joined back into paragraphs — list items excepted.
+
+The forum tags live in `CK_DISCORD_TAGS` (pipe-separated, because
+`Misc / Other` contains spaces), in `.envrc.example` as well as `.envrc` so
+they survive a clone. `new_mod.py` scaffolds the variable empty: a new mod has
+no thread yet, and the renderer refuses to run until it is filled in.
+
+Over-long posts abort rather than being trimmed. `upload.sh` runs `--check`
+before Unity starts, where a problem is visible instead of buried in the
+batchmode log, and prints the rendered post after a successful publish — the
+release is the moment the thread goes stale. Neither blocks the release.
+
+`utils/refresh_game_versions.py` compares `ck-game-versions.json` against
+Steam's update feed and mod.io's version tags and reports; it never writes.
+Both feeds miss builds the other has, and both are built from hand-typed
+titles that contain errors, so the file stays curated by hand.
+
 ### Shared editor helpers and localisation tooling
 
 The CLI editor helpers (`CLIBuildHelper`, `CLIPublishHelper`) and the

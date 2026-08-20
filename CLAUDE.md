@@ -271,10 +271,12 @@ the first localisation step is writing a term, not wiring anything — and the
 scaffolded template must stay fully commented, which
 `test_localization_template_is_inert` enforces.
 
-Deliberately **not** scaffolded: `README.md`, `modio-description.md` and
-`CLAUDE.md` — a static template would be dead prose; they are authored from the
-mod's real purpose right afterwards. That is the guard's one hand-kept exception
-list.
+Deliberately **not** scaffolded: `README.md`, `modio-description.md`,
+`discord-post.md` and `CLAUDE.md` — a static template would be dead prose; they
+are authored from the mod's real purpose right afterwards. That is the guard's
+one hand-kept exception list. `CK_DISCORD_TAGS` *is* scaffolded, but empty: the
+variable is universal, its value belongs to a forum thread that does not exist
+yet, and `utils/discord_post.py` refuses to render while it is blank.
 
 ## Formatting gate (every repo)
 
