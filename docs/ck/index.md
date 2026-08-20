@@ -1,8 +1,8 @@
 # Core Keeper modding handbook — where to start
 
-Three ways in, depending on why you are here, then the full chapter list — and
-at the end, where to look for what this handbook deliberately leaves out. What
-the handbook is and what it rests on are in [README.md](README.md).
+Three ways in, depending on why you are here, and the full chapter list at the
+end if none of them fits. What this handbook is and what it rests on are in
+[README.md](README.md).
 
 ## Start from nothing
 
@@ -100,16 +100,3 @@ symptom, not the topic.
 | [Savegame formats](savegame-formats.md) | World, map and character files — what is readable, what is not, and why the map is a fog-of-war snapshot |
 | [Troubleshooting](troubleshooting.md) | Symptom-first index for mods that will not load, will not compile, or take something else down with them |
 | [Reverse engineering](reverse-engineering.md) | Decompiling the assemblies, unpacking assets, querying prefab YAML, and how much evidence a claim needs |
-
-## Where the rest lives
-
-Some of what a mod author needs is deliberately outside this handbook, because
-it belongs to this repository's workflow rather than to the game:
-
-| Topic | Document |
-|---|---|
-| This repository's own scripts, variables and commands — the concrete form of [Toolchain](toolchain.md) | [`../../README.md`](../../README.md) |
-| Publishing to mod.io | [`../publishing.md`](../publishing.md) |
-| Running a dedicated server locally | [`../dedicated-server.md`](../dedicated-server.md) |
-| macOS/CrossOver loader specifics and the game-DLL patches | [`../macos-crossover-loader.md`](../macos-crossover-loader.md) |
-| One pixel-art authoring workflow — the one used in this repo, not a requirement | [`../pixaki-format.md`](../pixaki-format.md) |
