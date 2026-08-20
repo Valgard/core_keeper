@@ -171,3 +171,13 @@ def test_the_h1_becomes_the_thread_title_rather_than_being_discarded(tmp_path):
     _, _, title = dp.render_repo(tmp_path, _ENV, ["1.2.1.5"])
 
     assert title == "Reusable Cattle Box"
+
+
+def test_an_empty_tag_list_is_as_wrong_as_a_missing_one(tmp_path):
+    """new_mod.py scaffolds CK_DISCORD_TAGS empty — a new mod cannot know its
+    forum tags yet. Writing the post is the moment they have to be filled in."""
+    (tmp_path / "discord-post.md").write_text("# T\n\nBody.\n")
+    env = dict(_ENV, CK_DISCORD_TAGS="")
+
+    with pytest.raises(ValueError, match="CK_DISCORD_TAGS"):
+        dp.render_repo(tmp_path, env, ["1.2.1.5"])
