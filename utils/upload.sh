@@ -25,6 +25,9 @@
 # Required env vars (set in the mod's .envrc):
 #   UNITY_BIN, SDK_PATH, MOD_NAME, CK_GAME_VERSION, MOD_SUMMARY
 #
+# A mod with a discord-post.md also needs CK_DISCORD_TAGS; it is checked
+# before Unity starts and printed, rendered, after a successful publish.
+#
 # Prerequisite: log in once via the SDK window's "Log in" tab.
 # The Unity Editor must be closed (it locks the project).
 
@@ -66,6 +69,16 @@ if [ ! -d "$SDK_PATH/Assets" ]; then
     exit 1
 fi
 
+# Discord preflight — before Unity, so a broken post surfaces in seconds rather
+# than after a ten-minute build, and at the top of the output rather than buried
+# in the batchmode log. Deliberately non-fatal: a post 30 characters over the
+# limit is no reason to hold back a mod release. The hard gate is the pytest
+# suite (utils/tests/test_discord_post_content.py), where prose problems belong.
+# A repo without a discord-post.md prints nothing and exits 0.
+if ! python3 "$UTILS_DIR/discord_post.py" --check "$REPO_ROOT"; then
+    echo "  (continuing — the Discord post is not part of the mod.io release)" >&2
+fi
+
 # Refresh SDK symlinks (idempotent; self-heals after worktree moves).
 "$UTILS_DIR/link.sh" "$REPO_ROOT" >/dev/null
 
@@ -86,6 +99,14 @@ if timeout 600 "$UNITY_BIN" \
         -executeMethod CoreKeeperModUtils.CLIPublishHelper.Publish \
         -logFile -; then
     echo "✓ Publish complete."
+    # The release is the moment the Discord thread goes stale, so hand over the
+    # post right here instead of making it a separate thing to remember.
+    if [ "$DRY_RUN" != "1" ] && [ -f "$REPO_ROOT/discord-post.md" ]; then
+        echo
+        echo "--- #available-mods post ---------------------------------------"
+        python3 "$UTILS_DIR/discord_post.py" "$REPO_ROOT" || true
+        echo "----------------------------------------------------------------"
+    fi
 else
     code=$?
     [ "$code" = "124" ] && echo "✗ Publish timed out." >&2 \

@@ -519,6 +519,16 @@ export MOD_REPO_ROOT="$PWD"
 # Library, Other.
 export CK_MODIO_TYPE="{modio_type}"
 
+# Forum tags for the mod's #available-mods thread on the Core Keeper Discord —
+# PIPE-separated, because "Misc / Other" contains spaces. Deliberately blank: a
+# mod this new has no post yet, and the tags are a property of that post. The
+# channel offers Automation, Cheats, Combat, Content, Decoration, Difficulty,
+# Enemies, Environment, Equipment, Fishing, Food, Gardening, Mining,
+# "Misc / Other", NPCs, Overhaul, Transportation, Tweaks, Utilities and
+# "Work In Progress"; Discord accepts at most five per post. utils/discord_post.py
+# refuses to render while this is empty, so writing the post is the prompt.
+export CK_DISCORD_TAGS=""
+
 # --- Localisation (read by utils/CLIBuildHelper.cs -> LocalizationGenerator.GenerateFromEnv) ---
 # LOC_TABLE (the shared CK language-address table) is inherited from the parent core_keeper/.envrc.
 # Wired from the start even for a mod with no text yet: a table holding no terms

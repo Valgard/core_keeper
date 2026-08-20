@@ -125,9 +125,12 @@ def render_repo(repo, env, known):
     source = pathlib.Path(repo) / POST_FILENAME
     if not source.is_file():
         return None
-    if "CK_DISCORD_TAGS" not in env:
+    # Empty is the scaffolded state, not a choice: new_mod.py cannot know a new
+    # mod's forum tags, so it writes the variable blank. Both cases are the same
+    # omission and get the same message.
+    if not env.get("CK_DISCORD_TAGS", "").strip():
         raise ValueError(
-            f"{source.name} exists but CK_DISCORD_TAGS is not set — add the "
+            f"{source.name} exists but CK_DISCORD_TAGS is empty — add the "
             "forum tags to .envrc and .envrc.example, pipe-separated"
         )
     tags = [t.strip() for t in env["CK_DISCORD_TAGS"].split("|") if t.strip()]

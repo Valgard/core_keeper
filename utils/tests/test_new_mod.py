@@ -702,3 +702,10 @@ def test_parse_args_defaults_and_flags():
     assert ns.modio_type == "Quality of Life"
     assert ns.corelib is True
     assert ns.dry_run is False
+
+
+def test_envrc_reserves_the_discord_forum_tags_empty():
+    # Written blank on purpose: a fresh mod has no #available-mods post yet, so
+    # its forum tags are unknowable here. discord_post.py refuses to render a
+    # post while they are empty, which is the moment they can actually be chosen.
+    assert 'export CK_DISCORD_TAGS=""' in _envrc()
