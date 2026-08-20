@@ -59,7 +59,17 @@ export MOD_INSTALL_BASE_PATH="$HOME/Library/Caches"
 # the single canonical list — mods do NOT override CK_GAME_VERSION; keep it in
 # sync here as new game builds ship. Space-separated; each value becomes its own
 # mod.io compatibility tag.
-export CK_GAME_VERSION="1.2.1.5 1.2.1.4 1.2.1.3 1.2.1.0 1.2.0.7 1.2.0.6 1.2.0.5 1.2.0.4 1.2.0.3"
+export CK_GAME_VERSION="1.2.1.5 1.2.1.4 1.2.1.3 1.2.1.2 1.2.1.0 1.2.0.7 1.2.0.6 1.2.0.5 1.2.0.4 1.2.0.3"
+
+# Builds that shipped but have no mod.io "Game Version" tag, space-separated.
+# CLIPublishHelper drops these from CK_GAME_VERSION before publishing, so the
+# list above can stay truthful for everything else that reads it (the Discord
+# post does) while the publish guard keeps refusing values mod.io does not know
+# — that guard exists to catch typos, and softening it for these would blunt it.
+# 1.2.1.2 shipped 2026-05-07 (Steam patch notes) and mod.io has no tag for it;
+# 1.0.0.7 and 1.0.0.12 are the same case, older. Delete an entry as soon as
+# mod.io offers the tag — the publish fails until you do, by design.
+export CK_MODIO_VERSION_UNLISTED="1.2.1.2"
 
 # --- Shared utils/ data files (absolute — source_up keeps $PWD = mod dir) ---
 
