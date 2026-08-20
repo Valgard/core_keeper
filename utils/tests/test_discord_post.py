@@ -143,11 +143,21 @@ def test_render_rejects_more_tags_than_discord_accepts():
         )
 
 
-def test_render_turns_h2_into_bold_because_a_heading_outweighs_a_short_post():
+def test_section_headings_stay_headings():
+    """Discord renders `##` as a heading, and a heading is visibly different
+    from the bold runs the prose itself uses — which the earlier rewrite to
+    bold was not, so a section title and an emphasised term looked alike."""
     post = _render("# T\n\n## Requirements\n\nCoreLib.\n")
 
-    assert "**Requirements**" in post
-    assert "## Requirements" not in post
+    assert "## Requirements" in post
+
+
+def test_a_heading_is_not_folded_into_the_paragraph_under_it():
+    """Unwrapping joins the lines of a block, and a heading followed directly by
+    prose is one block."""
+    post = _render("# T\n\n## Requirements\nCoreLib.\n")
+
+    assert "## Requirements\nCoreLib." in post
 
 
 def test_a_repo_without_a_post_or_tags_is_skipped_not_an_error(tmp_path):
@@ -339,3 +349,20 @@ def test_main_reports_a_bad_post_with_the_content_exit_code(tmp_path, capsys):
 
     assert code == dp.EXIT_CONTENT
     assert "Nope" in capsys.readouterr().err
+
+
+def test_prose_under_a_heading_is_still_unwrapped():
+    """The heading owns its line; the wrapped lines beneath it are one
+    paragraph and must be joined like any other."""
+    post = _render("# T\n\n## Requirements\nCoreLib, and\nMod Settings Menu.\n")
+
+    assert "## Requirements\nCoreLib, and Mod Settings Menu." in post
+
+
+def test_a_wrapped_list_item_stays_one_item():
+    """The source wraps at ~78 columns like modio-description.md, so a long
+    bullet spans lines; its continuation belongs to the bullet, not to a
+    paragraph of its own."""
+    post = _render("# T\n\n- Craft one box and reuse it\n  indefinitely.\n- Second.\n")
+
+    assert "- Craft one box and reuse it indefinitely.\n- Second." in post

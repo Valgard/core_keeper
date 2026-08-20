@@ -93,6 +93,16 @@ esac
 # Refresh SDK symlinks (idempotent; self-heals after worktree moves).
 "$UTILS_DIR/link.sh" "$REPO_ROOT" >/dev/null
 
+# The shipped-build list, so CLIPublishHelper can tell a typo from a build
+# mod.io has no tag for without asking mod.io. That distinction is otherwise
+# only available on the tag-taxonomy path, which degrades to additive tagging
+# whenever the API hiccups -- and there a typo is dropped in silence.
+CK_KNOWN_GAME_VERSIONS="$(python3 -c "
+import json, sys
+print(' '.join(json.load(open(sys.argv[1]))['versions']))
+" "$UTILS_DIR/ck-game-versions.json")"
+export CK_KNOWN_GAME_VERSIONS
+
 # The CLIPublishHelper reads these from the environment.
 export MOD_REPO_ROOT="$REPO_ROOT"
 [ "$DRY_RUN" = "1" ] && export PUBLISH_DRY_RUN=1

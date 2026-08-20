@@ -525,6 +525,46 @@ namespace CoreKeeperModUtils
                 return;
             }
 
+            // Checked here rather than inside SyncTags, so it also covers the
+            // additive fallback: when GetTagCategories fails there is no live
+            // taxonomy to validate against, mod.io drops an unknown value
+            // without a word, and the mod ships one tag short of what was
+            // configured. ck-game-versions.json is repo data and always
+            // available, so a build that never shipped is caught either way.
+            var knownRaw = Environment.GetEnvironmentVariable("CK_KNOWN_GAME_VERSIONS");
+            var known = new HashSet<string>((knownRaw ?? string.Empty).Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries));
+            if (known.Count == 0)
+            {
+                Debug.LogWarning(
+                    "[CLIPublishHelper] CK_KNOWN_GAME_VERSIONS is not set — publishing "
+                        + "without checking CK_GAME_VERSION against the shipped builds. "
+                        + "utils/upload.sh exports it; a direct -executeMethod call does not."
+                );
+            }
+            else
+            {
+                var unshipped = new List<string>();
+                foreach (var value in gameVersions)
+                {
+                    if (!known.Contains(value))
+                        unshipped.Add(value);
+                }
+                foreach (var value in unlisted)
+                {
+                    if (!known.Contains(value))
+                        unshipped.Add(value);
+                }
+                if (unshipped.Count > 0)
+                {
+                    Fail(
+                        $"[{string.Join(", ", unshipped)}] is not a Core Keeper build that shipped "
+                            + "(utils/ck-game-versions.json). That is a typo, not a build mod.io has yet "
+                            + "to tag — run utils/refresh_game_versions.py if the build is genuinely new."
+                    );
+                    return;
+                }
+            }
+
             var types = new List<string>();
             foreach (var raw in (Environment.GetEnvironmentVariable("CK_MODIO_TYPE") ?? string.Empty).Split('|'))
             {
@@ -693,7 +733,12 @@ namespace CoreKeeperModUtils
         // "the mod has no tags" and wipe the lot.
         private static void FallBackToAdditiveTags(ModSettings modIo, List<TagGroupPlan> plans, string reason)
         {
-            Debug.LogWarning($"[CLIPublishHelper] {reason}. Falling back to additive " + "tagging: adding the configured tags, removing nothing.");
+            Debug.LogWarning(
+                $"[CLIPublishHelper] {reason}. Falling back to additive tagging: adding the configured "
+                    + "tags, removing nothing. The live-taxonomy check did NOT run, so a value mod.io "
+                    + "does not know is dropped by mod.io without a word; CK_GAME_VERSION was still "
+                    + "checked against the shipped builds."
+            );
             foreach (var plan in plans)
             {
                 plan.toAdd.Clear();
