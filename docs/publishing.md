@@ -92,10 +92,22 @@ deleted. Tags outside these four groups are never touched.
 
 | Group | Desired set from |
 |---|---|
-| `Game Version` | `CK_GAME_VERSION` — **space**-separated (one canonical list in the parent `.envrc`) |
+| `Game Version` | `CK_GAME_VERSION` minus `CK_MODIO_VERSION_UNLISTED` — both **space**-separated, one canonical list each in the parent `.envrc` |
 | `Type` | `CK_MODIO_TYPE` — **pipe**-separated, because the values contain spaces (`Visual\|Quality of Life`) |
 | `Application Type` | derived from the `.asset`'s `metadata.requiredOn` (`Client`=1, `Server`=2, both=3; **0 is valid** and publishes with no tag in this group, for a mod that must never gate a connection — it logs a warning, because 0 is also what an unset field reads as) |
 | `Access Type` | derived from `metadata.skipSafetyChecks` (`false` → `Script`, `true` → `Script (Elevated Access)`) |
+
+- **`CK_MODIO_VERSION_UNLISTED` is subtracted before anything is sent.**
+  mod.io's `Game Version` vocabulary is a *subset* of the builds that shipped —
+  `1.2.1.2`, `1.0.0.7` and `1.0.0.12` have Steam patch notes and no tag — so
+  `CK_GAME_VERSION` could not name them without tripping the validation below.
+  Naming them here drops them from the desired set, which keeps the list
+  truthful for everything else that reads it (`utils/discord_post.py` renders
+  the Discord post from it) without weakening a guard that exists to catch
+  typos. The subtraction has one failure mode of its own, so it is checked
+  against the live taxonomy too: **once mod.io offers a build listed here, the
+  publish aborts** until the entry is deleted — otherwise the listing would
+  quietly advertise one version fewer than the mod supports.
 
 - **Group membership comes from the live API** (`GetTagCategories`), never a
   hardcoded value list — the game keeps adding `Game Version` values.
