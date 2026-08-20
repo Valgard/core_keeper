@@ -7,10 +7,8 @@ renderer, and it would only ever exercise the branches the current texts happen
 to reach — the over-limit abort among them would never run at all.
 """
 
-import pytest
-
 import discord_post as dp
-
+import pytest
 
 _ENV = {
     "MOD_NAME_ID": "reusable-cattle-box",
@@ -21,12 +19,12 @@ _ENV = {
 
 def _render(markdown, **overrides):
     """render() with the parts under test spelled out and the rest boring."""
-    args = dict(
-        supported=["1.2.1.5"],
-        known=["1.2.1.5"],
-        tags=["Tweaks"],
-        slug="reusable-cattle-box",
-    )
+    args = {
+        "supported": ["1.2.1.5"],
+        "known": ["1.2.1.5"],
+        "tags": ["Tweaks"],
+        "slug": "reusable-cattle-box",
+    }
     args.update(overrides)
     return dp.render(markdown, **args)
 
@@ -147,7 +145,7 @@ def test_a_repo_without_a_discord_post_is_skipped_not_an_error(tmp_path):
 def test_render_repo_reads_the_post_beside_the_mod(tmp_path):
     (tmp_path / "discord-post.md").write_text("# T\n\nBody.\n")
 
-    post, tags, title = dp.render_repo(tmp_path, _ENV, ["1.2.1.5"])
+    post, tags, _ = dp.render_repo(tmp_path, _ENV, ["1.2.1.5"])
 
     assert "Body." in post
     assert tags == ["Tweaks", "Equipment"]
