@@ -245,6 +245,28 @@ separate repos: `.csharpierignore` mirrors the `.gitignore` allowlist shape
 (`/*` plus `!/utils/`) so a full-tree run cannot reach foreign sources. `ruff`
 needs no equivalent, as it honours `.gitignore` itself.
 
+## Documentation link gate
+
+`utils/check_docs_links.py` runs at `pre-commit` and `pre-push` whenever a
+`.md` file is staged, and blocks on a relative link that does not resolve, an
+`#anchor` with no matching heading, two headings in one file that produce the
+same anchor, an unbalanced code fence, or a `docs/ck/` chapter that neither
+`README.md` nor `index.md` links.
+
+A broken anchor is the quietest defect documentation has: the file still
+renders and the link is still blue, it just lands nowhere. It happens whenever
+a heading is reworded — which is why `docs/ck/` carries the rule that headings
+are never renamed, and why that rule is now enforced rather than merely
+written down.
+
+Scope comes from `git ls-files`, not from a directory walk, for the same
+reason `.csharpierignore` is an allowlist: the SDK clone and every mod repo sit
+inside this one as separate repositories.
+
+```bash
+uv run utils/check_docs_links.py     # prints the file and link count when clean
+```
+
 ## Python tooling and its tests
 
 The shared scripts in `utils/` are a **uv project**: `pyproject.toml` plus

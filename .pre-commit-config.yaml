@@ -19,6 +19,18 @@ repos:
                 - pre-commit
                 - pre-push
 
+          # Scope is `git ls-files`, not a directory walk: the SDK clone and
+          # every mod repo sit inside this one as separate repositories.
+          - id: docs-links
+            name: docs links
+            entry: uv run --frozen utils/check_docs_links.py
+            language: system
+            pass_filenames: false
+            files: \.md$
+            stages:
+                - pre-commit
+                - pre-push
+
           # Runs through uv so the suite sees the pinned Pillow, not whatever
           # the machine has — test_shipped_artifacts.py compares the committed
           # font atlas by byte-identity, which an unpinned encoder would break.
