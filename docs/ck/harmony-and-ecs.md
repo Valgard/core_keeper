@@ -356,9 +356,8 @@ population your mod actually runs beside, and *measure* the interaction rather
 than reasoning about it: with PlacementPlus active, a prefix on
 `PlaceObjectSlot.PlaceItem` fired **zero** times while laying rails. To test a
 suspected conflict, toggle the foreign mod through the loader's `disabledMods`
-list in `state.json` (see
-[../macos-crossover-loader.md](../macos-crossover-loader.md)) and count your own
-patch's invocations in both states.
+list in `state.json` ([the loader's two disable
+lists](troubleshooting.md#the-loaders-two-disable-lists-are-opposites)) and count your own patch's invocations in both states.
 
 And do not design around a change in the other mod. Whatever you ship has to
 work against the version players actually have installed, so a fix that depends

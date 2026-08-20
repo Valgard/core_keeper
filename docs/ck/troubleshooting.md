@@ -93,8 +93,8 @@ The mod is never added, so none of the tells above apply — no bundle, no entry
 in the loaded-mod list. Core Keeper's main menu raises the incompatible-mod
 dialog offering **Disable** or **Load Anyway**; "Load Anyway" writes the mod's
 GUID into `unsupportedModsToLoad`, the force-load allowlist that makes the
-loader skip this rejection on the next launch (see
-[macOS / CrossOver](../macos-crossover-loader.md)).
+loader skip this rejection on the next launch ([the loader's two disable
+lists](#the-loaders-two-disable-lists-are-opposites), below).
 
 This bites after every Core Keeper update: the game moved from 1.2.1.4 to
 1.2.1.5 and mods that were not re-tagged lost their crafting tab for 1.2.1.5
@@ -266,8 +266,15 @@ two lists below.
 minified JSON — preserve `separators=(",", ":")` when writing it
 programmatically. `unsupportedModsToLoad` takes mod **GUIDs**. To get rid of a
 stuck incompatible mod cleanly, remove its GUID from `unsupportedModsToLoad`
-*and* add its mod.io ID to `disabledMods`. Details on both files:
-[macOS / CrossOver](../macos-crossover-loader.md).
+*and* add its mod.io ID to `disabledMods`.
+
+Both files belong to the loader itself, not to any one host — only the root of
+the path above changes with the platform. `unsupportedModsToLoad` is not
+save-game state and uses no PlayerPrefs, but it does not survive a game update
+either: the loader compares `config.version` against the running version on
+startup and clears the whole list on a mismatch, so a mod you confirmed once is
+silently dropped again after the next update (see [multiplayer and
+server](multiplayer-and-server.md)).
 
 ### "Loading screen hangs forever" is usually a quit deadlock
 
