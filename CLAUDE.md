@@ -331,8 +331,8 @@ human-facing setup; what matters when editing code here:
   reason; `ruff` needs no counterpart because it honours `.gitignore`.
 - **A staged `.md` also runs the documentation link gate** in `core_keeper`
   (`utils/check_docs_links.py`, `pre-commit` + `pre-push`): a dead relative
-  link, an `#anchor` with no matching heading, or a `docs/ck/` chapter linked
-  from neither `README.md` nor `index.md` blocks the commit. Practical
+  link, an `#anchor` with no matching heading, or a `docs/ck/` chapter that
+  `docs/ck/index.md` does not link blocks the commit. Practical
   consequence: **renaming a heading in `docs/ck/` breaks every link into it**,
   and the gate will say so — fix the links in the same commit.
 - `pre-commit` itself is pinned once in the parent `.tool-versions`; asdf
