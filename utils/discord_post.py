@@ -69,14 +69,16 @@ def version_line(supported, known):
     """The post's first line, from the builds this mod supports."""
     sup = sorted(_norm(v) for v in supported)
     span = f"tested on {_fmt(sup[0])} through {_fmt(sup[-1])}"
-    major, minor = sup[0][:2]
-
-    # `1.2.x` claims the entire minor, so it is only printed once that claim is
-    # checked against the builds that exist. Unverified, it would overstate for
-    # any mod that starts partway into a release series.
-    in_minor = {v for v in (_norm(k) for k in known) if v[:2] == (major, minor)}
-    if in_minor <= set(sup):
-        return f"**Compatible with Core Keeper {major}.{minor}.x** — {span}."
+    # `1.2.x` claims one whole minor, so it needs two things to be true: every
+    # supported build sits in that minor -- otherwise the claim contradicts its
+    # own span -- and no build of it is left out, or the mod would advertise
+    # versions it starts above.
+    minors = {v[:2] for v in sup}
+    if len(minors) == 1:
+        major, minor = minors.pop()
+        in_minor = {v for v in (_norm(k) for k in known) if v[:2] == (major, minor)}
+        if in_minor <= set(sup):
+            return f"**Compatible with Core Keeper {major}.{minor}.x** — {span}."
     return f"**Compatible with Core Keeper {_fmt(sup[0])} – {_fmt(sup[-1])}**"
 
 

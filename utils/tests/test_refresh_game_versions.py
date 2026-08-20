@@ -51,3 +51,13 @@ def test_a_list_that_matches_both_feeds_reports_nothing():
     )
 
     assert not report.missing and not report.suspects
+
+
+def test_a_missing_build_keeps_the_date_steam_gave_it():
+    """Steam titles are three-segment as often as four, and `missing` holds the
+    padded spelling. Looking the date up by the raw key silently reported every
+    such build as mod.io-only — losing the release date, which is the one thing
+    that resolves a mistyped title."""
+    report = rg.compare(known=[], steam={"0.7.4": "2024-03-08"}, modio=[])
+
+    assert report.dates["0.7.4.0"] == "2024-03-08"

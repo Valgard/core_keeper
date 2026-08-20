@@ -57,6 +57,10 @@ TYPO_GAP_DAYS = 30
 class Report:
     missing: list = field(default_factory=list)
     suspects: list = field(default_factory=list)
+    # Keyed by the canonical spelling, because `missing` is: Steam writes
+    # `0.7.4` where the list writes `0.7.4.0`, and a lookup by the raw title
+    # silently reported every three-segment build as mod.io-only.
+    dates: dict = field(default_factory=dict)
 
 
 def norm(version):
@@ -78,6 +82,7 @@ def compare(known, steam, modio, duplicates=None):
 
     report = Report()
     report.missing = [fmt(v) for v in sorted(seen - have)]
+    report.dates = {fmt(norm(v)): day for v, day in steam.items()}
     for version, dates in sorted((duplicates or {}).items()):
         if _spread_days(dates) > TYPO_GAP_DAYS:
             report.suspects.append(version)
@@ -172,7 +177,7 @@ def main():
     if report.missing:
         print("Not in ck-game-versions.json:")
         for version in report.missing:
-            print(f"  {version:10} {steam.get(version, 'mod.io tag only')}")
+            print(f"  {version:10} {report.dates.get(version, 'mod.io tag only')}")
     if report.suspects:
         print("\nSame version in entries far apart — check for a mistyped title:")
         for version in report.suspects:

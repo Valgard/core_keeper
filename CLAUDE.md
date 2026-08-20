@@ -120,9 +120,12 @@ The published mod.io listing does **not** read the manifest either: profile name
 ← `metadata.displayName` (fallback `metadata.name`) — so the human title
 "Item Checklist" can differ from the internal identity "ItemChecklist"; summary
 ← `MOD_SUMMARY` env, version + changelog ← `CHANGELOG.md`, modId ←
-`<Mod>_modio.asset`, version tag(s) ← `CK_GAME_VERSION` env — a
-**space-separated list** of one or more game versions, each published as its
-own compatibility tag (all in `utils/CLIPublishHelper.cs`).
+`<Mod>_modio.asset`, version tag(s) ← `CK_GAME_VERSION` env minus
+`CK_MODIO_VERSION_UNLISTED` — both **space-separated lists**, the first naming
+every build the mod runs on and the second the ones mod.io has no tag for, so
+what remains is published one compatibility tag each (all in
+`utils/CLIPublishHelper.cs`; see @docs/publishing.md for why the subtraction
+exists and when it aborts the publish).
 
 ### Runtime asmdef from the wizard
 The "Create New Mod" wizard emits the mod's runtime `.asmdef` already

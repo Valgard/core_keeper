@@ -189,3 +189,15 @@ def test_a_missing_game_version_says_so_instead_of_naming_a_key(tmp_path):
 
     with pytest.raises(ValueError, match="CK_GAME_VERSION is not set"):
         dp.render_repo(tmp_path, env, ["1.2.1.5"])
+
+
+def test_version_line_never_claims_a_minor_the_span_leaves():
+    """The collapse used to read the minor off the lowest build alone, so a mod
+    spanning 1.1 and 1.2 advertised '1.1.x' next to a span ending in 1.2.1.5 —
+    the claim and its own evidence contradicting each other."""
+    supported = ["1.1.0.1", "1.2.1.5"]
+    known = ["1.1.0.1", "1.2.1.5", "1.2.1.0"]
+
+    assert dp.version_line(supported, known) == (
+        "**Compatible with Core Keeper 1.1.0.1 – 1.2.1.5**"
+    )
