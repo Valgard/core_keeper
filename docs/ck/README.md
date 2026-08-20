@@ -23,9 +23,10 @@ from; game updates can and do invalidate them.
 This handbook covers the game and the SDK. Individual mods document their own
 architecture, iteration history and mod-specific traps in their own
 repositories — nothing about a particular mod belongs here, only what holds
-for the game itself. The workflow around modding, from building to publishing,
-is this repository's business rather than the game's; [index.md](index.md)
-lists where each part of it is written down.
+for the game itself. The workflow around modding — building, publishing,
+running a server, the host this machine plays on — is this repository's
+business rather than the game's, and the chapters link into it wherever it
+becomes relevant.
 
 ## Licence note
 
