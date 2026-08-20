@@ -124,6 +124,13 @@ def render_repo(repo, env, known):
     source = pathlib.Path(repo) / POST_FILENAME
     if not source.is_file():
         return None
+    for name in ("CK_GAME_VERSION", "MOD_NAME_ID"):
+        if not env.get(name, "").strip():
+            raise ValueError(
+                f"{name} is not set — it comes from the .envrc chain, so run "
+                "this from the mod directory with direnv active"
+            )
+
     # Empty is the scaffolded state, not a choice: new_mod.py cannot know a new
     # mod's forum tags, so it writes the variable blank. Both cases are the same
     # omission and get the same message.
