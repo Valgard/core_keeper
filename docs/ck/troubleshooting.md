@@ -75,7 +75,8 @@ local registry that no user subscribes to (`ShouldThisModBeUninstalled` →
 gone. A locally installed dev build has a placeholder mod ID that resolves to
 nothing in the catalog, so it can never appear in that response and is removed
 without a prompt or a dialog. Starting the game, loading a world and playing do
-not trigger the sync; the mod browser does. Reinstall each dev build afterwards; doing so rewrites all three locations a dev install occupies.
+not trigger the sync; the mod browser does. Reinstall each dev build afterwards;
+doing so rewrites all three locations a dev install occupies.
 
 ### Then: a stale game-version compatibility tag
 
@@ -100,9 +101,9 @@ This bites after every Core Keeper update: the game moved from 1.2.1.4 to
 subscribers, while a re-tagged CoreLib kept loading beside them.
 
 **A local dev install never reproduces either failure.** It builds its tags from
-the configured game version alone, carries no type tag, and skips the version-tag filter entirely.
-"It works for me on the new version" therefore proves the *code* is compatible,
-not that the *listing* serves it.
+the configured game version alone, carries no type tag, and skips the
+version-tag filter entirely. "It works for me on the new version" therefore
+proves the *code* is compatible, not that the *listing* serves it.
 
 **Fix:** add the new version tag on the mod.io website; no rebuild is needed if
 the code already runs. Keep the publish configuration's game-version list
@@ -133,9 +134,9 @@ the recipe that unlocks it does not.
 
 **This is not the cause of the silent-no-scripts symptom above**, although the
 two were once conflated. The loader runs the script stage before the bundle
-stage, so a mod with a duplicate GUID has already logged its
-`Successfully compiled` line by the time the duplicate-key error appears. If you
-see both symptoms, you have both problems — fix both.
+stage, so a mod with a duplicate GUID has already logged its `Successfully
+compiled` line by the time the duplicate-key error appears. If you see both
+symptoms, you have both problems — fix both.
 
 This happens when a new mod is scaffolded by copying a sibling mod's asset tree
 and the GUID is not reset.
@@ -276,11 +277,11 @@ server](multiplayer-and-server.md)).
 
 ### "Loading screen hangs forever" is usually a quit deadlock
 
-Not a slow load. When a `Manager.<Initialize…>` throws — e.g.
-`Init failed for UI Manager` — Unity calls `Application.Quit()`, but `ModManager`
-has registered a quit-blocking callback that waits on mod.io async operations.
-Those operations never complete, because the init crash never let them start, so
-the quit hangs forever. What you see is a frozen loading screen.
+Not a slow load. When a `Manager.<Initialize…>` throws — e.g. `Init failed for
+UI Manager` — Unity calls `Application.Quit()`, but `ModManager` has registered
+a quit-blocking callback that waits on mod.io async operations. Those operations
+never complete, because the init crash never let them start, so the quit hangs
+forever. What you see is a frozen loading screen.
 
 **The four lines everyone greps for are not the tell — a clean exit logs all
 four too.** The block is deliberate: `ModManager`'s handler logs
@@ -339,11 +340,12 @@ the conflict backups:
 Write failed: Erfolg : '…\cloudconflicts\…pugbackup' (-2147024896)
 ```
 
-Those write failures are a Wine artifact ([platforms and hosts](platforms.md)), and the word after `Write failed:` is
-the Windows locale's name for `ERROR_SUCCESS` — `Erfolg` because that host runs
-a German locale. Grep the `cloudconflicts` path, not the message; on a host that
-writes the backups successfully, the `CloudSyncDown` block and the diverging
-timestamps are all this entry gives you to go on.
+Those write failures are a Wine artifact ([platforms and hosts](platforms.md)),
+and the word after `Write failed:` is the Windows locale's name for
+`ERROR_SUCCESS` — `Erfolg` because that host runs a German locale. Grep the
+`cloudconflicts` path, not the message; on a host that writes the backups
+successfully, the `CloudSyncDown` block and the diverging timestamps are all
+this entry gives you to go on.
 
 **Why a mod is the wrong suspect once you see that block:**
 
@@ -374,13 +376,13 @@ Normally they bunch in the **last lines of `Player.log`**, immediately after
 Input System module state changed to: Shutdown.
 ```
 
-Both the trailing period and the exact word matter as an anchor: a
-`Input System module state changed to: ShutdownInProgress.` line sits two lines
-earlier, and a prefix grep matches it too. That position identifies them as the GC's process-exit cleanup of buffers that
-were never explicitly `Release()`d — a shutdown artifact, not a mid-play hitch.
-A collection that actually ran during play would spread its warnings through the
-log rather than cluster them at the very end. Do not promote them to "the
-gameplay lag".
+Both the trailing period and the exact word matter as an anchor: a `Input System
+module state changed to: ShutdownInProgress.` line sits two lines earlier, and a
+prefix grep matches it too. That position identifies them as the GC's
+process-exit cleanup of buffers that were never explicitly `Release()`d — a
+shutdown artifact, not a mid-play hitch. A collection that actually ran during
+play would spread its warnings through the log rather than cluster them at the
+very end. Do not promote them to "the gameplay lag".
 
 **The warning count is not a performance metric.** In one measured case of real
 stutter the count stayed **unchanged at 40** with the suspected mod disabled —

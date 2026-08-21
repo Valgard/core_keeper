@@ -190,8 +190,9 @@ Two patterns follow from this:
 
 **Direct-args.** If the banned method's parameters already carry what you need,
 hook it and read them — you only touch `int`/`string`/value types, so nothing
-banned appears in your assembly. `SaveManager.SetObjectAsDiscovered(ObjectDataCD, bool __result)`
-gives you the object ID and the new-or-not flag this way.
+banned appears in your assembly.
+`SaveManager.SetObjectAsDiscovered(ObjectDataCD, bool __result)` gives you the
+object ID and the new-or-not flag this way.
 
 **State machine.** When the data lives in another method's scope, hook both and
 correlate them with a static flag. To capture the active character GUID, for
@@ -302,10 +303,10 @@ throws `Could not find a part of the path …`. Call
 Debug.LogError(...) }` with **no rethrow**, and its inner `File.Replace` /
 `File.Move` retry loop gives up after ten attempts with nothing but another
 `LogError`. A full disk, a file locked by something else, and the host-side
-filesystem faults covered in [platforms and hosts](platforms.md) are therefore all invisible to your mod:
-no exception, no return value, nothing to branch on. If the data matters, **read
-the file back** before you record the write as done — above all before caching
-any "content unchanged, skip the write" hash.
+filesystem faults covered in [platforms and hosts](platforms.md) are therefore
+all invisible to your mod: no exception, no return value, nothing to branch on.
+If the data matters, **read the file back** before you record the write as done
+— above all before caching any "content unchanged, skip the write" hash.
 
 The API is `byte[]` in and `byte[]` out, which means you serialise yourself.
 `Encoding.UTF8.GetBytes` / `GetString` is the normal way to get a string across
@@ -322,9 +323,9 @@ source mod (`skipSafetyChecks: false`) with **zero** `System.IO` references,
 and it persists `CoreLib.cfg` and `KeyBindsActions.json` entirely through this
 API.
 
-There is also **`API.Config`**, a typed key-value store
-(`Get` / `Set` / `Register<T>`) for simple scalar settings such as a tunable
-radius, when you do not want to own a file format at all.
+There is also **`API.Config`**, a typed key-value store (`Get` / `Set` /
+`Register<T>`) for simple scalar settings such as a tunable radius, when you do
+not want to own a file format at all.
 
 ### 2. CoreLib's `ConfigFile` — typed entries, at a price
 

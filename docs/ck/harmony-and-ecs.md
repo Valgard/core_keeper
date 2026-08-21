@@ -69,9 +69,9 @@ path only.** A managed `SystemBase` never reaches
 server trap does not arise.
 
 Which shape you are looking at is worth checking before reasoning about any of
-it: in the decompile it is `public struct X : ISystem` versus
-`public class X : SystemBase`. Every system this handbook cites as a worked
-example — `ChangeDurabilitySystem`, `AddSkillValueSystem`, `PetHandlerSystem`,
+it: in the decompile it is `public struct X : ISystem` versus `public class X :
+SystemBase`. Every system this handbook cites as a worked example —
+`ChangeDurabilitySystem`, `AddSkillValueSystem`, `PetHandlerSystem`,
 `EquipmentUpdateSystem` — is an `ISystem` **struct**, which is also why the
 managed path is the less-travelled one here and correspondingly less tested.
 
@@ -84,10 +84,10 @@ managed path is the less-travelled one here and correspondingly less tested.
 
 Half 2 is the *gate* to half 1. `DisableBurstForSystemPatch.Prefix` — the SDK's
 own Harmony patch on `UpdateSystem`, gated on
-`SystemHandlesToDisableBurstFor.Contains(sh)` — flips
-`EnableBurstCompilation = false`, which makes the managed path run; only then
-does half 1 select `ManagedFunctionsUnBursted`, the `OnUpdate` you can patch.
-If half 2 never armed for the world your system runs in, half 1 is dead weight.
+`SystemHandlesToDisableBurstFor.Contains(sh)` — flips `EnableBurstCompilation =
+false`, which makes the managed path run; only then does half 1 select
+`ManagedFunctionsUnBursted`, the `OnUpdate` you can patch. If half 2 never armed
+for the world your system runs in, half 1 is dead weight.
 
 ### Nested jobs need the `AndJobs` variant
 
@@ -232,7 +232,8 @@ Two caveats make an absent line meaningless:
   session, not during.
 
 See [multiplayer and server](multiplayer-and-server.md) — for version and
-protocol issues, and for [getting one running](multiplayer-and-server.md#getting-one-running).
+protocol issues, and for [getting one
+running](multiplayer-and-server.md#getting-one-running).
 
 ## Harmony binding mechanics
 
@@ -280,12 +281,13 @@ and `ArgumentType.Normal` for each by-value one:
 ```
 
 `ArgumentType` lives in `HarmonyLib`. The usual alternative — a `TargetMethod()`
-resolving the signature via `AccessTools.Method(t, "M", new[] { typeof(A).MakeByRefType(), … })`
-— is **not available to a sandboxed mod**: `HarmonyLib.AccessTools` is rejected
-outright ("Indirect illegal reference via type exclusion"), as is
-`System.Reflection` member access. The `[HarmonyPatch(typeof(X), nameof(X.Y))]`
-attribute form is fine, because that reflection runs inside trusted
-`0Harmony.dll`. Details in [sandbox rules](sandbox-and-config.md).
+resolving the signature via `AccessTools.Method(t, "M", new[] {
+typeof(A).MakeByRefType(), … })` — is **not available to a sandboxed mod**:
+`HarmonyLib.AccessTools` is rejected outright ("Indirect illegal reference via
+type exclusion"), as is `System.Reflection` member access. The
+`[HarmonyPatch(typeof(X), nameof(X.Y))]` attribute form is fine, because that
+reflection runs inside trusted `0Harmony.dll`. Details in [sandbox
+rules](sandbox-and-config.md).
 
 ### Not everything needs `BurstDisabler`
 
@@ -356,7 +358,8 @@ than reasoning about it: with PlacementPlus active, a prefix on
 `PlaceObjectSlot.PlaceItem` fired **zero** times while laying rails. To test a
 suspected conflict, toggle the foreign mod through the loader's `disabledMods`
 list in `state.json` ([the loader's two disable
-lists](troubleshooting.md#the-loaders-two-disable-lists-are-opposites)) and count your own patch's invocations in both states.
+lists](troubleshooting.md#the-loaders-two-disable-lists-are-opposites)) and
+count your own patch's invocations in both states.
 
 And do not design around a change in the other mod. Whatever you ship has to
 work against the version players actually have installed, so a fix that depends
@@ -700,5 +703,5 @@ silent data-loss path. Saving in lockstep also avoids a post-crash desync where
 CK reverts the character while your file is newer. Keep a `Shutdown()` and a
 character-switch save as cheap backstops.
 
-Where that data goes, and the file API to write it with, is
-[sandbox and config](sandbox-and-config.md).
+Where that data goes, and the file API to write it with, is [sandbox and
+config](sandbox-and-config.md).
