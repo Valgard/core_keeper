@@ -18,12 +18,14 @@ would have done at runtime; it only cares that the symbol appears in your
 assembly. When it trips, `Player.log` shows:
 
 ```text
-Assembly 'X' has failed code security verification.
-  Illegal Namespace References = N,
-  Illegal Type References = M,
-  Illegal Member References = K
+Assembly 'X' has failed code security verification. Illegal Assembly Reference = 'N', Illegal Namespace References = 'N', Illegal Type References = 'N', Illegal Member References = 'N', Illegal PInvoke References = 'N'
 mod X load error: CompileFailed
 ```
+
+It is **one line**, the counts are single-quoted, and there are five of them —
+assembly and PInvoke counts come before and after the three you would expect.
+Grepping for `Illegal Namespace References = 1` finds nothing; the quotes are
+part of the string.
 
 **The ban is on the reference, not on the capability.** Your code may not
 mention `System.IO`, but the *ability* to touch files is not withdrawn — it is
@@ -247,7 +249,7 @@ A failed verification writes **two** separate error entries, back to back:
 
 The second is not conditional on any setting: `RegisterAssemblyImpl` calls
 `GetAllText(reportAllOccurences: true)` with the flag as a hardcoded literal
-(`RoslynCSharp:3865`), through the same log gate as the summary. If the counts
+(`RoslynCSharp:3866`), through the same log gate as the summary. If the counts
 line reached your `Player.log`, the naming lines did too.
 
 **Trap: grepping for `Illegal` finds only the summary.** The two entries are
@@ -491,7 +493,8 @@ newer.
 A `WriteCharacter` postfix runs the full serialize-plus-write inline,
 synchronously, at every autosave. Measured on an 89 KB / 5503-entry ledger:
 12–37 ms per autosave — 8–24 ms to serialize, 4–13 ms to write. That was enough
-to push CK's **host simulation past its 55 ms frame budget**
+to push CK's **host simulation past its 55 ms budget** (the server tick, a
+different budget from the client's ~16.7 ms render frame)
 (`ServerUpdateFrequencyTracker` warnings; 626 of 1109 frames over budget in one
 session), which players experience as continuous rubber-banding rather than as
 the periodic hitch a heavy scan produces.
@@ -522,10 +525,17 @@ always land.
 
 ## The `.pugbackup` sibling — a free before/after diff
 
-Every `ConfigFilesystem.Write` leaves a `<file>.pugbackup` next to the live
-file holding the **previous** version. This is observed for every file under
-`mods/<Mod>/` — configs, ledgers, throwaway `.bin` files alike — and the
-backup's mtime always trails the live file's by exactly one write.
+Every `ConfigFilesystem.Write` **over an existing file** leaves a
+`<file>.pugbackup` next to the live file holding the **previous** version. This
+is observed for every file under `mods/<Mod>/` — configs, ledgers, throwaway
+`.bin` files alike — and the backup's mtime always trails the live file's by
+exactly one write.
+
+**A first write leaves no backup — and deletes the old one.** `Write` removes
+any existing `.pugbackup` before it starts, then replaces the live file only if
+one is there; otherwise it moves the temporary file into place with nothing kept
+behind. So the write that creates a file destroys the previous generation's
+backup without producing a new one.
 
 **This is the first thing to look at for any "my persisted state lost
 entries" report.** It needs no new build, no diagnostic flag and no
