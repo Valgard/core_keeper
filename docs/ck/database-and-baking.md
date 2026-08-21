@@ -116,9 +116,8 @@ that default in place. Restarting does not repair it: the ordering is the same
 every session, so a one-line timing mistake becomes a permanent one.
 
 `API.ConfigFilesystem` is initialised before any mod's `EarlyInit`, so reading
-configuration that early does work — see [Sandbox and
-config](sandbox-and-config.md). The lifecycle itself is in [Mod
-anatomy](mod-anatomy.md).
+configuration that early does work — see [Sandbox and config](sandbox-and-config.md).
+The lifecycle itself is in [Mod anatomy](mod-anatomy.md).
 
 | A value that is… | Read it in | Tell the player |
 |---|---|---|
@@ -142,8 +141,8 @@ own Burst-compiled form. A nested job needs `DisableBurstForSystemAndJobs<T>()`
 (`PugMod.SDK.Runtime:783`), which additionally completes the system's job
 dependency inside the un-Bursted window. That variant is verified to make
 patches fire on another `ISystem` whose work sits in a nested `[BurstCompile]`
-job, but nobody has run it against the craft path — see [Harmony and
-ECS](harmony-and-ecs.md) for how it works and what it costs.
+job, but nobody has run it against the craft path — see [Harmony and ECS](harmony-and-ecs.md)
+for how it works and what it costs.
 
 Bake time remains the seam this chapter recommends: one edit at conversion time,
 against a per-craft patch on a hot simulation path that has to be taken off Burst
@@ -382,8 +381,8 @@ the declaring type. The id is the constant
 
 **Floors and walls are tilemap, not entities**, so per-colour tracking of a
 painted floor is not an entity query — only placeable *entities* (rugs and
-similar furniture) can be counted that way. See [World and
-mechanics](world-and-mechanics.md) for the tile side.
+similar furniture) can be counted that way. See [World and mechanics](world-and-mechanics.md)
+for the tile side.
 
 ## Item level and sell value
 
@@ -540,13 +539,13 @@ base needs no prefab change at all.
 cleanly; the GUID does not — read yours from any existing game-component
 reference in your own prefab.
 
-**Do not hand-hash.** This repo's tooling ships a generated
-`{fileID: className}` map covering every MonoBehaviour/ScriptableObject-derived
-game type, produced from the decompile and aborting on any hash collision rather
-than guessing — an earlier hand-maintained table had eyeballed-and-wrong
-entries, which is exactly the failure mode the generated map removes. Generating
-one is a scripting job of its own; see [Reverse
-engineering](reverse-engineering.md) for producing the decompile it reads.
+**Do not hand-hash.** This repo's tooling ships a generated `{fileID:
+className}` map covering every MonoBehaviour/ScriptableObject-derived game type,
+produced from the decompile and aborting on any hash collision rather than
+guessing — an earlier hand-maintained table had eyeballed-and-wrong entries,
+which is exactly the failure mode the generated map removes. Generating one is a
+scripting job of its own; see [Reverse engineering](reverse-engineering.md) for
+producing the decompile it reads.
 
 If you ever do need the hash by hand (no decompile available): **MD4 is often
 disabled** in OpenSSL 3 and on macOS, so `hashlib.new('md4')` may simply fail
@@ -580,5 +579,4 @@ Two consequences follow:
   referenced the sprite has to be updated with it.
 
 The practice of editing prefab YAML itself — nesting, variants, what the Editor
-will and will not preserve — belongs to [Prefabs and
-rendering](prefabs-and-rendering.md).
+will and will not preserve — belongs to [Prefabs and rendering](prefabs-and-rendering.md).

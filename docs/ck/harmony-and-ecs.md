@@ -232,8 +232,7 @@ Two caveats make an absent line meaningless:
   session, not during.
 
 See [multiplayer and server](multiplayer-and-server.md) — for version and
-protocol issues, and for [getting one
-running](multiplayer-and-server.md#getting-one-running).
+protocol issues, and for [getting one running](multiplayer-and-server.md#getting-one-running).
 
 ## Harmony binding mechanics
 
@@ -249,12 +248,10 @@ matters, because an `event` would only let you `+=` from inside its declaring
 type.
 
 **Untested: whether a mod's reference to it survives the sandbox.** The field
-lives in `modio.UI`, and no load here has referenced that assembly from mod
-code in either direction. Weigh that before reaching for it as the cheap
-alternative — a rejected reference is not a compile warning but a
-`CompileFailed`, which [can take unrelated mods down with
-it](troubleshooting.md). If you try it, verify the load before building
-anything on top.
+lives in `modio.UI`, and no load here has referenced that assembly from mod code
+in either direction. Weigh that before reaching for it as the cheap alternative
+— a rejected reference is not a compile warning but a `CompileFailed`, which [can take unrelated mods down with it](troubleshooting.md).
+If you try it, verify the load before building anything on top.
 
 Whether CK has further hooks of this kind has not been surveyed — but checking
 the decompile for a public delegate field on the type you were about to patch is
@@ -286,8 +283,7 @@ typeof(A).MakeByRefType(), … })` — is **not available to a sandboxed mod**:
 `HarmonyLib.AccessTools` is rejected outright ("Indirect illegal reference via
 type exclusion"), as is `System.Reflection` member access. The
 `[HarmonyPatch(typeof(X), nameof(X.Y))]` attribute form is fine, because that
-reflection runs inside trusted `0Harmony.dll`. Details in [sandbox
-rules](sandbox-and-config.md).
+reflection runs inside trusted `0Harmony.dll`. Details in [sandbox rules](sandbox-and-config.md).
 
 ### Not everything needs `BurstDisabler`
 
@@ -357,9 +353,9 @@ population your mod actually runs beside, and *measure* the interaction rather
 than reasoning about it: with PlacementPlus active, a prefix on
 `PlaceObjectSlot.PlaceItem` fired **zero** times while laying rails. To test a
 suspected conflict, toggle the foreign mod through the loader's `disabledMods`
-list in `state.json` ([the loader's two disable
-lists](troubleshooting.md#the-loaders-two-disable-lists-are-opposites)) and
-count your own patch's invocations in both states.
+list in `state.json`
+([the loader's two disable lists](troubleshooting.md#the-loaders-two-disable-lists-are-opposites))
+and count your own patch's invocations in both states.
 
 And do not design around a change in the other mod. Whatever you ship has to
 work against the version players actually have installed, so a fix that depends
@@ -393,8 +389,7 @@ the same method fires even without `BurstDisabler`; remove the foreign mod and
 yours goes quiet again unless you used the `AndJobs` variant. A patch that only
 works while another mod is installed is a real and confusing outcome.
 
-The placement *rules* themselves — which tile accepts which object — are in
-[world and mechanics](world-and-mechanics.md).
+The placement *rules* themselves — which tile accepts which object — are in [world and mechanics](world-and-mechanics.md).
 
 ### A half-working mod can be worse than none
 
@@ -571,8 +566,7 @@ mod.io tracks integrity and downloads through it.
 `.g` in the name* and run `dotnet csharpier check` on it. CSharpier silently
 skips `*.g.cs` ("Checked 0 files") but otherwise parses through Roslyn and
 reports genuine syntax errors. The care is warranted: a `CompileFailed` can
-cascade and desynchronise *other* mods, not only yours — see
-[troubleshooting](troubleshooting.md).
+cascade and desynchronise *other* mods, not only yours — see [troubleshooting](troubleshooting.md).
 
 **Two traps when instrumenting a third-party mod:**
 
@@ -703,5 +697,4 @@ silent data-loss path. Saving in lockstep also avoids a post-crash desync where
 CK reverts the character while your file is newer. Keep a `Shutdown()` and a
 character-switch save as cheap backstops.
 
-Where that data goes, and the file API to write it with, is [sandbox and
-config](sandbox-and-config.md).
+Where that data goes, and the file API to write it with, is [sandbox and config](sandbox-and-config.md).

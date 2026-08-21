@@ -10,12 +10,12 @@ lock, and the meta-file change without which a fresh clone does not compile on
 macOS — followed by the reasoning behind the arrangement described here. This
 file is the concrete form: script names, variables, commands.
 
-**Looking for how the game works rather than how to build for it?**
-[`docs/ck/index.md`](docs/ck/index.md) opens a reference handbook on Core Keeper
-modding itself — the load-time sandbox, Harmony and ECS patching, the object
-database, UI and prefabs, world mechanics, multiplayer, localisation, save
-formats, troubleshooting and reverse engineering. It routes by symptom and by
-task, so you rarely need to know which chapter you want beforehand.
+**Looking for how the game works rather than how to build for it?** [`docs/ck/index.md`](docs/ck/index.md)
+opens a reference handbook on Core Keeper modding itself — the load-time
+sandbox, Harmony and ECS patching, the object database, UI and prefabs, world
+mechanics, multiplayer, localisation, save formats, troubleshooting and reverse
+engineering. It routes by symptom and by task, so you rarely need to know which
+chapter you want beforehand.
 
 ## Build & install
 

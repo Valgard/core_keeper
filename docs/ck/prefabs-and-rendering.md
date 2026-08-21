@@ -294,9 +294,8 @@ and `filterMode` unchanged throughout.
 **Within one sorting layer and one `sortingOrder`, CK's uiCamera resolves transparent
 renderers by Z position.** Order is not inert: where it differs on the GUI layer it
 decides, which is why lowering a label's `orderInLayer` is the fix for text bleeding
-through your own panel — see [Every PugText draws in front of every
-sprite](#every-pugtext-draws-in-front-of-every-sprite). Z is what is left when layer and
-order do not separate two renderers.
+through your own panel — see [Every PugText draws in front of every sprite](#every-pugtext-draws-in-front-of-every-sprite).
+Z is what is left when layer and order do not separate two renderers.
 
 **Where exactly the line between the two falls is not mapped.** One case is on record of
 chrome sprites at a far lower order still occluding `PugText` glyphs at `orderInLayer`
@@ -504,9 +503,9 @@ atlas, resolved via `Manager.text.GetFont(fontFace)`.
 | `boldHuge` | `67108928` | `rrs18` | 641×432 | 341 |
 | `button` | `134217744` | `buttonfont_new` | 339×161 | 90 |
 
-The atlases live in the `rrs*` family inside `resources.assets` — see [reverse
-engineering](reverse-engineering.md) for getting at them. The table is not the complete
-set: `TextManager.Init2` calls `InitCodePoints()` on **twelve** faces.
+The atlases live in the `rrs*` family inside `resources.assets` — see [reverse engineering](reverse-engineering.md)
+for getting at them. The table is not the complete set: `TextManager.Init2` calls
+`InitCodePoints()` on **twelve** faces.
 
 Which charset a face uses differs per face. `thinTiny` carries its own `_customCharset`
 starting at ASCII 33, `thinSmall` uses the shared static `latinCharset`; the `charset`
@@ -554,8 +553,7 @@ missing-glyph symptom, not a layout bug.
 
 ### Overriding glyphs at runtime, sandbox-safe
 
-Adding or replacing a single glyph needs no `System.IO` and passes the
-[Roslyn sandbox](sandbox-and-config.md):
+Adding or replacing a single glyph needs no `System.IO` and passes the [Roslyn sandbox](sandbox-and-config.md):
 
 ```csharp
 Manager.text.<face>.codePoints[c] = idx;
@@ -666,13 +664,13 @@ projection between world XZ and HUD XY.**
 
 **The uiCamera shows a constant world area, so a fixed-size prefab is
 resolution-independent.** `Manager.camera.uiCamera.orthographicSize` is exactly
-**8.4375** — the 8.44 in the table rounded — so the visible height is
-`2 × orthoSize = 16.875` world units and the width is `height × aspect` — a **30 ×
-16.875** viewport at 16:9. That area does not change with resolution (confirmed
-empirically across several), and CK exposes no UI-scale option at all. A prefab authored
-at a fixed size is therefore "fullscreen with a border" at every resolution, and a mod
-window needs **no runtime sizing logic**. For matching the vanilla look, CK's own
-inventory margin is 0.25 world units.
+**8.4375** — the 8.44 in the table rounded — so the visible height is `2 × orthoSize =
+16.875` world units and the width is `height × aspect` — a **30 × 16.875** viewport at
+16:9. That area does not change with resolution (confirmed empirically across several),
+and CK exposes no UI-scale option at all. A prefab authored at a fixed size is therefore
+"fullscreen with a border" at every resolution, and a mod window needs **no runtime
+sizing logic**. For matching the vanilla look, CK's own inventory margin is 0.25 world
+units.
 
 **Dead end — do not repeat it:** projecting a world position onto the HUD via
 `gameCamera.WorldToScreenPoint(...)` → `uiCamera.ScreenToWorldPoint(...)` (or the
@@ -719,8 +717,8 @@ world-anchored HUD flash over teleport and Save-&-Quit load screens.
 ## Mounting an always-on HUD
 
 A non-modal HUD is **not** registered through CoreLib's
-`UserInterfaceModule.RegisterModUI` — that route belongs to modal windows (see the
-[UI framework](ui-framework.md)). The plain route is two steps:
+`UserInterfaceModule.RegisterModUI` — that route belongs to modal windows (see the [UI framework](ui-framework.md)).
+The plain route is two steps:
 
 1. In `IMod.ModObjectLoaded`, fish the prefab out of the asset stream **by its GameObject
    name**.

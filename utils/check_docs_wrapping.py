@@ -37,6 +37,8 @@ LINK = re.compile(r"\[[^\]]*\]\([^)\s]+\)", re.S)
 # prose, and treating it as a list ends the paragraph where it should continue
 BULLET = re.compile(r"^(\s*)([-*+]|\d+\.)(\s+)(.*)$")
 GLUE = "\x00"  # stands in for a space inside a link while wrapping
+# a token is "a link" even with trailing punctuation: "[x](y)," is still one
+LINK_TOKEN = re.compile(r"\[[^\]]*\]\([^)\s]+\)[.,;:!?)\]]*$", re.S)
 SPECIAL = ("#", "|", ">", "-", "*", "+", " ", "\t")
 WIDE_WIDTH, NARROW_WIDTH = 88, 80
 MIN_SAMPLE = 10  # prose lines needed before a file's own width is believed
@@ -76,7 +78,7 @@ def wrap_tokens(text, width, initial_indent="", subsequent_indent=""):
         if len(indent) + len(" ".join(cur)) + 1 + len(token) <= width:
             cur.append(token)
             continue
-        if LINK.fullmatch(token):
+        if LINK_TOKEN.match(token):
             cur.append(token)
             lines.append(indent + " ".join(cur))
             cur, indent = [], subsequent_indent
@@ -194,11 +196,18 @@ def defects(para, width):
         # long only counts when a break was actually available before the target
         # a line that overshoots because it ends on a link is correct by
         # construction — wrap_tokens put it there on purpose
-        if len(line) > width + OVERSHOOT and not line.rstrip().endswith(")"):
+        # a line that overshoots because it ends on a link is correct by
+        # construction — wrap_tokens put it there on purpose
+        if len(line) > width + OVERSHOOT and not LINK_TOKEN.search(line):
             head = line[: width + 1].rstrip()
             if " " in head[20:]:
                 found.append((offset, f"{len(line)} columns, target {width}"))
     for offset, (line, nxt) in enumerate(zip(para, para[1:])):
+        # a link belongs on the line it started on, however long that makes
+        # it — so a line ending just before one is a break in the wrong place
+        if LINK_TOKEN.match(first_token(nxt)):
+            found.append((offset, "line ends where a link should have stayed"))
+            continue
         # a line introducing a block ("as follows:") or closing a thought ends
         # short on purpose
         if line.rstrip().endswith((":", ".", "—")):

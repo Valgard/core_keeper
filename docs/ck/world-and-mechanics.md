@@ -6,8 +6,7 @@ around a player actually exists, and how a handful of frequently-modded systems
 (ore boulders, livestock, pets, cooked food) really behave. You need it when
 your mod computes positions, places or removes things, scans the world for
 entities, or reasons about creature and item identity. How to *hook* any of it
-is [Harmony and ECS](harmony-and-ecs.md); how to change baked prefab data is
-[database and baking](database-and-baking.md).
+is [Harmony and ECS](harmony-and-ecs.md); how to change baked prefab data is [database and baking](database-and-baking.md).
 
 ## World geometry: the plane is XZ, not XY
 
@@ -97,8 +96,7 @@ The game does exactly that query itself (`Pug.Other:181795`, in the routine that
 deletes duplicate cores). Two conditions apply: the Core resolves only while it
 is loaded — see [entity radii](#entity-radii-loaded-is-not-observed) — and the
 sandbox's verdict on ECS reads is per component type, so verify the load as
-described in [reading the live ECS
-world](harmony-and-ecs.md#reading-the-live-ecs-world-from-a-mod).
+described in [reading the live ECS world](harmony-and-ecs.md#reading-the-live-ecs-world-from-a-mod).
 
 Do not shortcut this with a constant. That same cleanup routine pins the
 surviving core at `float3(0, 0, 4)`, which corroborates that the Core sits north
@@ -150,9 +148,9 @@ its floor-then-measure order, not reading its marker position.
 Every marker icon vanilla draws on the map comes from an entity carrying
 `MapMarkerCD`, whose three fields are `mapMarkerType`, `userMapMarkerType` and
 `uniqueMarkerId`. That covers the icons, not the map as a whole: the explored
-terrain itself is map data rather than entities (see [savegame
-formats](savegame-formats.md)), and another mod may draw client-side markers of
-its own that no entity backs. Two enums divide the vanilla space:
+terrain itself is map data rather than entities (see [savegame formats](savegame-formats.md)),
+and another mod may draw client-side markers of its own that no entity backs.
+Two enums divide the vanilla space:
 
 | `MapMarkerType` | |
 |---|---|
@@ -375,8 +373,7 @@ prefix you walk `PugDatabaseAuthoring` →
 prefabs by their `objectID` enum, never by `objectName` string. Useful
 constants: `ObjectID.Pit = 233`, `ObjectID.Water = 232`. The bake runs after
 `EarlyInit` and before `Init`, so the patch must be bound in `IMod.EarlyInit`;
-the full `PostConvert` pattern is in [database and
-baking](database-and-baking.md).
+the full `PostConvert` pattern is in [database and baking](database-and-baking.md).
 
 **Permission has to exist before placement runs.** `canPlaceObject` is computed
 in `UpdatePlaceablePosition`, and `PlaceItem` returns early at `:311322` when it
@@ -456,11 +453,10 @@ overlaps no 300-circle, and re-created when it overlaps the 250 or 200 circles.
 exist but are unreferenced in the shipped DLLs — **the player load bubble is not
 shrinkable by any in-game setting.**
 
-Client ghost relevancy is a much smaller and entirely separate thing:
-`SpawnRect (22,14)` / `DespawnRect (24,16)` (`Pug.Other:135800`). A scan that
-resolves the ServerWorld therefore sees entities out to 200-300 tiles, not the
-~24-tile client ghost set; multiplayer world separation is covered in
-[multiplayer and server](multiplayer-and-server.md).
+Client ghost relevancy is a much smaller and entirely separate thing: `SpawnRect
+(22,14)` / `DespawnRect (24,16)` (`Pug.Other:135800`). A scan that resolves the
+ServerWorld therefore sees entities out to 200-300 tiles, not the ~24-tile
+client ghost set; multiplayer world separation is covered in [multiplayer and server](multiplayer-and-server.md).
 
 ### `IncludeDisabledEntities` is mandatory for a world scan
 
@@ -717,8 +713,7 @@ The `amount < 1 && HasComponent<CattleCD>` exception in
 so the carried item can still be placed at amount 0.
 
 Both sites live in Burst-compiled DOTS player systems (state-update and
-equipment-update aspects), so intercepting them needs the Burst treatment in
-[Harmony and ECS](harmony-and-ecs.md).
+equipment-update aspects), so intercepting them needs the Burst treatment in [Harmony and ECS](harmony-and-ecs.md).
 
 **Trap: the data-only loot path does not fire on placement.** Emitting an empty
 `CattleCage` through `SpawnsItemsOnUseCD` / `OpenItemAndSpawnLoot` (`:404518`)

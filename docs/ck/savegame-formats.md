@@ -17,9 +17,8 @@ Everything sits under one save root:
 ```
 
 `<platform>/<user-id>` is e.g. `Steam/<numeric id>`. This is the same root under
-which the loader hands a mod its own `mods/<ModName>/` directory — see
-[sandbox-and-config.md](sandbox-and-config.md) for the API that reads and writes
-there.
+which the loader hands a mod its own `mods/<ModName>/` directory — see [sandbox-and-config.md](sandbox-and-config.md)
+for the API that reads and writes there.
 
 | Path below the save root | Holds |
 |---|---|
@@ -123,8 +122,8 @@ would have to keep archetype layouts, chunk occupancy, entity IDs *and* the
 free-range pool mutually consistent. A mistake does not yield a missing object;
 it yields `DeserializationStates.SaveFileCorrupt`. A **read-only** parser is a
 different matter — the exact serialization code is in `Unity.Entities`, so it is
-buildable, but treat it as a real project rather than a quick script (see
-[reverse-engineering.md](reverse-engineering.md) for getting at that code).
+buildable, but treat it as a real project rather than a quick script (see [reverse-engineering.md](reverse-engineering.md)
+for getting at that code).
 
 ### Cheap indicative measurement, without a parser
 
@@ -292,8 +291,7 @@ Practical order of attack:
    workbench sat at the base and none in any remote cluster.
 
 Decode ObjectIDs you do not recognise from the game's `ObjectID` enum in the
-decompile — a single-file bounded grep, see
-[reverse-engineering.md](reverse-engineering.md).
+decompile — a single-file bounded grep, see [reverse-engineering.md](reverse-engineering.md).
 
 ### Reading a mod's own ledger
 
@@ -311,5 +309,4 @@ x,z|id:count,id:count,…
 Parsing one gives you positions, cluster membership and which IDs cluster
 together — enough to check distance to the Core, spot that a "base" scan is
 really picking up a remote structure, or confirm which objects a rule fires on.
-How a mod writes such a file in the first place belongs to
-[sandbox-and-config.md](sandbox-and-config.md).
+How a mod writes such a file in the first place belongs to [sandbox-and-config.md](sandbox-and-config.md).
