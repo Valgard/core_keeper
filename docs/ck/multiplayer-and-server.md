@@ -447,7 +447,7 @@ Check for the call site, not for the definition.
 | Client | `<temporaryCachePath>/ModLoader/<mod name>` |
 | Server | `<temporaryCachePath>/ModLoader/DedicatedServer/<fresh GUID>` |
 
-The server never reuses a directory, so it accumulates one extract directory per
+The server never reuses a directory, so it accumulates one extract directory per mod per
 start. It also means a stale-extract problem cannot occur there — and any host
 patch that exists to repair a leftover extract directory is inert on the server
 side.

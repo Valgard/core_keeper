@@ -89,7 +89,7 @@ version string (e.g. `1.2.1.5-8be0`) with the checkout and re-decompile after a
 game update if a type you rely on may have moved.
 
 Between patch releases the drift can be nil. Across the `1.2.1.4` → `1.2.1.5`
-update, 119 of 121 assemblies were byte-identical; only `Pug.Other` (42 lines)
+update, 119 of the 121 assemblies compared were byte-identical; only `Pug.Other` (42 lines)
 and `PugMod.Loader` (4 lines) differed at all — and that difference was locally
 applied host patches disappearing, not the game changing. That is **one**
 measured update, and only at the fourth version component; nothing here says
@@ -154,12 +154,13 @@ does not exist on the server. For everything outside those five assemblies, the
 client checkout is the authority. Do not search both trees.
 
 **Trap: a differing MD5 or file size proves nothing.** Two separate Unity builds
-stamp different MVIDs and timestamps, so 190 of the 356 shared DLLs differ by
-hash while being functionally identical. The converse also happens: an assembly
-can be *smaller* on one side and still decompile identically, because PE
-sections pad to a fixed boundary. The test only runs one way — an **identical**
-hash does settle identity, and that alone clears the other 166 for free. For
-everything that differs, only a decompile diff answers the question.
+stamp different MVIDs and timestamps, so a hash difference means nothing on its
+own — 190 of the 356 shared DLLs differ by hash while being functionally
+identical. The converse also happens: an assembly can be *smaller* on one side
+and still decompile identically, because PE sections pad to a fixed boundary.
+The test only runs one way — an **identical** hash does settle identity, and
+that alone clears the other 166 for free. For everything that differs, only a
+decompile diff answers the question.
 
 **Maintenance:** regenerate a partial server checkout after every game update.
 Otherwise the retained files are compared against a parent directory that has
@@ -208,7 +209,7 @@ The worked example is `ClientWorldStateSystem.HasRunAtLeastOnce`, which reads
 exactly like a Core Keeper world-state API and is an ItemBrowser-internal
 `ISystem` in `ItemBrowser.Common.Api` — unreachable from your mod. The
 CK-native equivalent is waiting on `Manager.main.player`. The pattern is
-persistent enough that a mod in this repo carried the wrong description in its
+persistent enough that a mod carried the wrong description in its
 own notes long after its shipped code had stopped doing it.
 
 Before adopting an identifier found in another mod, confirm it resolves in the
@@ -360,7 +361,7 @@ because a design gets built around them. Two corrections worth internalising:
   cost of that route is different and smaller: you lose Editor-time wiring for
   that type's own serialised fields.
 - **Differently-typed row templates can and do live in one prefab file.** In
-  this repo's own settings-menu prefab, `ToggleTemplate`, `ListTemplate` and
+  this repo's own settings-menu prefab, `SettingTemplate`, `ListTemplate` and
   `SectionTemplate` are siblings in the *same* `.prefab`, each with its own
   baked-in, Editor-wired component set. A single
   `grep -n "m_Name: .*[Tt]emplate"` settles the question.

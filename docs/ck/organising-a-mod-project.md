@@ -28,16 +28,20 @@ not fixed. The Editor keeps writing new ones — a `.meta` for every asset,
 regenerated `.asmdef` references, the ModBuilderSettings `.asset` — and any
 scheme that enumerates what to copy will miss whatever it writes next.
 
-**Symlinking a mirror closes it without enumerating anything.** Keep the mod's
-tree in its own repository, laid out the way the SDK expects, and link that
-directory into the SDK clone. A *directory* symlink captures every file the
-Editor writes into it, now and later, so nothing has to be registered by hand.
+**Symlinking a mirror closes it for everything inside the mod folder, without
+enumerating anything.** Keep the mod's tree in its own repository, laid out the
+way the SDK expects, and link that directory into the SDK clone. A *directory*
+symlink captures every file the Editor writes into it, now and later, so nothing
+has to be registered by hand.
+
+The settings asset the wizard writes sits *beside* the mod folder rather than inside it, so it and its `.meta` need links of their own: one directory link plus a few file links, not one link for everything.
 
 Two properties of this follow directly and are worth knowing before relying on
 it:
 
-- **Symlinks encode absolute paths**, so they dangle after the repository moves
-  or after switching to a git worktree. Re-creating them as part of every build
+- **Make the links absolute and they dangle** after the repository moves or
+  after switching to a git worktree — a relative target is possible and trades
+  that for other breakage. Re-creating them as part of every build
   turns that from a repair into a non-event.
 - **Unity's AssetDatabase does not watch a symlink's target.** Editing a file
   through one path while the Editor holds a compiled copy from another is how a

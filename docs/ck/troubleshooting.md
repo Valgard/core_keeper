@@ -36,7 +36,7 @@ downstream effect of the scripts not existing, not a reason for it.
 There is no `CompileFailed` and no `CS####` here. A failing compile is loud; the
 causes below are silent, which is exactly what makes them expensive.
 
-### Check first: the mod.io type tag
+### Check first: the mod.io Access Type tag
 
 **A mod.io profile carrying the `Asset` tag has its scripts silently disabled.**
 The mod.io loader walks the subscribed profile's `tags` (`ModIOLoader.Init`) and
