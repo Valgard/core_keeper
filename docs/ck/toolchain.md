@@ -48,9 +48,11 @@ The first open of a newly cloned SDK on a macOS Editor ends in compilation
 errors and the "Enter Safe Mode" prompt, with `CS0246` naming `Steamworks`.
 Nothing else in the SDK is reachable until it is resolved.
 
-It is a platform gate rather than a missing Steam installation: the SDK's
-Steamworks DLLs are each restricted to one Editor platform, and both are
-explicitly off for macOS. The fix is a handful of values in one `.meta` file
+**This is an Editor problem, not a game-host one.** The Editor runs natively on
+macOS; nothing here involves the translation layer the game needs. What blocks
+the compile is a gate on the *plugin import settings*: the SDK's Steamworks DLLs
+are each restricted to one Editor platform, and both are explicitly off for
+macOS. The fix is a handful of values in one `.meta` file
 plus a clean re-import, once per SDK clone — [the full procedure is in
 troubleshooting](troubleshooting.md#a-fresh-sdk-clone-will-not-compile-on-a-macos-editor-host),
 including why enabling the managed DLL is safe with no `libsteam_api.dylib`
