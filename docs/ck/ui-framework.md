@@ -1034,11 +1034,17 @@ scrollable sub-menu** — the controls/keybinding screen is exactly that — wit
 its own `MenuType` id, resolved in the same `RadicalMenu.TypeToMenu` prefix you
 already have. The price is that every additional screen brings its own [first-enable cascade](#the-first-setactivetrue-can-cost-a-second).
 
-**Red herring: `IScrollable.IsTopElementSelected` / `IsBottomElementSelected` /
-`UpdateContainingElements` have nothing to do with selection-follow.** They are
-used only in `UpdateScroll`'s controller analog-stick free-scroll path, guarded
-by `flag = !SystemPrefersKeyboardAndMouse()`. CK's own `ControlMapper` leaves
-`UpdateContainingElements` empty. Stubbing all three is fine.
+**Red herring: `IScrollable.IsTopElementSelected` / `IsBottomElementSelected`
+have nothing to do with selection-follow.** Both are used only in
+`UpdateScroll`'s controller analog-stick free-scroll path, guarded by
+`flag = !SystemPrefersKeyboardAndMouse()`, and stubbing them is fine.
+
+**`UpdateContainingElements` is not in that group.** `SetScrollablePosition`
+calls it unconditionally, and every scroll write reaches it — from
+`UpdateScroll`, `SetScrollValue` and `MoveScroll` alike. CK's own
+`ControlMapper` leaves it empty because its list is fully built; a list that
+virtualises its viewport has to do its work here, and stubbing it means nothing
+ever updates as the user scrolls.
 
 ### Long lists: CK ships no recycler
 
