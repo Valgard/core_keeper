@@ -30,27 +30,36 @@ that appears on mod.io is supplied at publish time. Where it comes from is a
 matter of convention, and a repository is free to keep it in a changelog file,
 a build argument, or a prompt.
 
-**A newly created profile is hidden.** It exists, it can receive files, and
-nobody can find it until it is switched visible — deliberately, so a
-half-configured listing is not public for the minutes it takes to finish. Expect
-one manual step on the website for a mod's first release, and none afterwards.
+**A newly created profile is public unless you ask otherwise.** The plugin
+sends `visible = 1` for every profile whose `ModProfileDetails.visible` was not
+explicitly set to `false`, so a first publish puts a half-configured listing in
+the catalogue for as long as it takes to finish it. Setting `visible = false`
+on creation and switching it on the website afterwards is a choice the
+publisher makes, not something the platform does for you.
 
-## Which manifest field becomes what
+## Which metadata field becomes what
 
-The listing does not read `ModManifest.json`. Several of its fields do reach
-mod.io, but each through a separate call, and two of them arrive as *tags*
-rather than as text:
+The listing does not read `ModManifest.json` — and neither does the publisher.
+Both read the **ModBuilderSettings `.asset`**, whose `metadata` block carries
+the same `ModMetadata` field names. Editing the generated manifest changes
+nothing. Several of those fields reach mod.io, each through a separate call,
+and two arrive as *tags* rather than as text:
 
-| Manifest field | Becomes |
+| `metadata` field in the `.asset` | Becomes |
 |---|---|
 | `displayName` (fallback: `name`) | the profile name — so the human title may differ from the internal identity |
 | `requiredOn` | a tag in the `Application Type` group |
 | `skipSafetyChecks` | a tag in the `Access Type` group — `Script` or `Script (Elevated Access)` |
 | `dependencies` | the mod.io **platform** dependency list — see below |
 
-The consequence worth remembering: **flipping `skipSafetyChecks` re-categorises
-the mod in the catalogue**, not just in the loader. A reader filtering for
-sandboxed mods stops seeing it.
+The consequence worth remembering runs the *other* way, and it is the one that
+bites: **at load time the tag is authoritative, not the field.** Both loaders
+force `metadata.skipSafetyChecks = false` unless the profile carries
+`Script (Elevated Access)`. A mod that ships `skipSafetyChecks: true` and is
+published without that tag therefore runs sandboxed at every subscriber, while
+its author — who runs a local build that never consults the profile — cannot
+reproduce the verification failures they report. Setting the field is only how
+a publisher derives the tag; the tag is what the game obeys.
 
 `requiredOn` and what its values mean for joining a server is in [mod anatomy](mod-anatomy.md);
 `skipSafetyChecks` and what it buys is in [the sandbox chapter](sandbox-and-config.md).
@@ -115,15 +124,22 @@ through a REST client of your own. Two properties of it shape any automation:
 
 ## Never run a dev build and a subscription of the same mod
 
-A locally installed development build and a real mod.io subscription of the same
-mod are **two separate mods** as far as the loader is concerned: two directories,
-two manifests, two loads. Its Harmony patches are applied twice, and the
-resulting behaviour — doubled effects, a prefix that sees its own output — looks
-like a bug in the mod rather than a duplicate installation.
+The loader deduplicates by `metadata.name`: `SortMods` builds a dictionary
+keyed on it, last write wins, and returns only the values. A local development
+build and a subscription of the same mod share that name, so **exactly one of
+them runs and nothing says which**. Which one survives depends on the order the
+loader platforms registered.
+
+The hazard is therefore the opposite of doubling: you fix something, relaunch,
+and are still testing the other copy. Nothing in the log distinguishes the two.
 
 Before testing a published build the way a player receives it, remove the local
 one. The reverse case is the quieter one: subscribing to your own mod for a
 quick look leaves it subscribed.
 
-How a not-yet-published mod is made loadable at all is a platform question — the
-loader only walks the mod.io subscription path — and is covered in [running the game on this platform](platforms.md).
+The loader has **three** platforms, registered at startup unless `-safemode` is
+set: a side-loader that scans `StreamingAssets/Mods` for any directory holding a
+`ModManifest.json`, the mod.io loader, and the Steam Workshop loader. Only the
+second consults subscriptions — which is why a not-yet-published mod can be made
+loadable in more than one way, and why the dedicated server loads its mods from
+a directory rather than an account.
