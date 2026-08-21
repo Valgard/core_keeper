@@ -1,7 +1,7 @@
 # The UI framework
 
 Core Keeper's interface is not built the way a Unity developer expects. There is
-no Canvas, no `RectTransform`, no `Image` — the entire UI is sprites on a
+no Canvas, no `RectTransform`, no `Image` in the sprite UI you build — it is sprites on a
 dedicated layer, driven by the game's own `UIelement` hierarchy. This chapter
 covers the pattern every UI mod follows, how to mount a window and suppress the
 gameplay UI behind it, how to show a vanilla item tooltip, how to add a row to
@@ -78,7 +78,8 @@ must win forward via `m_Center.z` (`-0.1` was enough in two cases, `-0.5` in
 another). The collider's `z` extent is raycast depth (`4` in the shipped
 scrollbar handle). Two consequences worth knowing: an open popup drawn over a
 list does **not** leak hover to the elements behind it, so a guard for that is
-dead weight; and `ScrollBar.UpdateHandleSize` overwrites the handle collider's
+dead weight; and `ScrollBar.UpdateHandleSize` — which runs when the handle is dragged or the
+content height changes, not every frame — overwrites the handle collider's
 `y` every frame, so authoring that value is pointless.
 
 **Hover, not click, drives selection.** `RadicalMenu.SelectOptionIndex` fires
@@ -118,9 +119,10 @@ playEffect = true)`, `GetHoverStats(bool)` — a near-miss compiles as a *new*
 method and the override silently never binds, or fails with `CS0115`. Grep the
 decompile before writing the override.
 
-**An overridden `UIelement.LateUpdate` must end with `base.LateUpdate()`.** The
-base implementation runs CK's UI-element tracking; without it input blocking and
-other housekeeping quietly stop working.
+**An overridden `UIelement.LateUpdate` must call `base.LateUpdate()`** — CK's
+own `ButtonUIElement` calls it first. The base implementation runs CK's
+UI-element tracking; without it input blocking and other housekeeping quietly
+stop working.
 
 ### Hit-testing without a collider
 
@@ -314,9 +316,10 @@ measured 15.7 ms.
 ### Sprites and pixel alignment
 
 UI sprites are authored at **pixels-per-unit 16**, and every position snaps to a
-**1/16 grid**. CoreLib ships a `PixelSnap` component to enforce it. The import
-settings that decide whether your PNG even arrives as a `Sprite` rather than a
-`Texture2D` are covered in [prefabs and rendering](prefabs-and-rendering.md).
+**1/16 grid**. CoreLib ships a `PixelSnap` component to enforce it — but read
+the [on-grid distortion trap](prefabs-and-rendering.md) before using it, because rounding a position onto
+the grid is exactly what produces it. The import settings that decide whether
+your PNG even arrives as a `Sprite` rather than a `Texture2D` are covered in [prefabs and rendering](prefabs-and-rendering.md).
 
 ### Reuse the vanilla window art
 
@@ -447,7 +450,8 @@ static bool Prefix(RadicalMenu.MenuType type, ref RadicalMenu __result)
 ```
 
 Pick an id no other mod uses. `1493` (General Mod Config Menu), `19901`
-(HealthBars) and `29314` are known to be taken.
+(HealthBars) and `29314` are known to be taken, and `29314`/`29315` (a settings
+menu and its drill-in screen).
 
 **Trap: patch the prefab, not the live menu.** Adding your row to the already
 instantiated `Manager.menu.optionsMenu` in a postfix is too late —
@@ -545,7 +549,9 @@ the same job.
 ### Localising menu strings
 
 Menu labels come from `TextDataBlock` assets, one per language, and `PugText`
-resolves terms out of them. In code the lookup is:
+resolves terms out of them — but the game-wide CSV shadows them at runtime, so
+editing a `TextDataBlock` and seeing no change is the expected outcome rather
+than a bug; see [localisation](localisation.md). In code the lookup is:
 
 ```csharp
 API.Localization.GetLocalizedTerm(term) ?? term
@@ -735,6 +741,7 @@ Three independent layers make a CoreLib bind work, all under CoreLib's
 1. The action and its `ActionElementMap` go into **Rewired's `UserData`** —
    this is what makes the bind functional and rebindable.
 2. A `ControlMapping_CategoryLayoutData` entry is appended to CoreLib's shared
+   a `CategoryLayoutData` entry appended to CoreLib's shared
    `modCategoryLayout` — the data behind a *visible* section, added only when
    the category is newly created.
 3. A Harmony **prefix on `ControlMappingMenu.Initialize`** injects
@@ -821,8 +828,8 @@ a normal settings menu, but not unpolled: `ModIOBrowserInputCapture` reads it
 focus. Use it when 223 is taken.
 
 Both are category `"Menu"`, defined in `PugMod.SDK.Runtime` (so both are
-reachable through `RewiredConsts`), bound by default to a controller face
-button, and polled the same way:
+reachable through `RewiredConsts`; `223` is defined only in `Pug.Other`), bound
+by default to a controller face button, and polled the same way:
 
 ```csharp
 Manager.input.GetButtonDown(223);
@@ -861,7 +868,8 @@ past the window edge until you add a `SpriteMask` yourself — see [clipping wit
 confuse it with the private `_scrollable`. `UIScrollWindow.Awake()` reads
 `scrollable` directly, copies it into `_scrollable` itself and, if it is null,
 sets `base.enabled = false` permanently — the window is dead for the rest of its
-life, with no error beyond a warning. Wire your `IScrollable` implementor into
+life. A `LogError` names the cause — the test is whether the object implements
+`IScrollable`, not whether it is null. Wire your `IScrollable` implementor into
 that slot in the Editor, or in the prefab YAML as `scrollable: {fileID: <your
 MonoBehaviour id>}`. Setting the private field later via reflection does not
 help; `Awake` has already disabled the component. And because `Awake` does that
@@ -936,7 +944,7 @@ Range** on the `"GUI"` layer. Four preconditions, each of which silently clips
 | every renderer has `maskInteraction = VisibleInsideMask` | the default `None` ignores every mask there is — see [when a renderer is clipped](prefabs-and-rendering.md#a-renderer-is-clipped-only-when-both-conditions-hold) |
 | every renderer in the region is already on `"GUI"` | one left on `"Default"` is not clipped at all |
 | every renderer's `sortingOrder` falls inside the band | outside the band it is not clipped |
-| `PugText` needs `style.sortingLayer` and `style.orderInLayer` set too | the prefab keys are `sortingLayer:` / `orderInLayer:` — **not** `m_SortingLayer` / `m_SortingOrder`, which are `SpriteRenderer` keys and are silently ignored on a `PugText` |
+| `PugText` needs `style.orderInLayer` set; `sortingLayer` defaults to a sentinel that already resolves to `"GUI"` | the prefab keys are `sortingLayer:` / `orderInLayer:` — **not** `m_SortingLayer` / `m_SortingOrder`, which are `SpriteRenderer` keys and are silently ignored on a `PugText` |
 | the mask sprite's `.meta` needs `spritePixelsToUnits: 1` | at CK's default of 16 a 1×1 white PNG is 0.0625 units, so a Transform scale of (11, 6) yields a 0.69 × 0.375 mask |
 
 `PugText` has a `SetOrderInLayer` method but **no** sorting-layer setter — assign
