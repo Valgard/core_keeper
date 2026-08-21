@@ -114,8 +114,7 @@ symptom, not the topic.
 | Read or place map markers | [World and mechanics](world-and-mechanics.md) |
 | Ship a mod that works in multiplayer | [Multiplayer and server](multiplayer-and-server.md) |
 | Translate your mod's text | [Localisation](localisation.md) |
-| Read data out of a save | [Publishing to mod.io](publishing.md) | Profile versus modfile and why a changelog cannot be edited, which manifest field becomes which tag, the silent tag drop, dependencies existing twice |
-| [Savegame formats](savegame-formats.md) |
+| Read data out of a save | [Savegame formats](savegame-formats.md) |
 | Publish a mod, or fix what its listing says | [Publishing to mod.io](publishing.md) |
 | Find where the game keeps mods, saves or logs | [Platforms and hosts](platforms.md) |
 | Answer a question nothing here answers | [Reverse engineering](reverse-engineering.md) |
