@@ -46,10 +46,13 @@ Workshop loader does the same over `entry.Tags`.
 | Profile tag | Effect on the loader |
 |---|---|
 | `Asset` | `disableScripts = true` — sources are never staged or compiled |
-| `Script` | normal sandboxed load; `skipSafetyChecks` forced to false |
 | `Script (Elevated Access)` | normal load, keeps the mod's authored `skipSafetyChecks` |
+| anything else, including `Script` or no tag at all | normal sandboxed load; `skipSafetyChecks` forced to false |
 
-A scripted mod must be tagged **`Script`** — or `Script (Elevated Access)` if it
+**The rule is negative: a scripted mod must not be tagged `Asset`.** Both
+loaders compare only against `Asset` and `Script (Elevated Access)`; the
+`Script` constant exists but is never compared against, so it is a catalogue
+label with no effect on loading. Tag `Script (Elevated Access)` only if the mod
 genuinely needs `skipSafetyChecks` (see [the sandbox](sandbox-and-config.md)).
 `Asset` is an easy mistake to make by hand at profile creation, because it reads
 like the right word for a mod that adds an *item*; it means "ships no code".
@@ -96,14 +99,19 @@ GUID into `unsupportedModsToLoad`, the force-load allowlist that makes the
 loader skip this rejection on the next launch ([the loader's two disable lists](#the-loaders-two-disable-lists-are-opposites),
 below).
 
-This bites after every Core Keeper update: the game moved from 1.2.1.4 to
-1.2.1.5 and mods that were not re-tagged lost their crafting tab for 1.2.1.5
-subscribers, while a re-tagged CoreLib kept loading beside them.
+**This bites only when the first three version components change.**
+`ModVersion.IsCompatible` matches `^(\d+)\.(\d+)\.(\d+)` against both the
+game version and each tag and compares only those three groups, so `1.2.1.4` and
+`1.2.1.5` both reduce to `1.2.1` and a mod tagged for either is compatible with
+the other. Most Core Keeper releases are fourth-component patches and need no
+re-tagging at all; a move like `1.2.0.x` → `1.2.1.x` does.
 
-**A local dev install never reproduces either failure.** It builds its tags from
-the configured game version alone, carries no type tag, and skips the
-version-tag filter entirely. "It works for me on the new version" therefore
-proves the *code* is compatible, not that the *listing* serves it.
+**A local dev install can reproduce it.** The install writes the configured
+game-version list into its own tags, so it goes through the same filter and
+passes because of them — a stale `CK_GAME_VERSION` fails locally just as it
+would for a subscriber. What a dev install genuinely does not carry is a type
+tag, so it never reproduces the `Asset` failure above; and like any mod without
+`Script (Elevated Access)`, it gets `skipSafetyChecks` forced to false.
 
 **Fix:** add the new version tag on the mod.io website; no rebuild is needed if
 the code already runs. Keep the publish configuration's game-version list
