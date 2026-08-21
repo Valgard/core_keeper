@@ -25,10 +25,18 @@ Install it through Unity Hub with these modules:
 
 ## The SDK clone, initialised once
 
-Clone Pugstorm's `CoreKeeperModSDK`, open it in that Editor, and run two
-wizard steps once: **Create New Mod** and **Update Game Files**. The second
-copies the installed game's assemblies into the project — without it your mod
-compiles against nothing.
+Clone Pugstorm's `CoreKeeperModSDK`, open it in that Editor, and run two wizard
+steps once — **in this order**:
+
+1. **Update Game Files**, which copies the installed game's assemblies into the
+   project. They are not in the repository; a fresh clone has none.
+2. **Create Mod**, which generates the mod folder and its assembly definition.
+
+**The order is not cosmetic.** Creating the mod freezes its list of precompiled
+references from a one-time scan of the assemblies present at that moment, and
+nothing re-runs that scan later. Do it first and the list is empty — the mod
+compiles against nothing, and no amount of updating game files afterwards
+repairs it.
 
 ## The Editor locks the project
 

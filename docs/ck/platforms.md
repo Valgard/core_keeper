@@ -27,9 +27,9 @@ a plugin import setting rather than anything in this chapter; it lives with the 
 
 ## Where the files live
 
-Four locations matter, and every chapter that names a path means one of them.
-Under Wine they sit inside the bottle's virtual drive, otherwise at the
-platform's own equivalent.
+Five locations account for nearly every path this handbook names. Under Wine
+they sit inside the bottle's virtual drive, otherwise at the platform's own
+equivalent.
 
 | What | Where |
 |---|---|
@@ -37,6 +37,7 @@ platform's own equivalent.
 | Installed mods, unpacked | `…/Public/mod.io/5289/mods/<modId>_<modfileId>/` |
 | Subscriptions and per-user mod state | `…/Public/mod.io/5289/state.json` |
 | Saves, logs, mod config, loader config | `…/LocalLow/Pugstorm/Core Keeper/` |
+| Where the loader extracts a mod's sources to compile them | `…/Temp/Pugstorm/Core Keeper/ModLoader/<Mod>/` |
 
 `5289` is Core Keeper's mod.io game id and is the same everywhere. The
 `<modId>_<modfileId>` pair means a mod's directory name **changes with every
@@ -101,5 +102,6 @@ memorable case of a write failure whose error text is the locale's word for
 success — `ERROR_SUCCESS` rendered as `Erfolg`. Match on the numeric code, not
 on the message.
 
-Server and client also disagree on how they announce a loaded mod, so no single
-pattern finds both; [multiplayer and server](multiplayer-and-server.md) has the two forms.
+Both processes write two different "loaded mod" lines, and the difference comes
+from the loader *stage* rather than from the build — see [multiplayer and server](multiplayer-and-server.md),
+which has both forms and the pattern that finds them.
