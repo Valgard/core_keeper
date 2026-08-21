@@ -337,12 +337,13 @@ normally given its mods. The rule that predicts both cases is therefore about th
 own `StreamingAssets/Mods` skips the version check just as thoroughly.
 
 The asymmetry therefore runs one way only, and it is a mismatch generator: a mod
-the **client rejects** but the server still loads is a set difference. Resolve it
-on the side that actually filters — either confirm the mod in the client's
+the **client rejects** but the server still loads is a set difference. Resolve
+it on the side that actually filters — either confirm the mod in the client's
 dialogue, or remove it from the server. Note also that the loader **clears
-`unsupportedModsToLoad` on every game-version change**, so a mod confirmed once
-silently drops out of the client's set after the next game update, and the join
-that worked yesterday fails today with no change on either machine.
+`unsupportedModsToLoad` when the first three version components change**, so a
+mod confirmed once silently drops out of the client's set after the next game
+update, and the join that worked yesterday fails today with no change on either
+machine.
 
 ### Duplicate mods: last one wins
 
