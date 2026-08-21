@@ -173,7 +173,8 @@ is not involved anywhere in this.
 
 Verified by passing live loads:
 
-- **`PugMod.API.ConfigFilesystem`** — the loader's own file API. See below.
+- **`PugMod.API.ConfigFilesystem`** — the loader's own file API. See
+  [storing configuration and state](persistence.md).
 - **Harmony attributes that name banned types.** See the next section.
 - **`Newtonsoft.Json.*`** — trusted precompiled library; usable from mod code
   even though it uses `System.IO` internally.

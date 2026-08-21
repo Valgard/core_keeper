@@ -50,7 +50,7 @@ right. Watch the round-trip too: an Editor-authored prefab child has come back
 with `m_SortingLayerID: 0` while its tag-layer 5 was correct.
 
 Inheriting from `UIelement`, reading `Manager.input` and touching
-`API.Rendering.UICamera` are all permitted inside the Roslyn sandbox — see [the sandbox and mod configuration](sandbox.md).
+`API.Rendering.UICamera` are all permitted inside the Roslyn sandbox — see [the load-time sandbox](sandbox.md).
 
 ### How `UIMouse` picks and selects an element
 
@@ -415,7 +415,7 @@ building on it.
 **Do not persist through `PrefsManager` / `PrefsData`.** `PrefsData` is a fixed
 `[Serializable]` class of hardcoded vanilla fields with no slot for mods;
 writing to it risks corrupting the player's `prefs.json`. Keep your own file —
-see [the sandbox and mod configuration](sandbox.md).
+see [storing configuration and state](persistence.md).
 
 ### The three patches
 
