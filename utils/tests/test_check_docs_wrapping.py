@@ -54,6 +54,13 @@ class TestIsProse:
     def test_a_plain_sentence_is_prose(self):
         assert mod.is_prose("A plain sentence.")
 
+    def test_leading_emphasis_is_prose_not_a_bullet(self):
+        # "*pattern*, but see ..." ended the paragraph, putting the rest of it
+        # out of the wrapper's reach
+        assert mod.is_prose("*pattern*, but see [the warning](x.md) before")
+        assert mod.is_prose("**bold start** of a continued sentence")
+        assert not mod.is_prose("* an actual bullet")
+
 
 class TestDefects:
     def test_flags_a_line_far_past_the_target(self):
@@ -130,3 +137,75 @@ class TestProcess:
         )
         problems, rewrapped = mod.process(p, fix=False)
         assert problems == [] and rewrapped == 0
+
+
+class TestLinks:
+    """A link split across lines is the defect this check exists for."""
+
+    def test_split_link_is_reported(self):
+        para = ["text with [a link", "text](target.md) after"]
+        assert any("link split" in why for _, why in mod.defects(para, 80))
+
+    def test_wrap_never_splits_a_link(self):
+        text = (
+            "word " * 12
+            + "[a fairly long link text](some/target.md) and more words after"
+        )
+        for line in mod.wrap_tokens(text, 80):
+            assert line.count("[") == line.count("]")
+
+    def test_link_stays_on_the_line_it_started(self):
+        # the line may overshoot; the break falls after the link
+        text = "short lead in " + "[" + "x" * 70 + "](t.md)" + " tail words here"
+        lines = mod.wrap_tokens(text, 80)
+        assert lines[0].startswith("short lead in [")
+        assert lines[0].rstrip().endswith(")")
+        assert lines[1].startswith("tail")
+
+
+class TestListItems:
+    """A bullet and its hanging indent have to survive a rewrap.
+
+    A first attempt fed the whole first line into the wrapper *and* re-added
+    the bullet as an indent, producing "- - text" and corrupting real files.
+    """
+
+    def test_bullet_appears_exactly_once(self, tmp_path):
+        link = "[a very long link text indeed](some-target-file.md)"
+        p = write(
+            tmp_path,
+            "a.md",
+            f"# T\n\n- A bullet with plenty of words before {link} and after it.\n",
+        )
+        mod.process(p, fix=True)
+        lines = p.read_text().splitlines()
+        assert not any(l.lstrip().startswith("- -") for l in lines)
+        assert sum(l.lstrip().startswith("- ") for l in lines) == 1
+
+    def test_rewrap_preserves_the_words(self, tmp_path):
+        import re
+
+        original = "# T\n\n- " + "word " * 30 + "[link](t.md) tail.\n"
+        p = write(tmp_path, "a.md", original)
+        mod.process(p, fix=True)
+        assert (
+            re.sub(r"\s+", " ", p.read_text()).strip()
+            == re.sub(r"\s+", " ", original).strip()
+        )
+
+    def test_continuation_lines_keep_their_indent(self, tmp_path):
+        p = write(tmp_path, "a.md", "# T\n\n- " + "word " * 30 + "end.\n")
+        mod.process(p, fix=True)
+        body = [
+            l for l in p.read_text().splitlines() if l.strip() and not l.startswith("#")
+        ]
+        assert body[0].startswith("- ")
+        for line in body[1:]:
+            assert line.startswith("  ") and not line.lstrip().startswith("-")
+
+    def test_a_list_after_a_code_fence_is_still_a_list(self, tmp_path):
+        # the pixaki case: list items directly after a closing fence
+        original = "# T\n\n```\ncode\n```\n\n- " + "word " * 30 + "[l](t.md) end.\n"
+        p = write(tmp_path, "a.md", original)
+        mod.process(p, fix=True)
+        assert not any(l.lstrip().startswith("- -") for l in p.read_text().splitlines())
