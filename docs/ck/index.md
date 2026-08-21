@@ -2,18 +2,15 @@
 
 ## Preamble
 
-> **This describes Core Keeper `1.2.1.5`** unless a passage names another
-> version. Everything here was read off a running game or out of decompiled
-> assemblies rather than from documentation, so a game update can invalidate any
-> statement in it without warning, and nothing announces that it has.
+**This describes Core Keeper `1.2.1.5`** unless a passage names another version.
+Everything here was read off a running game or out of decompiled assemblies
+rather than from documentation, so a game update can invalidate any statement in
+it without warning, and nothing announces that it has.
 
 It covers the game and the SDK — nothing about any individual mod, and no
 script, path or command belonging to a particular workspace. How you build,
 publish or run a server is yours to arrange; what the chapters describe is the
 machinery those arrangements sit on.
-
-What this handbook is, what it rests on and the licence it is written under are
-in [README.md](README.md).
 
 ## The chapters
 
