@@ -6,17 +6,16 @@ directory. Each mod also has its own `CLAUDE.md` with mod-specific detail
 true for *all* mods built against Pugstorm's `CoreKeeperModSDK` on this
 machine — change it only when an insight is genuinely mod-agnostic.
 
-**Game and SDK reference — `docs/ck/`.** Deliberately NOT an
-`@`-reference: it is ~7,000 lines and most sessions need none of it. Open
-`docs/ck/index.md` when a question is about the game rather than about this repo
-— it routes by symptom and by task, so one read usually lands on the right
-chapter. Triggers: getting a build to run at all — Unity version, modules,
-wizard steps, the project lock, the macOS Steamworks fix (`toolchain.md`); the
-load-time sandbox and `CompileFailed`; Harmony or ECS patching that binds but
-never fires; the object database and bake-time edits; UI, prefabs, sprites,
-fonts; world geometry, tiles, placement, creatures; multiplayer and
-dedicated-server differences; localisation; save file formats; decompiling and
-asset extraction.
+**Game and SDK reference — `docs/ck/`.** Deliberately NOT an `@`-reference: it
+is ~7,000 lines and most sessions need none of it. Open `docs/ck/index.md` when
+a question is about the game rather than about this repo — it routes by symptom
+and by task, so one read usually lands on the right chapter. Triggers: getting a
+build to run at all — Unity version, modules, wizard steps, the project lock,
+the macOS Steamworks fix (`toolchain.md`); the load-time sandbox and
+`CompileFailed`; Harmony or ECS patching that binds but never fires; the object
+database and bake-time edits; UI, prefabs, sprites, fonts; world geometry,
+tiles, placement, creatures; multiplayer and dedicated-server differences;
+localisation; save file formats; decompiling and asset extraction.
 
 The split: **this file holds the working rules for this repo** (setup,
 conventions, what must stay in step with what), **the handbook holds the game

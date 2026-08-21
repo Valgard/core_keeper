@@ -3,14 +3,12 @@
 How a not-yet-published mod is made loadable on this host.
 
 **What a Wine-based host breaks and why** — the failing directory delete, the
-Roslyn satellite lookup, the lost first save — is in
-[`docs/ck/platforms.md`](ck/platforms.md). All of it is fixed here by
-`corekeeper-patch` (see `CLAUDE.md`, "Required setup"), and none of it is
-specific to how a mod was distributed.
+Roslyn satellite lookup, the lost first save — is in [`docs/ck/platforms.md`](ck/platforms.md).
+All of it is fixed here by `corekeeper-patch` (see `CLAUDE.md`, "Required
+setup"), and none of it is specific to how a mod was distributed.
 
-**The loader's two disable lists** — `unsupportedModsToLoad` and
-`disabledMods`, what each does and how to clear a stuck mod — are in
-[`docs/ck/troubleshooting.md`](ck/troubleshooting.md).
+**The loader's two disable lists** — `unsupportedModsToLoad` and `disabledMods`,
+what each does and how to clear a stuck mod — are in [`docs/ck/troubleshooting.md`](ck/troubleshooting.md).
 
 What remains here is the fake-ID install: Pugstorm's loader only looks at mods
 that arrive via the mod.io subscription path, so a mod sitting in a bottle

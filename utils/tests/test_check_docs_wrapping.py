@@ -142,6 +142,10 @@ class TestProcess:
 class TestLinks:
     """A link split across lines is the defect this check exists for."""
 
+    def test_a_line_ending_before_a_link_is_reported(self):
+        para = ["some words and then —", "[" + "x" * 70 + "](t.md) tail"]
+        assert any("should have stayed" in why for _, why in mod.defects(para, 80))
+
     def test_split_link_is_reported(self):
         para = ["text with [a link", "text](target.md) after"]
         assert any("link split" in why for _, why in mod.defects(para, 80))
@@ -153,6 +157,13 @@ class TestLinks:
         )
         for line in mod.wrap_tokens(text, 80):
             assert line.count("[") == line.count("]")
+
+    def test_a_link_with_trailing_punctuation_still_counts(self):
+        # "[x](y)," is one token and must not be pushed onto its own line
+        text = "short lead in " + "[" + "x" * 70 + "](t.md), tail words here"
+        lines = mod.wrap_tokens(text, 80)
+        assert lines[0].startswith("short lead in [")
+        assert lines[0].rstrip().endswith("),")
 
     def test_link_stays_on_the_line_it_started(self):
         # the line may overshoot; the break falls after the link

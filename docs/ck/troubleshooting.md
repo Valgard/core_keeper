@@ -93,8 +93,9 @@ The mod is never added, so none of the tells above apply — no bundle, no entry
 in the loaded-mod list. Core Keeper's main menu raises the incompatible-mod
 dialog offering **Disable** or **Load Anyway**; "Load Anyway" writes the mod's
 GUID into `unsupportedModsToLoad`, the force-load allowlist that makes the
-loader skip this rejection on the next launch ([the loader's two disable
-lists](#the-loaders-two-disable-lists-are-opposites), below).
+loader skip this rejection on the next launch
+([the loader's two disable lists](#the-loaders-two-disable-lists-are-opposites),
+below).
 
 This bites after every Core Keeper update: the game moved from 1.2.1.4 to
 1.2.1.5 and mods that were not re-tagged lost their crafting tab for 1.2.1.5
@@ -272,8 +273,7 @@ the path above changes with the platform. `unsupportedModsToLoad` is not
 save-game state and uses no PlayerPrefs, but it does not survive a game update
 either: the loader compares `config.version` against the running version on
 startup and clears the whole list on a mismatch, so a mod you confirmed once is
-silently dropped again after the next update (see [multiplayer and
-server](multiplayer-and-server.md)).
+silently dropped again after the next update (see [multiplayer and server](multiplayer-and-server.md)).
 
 ### "Loading screen hangs forever" is usually a quit deadlock
 
@@ -399,8 +399,7 @@ dedicated server, with no error and no log line. The cause is Burst bypass
 registration being world-scoped and the server's different init ordering — the
 mechanism and the fix are in [Harmony and ECS](harmony-and-ecs.md).
 Version-compatibility rejections (`Error/BadProtocolVersion`) and the
-join-blocking dialog raised by a mod's `requiredOn` flags belong to [multiplayer
-and the dedicated server](multiplayer-and-server.md).
+join-blocking dialog raised by a mod's `requiredOn` flags belong to [multiplayer and the dedicated server](multiplayer-and-server.md).
 
 ## A fresh SDK clone will not compile on a macOS Editor host
 

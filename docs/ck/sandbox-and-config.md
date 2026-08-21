@@ -92,21 +92,21 @@ looks like exactly the BCL surface the sandbox rejects, and it is not: CoreLib
 uses `MD5.Create()` and `ComputeHash` in its own sandboxed source
 (`skipSafetyChecks: false`) and passes verification. That does not make it the
 right tool for the job that tempts you into it — hashing to skip a redundant
-write — but the reason is cost and allocation rather than legality; see
-[Writing in lockstep with the game's save](#writing-in-lockstep-with-the-games-save).
+write — but the reason is cost and allocation rather than legality; see [Writing in lockstep with the game's save](#writing-in-lockstep-with-the-games-save).
 
 **Trap: `Type.Name` is not a string operation.** The most common way to trip
 the sandbox by accident is a diagnostic log line. Three ways around it:
 
-- Catch the typed exception and write the type name as a string literal:
-  `catch (NullReferenceException ex) { Debug.Log("NullReferenceException: " + ex.Message); }`
+- Catch the typed exception and write the type name as a string literal: `catch
+  (NullReferenceException ex) { Debug.Log("NullReferenceException: " +
+  ex.Message); }`
 - Log only `ex.Message` and drop the type entirely.
 - For non-exception cases, use the SDK's `GetMembersChecked()` /
   `GetNameChecked()` extension methods (`PugMod.SDK.Runtime`) — the reflection
-  happens inside that trusted assembly, so it costs no reference of your own.
-  A reflective lookup written as
-  `typeof(UIScrollWindow).GetMembersChecked().FirstOrDefault(x => x.GetNameChecked() == "_scrollable")`
-  passes cleanly.
+  happens inside that trusted assembly, so it costs no reference of your own. A
+  reflective lookup written as
+  `typeof(UIScrollWindow).GetMembersChecked().FirstOrDefault(x =>
+  x.GetNameChecked() == "_scrollable")` passes cleanly.
 
 ### Reaching a private member: resolving it is only half the job
 
@@ -219,9 +219,9 @@ The second is not conditional on any setting: `RegisterAssemblyImpl` calls
 line reached your `Player.log`, the naming lines did too.
 
 **Trap: grepping for `Illegal` finds only the summary.** The two entries are
-separate `Debug.LogError` calls, so Unity puts a stack trace between them and the
-detail block scrolls out of a narrow grep window. Search for
-**`Referenced in method body`** instead — that lands on the culprit directly.
+separate `Debug.LogError` calls, so Unity puts a stack trace between them and
+the detail block scrolls out of a narrow grep window. Search for **`Referenced
+in method body`** instead — that lands on the culprit directly.
 
 Fall back on these only when the log was truncated or the detail entry is
 genuinely absent:
@@ -244,8 +244,7 @@ In order of preference.
 trusted `PugMod.SDK.Runtime.dll`. The real I/O happens inside that DLL, so a
 call to it is sandbox-free. It is the right answer for anything a `config.json`
 would hold, it needs no dependency, and it is **initialised before any mod's
-`EarlyInit`** — so you can read your settings at the earliest point of the
-[IMod lifecycle](mod-anatomy.md).
+`EarlyInit`** — so you can read your settings at the earliest point of the [IMod lifecycle](mod-anatomy.md).
 
 `IConfigFilesystem` (`PugMod.SDK.Runtime`) has eleven members — all of them:
 
@@ -333,8 +332,7 @@ CoreLib's `ConfigFile` sits on top of the same `API.ConfigFilesystem` and adds
 typed entries, defaults, `AcceptableValueRange` constraints and a TOML-ish
 `.cfg` on disk. You buy that with a **hard CoreLib dependency**, which your mod
 must declare in its ModBuilderSettings `.asset` and which propagates to your
-mod.io listing — see [mod anatomy](mod-anatomy.md) and
-[publishing](publishing.md).
+mod.io listing — see [mod anatomy](mod-anatomy.md) and [publishing](publishing.md).
 
 Take this route when the typed-entry ergonomics are worth the dependency, not
 because you assume route 1 cannot do it.

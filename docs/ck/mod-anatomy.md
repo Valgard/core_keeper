@@ -222,8 +222,8 @@ so a mod may have more than one handler. Conventionally the bootstrap `IMod` cla
 ### Reaching your own `LoadedMod` and asset bundle
 
 Nothing is handed to you — you look yourself up in the loader's list, matching on your
-internal `metadata.name`. The bundle handle that [prefab and sprite
-loading](prefabs-and-rendering.md) needs comes off the same object:
+internal `metadata.name`. The bundle handle that [prefab and sprite loading](prefabs-and-rendering.md)
+needs comes off the same object:
 
 ```csharp
 foreach (var mod in API.ModLoader.LoadedMods)
@@ -260,8 +260,7 @@ why `Init` is the earliest point with a live frame loop — and why it is still 
 anything that requires the game's object database to be populated.
 
 **On a dedicated server the relative order of `Init` and ECS startup differs from the
-client.** That has concrete consequences for Burst-disabling; see [Harmony and
-ECS](harmony-and-ecs.md).
+client.** That has concrete consequences for Burst-disabling; see [Harmony and ECS](harmony-and-ecs.md).
 
 **Trap: only the first `Init` or `Update` exception is ever logged.** Those two are the
 only lifecycle methods the loader routes through its `LoadedMods.ModContainer` wrapper,
@@ -309,9 +308,8 @@ looks redundant and invites deletion; it is a proxy for "a frame has passed", no
 and removing it produces the worst failure shape there is: correct-looking code that fails
 sporadically.
 
-This is the anchor for *reading* the world and the baked database. It is **not** the anchor
-for changing baked data — that has to happen far earlier, from `EarlyInit`; see
-[database and baking](database-and-baking.md).
+This is the anchor for *reading* the world and the baked database. It is **not** the
+anchor for changing baked data — that has to happen far earlier, from `EarlyInit`; see [database and baking](database-and-baking.md).
 
 ## Harmony patches are auto-discovered
 
@@ -334,13 +332,13 @@ matching — is a separate problem, covered in [Harmony and ECS](harmony-and-ecs
 ## Chat commands
 
 A chat command is a trigger a player types in chat that runs code in your mod. The game
-exposes no mod-facing API for *chat* commands. It does ship one for the developer console —
-`PugMod.SDK.Runtime`'s `[CommandWithModSupport]`, a subclass of Quantum Console's
-`CommandAttribute` and the attribute Pugstorm's own `Pug.Dev` commands carry — but that is a
-different surface with a different audience. Chat commands come from **CoreLib's
-`CommandModule`**. A mod that offers one therefore takes a hard CoreLib dependency — which
-means both the assembly reference and the `.asset` entry, as under
-[dependencies](#dependencies-two-concepts-only-one-of-which-compiles) below.
+exposes no mod-facing API for *chat* commands. It does ship one for the developer
+console — `PugMod.SDK.Runtime`'s `[CommandWithModSupport]`, a subclass of Quantum
+Console's `CommandAttribute` and the attribute Pugstorm's own `Pug.Dev` commands carry —
+but that is a different surface with a different audience. Chat commands come from
+**CoreLib's `CommandModule`**. A mod that offers one therefore takes a hard CoreLib
+dependency — which means both the assembly reference and the `.asset` entry, as under [dependencies](#dependencies-two-concepts-only-one-of-which-compiles)
+below.
 
 Registration happens in `EarlyInit()`, in three steps:
 
@@ -383,8 +381,8 @@ This is the **server** case. CoreLib's `CommandCommSystem` is itself a
 the ECS frame**. Two consequences:
 
 - **Writing to existing components is fine.** You are on the main thread inside a system
-  update — the same position from which [reading and writing the live ECS
-  world](harmony-and-ecs.md) is described.
+  update — the same position from which [reading and writing the live ECS world](harmony-and-ecs.md)
+  is described.
 - **Creating or destroying entities is not.** Structural changes from inside a running
   system are the standard ECS prohibition, applied here for the ordinary reason; this
   boundary has not been probed empirically in a command body.
@@ -557,11 +555,10 @@ The question to ask is: **does the server need this mod for it to work?**
 | `0` | Enforcement *and* side-of-execution are both honestly "either" — e.g. a pure diagnostic that must never gate a connection in either direction. This is a legitimate loader value; CoreLib itself ships it. |
 
 **Do not default to `3`.** An over-broad value is a hard block, not a hint: joining a
-server that lacks a `Server`-flagged mod raises a dialogue whose only options
-are to disable the mod (and restart) or cancel the connection. What exactly a
-mismatch does to a join, on either side, is covered in [multiplayer and
-server](multiplayer-and-server.md); `requiredOn` also feeds a mod.io catalogue
-tag, which is described in [publishing](publishing.md).
+server that lacks a `Server`-flagged mod raises a dialogue whose only options are to
+disable the mod (and restart) or cancel the connection. What exactly a mismatch does to
+a join, on either side, is covered in [multiplayer and server](multiplayer-and-server.md);
+`requiredOn` also feeds a mod.io catalogue tag, which is described in [publishing](publishing.md).
 
 ## The in-game mod menu, and when mod.io is contacted
 

@@ -2,10 +2,9 @@
 
 **What a dedicated server is and how it behaves** — the Steam app id, why
 `-nographics` kills world generation, the crossplay flag, how to stop it without
-losing the world, why a mod-set mismatch reports a version error — is in
-[`docs/ck/multiplayer-and-server.md`](ck/multiplayer-and-server.md). This file
-covers only what is specific to running one *here*: inside the same CrossOver
-bottle as the game, sharing one world with the client.
+losing the world, why a mod-set mismatch reports a version error — is in [`docs/ck/multiplayer-and-server.md`](ck/multiplayer-and-server.md).
+This file covers only what is specific to running one *here*: inside the same
+CrossOver bottle as the game, sharing one world with the client.
 
 ## Running it
 
@@ -149,10 +148,9 @@ loader keys on the guid and would clash on top of the name collision.
 
 Every symptom this setup produces — "wrong game version", the crossplay
 privilege, a server that exits during world generation, mods listed but inert —
-belongs to the game rather than to the bottle, and each is written up under
-what you see in
-[`docs/ck/multiplayer-and-server.md`](ck/multiplayer-and-server.md) and
-[`docs/ck/troubleshooting.md`](ck/troubleshooting.md).
+belongs to the game rather than to the bottle, and each is written up under what
+you see in [`docs/ck/multiplayer-and-server.md`](ck/multiplayer-and-server.md)
+and [`docs/ck/troubleshooting.md`](ck/troubleshooting.md).
 
 The one thing to check *here* first: `utils/server.sh relink` reconciles the mod
 symlinks, and `start` runs it — but a stale set is still the most common local

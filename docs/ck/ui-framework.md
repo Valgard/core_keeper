@@ -24,9 +24,8 @@ The canonical shape of a modded UI object:
 
 This shape describes an **interactive UI window** — something the player opens,
 clicks and navigates. A passive HUD element belongs on a different layer and
-follows different rules; see [why a mod HUD stays
-invisible](prefabs-and-rendering.md#why-a-mod-hud-stays-invisible) before
-building one.
+follows different rules; see [why a mod HUD stays invisible](prefabs-and-rendering.md#why-a-mod-hud-stays-invisible)
+before building one.
 
 | Element | What it must be |
 |---|---|
@@ -52,8 +51,7 @@ right. Watch the round-trip too: an Editor-authored prefab child has come back
 with `m_SortingLayerID: 0` while its tag-layer 5 was correct.
 
 Inheriting from `UIelement`, reading `Manager.input` and touching
-`API.Rendering.UICamera` are all permitted inside the Roslyn sandbox — see
-[the sandbox and mod configuration](sandbox-and-config.md).
+`API.Rendering.UICamera` are all permitted inside the Roslyn sandbox — see [the sandbox and mod configuration](sandbox-and-config.md).
 
 ### How `UIMouse` picks and selects an element
 
@@ -135,11 +133,10 @@ panel.size / 2`) is a complete, collider-free hit test. `Manager.camera` is
 sandbox-safe.
 
 One mechanic solves two problems with it: **click-outside-to-close** (a naive
-"any mouse-down closes" also fires on clicks *inside* the popup) and
-[mouse-wheel ownership](#mouse-wheel-ownership). Note the direction: screen →
-uiCamera world is fine and useful; the dead end that [prefabs and
-rendering](prefabs-and-rendering.md) warns about is the opposite projection,
-world → HUD.
+"any mouse-down closes" also fires on clicks *inside* the popup) and [mouse-wheel ownership](#mouse-wheel-ownership).
+Note the direction: screen → uiCamera world is fine and useful; the dead end
+that [prefabs and rendering](prefabs-and-rendering.md) warns about is the
+opposite projection, world → HUD.
 
 ## Mounting a standalone window
 
@@ -224,8 +221,8 @@ friends) are **not** patched. Two consequences that pull in opposite directions:
 
 - The game now treats your window as an inventory. The keyboard-shortcuts
   panel's **S** toggle key goes live over your window and the HUD's
-  inventory-context elements stay up — see [suppressing the gameplay
-  UI](#suppressing-the-gameplay-ui-while-a-modal-window-is-open).
+  inventory-context elements stay up — see
+  [suppressing the gameplay UI](#suppressing-the-gameplay-ui-while-a-modal-window-is-open).
 - To distinguish "a vanilla menu is open" from "my own window is open" you must
   read a per-UI getter. The aggregate cannot tell them apart, and gating on it
   makes your own window block itself.
@@ -257,10 +254,9 @@ The cost is roughly a dozen extra Harmony patches for cursor, pause, input,
 mouse mode, hotbar and shortcut suppression — everything route A inherits from
 vanilla — plus the maintenance of those patches across game updates. `moorowl`'s
 `ItemBrowser` is the complete worked template for this route — read it for the
-*pattern*, but see [the warning about reference
-mods](reverse-engineering.md#every-installed-mod-is-readable-source) before
-lifting an identifier out of it: several of its most API-looking types are its
-own, not the game's.
+*pattern*, but see [the warning about reference mods](reverse-engineering.md#every-installed-mod-is-readable-source)
+before lifting an identifier out of it: several of its most API-looking types
+are its own, not the game's.
 
 ### Suppressing the gameplay UI while a modal window is open
 
@@ -366,12 +362,12 @@ irrelevant and an off-screen proxy element works.
 `SlotUIBase.GetHoverStats(ContainedObjectsBuffer, bool, bool)` (~327477) is an
 **instance** method. A bare `new GameObject().AddComponent<MySlot>()` throws an
 NRE inside `SlotUIBase.Awake` on `animator.enabled`; giving the subclass an
-empty `Awake` body (see [subclassing a CK UI
-component](#subclassing-a-ck-ui-component)) fixes it, and the helper then
-returns title, description and stats correctly **without** `base.world` and
-without any of the serialized slot fields — verified by spike: a coin gave title
-and description and correctly no stats, a Copper Sword gave `statLines = 2`. The
-helper needs no prefab instantiation at all.
+empty `Awake` body (see [subclassing a CK UI component](#subclassing-a-ck-ui-component))
+fixes it, and the helper then returns title, description and stats correctly
+**without** `base.world` and without any of the serialized slot fields —
+verified by spike: a coin gave title and description and correctly no stats, a
+Copper Sword gave `statLines = 2`. The helper needs no prefab instantiation at
+all.
 
 ### Icons are not scaled to fit — the slot is sized around them
 
@@ -712,9 +708,8 @@ Commands"), not per-action — it stays correct as you add more binds.
 defaultKeyCode)`; there is no branch that skips it for `KeyboardKeyCode.None`.
 So a bind you registered as "unbound" still owns an `ActionElementMap`, and CK
 renders that map's `elementIdentifierName` — the string `"None"`. A genuinely
-unbound CK action has
-**no map at all**, and `ControlMappingMenu`'s setup loop simply renders nothing
-for it.
+unbound CK action has **no map at all**, and `ControlMappingMenu`'s setup loop
+simply renders nothing for it.
 
 The fix is to delete the forced None-map from the player's live maps on each
 `rewiredStart` — idempotent, because CoreLib re-seeds it every `EarlyInit`:
@@ -864,8 +859,7 @@ action in a mod-owned `player` category, visible and rebindable in Controls.
 ### Wiring a scroll window
 
 `UIScrollWindow` handles **scrolling only — not clipping.** Rows will render
-past the window edge until you add a `SpriteMask` yourself — see [clipping with
-a `SpriteMask`](#clipping-with-a-spritemask).
+past the window edge until you add a `SpriteMask` yourself — see [clipping with a `SpriteMask`](#clipping-with-a-spritemask).
 
 **Trap: `UIScrollWindow.scrollable` is the public serialized field.** Do not
 confuse it with the private `_scrollable`. `UIScrollWindow.Awake()` reads
@@ -968,11 +962,10 @@ your mod draws on top of a scroll window therefore scrolls the list underneath a
 well.
 
 Take the wheel with a Harmony **prefix on `UIScrollWindow.UpdateScroll`**
-returning `false` for the frames your overlay owns it, and compute that condition
-fresh inside the prefix so no `LateUpdate` ordering can make it stale. Harmony
-lives in trusted `0Harmony.dll`, so the patch is sandbox-clean. A collider-free
-way to decide whether the cursor is over your overlay is in [hit-testing without
-a collider](#hit-testing-without-a-collider).
+returning `false` for the frames your overlay owns it, and compute that
+condition fresh inside the prefix so no `LateUpdate` ordering can make it stale.
+Harmony lives in trusted `0Harmony.dll`, so the patch is sandbox-clean. A
+collider-free way to decide whether the cursor is over your overlay is in [hit-testing without a collider](#hit-testing-without-a-collider).
 
 ### Following the selection
 
@@ -1040,11 +1033,10 @@ navigation works per option, not per pixel — it brings the row's *top edge* in
 view and then jumps to the next *setting*, so the middle and bottom of an
 over-tall row are unreachable by D-pad. That is a controller dead zone, and its
 cause is architectural: a collection value pressed into CK's two-column,
-single-value row model. CK's own idiom for a collection is a **pushed, scrollable
-sub-menu** — the controls/keybinding screen is exactly that — with its own
-`MenuType` id, resolved in the same `RadicalMenu.TypeToMenu` prefix you already
-have. The price is that every additional screen brings its own [first-enable
-cascade](#the-first-setactivetrue-can-cost-a-second).
+single-value row model. CK's own idiom for a collection is a **pushed,
+scrollable sub-menu** — the controls/keybinding screen is exactly that — with
+its own `MenuType` id, resolved in the same `RadicalMenu.TypeToMenu` prefix you
+already have. The price is that every additional screen brings its own [first-enable cascade](#the-first-setactivetrue-can-cost-a-second).
 
 **Red herring: `IScrollable.IsTopElementSelected` / `IsBottomElementSelected` /
 `UpdateContainingElements` have nothing to do with selection-follow.** They are
@@ -1132,11 +1124,10 @@ otherwise the phantom row is straight back.
 
 ### Three traps
 
-**`visualOnly` splits optics from control.**
-`IsSelectionEnabled(visualOnly: true)` answers "which colour?";
-`IsSelectionEnabled()` answers "may navigation land here?". Vanilla's popup
-buttons exploit the gap deliberately — input-dead during the anti-misclick
-timer, visually normal.
+**`visualOnly` splits optics from control.** `IsSelectionEnabled(visualOnly:
+true)` answers "which colour?"; `IsSelectionEnabled()` answers "may navigation
+land here?". Vanilla's popup buttons exploit the gap deliberately — input-dead
+during the anti-misclick timer, visually normal.
 
 **The skip exists only on the index-based navigation path.** With
 `useUIElementsForNavigation`, `SelectIndexInDirection` asks

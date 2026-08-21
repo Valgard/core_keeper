@@ -52,9 +52,8 @@ The consequence worth remembering: **flipping `skipSafetyChecks` re-categorises
 the mod in the catalogue**, not just in the loader. A reader filtering for
 sandboxed mods stops seeing it.
 
-`requiredOn` and what its values mean for joining a server is in
-[mod anatomy](mod-anatomy.md); `skipSafetyChecks` and what it buys is in
-[the sandbox chapter](sandbox-and-config.md).
+`requiredOn` and what its values mean for joining a server is in [mod anatomy](mod-anatomy.md);
+`skipSafetyChecks` and what it buys is in [the sandbox chapter](sandbox-and-config.md).
 
 ## Tags, and the silence around them
 
@@ -126,6 +125,5 @@ Before testing a published build the way a player receives it, remove the local
 one. The reverse case is the quieter one: subscribing to your own mod for a
 quick look leaves it subscribed.
 
-How a not-yet-published mod is made loadable at all is a platform question —
-the loader only walks the mod.io subscription path — and is covered in
-[running the game on this platform](platforms.md).
+How a not-yet-published mod is made loadable at all is a platform question — the
+loader only walks the mod.io subscription path — and is covered in [running the game on this platform](platforms.md).

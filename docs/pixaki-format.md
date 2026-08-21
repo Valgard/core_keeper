@@ -78,8 +78,10 @@ nested layers at 1 frame). Each:
 layer(type=cel).clips[].itemIdentifier  ──→  cels[].identifier  ──→  images/drawings/<identifier>.png
 ```
 - `clip.itemIdentifier` → a `cel.identifier` (all clip itemIdentifiers ∈ cel identifiers ✓).
-- `cel.identifier` → the drawing file `images/drawings/<cel.identifier>.png` (60/60 matched ✓).
-- `clip.identifier` is the clip's own timeline id; `clip.range {start,end}` is the frame span.
+- `cel.identifier` → the drawing file `images/drawings/<cel.identifier>.png`
+  (60/60 matched ✓).
+- `clip.identifier` is the clip's own timeline id; `clip.range {start,end}` is
+  the frame span.
 
 ### Coordinates & trimming
 

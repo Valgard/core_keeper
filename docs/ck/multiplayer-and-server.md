@@ -72,9 +72,9 @@ variant via Box64. Getting one running is [below](#getting-one-running).
 
 Core Keeper runs its own mod comparison at connect time, in `ModInfoRpcSystem`
 and `NetworkClientStartSystem`, entirely independent of NetCode's hash
-validation. What it compares is driven by each mod's `requiredOn` flag — see
-[mod anatomy](mod-anatomy.md) for the enum itself and how to choose a value.
-What matters here is the network consequence.
+validation. What it compares is driven by each mod's `requiredOn` flag — see [mod anatomy](mod-anatomy.md)
+for the enum itself and how to choose a value. What matters here is the network
+consequence.
 
 **The checks are crossed.** This is the part that gets set wrong:
 
@@ -217,8 +217,8 @@ kept beside a client's — is a matter of local arrangement.
 
 The dedicated server is **Steam app `1963720`**, free, and installable without
 owning anything: `steamcmd +login anonymous +app_update 1963720 +quit`. Like the
-game itself it ships for **Windows and Linux only** — see
-[platforms](platforms.md) for what that means on a Mac.
+game itself it ships for **Windows and Linux only** — see [platforms](platforms.md)
+for what that means on a Mac.
 
 It is worth having for mod work. It is the only way to exercise the
 server-authoritative half of a mod — `requiredOn` behaviour, server commands,
@@ -361,8 +361,7 @@ from the game — it is a different install directory with its own
 `CoreKeeperServer_Data/Managed`. Skipping it produces a very specific failure:
 the mods **load but never compile**, because Roslyn chases a missing satellite
 assembly, and the client then rejects the join as `Error/BadProtocolVersion` —
-i.e. the mod-set symptom, one step removed from the real cause. Details in
-[platforms and hosts](platforms.md).
+i.e. the mod-set symptom, one step removed from the real cause. Details in [platforms and hosts](platforms.md).
 
 ### An idle server never simulates
 
@@ -398,10 +397,10 @@ one pattern that works on both sides and the only one that gives you names.
 processes — **before** the worlds are built on the client, **after** them on the
 dedicated server. Anything that registers itself during `Init()` and is consumed
 by a snapshot taken at ECS startup therefore works in singleplayer and is a
-silent no-op on the server, with no error and no log line. `BurstDisabler` is the
-case this bites in practice; the mechanism and the fix belong to
-[Harmony and ECS](harmony-and-ecs.md). If your mod is server-authoritative and
-works alone but not in multiplayer, start there.
+silent no-op on the server, with no error and no log line. `BurstDisabler` is
+the case this bites in practice; the mechanism and the fix belong to [Harmony and ECS](harmony-and-ecs.md).
+If your mod is server-authoritative and works alone but not in multiplayer,
+start there.
 
 ## How the server build actually differs
 

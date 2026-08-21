@@ -23,8 +23,7 @@ The Unity Editor, by contrast, runs natively on macOS. Building a mod and
 running the game are therefore two different worlds on the same machine, which
 is why an SDK problem and a loading problem look nothing alike. The Editor has a
 macOS snag of its own — a freshly cloned SDK that refuses to compile — but it is
-a plugin import setting rather than anything in this chapter; it lives with the
-[toolchain requirements](toolchain.md#on-macos-a-fresh-clone-does-not-compile-at-all).
+a plugin import setting rather than anything in this chapter; it lives with the [toolchain requirements](toolchain.md#on-macos-a-fresh-clone-does-not-compile-at-all).
 
 ## Where the files live
 

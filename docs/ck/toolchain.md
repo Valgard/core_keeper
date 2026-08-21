@@ -4,9 +4,8 @@ What has to be installed and set up before any of the rest of this handbook is
 reachable. Get one of these wrong and nothing compiles, regardless of how you
 organise everything else — none of it is a matter of taste.
 
-How you then arrange a mod project around it *is* a matter of taste, and
-[organising a mod project](organising-a-mod-project.md) walks through one
-arrangement in detail.
+How you then arrange a mod project around it *is* a matter of taste, and [organising a mod project](organising-a-mod-project.md)
+walks through one arrangement in detail.
 
 ## Unity Editor `6000.0.59f2`, exactly
 
@@ -53,8 +52,7 @@ macOS; nothing here involves the translation layer the game needs. What blocks
 the compile is a gate on the *plugin import settings*: the SDK's Steamworks DLLs
 are each restricted to one Editor platform, and both are explicitly off for
 macOS. The fix is a handful of values in one `.meta` file plus a clean
-re-import, once per SDK clone — [the full procedure is in
-troubleshooting](troubleshooting.md#a-fresh-sdk-clone-will-not-compile-on-a-macos-editor-host),
+re-import, once per SDK clone — [the full procedure is in troubleshooting](troubleshooting.md#a-fresh-sdk-clone-will-not-compile-on-a-macos-editor-host),
 including why enabling the managed DLL is safe with no `libsteam_api.dylib`
 present.
 
