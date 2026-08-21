@@ -811,8 +811,18 @@ Fillet, FishBalls, PanCurry, Pudding, Salad, Sandwich, Smoothie, Steak, Sushi,
 Wrap — and the concrete identity is packed into the `variation`:
 
 ```csharp
-CookedFoodCD.GetFoodVariation(primary, secondary) = (primary << 16) | secondary
+// the arguments are the two RAW ingredients, in either order
+CookedFoodCD.GetFoodVariation(i1, i2) =
+    ((int)GetPrimaryIngredient(i1, i2) << 16) | (int)GetSecondaryIngredient(i1, i2)
 ```
+
+**Do not do the shift yourself.** Which ingredient becomes primary is decided
+inside: golden plants and `StarlightNautilus` win by rule
+(`IngredientShouldBePrimary`), everything else by a seeded tiebreak
+(`FirstIngredientIsPrimary`). That normalisation is *why* the pair is symmetric
+— packing your own two arguments produces the wrong variation for about half of
+all pairs. It also decides the dish family: the **primary** ingredient's
+`CookingIngredientCD.turnsIntoFood` picks it.
 
 The name is generated per pair (`Pug.Other` ~`:301730`): `foodFormat` composes an
 adjective (`FoodAdjectives/<secondary>`), a noun (`FoodNouns/<primary>`) and the
@@ -826,11 +836,11 @@ The arithmetic:
 
 | Quantity | Value |
 |---|---|
-| Cooking ingredients | 74 |
-| Distinct ingredient pairs, `n·(n+1)/2` | 2,775 (symmetric — `GetFoodVariation(a,b) == GetFoodVariation(b,a)`) |
+| Cooking ingredients | 79 |
+| Distinct ingredient pairs, `n·(n+1)/2` | 3,160 (symmetric — `GetFoodVariation(a,b) == GetFoodVariation(b,a)`) |
 | Rarity tiers per pair | 3 (base, `rareVersion`, `epicVersion` on `CookedFoodCD`) |
 | Cooked-food `ObjectID`s (15 families × 3 tiers) | 45 |
-| **Distinct dishes** | **≈ 8,325** |
+| **Distinct dishes** | **9,480** — counted at runtime, not derived |
 
 All three tiers are reachable from the cooking roll
 (`ChanceToGainExtraCookedFood` → `ChanceForExtraCookedFoodToBeRare`,
@@ -838,12 +848,12 @@ All three tiers are reachable from the cooking roll
 
 **Trap: the widely cited wiki figure of 5,550 dishes is wrong.** It lists three
 rarity colours and then multiplies by two — self-contradicting. The code has
-three tiers; 2,775 × 3 = 8,325.
+three tiers, and a runtime enumeration counts 3,160 pairs across them.
 
-This dominates any exhaustive item catalogue: a full enumeration of obtainable
-items comes to roughly 10,910 rows, of which ~8,325 are cooked dishes (~76%) and
-only ~2,585 are "real" items. Soups alone account for 525 = 175 combinations × 3
-tiers. Any UI that renders such a catalogue needs viewport virtualisation —
-naive per-item `GameObject`s choke on the cooked block. Note that 8,325 is the
-theoretical maximum; the bake logs only a grand total, so an exact cooked-only
-figure requires your own counter.
+This dominates any exhaustive item catalogue. In one measured bake the cooked
+block was 9,480 of roughly 10,900 rows — around 87%, leaving well under 1,500
+"real" items. The exact totals move with the game version, and the bake logs
+only a grand total, so a cooked-only figure needs your own counter; what does
+not move is the ratio. Any UI rendering such a catalogue needs viewport
+virtualisation, because naive per-item `GameObject`s choke on the cooked
+block.
