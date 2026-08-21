@@ -244,6 +244,30 @@ Four things about starting it are not obvious:
 The server autosaves every 60 seconds (`AutoSaveInterval`, switchable off with
 `-disableautosave`), so even an abrupt end costs at most a minute of play.
 
+### Stopping one without losing the world
+
+A dedicated server writes its world in its **quit handlers**, and those only run
+on a Windows close request — what Unity turns into a quit. `taskkill` without
+`/F` sends one; a POSIX signal does not. Kill it with `SIGTERM` and the process
+simply disappears, leaving only the last autosave. Pugstorm's own launch script
+uses `taskkill` for this reason.
+
+The log distinguishes the two paths outright:
+
+```
+Got quit request
+Exit blocked by ECSManager     <- the manager holding the world defers the quit
+Quit blocked
+Got quit request
+Running quit handlers          <- Deinit() on every manager, then PID.txt goes
+```
+
+`Running quit handlers` appears only on the graceful path. The second tell is
+`PID.txt` beside the executable: written at startup, removed *only* by the quit
+handler. A leftover one means the previous run was cut short — and the next
+start reads it back as "a server is already running", which is a confusing way
+to learn that yesterday's shutdown was not clean.
+
 ### The client builds no server world
 
 Joining a dedicated server, the client constructs only `ClientWorld0` — there is

@@ -225,15 +225,16 @@ asmdef cannot reference an editor-only one, so a CLI build helper (for
 
 ## macOS / CrossOver — distribution & loader
 
-Read `docs/macos-crossover-loader.md` when a mod does not appear or does not
-load on this host, when the incompatible-mod dialogue shows up, or when you need
-the fake-ID dev install, the `state.json`/`config.json` surfaces, or
-CrossOver/Wine specifics.
+Read `docs/macos-crossover-loader.md` for the **fake-ID dev install** — the
+three locations it writes and why the in-game Mods menu wipes them. What a
+Wine host breaks is `docs/ck/platforms.md`; the loader's two disable lists
+(`unsupportedModsToLoad`, `disabledMods`) and the incompatible-mod dialogue are
+`docs/ck/troubleshooting.md`.
 
 Read `docs/dedicated-server.md` before starting, stopping or debugging the local
-dedicated server (Steam app 1963720) — it runs in the same bottle, shares one
-world with the client via directory symlinks, and a mod-set mismatch surfaces as
-"wrong game version" rather than as anything mentioning mods. The
+dedicated server — it runs in the same bottle and shares one world with the
+client via directory symlinks. How a server behaves, and why a mod-set mismatch
+surfaces as "wrong game version", is `docs/ck/multiplayer-and-server.md`. The
 helper is `utils/server.sh start|stop|status|log|relink`. The mod symlinks drift
 four ways — a release mints a new `<fileId>`, a mod is switched off or
 unsubscribed, a mod is added or moves between mod.io and a dev build, or one ends
@@ -345,8 +346,9 @@ human-facing setup; what matters when editing code here:
 ## mod.io publishing (applies to every mod)
 
 Read `docs/publishing.md` before publishing or re-tagging anything on mod.io:
-the publish flow, how dependencies and tags are synchronised, and which of the
-three mod IDs is which.
+the publish modes, how dependencies and tags are synchronised here, and which of
+the three mod IDs is which. How mod.io itself behaves — profile versus modfile,
+which manifest field becomes which tag — is `docs/ck/publishing.md`.
 
 ## Logo / branding (family style)
 

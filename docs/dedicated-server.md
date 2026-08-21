@@ -1,14 +1,11 @@
-# Dedicated server (macOS / CrossOver)
+# Dedicated server — running one in this bottle
 
-Core Keeper's dedicated server is Steam app **1963720**, free and installable
-with `login anonymous`. It ships for Windows and Linux only — there is no macOS
-build, and none is coming, because the game itself has no Mac build either. On
-macOS it therefore runs as the Windows build **inside the same CrossOver bottle
-as the game**.
-
-This is worth having for mod work: it is the only way to exercise the
-server-authoritative half of a mod (`requiredOn` behaviour, CoreLib server
-commands, world-mutating logic) without a second machine.
+**What a dedicated server is and how it behaves** — the Steam app id, why
+`-nographics` kills world generation, the crossplay flag, how to stop it without
+losing the world, why a mod-set mismatch reports a version error — is in
+[`docs/ck/multiplayer-and-server.md`](ck/multiplayer-and-server.md). This file
+covers only what is specific to running one *here*: inside the same CrossOver
+bottle as the game, sharing one world with the client.
 
 ## Running it
 
@@ -32,23 +29,14 @@ Configuration comes from the environment (see `.envrc.example`):
 `CK_SERVER_MAXPLAYERS`, `CK_SERVER_PLATFORM`, plus the shared `CK_BOTTLE_*`
 variables the install scripts already use.
 
-Three things about the launch are non-obvious and are baked into the script:
+The launch flags the script passes — `-batchmode` without `-nographics`, the
+port as a command-line argument — are explained in the handbook. One thing is
+specific to this host: **the process must be detached.** `cxstart --no-wait`
+still keeps it attached to the calling shell, so it dies with the caller; the
+script uses `nohup … & disown`.
 
-- **`-batchmode` yes, `-nographics` never.** Part of the procedural world
-  generation runs on the GPU, so the server needs a graphics device even when
-  headless. Under CrossOver the log confirms it with
-  `Renderer: AMD Compatibility Mode`; on a Linux host this is the role `xvfb`
-  plus the Mesa drivers play.
-- **`-port` only works as a command-line argument** — setting it in
-  `ServerConfig.json` has no effect. With a port the server accepts direct
-  connections; without one it is reachable only through the Steam relay by its
-  Game ID.
-- **The process must be detached.** `cxstart --no-wait` still keeps it attached
-  to the calling shell, so it dies with the caller; the script uses
-  `nohup … & disown`.
-
-A cold start with a full mod set takes minutes — every mod's scripts go through
-Roslyn and the world is brotli-decompressed on load.
+Under CrossOver the log confirms the graphics device with
+`Renderer: AMD Compatibility Mode`.
 
 ## Sharing one world with the client
 
@@ -155,82 +143,26 @@ guid along with the manifest, so two different authors can ship the same name
 (`6163009`) are exactly that. It is still worth reporting, because the data-block
 loader keys on the guid and would clash on top of the name collision.
 
-## Client and server must match
+## When it will not take a connection
 
-A mismatch surfaces in the client as **"wrong game version"**, which is
-misleading — the underlying error is `Error/BadProtocolVersion`. Unity NetCode
-generates its ghost serializers at build time and validates
-`NetworkProtocolVersion` plus the ghost collection hash on connect; anything that
-changes the ECS component set changes that hash. Diagnose in `Player.log`: a long
-run of `ComponentHash[N]` lines followed by
-`Client disconnected because Error/BadProtocolVersion`.
+Every symptom this setup produces — "wrong game version", the crossplay
+privilege, a server that exits during world generation, mods listed but inert —
+belongs to the game rather than to the bottle, and each is written up under
+what you see in
+[`docs/ck/multiplayer-and-server.md`](ck/multiplayer-and-server.md) and
+[`docs/ck/troubleshooting.md`](ck/troubleshooting.md).
 
-Three things have to line up:
+The one thing to check *here* first: `utils/server.sh relink` reconciles the mod
+symlinks, and `start` runs it — but a stale set is still the most common local
+cause of a mismatch.
 
-1. **The same mods**, mirrored as above.
-2. **`corekeeper-patch` applied to the server install too.** Without Patch 2 the
-   mods load but Roslyn fails on the missing `de-DE` satellite assembly, so none
-   of them compile — same hash mismatch, one step later. The patcher takes the
-   game directory, so run it once per installation.
-3. **Mods the client rejects as incompatible.** Only the client checks version
-   compatibility — it reads the mod.io tags and skips a mod that does not match,
-   unless its GUID sits in `modloader/config.json` → `unsupportedModsToLoad`
-   (what the "load anyway" dialog writes). The server's directory scan passes
-   `supportsCurrentVersion: true` **hardcoded** (`PugMod.Loader` ~2172), so it
-   loads everything present, tags be damned.
-
-   The asymmetry runs one way: a mod the client drops but the server loads is a
-   set mismatch. Either confirm it in the client's dialog or unlink it on the
-   server. Copying `unsupportedModsToLoad` to the server does nothing — the gate
-   it feeds (`!supportsCurrentVersion && !contains(guid)`) can never fire there.
-   Note the loader clears that list on every game-version change, so a mod you
-   confirmed once is silently dropped by the client after the next update.
-
-## Troubleshooting
-
-| Symptom | Cause |
-|---|---|
-| "wrong game version" | `Error/BadProtocolVersion` — see the section above |
-| "missing the crossplay privilege" | Server offers crossplay; start it with `-allowonlyplatform Steam` so client and server share a platform and the check is skipped |
-| Server exits during world generation | `-nographics` was passed, or the host has no usable graphics device |
-| Mods listed but inert | Scripts did not compile — check the log for `CompileFailed` or the `de-DE` satellite assembly |
-
-## Stopping it without losing progress
+## Stopping it
 
 `utils/server.sh stop` sends a Windows `WM_CLOSE` through `taskkill` (no `/F`),
-which is what Unity turns into a quit request. The chain is visible in the log:
+which is the path that runs the quit handlers and rewrites the world; the
+handbook explains why a POSIX signal loses the last minutes of play.
 
-```
-Got quit request
-Exit blocked by ECSManager     <- the manager holding the world defers the quit
-Quit blocked
-Got quit request
-Running quit handlers          <- Deinit() on every manager, then PID.txt is removed
-```
-
-A POSIX signal (`pkill`, SIGTERM) bypasses all of it — the process disappears and
-only the last autosave survives. This is also why Pugstorm's own `Launch.ps1`
-uses `taskkill`. Verified: a graceful stop rewrote the world file, an earlier
-SIGTERM stop did not.
-
-Two independent signals tell the paths apart:
-
-- `Running quit handlers` in the log — only present on the graceful path.
-- A leftover `PID.txt` next to the executable. It is written at startup and
-  removed *only* by the quit handler, so its presence means the previous run was
-  cut short. A stale one is also read back on the next start as "a server is
-  already running".
-
-Autosave runs every 60 s (`AutoSaveInterval`, disableable with
-`-disableautosave`), so even a hard kill costs at most a minute.
-
-One known rough edge: `Write failed: … .pugbackup (-2147024896)` for
-`ServerConfig.json`, `Admins.json` and `PlayerBans.json` persists even with all
-six patches applied. Those files themselves are written and the world is
-unaffected — only the backup copies fail.
-
-## Log formats differ
-
-The server logs `loaded mod <Name> at <path>`, the client logs
-`Loading mod with ID <modId>`. There is no single grep pattern for both — a
-detail that costs time when comparing the two sides.
+One rough edge specific to this host: `Write failed: … .pugbackup
+(-2147024896)` for `ServerConfig.json`, `Admins.json` and `PlayerBans.json`
+persists even with every game-DLL patch applied. Those files themselves are
+written and the world is unaffected — only their backup copies fail.
