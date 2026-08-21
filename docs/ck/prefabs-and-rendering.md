@@ -450,6 +450,8 @@ after a world load, and is correct on every subsequent open.
 CK UI text is `PugText` rendering through `TextManager` / `PugFont`, all in
 `Pug.Other.dll`. This matters for any mod with localised labels or a custom font.
 
+**One exception, and it silently defeats everything in this section:** `PugText` has a second path that builds a `TextMeshPro` child on a `RectTransform` instead of rendering glyphs itself. It is selected for Thai and for text the user types into, so atlas replacement and runtime glyph overrides do nothing there.
+
 ### Every PugText draws in front of every sprite
 
 `PugText.style.sortingLayer` defaults to `int.MinValue`, which is a **sentinel, not a
@@ -520,10 +522,12 @@ characters.
 ### What the atlases do and do not contain
 
 **No CK font maps any whitespace codepoint.** Not `thinSmall` (331), not `thinTiny`
-(114), not `boldHuge` (341), not the Chinese font (3891): none of them contains `U+0020`,
-`U+00A0` or the typographic spaces `U+2000–U+200A`. CK handles spacing outside glyph
-resolution, so space width is neither definable nor changeable through a font atlas — and
-an empty-looking rect slot in an atlas is not a space glyph waiting to be widened.
+(114), not `boldHuge` (341), not the Chinese font (3891): none of them contains
+`U+0020`, `U+00A0` or the typographic spaces `U+2000–U+200A`. CK handles spacing outside
+glyph resolution, so space width cannot be defined *in the atlas* — it lives in
+`PugFont.spaceWidth` (a public field on the same ScriptableObject a mod already mutates)
+and is adjusted per style by `PugTextStyle.extraSpaceWidth` — and an empty-looking rect
+slot in an atlas is not a space glyph waiting to be widened.
 
 **Glyph coverage differs per face, so a character can be missing from one atlas only.**
 `♦` (U+2666) and `♢` (U+2662) exist **only** in the `boldLarge` atlas; `thinMedium`
@@ -594,13 +598,14 @@ Non-obvious constraints:
   lands the pivot on vanilla's baseline. `charDims` stays `(8, 10)` regardless — it is a
   layout metric (line advance, reported size), not atlas geometry, and does not track the
   rect inflation.
-- **The atlases are 257 px wide rather than 256 because of the horizontal inflation.**
-  `InitCodePoints` widens every rect by `x -= 1; width += 2` — but only while
-  `rect2.width + rect2.x + 2 < texture.width`. When that fails it leaves the glyph
-  un-inflated and logs *"you need to make the font texture 1 pixel wider to the right to
-  support outlines"*. The same pass **skips** two kinds of cell: one whose charset
-  character is a space, and one with a zero-size rect — a zero-size rect is the encoding
-  for "empty cell".
+- **The 32-column charset atlases are 257 px wide rather than 256 because of the
+  horizontal inflation.** `InitCodePoints` widens every rect by `x -= 1; width += 2` —
+  but only while `rect2.width + rect2.x + 2 < texture.width`. When that fails it leaves
+  the glyph un-inflated and logs *"you need to make the font texture 1 pixel wider to
+  the right to support outlines"*. The same pass **skips** three kinds of cell: one
+  already present in `codePoints` (a duplicate character silently loses its later cell),
+  one whose charset character is a space, and one with a zero-size rect — a zero-size
+  rect is the encoding for "empty cell".
 - **A codepoint-keyed replacement cannot reach index-addressed glyphs.** The slots that
   carry no codepoint (CK's controller symbols, template orphans) will receive your pixels
   and never render them, because character lookup cannot address them at all. Glyphs with
@@ -679,7 +684,7 @@ units.
 `gameCamera.WorldToScreenPoint(...)` → `uiCamera.ScreenToWorldPoint(...)` (or the
 viewport variants). The game camera is a fixed internal camera that **does not follow the
 player**, so `WorldToScreenPoint` returns a different pixel space — observed `screen.x ≈
-6026` on a ~3632 px display, `viewport.x ≈ 1.4`. The projected "centre" lands at the
+6026` on that display, `viewport.x ≈ 1.66`. The projected "centre" lands at the
 player's absolute world coordinate, i.e. off-screen, and the element simply vanishes.
 This is only visible by logging the actual runtime values; static reasoning about the
 camera setup will not reveal it.
