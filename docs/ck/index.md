@@ -5,6 +5,11 @@
 > assemblies rather than from documentation, so a game update can invalidate any
 > statement in it without warning, and nothing announces that it has.
 
+It covers the game and the SDK — nothing about any individual mod, and no
+script, path or command belonging to a particular workspace. How you build,
+publish or run a server is yours to arrange; what the chapters describe is the
+machinery those arrangements sit on.
+
 Three ways in, depending on why you are here, and the full chapter list at the
 end if none of them fits. What this handbook is and what it rests on are in
 [README.md](README.md).
