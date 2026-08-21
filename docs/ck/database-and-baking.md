@@ -545,8 +545,7 @@ reference in your own prefab.
 `{fileID: className}` map covering every MonoBehaviour/ScriptableObject-derived
 game type, produced from the decompile and aborting on any hash collision
 rather than guessing — an earlier hand-maintained table had eyeballed-and-wrong
-entries, which is exactly the failure mode the generated map removes. See
-[the repository README](../../README.md) for the tooling, and
+entries, which is exactly the failure mode the generated map removes. Generating one is a scripting job of its own; see
 [Reverse engineering](reverse-engineering.md) for producing the decompile it
 reads.
 

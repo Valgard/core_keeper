@@ -66,8 +66,7 @@ binary plus a server-side mod.
 Steam store API reports `platforms.mac = False` for app 1621690, and server
 depots exist for Windows and Linux only. On Apple Silicon that leaves Wine/
 CrossOver or a Linux container; the `escapingnetwork` server image has an ARM
-variant via Box64. Running it locally in the CrossOver bottle is described in
-[../dedicated-server.md](../dedicated-server.md).
+variant via Box64. Getting one running is [below](#getting-one-running).
 
 ## The second layer: the mod set
 
@@ -210,9 +209,40 @@ it as "can run on either side" and verify on the topology you care about.
 
 ## The dedicated server
 
-Wiring one up locally — the helper script, the world and mod symlinks, the
-bottle — is [../dedicated-server.md](../dedicated-server.md). What follows is
-what is true of the *game*, wherever the server runs.
+What follows is true of the *game*, wherever the server runs. How you wire one
+up — where it lives, how it is started and stopped, how its world and mods are
+kept beside a client's — is a matter of local arrangement.
+
+### Getting one running
+
+The dedicated server is **Steam app `1963720`**, free, and installable without
+owning anything: `steamcmd +login anonymous +app_update 1963720 +quit`. Like the
+game itself it ships for **Windows and Linux only** — see
+[platforms](platforms.md) for what that means on a Mac.
+
+It is worth having for mod work. It is the only way to exercise the
+server-authoritative half of a mod — `requiredOn` behaviour, server commands,
+world-mutating logic — without a second machine.
+
+Four things about starting it are not obvious:
+
+- **`-batchmode` yes, `-nographics` never.** Part of world generation runs on
+  the GPU, so a headless server still needs a graphics device; without one it
+  exits during generation. On a bare Linux host that is what `xvfb` plus Mesa
+  are for. (The mechanism is [below](#the-server-renders-so-it-needs-a-graphics-device).)
+- **`-port` works only as a command-line argument.** Setting it in
+  `ServerConfig.json` has no effect. With a port the server takes direct
+  connections; without one it is reachable only through the Steam relay, by its
+  Game ID.
+- **`-allowonlyplatform Steam`** avoids a join refused for a *"missing the
+  crossplay privilege"*: it puts client and server on one platform, and the
+  check is skipped.
+- **A cold start with a full mod set takes minutes** — every source mod goes
+  through Roslyn and the world is decompressed on load. A server that looks hung
+  shortly after launch usually is not.
+
+The server autosaves every 60 seconds (`AutoSaveInterval`, switchable off with
+`-disableautosave`), so even an abrupt end costs at most a minute of play.
 
 ### The client builds no server world
 
@@ -308,7 +338,7 @@ from the game — it is a different install directory with its own
 the mods **load but never compile**, because Roslyn chases a missing satellite
 assembly, and the client then rejects the join as `Error/BadProtocolVersion` —
 i.e. the mod-set symptom, one step removed from the real cause. Details in
-[../macos-crossover-loader.md](../macos-crossover-loader.md).
+[platforms and hosts](platforms.md).
 
 ### An idle server never simulates
 

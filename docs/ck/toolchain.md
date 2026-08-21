@@ -163,10 +163,9 @@ differs". The test suite fails outright if the running version is not the
 pinned one — which also catches the likelier accident of running it outside
 the project environment.
 
-### What this repository documents
+### What this chapter leaves out
 
-The concrete form of all of the above — script names, variable names, the exact
-commands, the publish modes and their scopes — is in
-[the repository README](../../README.md). This chapter deliberately stops at
-the reasoning, so that it stays useful to someone who arranges things
-differently.
+Script names, variable names and exact commands belong to whichever
+repository implements an arrangement like this one, and are worth little to
+anyone who arranges it differently. This chapter stops at the reasoning for
+that reason — the shape of a problem outlives any particular solution to it.

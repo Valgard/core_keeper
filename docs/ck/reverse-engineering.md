@@ -98,7 +98,7 @@ drift is large; it is that you cannot tell without it.
 
 **Trap: decompile from stock DLLs.** If the installation carries locally applied
 IL patches — on macOS/CrossOver hosts it does, see
-[../macos-crossover-loader.md](../macos-crossover-loader.md) — the decompile
+[platforms and hosts](platforms.md) — the decompile
 bakes those patches in and presents them as the game's own code. A checkout made
 this way silently misrepresents `PugMod.Loader` and `Pug.Other`. Verify the
 install through Steam to restore stock DLLs first, decompile, then re-apply the
@@ -469,7 +469,7 @@ consulted after the repo and the decompile, and ahead of a general web search.
 | mod.io guide: ECS component compendium | `/g/corekeeper/r/ecs-component-compendium` | The most useful of the guides for game-logic work — a catalogue of components, and the one that also settles negatives |
 | mod.io guide: missing scripts | `/g/corekeeper/r/how-to-fix-missing-scripts` | The "Missing Script" symptom on prefabs |
 | mod.io guide: dnSpy | `/g/corekeeper/r/how-to-use-dnspy` | IL inspection, interactive |
-| mod.io guide: user guidelines | `/g/corekeeper/r/user-guidelines` | Publishing rules — see also [../publishing.md](../publishing.md) |
+| mod.io guide: user guidelines | `/g/corekeeper/r/user-guidelines` | Publishing rules — see also [../publishing.md](publishing.md) |
 
 **Cross-check the compendium, absences included.** ILSpy stays the authority,
 but the compendium is a cheap second opinion on a decompile finding — and the
