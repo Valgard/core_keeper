@@ -98,7 +98,7 @@ authoritative for months and change nothing. Delete it; edit the `.asset`.
 | `guid` | `string` | Per-mod identity for the loader (see below). Auto-generated when the asset is created. |
 | `name` | `string` | Internal identity. Drives the namespace, the asmdef name, the `ModLoader` temp directory, and the string other mods depend on. |
 | `displayName` | `string` | Human-facing title. Used for the mod.io profile name (see [publishing](publishing.md)). |
-| `skipSafetyChecks` | `bool` | Disables the Roslyn sandbox — see [sandbox and config](sandbox.md). |
+| `skipSafetyChecks` | `bool` | Disables the Roslyn sandbox — see [the load-time sandbox](sandbox.md). |
 | `disableScripts` | `bool` | Skips the whole script compile step; the mod ships assets only. |
 | `accessesExtraAssemblies` | `bool` | Required to load a shipped `.dll`; also adds every assembly loaded at game start as a metadata reference for the Roslyn compile. |
 | `disableHarmonyPatching` | `bool` | Suppresses the automatic Harmony pass over your compiled assembly. |

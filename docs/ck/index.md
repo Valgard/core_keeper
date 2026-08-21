@@ -85,7 +85,7 @@ symptom, not the topic.
 | A mod that loaded yesterday does not load today | [Troubleshooting](troubleshooting.md) — a stale game-version tag, the commonest cause; [Multiplayer and server](multiplayer-and-server.md) if it is a join that broke; [Platforms and hosts](platforms.md) on a Wine host |
 | A tag you set on mod.io simply is not there | [Publishing to mod.io](publishing.md) — unknown values are dropped silently |
 | Mod fails to compile (`CompileFailed`) | [The load-time sandbox](sandbox.md), then [Troubleshooting](troubleshooting.md) |
-| Scripts are not compiled at all, and the log says nothing | [Troubleshooting](troubleshooting.md) — the mod.io type tag |
+| Scripts are not compiled at all, and the log says nothing | [Troubleshooting](troubleshooting.md) — the mod.io `Access Type` tag |
 | An unrelated, previously working mod stopped patching | [Troubleshooting](troubleshooting.md) — the CompileFailed cascade |
 | Game closes at the loading screen | [Troubleshooting](troubleshooting.md) — Steam Cloud conflict, not your mod |
 | You changed a string, the game still shows the old one | [Localisation](localisation.md) — first-write-wins |
