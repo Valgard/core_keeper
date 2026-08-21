@@ -60,8 +60,12 @@ something subtly wrong and reports success.
 that looks for its parent configuration a fixed number of levels up is wrong the
 moment the build runs from a git worktree, which sits deeper than the repository
 root. The mod's own values still load — the machine's do not, and nothing says
-so. That failure mode has shipped a mod whose localisation table came out empty:
-the generator ran, found no table configured, and wrote nothing.
+so. That failure mode has shipped a mod whose localisation came out empty — and
+the shape of it is worth keeping: the generator ran and wrote, into a path built
+from an unset value. Nothing was missing, so nothing warned; the output simply
+went somewhere no build would look. Guarding against a blank value would not have
+caught it, which is why the guard has to be that a build refuses to proceed on an
+unset machine value at all.
 
 ## A gate that blocks rather than rewrites
 

@@ -933,6 +933,7 @@ Range** on the `"GUI"` layer. Four preconditions, each of which silently clips
 
 | Precondition | What goes wrong |
 |---|---|
+| every renderer has `maskInteraction = VisibleInsideMask` | the default `None` ignores every mask there is — see [when a renderer is clipped](prefabs-and-rendering.md#a-renderer-is-clipped-only-when-both-conditions-hold) |
 | every renderer in the region is already on `"GUI"` | one left on `"Default"` is not clipped at all |
 | every renderer's `sortingOrder` falls inside the band | outside the band it is not clipped |
 | `PugText` needs `style.sortingLayer` and `style.orderInLayer` set too | the prefab keys are `sortingLayer:` / `orderInLayer:` — **not** `m_SortingLayer` / `m_SortingOrder`, which are `SpriteRenderer` keys and are silently ignored on a `PugText` |
