@@ -34,7 +34,7 @@ every target depending only on the sign of `delta.x`. The symptom is unmistakabl
 once you know it: direction indicators that all point horizontally and never
 rotate as you move. Measured example — target at `(111.00, 0.00, -114.00)`,
 player at `(91.49, 0.00, -49.78)`, so `delta = (+19.51, 0, -64.22)`: the correct
-bearing is ~73°, the `delta.y` version gives 0°.
+bearing is ~−73°, the `delta.y` version gives 0°.
 
 `math.length(delta)` for *distance* is safe as long as `y` is 0, since
 `sqrt(dx² + 0 + dz²) == sqrt(dx² + dz²)`. Only the bearing is fragile.
@@ -233,7 +233,7 @@ EntityUtility.AddTile(int tileSet, TileType tileType, int2 position,
                       DynamicBuffer<TileUpdateBuffer> tileUpdateBuffer)
 ```
 
-`Pug.Other:256440`. All it does is `tileUpdateBuffer.Add(new TileUpdateBuffer {
+`Pug.Other:256440`. Its core is `tileUpdateBuffer.Add(new TileUpdateBuffer {
 command = Add, … })` — plus, for a `wall`, a paired `Remove` of `roofHole`. It
 rejects `tileSet < 0 || tileSet >= 75` and guards the spawn-area tiles. **The
 layer rules above are judged later**, when the buffer is applied.
@@ -299,7 +299,7 @@ path wholesale — are in [Harmony and ECS](harmony-and-ecs.md).
 ## The placement permission model
 
 Whether an item may be placed on a given tile is decided by
-`PlacementHandler.ShouldCheckPlaceObjectOnTile` (`Pug.Other:295735`), and it
+`PlacementHandler.ShouldCheckPlaceObjectOnTile` (`Pug.Other:295720`), and it
 grants permission through **two independent, OR-ed routes**:
 
 1. **`PlacementCD` bool flags** — `canPlaceOnWalkableTiles`, `canPlaceOnWater`,
@@ -600,6 +600,8 @@ essentially of one prefix on that predicate:
 static bool Prefix(ref bool __result) { __result = true; return false; }
 ```
 
+**Two tile types queue extra removals of their own.** A `wall` pairs its `Add` with a `Remove` of `roofHole`; a `ground` pairs it with a `Remove` of both `pit` and `water`. The second matters if you follow this chapter's advice to lay `ground` as a substrate — doing so destroys any pit or water already at that position, silently and without a placement check.
+
 which makes the browser — boulders included — available in any survival world.
 (Its own filter drops foreign-mod items with `objectID >= 30000` outside real
 creative worlds; vanilla 2200-2218 are unaffected. It bails out on
@@ -678,14 +680,13 @@ props.TryGetList(239678920, out NativeArray<BreedStateCD.PossibleChildVariation>
 // distinct list[i].Variation values = the species' colours
 ```
 
-Probed in game, every species yields `{0, 1, 2, 3, 4}` — five colours — and every
-colour of a *wild-caught* animal falls inside that set, so despite the name the
-list is the species' full palette, not a breeding-only subset. The call is
-sandbox-safe; it needs `PugProperties.dll` in the runtime asmdef's
+Probed in game, every species yields `{0, 1, 2, 3, 4}` — five colours — and
+every colour of a *wild-caught* animal falls inside that set, so despite the
+name the list is the species' full palette, not a breeding-only subset. The call
+is sandbox-safe; it needs `PugProperties.dll` in the runtime asmdef's
 `precompiledReferences` and the namespace-qualified
 `Pug.Properties.ObjectPropertiesCD`. Other unexplored property-list hashes on
-cattle: `396300893`, `1985931659`, `1757427560`, `158600710`, `594131635`,
-`1126076739`.
+cattle: `396300893`, `1985931659`, `158600710`, `594131635`, `1126076739`.
 
 ### The cattle cage is consumed at two points
 
