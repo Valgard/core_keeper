@@ -1,6 +1,12 @@
-# mod.io Publishing
+# mod.io Publishing — this repository's pipeline
 
-How every Core Keeper mod is published to mod.io through the SDK's plugin.
+How every Core Keeper mod here is published, and what the tooling does on top
+of the platform.
+
+**How mod.io itself behaves** — profile versus modfile, which manifest field
+becomes which tag, why unknown tag values vanish, why a changelog cannot be
+edited — is in [`docs/ck/publishing.md`](ck/publishing.md). This file assumes
+that and describes only what is specific to this repository.
 
 Publishing runs through the SDK's own mod.io plugin (`ModIOUnity`), not a
 REST client — `utils/upload.sh` invokes a per-mod Editor class
@@ -24,15 +30,13 @@ to what its target actually is:
 and logs what it would have sent. `--profile-only` and `--changelog-only` are
 mutually exclusive and refuse to run together.
 
-The split follows what a field belongs to. Description and tags describe the
-**mod**, so they live on the profile and `--profile-only` can fix them at any
-time. A changelog describes a **release**, so mod.io stores it on the modfile —
-which is why `--profile-only` cannot reach it and why a wrong release note used
-to stay wrong until the next version.
+The split follows the platform's own layers: description and tags sit on the
+profile, a changelog sits on the modfile. That is why `--profile-only` cannot
+reach a release note, and why a wrong one used to stay wrong until the next
+version.
 
-`--changelog-only` therefore does what the plugin cannot: its API offers
-`UploadModfile`, which creates a *new* modfile, and no way to edit an existing
-one. So this mode reads the active modfile with the public game key, then
+`--changelog-only` therefore does what the plugin cannot — the plugin can only
+create modfiles, never edit one. This mode reads the active modfile with the public game key, then
 `PUT`s the new text with the plugin's own OAuth token, pulled out of the
 internal `ModIO.Implementation.UserData` by reflection (editor code, outside
 the Roslyn sandbox that forbids reflection in a mod's runtime sources; the
@@ -45,13 +49,13 @@ already matches, so re-running costs nothing. Use it to correct a shipped
 changelog; use a real release for anything that changes what the mod does.
 
 - **One-time login:** open the Pugstorm Mod SDK window, use the "Log in" tab
-  (email + security code). The mod.io plugin persists the session;
-  batchmode publishes authenticate from it. The session expires after about
-  a year — re-login through the window when that happens.
-- **Version + changelog:** taken from the mod's `CHANGELOG.md`. The topmost
-  `## [x.y.z]` entry is the published version; its body is the modfile
-  changelog. There is no version field anywhere in mod source.
-- **Async batchmode:** the mod.io calls are asynchronous, so `upload.sh`
+  (email + security code). Batchmode publishes authenticate from the persisted
+  session.
+- **Version + changelog:** taken from the mod's `CHANGELOG.md` — the topmost
+  `## [x.y.z]` entry is the published version, its body the modfile changelog.
+  That is this repository's convention for a value the mod itself does not
+  carry.
+- **Async batchmode:** because the plugin's calls are asynchronous, `upload.sh`
   invokes Unity **without `-quit`** and `CLIPublishHelper` calls
   `EditorApplication.Exit` itself; a `timeout` guards a hung run.
 
@@ -59,9 +63,8 @@ changelog; use a real release for anything that changes what the mod does.
 
 On publish, `CLIPublishHelper` syncs the `.asset`'s `metadata.dependencies`
 list (e.g. `CoreLib`) to the mod's **mod.io platform** dependency list
-(`AddDependenciesToMod` / `RemoveDependenciesFromMod`) — a separate concern
-from the loader-side `ModManifest.json` dependencies (which stay the loader's
-source of truth). The step runs between the profile create/edit and the
+(`AddDependenciesToMod` / `RemoveDependenciesFromMod`), which is a different
+list from the loader-side one. The step runs between the profile create/edit and the
 modfile upload, so an unresolvable required dependency aborts before anything
 is uploaded.
 
@@ -70,14 +73,12 @@ is uploaded.
   self-populating cache `utils/modio-dependencies.json` (`{modName → modId}`,
   versioned) bridges this; its path is passed via the `.envrc` var
   `MODIO_DEPS_MAP` (set only by mods that declare dependencies). On a cache
-  miss the helper runs a `GetMods` search (pagination params are **required** —
-  `SetPageIndex`/`SetPageSize`, else error 20201), accepts the ID only on a
-  single normalised-name match (case/space-insensitive), and writes it back to
-  the cache (allowed even in `--dry-run`).
-- **Failure severity follows the `.asset` `required` flag** (which is *not*
-  transmitted to mod.io — the API has no per-dependency required attribute):
-  an unresolvable **required** dependency aborts the publish; an unresolvable
-  **optional** one logs a warning and is skipped.
+  miss the helper runs a `GetMods` search, accepts the ID only on a single
+  normalised-name match (case/space-insensitive), and writes it back to the
+  cache (allowed even in `--dry-run`).
+- **Failure severity follows the `.asset` `required` flag**, which the platform
+  does not store: an unresolvable **required** dependency aborts the publish;
+  an unresolvable **optional** one logs a warning and is skipped.
 - **Full sync, not additive:** the helper diffs the resolved target set against
   `GetModDependencies` and both adds missing and removes extra, so the mod.io
   list mirrors the `.asset` exactly. `--dry-run` logs the plan and skips the
@@ -118,19 +119,17 @@ deleted. Tags outside these four groups are never touched.
   quietly advertise one version fewer than the mod supports.
 
 - **Group membership comes from the live API** (`GetTagCategories`), never a
-  hardcoded value list — the game keeps adding `Game Version` values.
-- **Configured values are validated before anything is changed.** mod.io accepts
-  an unknown tag value and silently drops it, so a typo (`Quality of live`)
-  aborts the publish with a message naming the bad value and the group's valid
-  values, rather than vanishing.
+  hardcoded value list.
+- **Configured values are validated before anything is changed**, so a typo
+  (`Quality of live`) aborts the publish with a message naming the bad value
+  and the group's valid values, instead of being dropped in silence.
 - **A read failure degrades to additive, never to "remove everything".** If
   `GetTagCategories` or `GetMod` fails (or a group is missing from the live
   taxonomy), the helper logs a warning, adds the desired tags and removes
   nothing.
 - The plan is logged per group before acting
   (`Tag sync plan [Type]: +[…] -[…]`); `--dry-run` logs it and stops there.
-- `Asset` is never produced — these are script mods — so a hand-set `Asset` tag
-  is treated as surplus and removed.
+- A hand-set `Asset` tag is treated as surplus and removed.
 
 > ⚠️ Known build gotcha: the shared `CLIPublishHelper`/`CLIBuildHelper` compile
 > into **every** linked mod's `<Mod>.Editor` assembly, so the class exists in
@@ -165,8 +164,7 @@ Three distinct uses of a "mod.io ID", deliberately kept separate:
   fake ID also keeps the dev build out of the real mod.io catalog sync.
 
 **Dev/Prod coexistence:** never have both the fake-ID dev install and a real
-subscription of the same mod active — the loader would load both copies and
-double-apply Harmony patches. The mod author runs only the fake-ID dev
-install and does not subscribe to their own mod. To test the published
-build as an end user, first run `utils/uninstall-macos.sh` to remove the dev
-install.
+subscription of the same mod active — the loader loads both copies and applies
+every patch twice. The mod author runs only the fake-ID dev install and does not
+subscribe to their own mod. To test the published build as an end user, run
+`utils/uninstall-macos.sh` first.
