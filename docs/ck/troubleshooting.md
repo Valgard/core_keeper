@@ -53,7 +53,7 @@ Workshop loader does the same over `entry.Tags`.
 loaders compare only against `Asset` and `Script (Elevated Access)`; the
 `Script` constant exists but is never compared against, so it is a catalogue
 label with no effect on loading. Tag `Script (Elevated Access)` only if the mod
-genuinely needs `skipSafetyChecks` (see [the sandbox](sandbox-and-config.md)).
+genuinely needs `skipSafetyChecks` (see [the sandbox](sandbox.md)).
 `Asset` is an easy mistake to make by hand at profile creation, because it reads
 like the right word for a mod that adds an *item*; it means "ships no code".
 
@@ -623,7 +623,7 @@ non-mutating path is a safe compile-and-freshness probe before any real publish.
 
 | Symptom | Where |
 |---|---|
-| `CompileFailed` with `failed code security verification`, illegal namespace/type/member references | [the sandbox](sandbox-and-config.md) |
+| `CompileFailed` with `failed code security verification`, illegal namespace/type/member references | [the sandbox](sandbox.md) |
 | Text renders as raw term keys instead of translations | [localisation](localisation.md) |
 | A Harmony patch that never binds at all ("Undefined target method"), or binds and never fires | [Harmony and ECS](harmony-and-ecs.md) |
 | Loader failures caused by stale `ModLoader/` directories, Roslyn satellite-assembly lookups, or failing save writes on a Wine host | [platforms and hosts](platforms.md) |

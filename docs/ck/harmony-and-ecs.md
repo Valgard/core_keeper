@@ -21,7 +21,7 @@ except that your code does not run.
 | `ArgumentException: Undefined target method for patch method …` at load | Harmony cannot resolve the target signature — typically an `in`/`ref` parameter | `argumentVariations` (below) |
 | Mod loads, `safetyCheck=True`, patch binds, prefix never fires | The target is Burst-compiled; the managed IL you patched is never executed | `BurstDisabler` (below) |
 | Works in single-player, does nothing in multiplayer | `BurstDisabler` registered too late on the dedicated server | manual `AddWorld` pass (below) |
-| Mod does not compile at all (`CompileFailed`) | Sandbox rejection, not a patching problem | [sandbox rules](sandbox-and-config.md) |
+| Mod does not compile at all (`CompileFailed`) | Sandbox rejection, not a patching problem | [sandbox rules](sandbox.md) |
 
 ## Why a Burst-compiled `OnUpdate` cannot be intercepted
 
@@ -284,7 +284,7 @@ typeof(A).MakeByRefType(), … })` — is **not available to a sandboxed mod**:
 `HarmonyLib.AccessTools` is rejected outright ("Indirect illegal reference via
 type exclusion"), as is `System.Reflection` member access. The
 `[HarmonyPatch(typeof(X), nameof(X.Y))]` attribute form is fine, because that
-reflection runs inside trusted `0Harmony.dll`. Details in [sandbox rules](sandbox-and-config.md).
+reflection runs inside trusted `0Harmony.dll`. Details in [sandbox rules](sandbox.md).
 
 ### Not everything needs `BurstDisabler`
 
@@ -719,4 +719,4 @@ silent data-loss path. Saving in lockstep also avoids a post-crash desync where
 CK reverts the character while your file is newer. Keep a `Shutdown()` and a
 character-switch save as cheap backstops.
 
-Where that data goes, and the file API to write it with, is [sandbox and config](sandbox-and-config.md).
+Where that data goes, and the file API to write it with, is [storing configuration and state](persistence.md).

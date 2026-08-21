@@ -98,7 +98,7 @@ authoritative for months and change nothing. Delete it; edit the `.asset`.
 | `guid` | `string` | Per-mod identity for the loader (see below). Auto-generated when the asset is created. |
 | `name` | `string` | Internal identity. Drives the namespace, the asmdef name, the `ModLoader` temp directory, and the string other mods depend on. |
 | `displayName` | `string` | Human-facing title. Used for the mod.io profile name (see [publishing](publishing.md)). |
-| `skipSafetyChecks` | `bool` | Disables the Roslyn sandbox — see [sandbox and config](sandbox-and-config.md). |
+| `skipSafetyChecks` | `bool` | Disables the Roslyn sandbox — see [sandbox and config](sandbox.md). |
 | `disableScripts` | `bool` | Skips the whole script compile step; the mod ships assets only. |
 | `accessesExtraAssemblies` | `bool` | Required to load a shipped `.dll`; also adds every assembly loaded at game start as a metadata reference for the Roslyn compile. |
 | `disableHarmonyPatching` | `bool` | Suppresses the automatic Harmony pass over your compiled assembly. |
@@ -119,7 +119,7 @@ or of another mod — is running has to derive it.
 The one derivable identifier is the **modfile ID**. Installations live in a directory
 named `<modId>_<modfileId>`, and `API.ModLoader.GetDirectory(long modId)`
 (`PugMod.SDK.Runtime`) hands you that path as a `string`. Splitting a string needs no
-`System.IO`, so the derivation is [sandbox](sandbox-and-config.md)-legal. Whether a locally installed development
+`System.IO`, so the derivation is [sandbox](sandbox.md)-legal. Whether a locally installed development
 build yields a parsable ID this way is untested.
 
 **Trap: the GUIDs in `files` are not a version hash.** They are per-asset GUIDs, and the
@@ -339,7 +339,7 @@ itself. Two metadata fields govern the pass:
 
 - `disableHarmonyPatching` skips it entirely.
 - `skipSafetyChecks` selects whether the patch pass runs verified or unverified — the same
-  switch that controls the [Roslyn sandbox](sandbox-and-config.md).
+  switch that controls the [Roslyn sandbox](sandbox.md).
 
 Failures are logged as `mod <name>: patching failed` and do **not** abort the load, so a
 mod whose patches never bound still reports as loaded. On reload the loader undoes your

@@ -124,7 +124,7 @@ that default in place. Restarting does not repair it: the ordering is the same
 every session, so a one-line timing mistake becomes a permanent one.
 
 `API.ConfigFilesystem` is initialised before any mod's `EarlyInit`, so reading
-configuration that early does work — see [Sandbox and config](sandbox-and-config.md).
+configuration that early does work — see [Sandbox and config](sandbox.md).
 The lifecycle itself is in [Mod anatomy](mod-anatomy.md).
 
 | A value that is… | Read it in | Tell the player |
@@ -458,7 +458,7 @@ treating it as a reference.
 All the types involved — `LevelCD`, `CantBeSoldAuthoring`,
 `CookedFoodAuthoring`, and `Unity.Mathematics`' `math` and `Random` — compile
 inside the RoslynCSharp sandbox; `Unity.Mathematics` needs to be referenced by
-your runtime asmdef. See [Sandbox and config](sandbox-and-config.md).
+your runtime asmdef. See [Sandbox and config](sandbox.md).
 
 ## Display names for foreign-mod items
 

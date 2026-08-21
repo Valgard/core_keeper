@@ -17,7 +17,7 @@ Everything sits under one save root:
 ```
 
 `<platform>/<user-id>` is e.g. `Steam/<numeric id>`. This is the same root under
-which the loader hands a mod its own `mods/<ModName>/` directory — see [sandbox-and-config.md](sandbox-and-config.md)
+which the loader hands a mod its own `mods/<ModName>/` directory — see [the sandbox](sandbox.md)
 for the API that reads and writes there.
 
 | Path below the save root | Holds |
@@ -393,4 +393,4 @@ x,z|id:count,id:count,…
 Parsing one gives you positions, cluster membership and which IDs cluster
 together — enough to check distance to the Core, spot that a "base" scan is
 really picking up a remote structure, or confirm which objects a rule fires on.
-How a mod writes such a file in the first place belongs to [sandbox-and-config.md](sandbox-and-config.md).
+How a mod writes such a file in the first place belongs to [storing configuration and state.md](persistence.md).
