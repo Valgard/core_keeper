@@ -33,7 +33,7 @@ equivalent.
 
 | What | Where |
 |---|---|
-| Game assemblies a mod binds against | `<install>/CoreKeeper_Data/Managed/` |
+| Game assemblies a mod binds against | `<install>/CoreKeeper_Data/Managed/` — the dedicated server has its own under `CoreKeeperServer_Data/` |
 | Installed mods, unpacked | `…/Public/mod.io/5289/mods/<modId>_<modfileId>/` |
 | Subscriptions and per-user mod state | `…/Public/mod.io/5289/state.json` |
 | Saves, logs, mod config, loader config | `…/LocalLow/Pugstorm/Core Keeper/` |
@@ -89,8 +89,8 @@ relying on it:
   [multiplayer and server](multiplayer-and-server.md) for why that surfaces as
   "wrong game version".
 
-There is also a residual write failure for the server's own JSON side files
-(`ServerConfig.json` and friends) whose `.pugbackup` copies fail to write. The
+There is also a residual write failure for JSON side files — on the server for its own config files, on the client for cloud-conflict backups
+ whose `.pugbackup` copies fail to write. The
 files themselves are written and worlds are unaffected.
 
 ## Reading logs on a translated host

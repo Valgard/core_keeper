@@ -172,10 +172,11 @@ local dev install**, so budget a reinstall of each.
   `rm -rf CoreKeeperModSDK/Library/{SourceAssetDB,ArtifactDB,Artifacts}`
   (Editor closed).
 - **Read the right manifest.** The publish path builds into a temporary cache
-  directory and deletes it — there is no manifest left to inspect, and a
-  `--dry-run` inspects nothing. Only a normal build writes `ModManifest.json`
-  into the install output. Verify the GUID there, after a fresh build, or you
-  are reading an hours-old file and drawing the wrong conclusion.
+  directory and deletes it — there is no manifest left to inspect, and a a
+  validation-only publish run inspects nothing. Only a normal build writes
+  `ModManifest.json` into the install output. Verify the GUID there, after a
+  fresh build, or you are reading an hours-old file and drawing the wrong
+  conclusion.
 
 ## `CS0246` on CoreLib types although CoreLib is installed
 
@@ -615,8 +616,8 @@ targets scripts only.
 
 **Whenever a verification run contradicts a change you just made to a shared
 helper, suspect staleness before suspecting the change.** Gate shared-helper
-changes behind a `--dry-run` first — that path is non-mutating, so it is a safe
-compile-and-freshness probe before any real publish.
+changes behind a validation-only run first, if your tooling has one — a
+non-mutating path is a safe compile-and-freshness probe before any real publish.
 
 ## Symptoms owned by other chapters
 
