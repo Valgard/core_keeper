@@ -17,7 +17,7 @@ machinery those arrangements sit on.
 | Chapter | Covers |
 |---|---|
 | [Toolchain requirements](toolchain.md) | What the SDK demands of any setup — the exact Unity version, the build modules, the one-time wizard steps, the project lock, the macOS meta-file fix |
-| [Organising a mod project](organising-a-mod-project.md) | One worked arrangement: keeping Editor-generated files in version control, machine values in one place, a blocking formatter, pinned tooling |
+| [Organising a mod project](organising-a-mod-project.md) | Why the Editor writes outside your repository and what closes that gap, separating machine paths from mod identity, a formatting gate that cannot silently pass, pinning what produces shipped bytes |
 | [Platforms and hosts](platforms.md) | Where the game runs and keeps its files, what a Wine-based host breaks and how those failures look, reading logs on a translated host |
 | [Mod anatomy](mod-anatomy.md) | The `IMod` lifecycle, assembly definitions, the ModBuilderSettings `.asset` versus the generated manifest, the two kinds of GUID, dependencies, chat commands, and `requiredOn` with its crossed checks |
 | [Sandbox and configuration](sandbox-and-config.md) | What the load-time verification rejects and what it does not, why an Editor build proves nothing, and the three ways a sandboxed mod stores settings |

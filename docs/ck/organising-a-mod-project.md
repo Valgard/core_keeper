@@ -1,102 +1,110 @@
 # Organising a mod project
 
-One way to lay out a Core Keeper mod so that it stays in version control, builds
-reproducibly, and does not collide with the next mod you write. **It is an
-example, not a requirement** — every choice here can be made differently, and it
-solves problems that come from maintaining several mods against one shared SDK
-clone, so a single mod needs much less of it. What is worth carrying over is the
-reasoning, not the shape.
+The SDK decides where a mod's files live, and its answer does not survive
+contact with version control. This chapter is about the gap that opens there and
+the moving parts of any arrangement that closes it.
 
-The requirements it builds on are in [toolchain requirements](toolchain.md).
+**No arrangement here is required.** A single mod, built by hand and kept in one
+place, needs almost none of it; the pressure rises with the number of mods
+sharing one SDK clone. What is worth carrying between projects is the reasoning
+— which problem each piece answers — rather than any particular layout.
 
-## The problem it solves
+The requirements underneath all of this are in
+[toolchain requirements](toolchain.md).
 
-The SDK wizard puts a mod's files inside the SDK clone, under `Assets/<Mod>/`.
-That is fine until you want the mod in its own git repository: the files then
-live in a tree you do not version, one `git clean` or re-clone away from loss.
+One implementation of everything below — the scripts, the variables, the exact
+commands — is public at <https://github.com/Valgard/core_keeper>, if a worked
+example is more use to you than a description. It is one solution to these
+problems, not the solution.
 
-My arrangement keeps every Editor-generated file — `.cs`, `.asmdef`, the
-ModBuilderSettings `.asset`, and all the `.meta` GUID carriers — in the mod's
-own repository, in a directory that mirrors the SDK's `Assets/` layout, and
-**symlinks that mirror into the SDK clone**. A directory symlink for the mod
-folder captures every current and future file the Editor writes, so nothing has
-to be wired up by hand.
+## The gap: the Editor writes outside your repository
 
-The symlinks encode absolute paths and therefore dangle after a move or a
-worktree switch. The build script re-creates them on every run, which makes
-that self-healing rather than a manual repair step.
+The "Create New Mod" wizard puts a mod's files inside the SDK clone, under
+`Assets/<Mod>/`. That is fine until the mod belongs in its own git repository:
+its sources then live in a tree nobody versions, one `git clean` or re-clone
+away from being gone.
 
-## Build and install
+Copying files back and forth does not close the gap, because the set of files is
+not fixed. The Editor keeps writing new ones — a `.meta` for every asset,
+regenerated `.asmdef` references, the ModBuilderSettings `.asset` — and any
+scheme that enumerates what to copy will miss whatever it writes next.
 
-One shared set of scripts serves every mod: build, symlink refresh, local
-install, upload, uninstall. They are mod-agnostic and read a mod's identity
-from environment variables it exports itself — mod name, ids, install path,
-mod.io type. They `source` nothing on their own and abort on a missing variable
-rather than proceeding with a blank, which is the difference between a clear
-error and a build that quietly ships something wrong.
+**Symlinking a mirror closes it without enumerating anything.** Keep the mod's
+tree in its own repository, laid out the way the SDK expects, and link that
+directory into the SDK clone. A *directory* symlink captures every file the
+Editor writes into it, now and later, so nothing has to be registered by hand.
 
-A build refreshes the symlinks, runs Unity in batchmode through
-`-executeMethod` against a small editor-side helper class, and on macOS places
-the result into the local development install so the loader picks it up on the
-next launch.
+Two properties of this follow directly and are worth knowing before relying on
+it:
 
-## Machine values in one place
+- **Symlinks encode absolute paths**, so they dangle after the repository moves
+  or after switching to a git worktree. Re-creating them as part of every build
+  turns that from a repair into a non-event.
+- **Unity's AssetDatabase does not watch a symlink's target.** Editing a file
+  through one path while the Editor holds a compiled copy from another is how a
+  change appears to have no effect at all.
 
-Values that belong to the *machine* rather than to a mod — the Unity binary
-path, the SDK path, the game-version list, the decompiler on `PATH` — live once
-in a gitignored file at the parent level, with a tracked template beside it.
-Each mod's environment file inherits them through direnv's `source_up` and adds
-only its own identity.
+## Identity belongs to the mod, machine paths do not
 
-**Trap: a git worktree breaks the inheritance silently.** A worktree sits two
-levels below the mod root, so the fallback that looks for the parent one level
-up resolves to a directory that does not exist. The mod's own identity
-variables still load, the machine-level ones stay unset, and nothing warns you.
-That has already shipped a build whose localisation table came out empty. From
-a worktree, source the parent explicitly first.
+Anything that names a location on *this* computer — where Unity is installed,
+where the SDK clone sits, where a decompiler lives — is worthless in anyone
+else's checkout and must not be committed. Anything that identifies the *mod* —
+its name, its ids, what it declares to the loader — is exactly what should be.
 
-## A formatting gate that blocks rather than rewrites
+Separating the two along that line means machine values are configured once and
+inherited, rather than repeated per mod and drifting. Whatever performs the
+inheritance, one property matters: **a missing value must fail loudly.** A build
+that proceeds with a blank where a path belonged does not stop; it produces
+something subtly wrong and reports success.
 
-Every repository here runs a formatter as a pre-commit *and* pre-push hook, in
-checking mode. A rejected commit means running the formatter and retrying —
-nothing is ever reformatted behind an edit, which keeps a diff attributable to
-the person who made it.
+**Trap: a nested working directory can break inheritance silently.** A scheme
+that looks for its parent configuration a fixed number of levels up is wrong the
+moment the build runs from a git worktree, which sits deeper than the repository
+root. The mod's own values still load — the machine's do not, and nothing says
+so. That failure mode has shipped a mod whose localisation table came out empty:
+the generator ran, found no table configured, and wrote nothing.
 
-Two details cost me time and are worth passing on. The C# formatter searches
-upward for its ignore file and **does not stop at a repository boundary**, so a
-mod without its own ignore file inherits the parent's — under which everything
-in the mod is out of scope and silently skipped. The hook passes, and checks
-nothing. Measured in a repo holding one misformatted file: `Checked 0 files`
-without a local ignore file, `Checked 1 files` with one. And `pre-commit
-install` refuses to run while `core.hooksPath` is set, even when that path
-merely points at the repository's own hooks directory.
+## A gate that blocks rather than rewrites
 
-## Python tooling pinned by exact version
+Formatting checked at commit and at push, in *checking* mode, keeps a diff
+attributable to whoever wrote it — a hook that reformats silently rewrites code
+nobody reviewed. The cost is one rejected commit and a re-run; the benefit is
+that `git blame` keeps meaning something.
 
-The shared Python scripts are a `uv` project with a lock file. The image
-library is pinned to an exact version deliberately: some scripts generate
-binary assets that ship inside a mod, and those are verified by regenerating
-them and comparing bytes. PNG output is encoder-dependent, so an unpinned
-library would make "the source changed" indistinguishable from "my encoder
-differs". The test suite fails outright if the running version is not the
-pinned one — which also catches the likelier accident of running it outside
-the project environment.
+Two mechanics behind such a gate are easy to get wrong:
 
-## What this chapter leaves out
+- **A formatter's ignore file is usually searched for upward, and does not stop
+  at a repository boundary.** A mod nested inside a larger tree can therefore
+  inherit a parent's ignore rules, under which every file in the mod falls out
+  of scope. The hook still passes — it has simply checked nothing. Measured in a
+  repository holding one misformatted file: `Checked 0 files` without a local
+  ignore file, `Checked 1 files` with one. A gate that cannot fail is worse than
+  no gate, because it is believed.
+- **Hook installers refuse to run while `core.hooksPath` is set**, even when
+  that setting merely points at the repository's own hooks directory.
 
-Script names, variable names and exact commands belong to whichever
-repository implements an arrangement like this one, and are worth little to
-anyone who arranges it differently. This chapter stops at the reasoning for
-that reason — the shape of a problem outlives any particular solution to it.
+## Pin the tools that produce shipped bytes
 
-## When this arrangement misbehaves
+Any script that generates a binary asset shipping inside a mod — a sprite sheet,
+a font atlas — should be pinned to an exact library version, not a compatible
+range.
+
+The reason is verification. The way to check such an artifact is to regenerate
+it and compare bytes against the committed copy, and PNG output is
+encoder-dependent: a different library version can produce a different file from
+identical input. Without pinning, "the source changed" and "my encoder differs"
+are the same failure, and the check stops meaning anything. Making the suite
+refuse to run on the wrong version turns that into an immediate, legible error —
+and catches the likelier accident of running it outside the project environment
+entirely.
+
+## When this kind of arrangement misbehaves
 
 Both failures below are consequences of building through symlinks rather than
-from files the Editor owns, so they only occur under an arrangement like this
-one:
+from files the Editor owns, so they only occur where something like this is in
+place:
 
 | Symptom | Where |
 |---|---|
 | A newly linked mod builds to an empty file list | [Troubleshooting](troubleshooting.md#a-newly-linked-mod-builds-to-an-empty-file-list) |
 | An edit to a shared editor helper appears to have no effect | [Troubleshooting](troubleshooting.md#an-edit-to-a-shared-editor-helper-appears-to-have-no-effect) |
-
