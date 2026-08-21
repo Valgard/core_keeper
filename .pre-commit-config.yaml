@@ -31,6 +31,18 @@ repos:
                 - pre-commit
                 - pre-push
 
+          # Editing prose by pattern lengthens a line without rewrapping the
+          # paragraph — invisible to the link check and to any formatter.
+          - id: docs-wrapping
+            name: docs wrapping
+            entry: uv run --frozen utils/check_docs_wrapping.py
+            language: system
+            pass_filenames: false
+            files: \.md$
+            stages:
+                - pre-commit
+                - pre-push
+
           # Runs through uv so the suite sees the pinned Pillow, not whatever
           # the machine has — test_shipped_artifacts.py compares the committed
           # font atlas by byte-identity, which an unpinned encoder would break.

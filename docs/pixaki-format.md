@@ -1,10 +1,10 @@
 # Pixaki File Format (`.pixaki`) — Reverse-Engineering Notes
 
 Findings from dissecting `item-checklist/sources/Item checklist sprites.pixaki`
-(Pixaki on iPad,
-file written 2026-06). **Undocumented, proprietary, version-dependent** — treat as a
-snapshot, not a spec. Useful if we ever want to *generate* a `.pixaki` (e.g. to ship
-the glyph-template layers as a ready-to-edit document) rather than import PNGs manually.
+(Pixaki on iPad, file written 2026-06). **Undocumented, proprietary,
+version-dependent** — treat as a snapshot, not a spec. Useful if we ever want to
+*generate* a `.pixaki` (e.g. to ship the glyph-template layers as a
+ready-to-edit document) rather than import PNGs manually.
 
 ## Container
 
@@ -94,16 +94,18 @@ layer(type=cel).clips[].itemIdentifier  ──→  cels[].identifier  ──→ 
 
 ## Generating a `.pixaki` (if ever needed)
 
-Minimum viable document would need: `metadata.json` (size+duration), `document.json` with
-one sprite, N `cel`-layers each carrying one `clip` whose `itemIdentifier` matches a `cels[]`
-entry, each cel's `frame` set to the drawing's placement, and the trimmed `images/drawings/
-<id>.png` files. `preview.png` + a keyframe are likely expected too.
+Minimum viable document would need: `metadata.json` (size+duration),
+`document.json` with one sprite, N `cel`-layers each carrying one `clip` whose
+`itemIdentifier` matches a `cels[]` entry, each cel's `frame` set to the
+drawing's placement, and the trimmed `images/drawings/ <id>.png` files.
+`preview.png` + a keyframe are likely expected too.
 
 **Risks:** the format is undocumented and version-specific; Pixaki may validate strictly
-(consistent identifiers, clip ranges, cache presence) and reject a hand-built file. Recommended
-path for our glyph templates is still **importing the per-layer PNGs into Pixaki** (native PNG
-import as layers) rather than synthesising `.pixaki` — unless a generated file is verified to
-open. Editor/UI keys (`palette`, brush options, etc.) can likely be copied verbatim from an
+(consistent identifiers, clip ranges, cache presence) and reject a hand-built
+file. Recommended path for our glyph templates is still **importing the
+per-layer PNGs into Pixaki** (native PNG import as layers) rather than
+synthesising `.pixaki` — unless a generated file is verified to open. Editor/UI
+keys (`palette`, brush options, etc.) can likely be copied verbatim from an
 existing file or defaulted.
 
 ## Observed in this file (incidental)

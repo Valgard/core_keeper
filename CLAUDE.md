@@ -8,15 +8,15 @@ machine — change it only when an insight is genuinely mod-agnostic.
 
 **Game and SDK reference — `docs/ck/`.** Deliberately NOT an
 `@`-reference: it is ~7,000 lines and most sessions need none of it. Open
-`docs/ck/index.md` when a question is about the game rather than about this
-repo — it routes by symptom and by task, so one read usually lands on the right
+`docs/ck/index.md` when a question is about the game rather than about this repo
+— it routes by symptom and by task, so one read usually lands on the right
 chapter. Triggers: getting a build to run at all — Unity version, modules,
 wizard steps, the project lock, the macOS Steamworks fix (`toolchain.md`); the
-load-time sandbox and `CompileFailed`; Harmony or ECS
-patching that binds but never fires; the object database and bake-time edits;
-UI, prefabs, sprites, fonts; world geometry, tiles, placement, creatures;
-multiplayer and dedicated-server differences; localisation; save file formats;
-decompiling and asset extraction.
+load-time sandbox and `CompileFailed`; Harmony or ECS patching that binds but
+never fires; the object database and bake-time edits; UI, prefabs, sprites,
+fonts; world geometry, tiles, placement, creatures; multiplayer and
+dedicated-server differences; localisation; save file formats; decompiling and
+asset extraction.
 
 The split: **this file holds the working rules for this repo** (setup,
 conventions, what must stay in step with what), **the handbook holds the game
@@ -171,23 +171,22 @@ preference:
 
 ### Burst-compiled systems are not Harmony-patchable
 A DOTS system whose `OnUpdate` is Burst-compiled cannot be intercepted by
-Harmony. Call `BurstDisabler.DisableBurstForSystem<TSystem>()` in
-`IMod.Init()` to move the system off Burst *before* the patch needs to bind.
-Every system this repo's mods disable Burst for is an **`ISystem` struct**
-(`OnUpdate(ref SystemState)` — the prefix binds with no "Undefined target
-method"; verified in `faster-talents`/`faster-pet-talents`). A managed
-`SystemBase` takes a **completely different path** inside the SDK —
-`DisableBurstForSystemInternal` returns early into `PatchManagedSystem`, which
-toggles Burst around the system's own lifecycle methods and never touches the
-per-world registry — so none of the AddWorld/dedicated-server reasoning below
-applies to it. There is no `SystemBase` precedent here; an earlier version of
-this bullet claimed one, and the mod it named patches an `ISystem` struct.
-Details in `docs/ck/harmony-and-ecs.md`. To scale an ECS
-value that flows from a (possibly Burst) producer into a Burst-consumed
-component/buffer, don't patch the managed producer — Burst callers bypass the
-IL patch — but Burst-disable the **consumer** system and pre-inflate the
-pending component data in its `OnUpdate` prefix (see the
-`reference_ck_xp_grant_architecture` memory).
+Harmony. Call `BurstDisabler.DisableBurstForSystem<TSystem>()` in `IMod.Init()`
+to move the system off Burst *before* the patch needs to bind. Every system this
+repo's mods disable Burst for is an **`ISystem` struct** (`OnUpdate(ref
+SystemState)` — the prefix binds with no "Undefined target method"; verified in
+`faster-talents`/`faster-pet-talents`). A managed `SystemBase` takes a
+**completely different path** inside the SDK — `DisableBurstForSystemInternal`
+returns early into `PatchManagedSystem`, which toggles Burst around the system's
+own lifecycle methods and never touches the per-world registry — so none of the
+AddWorld/dedicated-server reasoning below applies to it. There is no
+`SystemBase` precedent here; an earlier version of this bullet claimed one, and
+the mod it named patches an `ISystem` struct. Details in
+`docs/ck/harmony-and-ecs.md`. To scale an ECS value that flows from a (possibly
+Burst) producer into a Burst-consumed component/buffer, don't patch the managed
+producer — Burst callers bypass the IL patch — but Burst-disable the
+**consumer** system and pre-inflate the pending component data in its `OnUpdate`
+prefix (see the `reference_ck_xp_grant_architecture` memory).
 
 **On a dedicated server that call alone is a silent no-op** — no error, no log
 line, the prefix simply never fires, so the mod works in singleplayer and not in
@@ -378,10 +377,10 @@ fitting gesture for the new mod rather than copying one.
 **Generation workflow** — the global `image-generation` skill
 (`~/.claude/skills/image-generation/`, Gemini "Nano Banana Pro"). Both of its
 scripts are PEP-723 `uv` scripts that resolve their own dependencies, so `uv run
-<script>` is all they need; `GEMINI_API_KEY` comes from the environment, so there
-is no `source` step. The skill documents the generic
-white → black → transparify pipeline; below is only what is CK-specific about it.
-Three stages produce the transparent `Editor/logo.png`:
+<script>` is all they need; `GEMINI_API_KEY` comes from the environment, so
+there is no `source` step. The skill documents the generic white → black →
+transparify pipeline; below is only what is CK-specific about it. Three stages
+produce the transparent `Editor/logo.png`:
 
 1. **White candidates.** Generate ~4 candidates on a **plain white background**.
    Pass **two polished sibling logos as `-ref`** (palette + style anchors, e.g.
