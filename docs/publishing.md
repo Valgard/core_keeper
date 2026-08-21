@@ -5,8 +5,8 @@ of the platform.
 
 **How mod.io itself behaves** — profile versus modfile, which manifest field
 becomes which tag, why unknown tag values vanish, why a changelog cannot be
-edited — is in [`docs/ck/publishing.md`](ck/publishing.md). This file assumes
-that and describes only what is specific to this repository.
+edited — is in [`docs/ck/publishing.md`](ck/publishing.md). This file assumes that and describes
+only what is specific to this repository.
 
 Publishing runs through the SDK's own mod.io plugin (`ModIOUnity`), not a
 REST client — `utils/upload.sh` invokes a per-mod Editor class

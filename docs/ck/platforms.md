@@ -102,5 +102,4 @@ success — `ERROR_SUCCESS` rendered as `Erfolg`. Match on the numeric code, not
 on the message.
 
 Server and client also disagree on how they announce a loaded mod, so no single
-pattern finds both; [multiplayer and server](multiplayer-and-server.md) has the
-two forms.
+pattern finds both; [multiplayer and server](multiplayer-and-server.md) has the two forms.

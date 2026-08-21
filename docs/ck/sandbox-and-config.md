@@ -51,10 +51,9 @@ third. Grep for all of them:
 | Sandbox verification | RoslynCSharp security check at load | `failed code security verification`, `CompileFailed` |
 | Harmony bind | The loader's auto-`PatchAll` | `patching failed` |
 
-A mod can clear the first two and silently fail the third, in which case none
-of its hooks exist and it simply does nothing. The binding rules for that third
-gate live in [Harmony and ECS](harmony-and-ecs.md); what a failed load does to
-*other* mods is in [troubleshooting](troubleshooting.md).
+A mod can clear the first two and silently fail the third, in which case none of
+its hooks exist and it simply does nothing. The binding rules for that third
+gate live in [Harmony and ECS](harmony-and-ecs.md); what a failed load does to *other* mods is in [troubleshooting](troubleshooting.md).
 
 **One change shape is exempt: a deletion-only fix.** The verification fires on
 *additions* of banned surface, so a change that only removes calls leaves a

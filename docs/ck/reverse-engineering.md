@@ -287,8 +287,8 @@ that file from around line 7813 as five GameObjects.
 
 So look for a standalone prefab first, and fall back to `grep -n "m_Name:
 <Widget>"` in the Main Manager prefab. Lifting a subtree out of it means
-carrying its dependencies by hand — [prefabs and rendering](prefabs-and-rendering.md)
-covers what has to travel with it.
+carrying its dependencies by hand — [prefabs and rendering](prefabs-and-rendering.md) covers what has to
+travel with it.
 
 The export is a nominally openable Unity project, but next to a decompile
 checkout most of it is redundant: `GameAssemblies/`, `Assets/Plugins/`,

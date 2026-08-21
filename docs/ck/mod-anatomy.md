@@ -109,8 +109,8 @@ or of another mod — is running has to derive it.
 The one derivable identifier is the **modfile ID**. Installations live in a directory
 named `<modId>_<modfileId>`, and `API.ModLoader.GetDirectory(long modId)`
 (`PugMod.SDK.Runtime`) hands you that path as a `string`. Splitting a string needs no
-`System.IO`, so the derivation is [sandbox](sandbox-and-config.md)-legal. Whether a
-locally installed development build yields a parsable ID this way is untested.
+`System.IO`, so the derivation is [sandbox](sandbox-and-config.md)-legal. Whether a locally installed development
+build yields a parsable ID this way is untested.
 
 **Trap: the GUIDs in `files` are not a version hash.** They are per-asset GUIDs, and the
 list only changes when a file is added or removed. A release that changes nothing but C#
@@ -557,8 +557,8 @@ The question to ask is: **does the server need this mod for it to work?**
 **Do not default to `3`.** An over-broad value is a hard block, not a hint: joining a
 server that lacks a `Server`-flagged mod raises a dialogue whose only options are to
 disable the mod (and restart) or cancel the connection. What exactly a mismatch does to
-a join, on either side, is covered in [multiplayer and server](multiplayer-and-server.md);
-`requiredOn` also feeds a mod.io catalogue tag, which is described in [publishing](publishing.md).
+a join, on either side, is covered in [multiplayer and server](multiplayer-and-server.md); `requiredOn` also feeds a
+mod.io catalogue tag, which is described in [publishing](publishing.md).
 
 ## The in-game mod menu, and when mod.io is contacted
 

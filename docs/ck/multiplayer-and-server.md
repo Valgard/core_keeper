@@ -305,13 +305,13 @@ Diagnose in `Player.log`: hundreds of `ComponentHash[N]` lines followed by
 **A missing required dependency is one of the ways the sets drift apart.** If a
 mod declares a `required` dependency that is not installed on the server, the
 loader's `SortMods` drops the *dependent* mod there and says so only in a log
-warning — see [mod anatomy](mod-anatomy.md) for that drop. The two sides then
-hold different mod sets, and if the dropped mod is one of the hash-moving kind
-the client reports the same `Error/BadProtocolVersion`; nothing in it names a
-dependency. So when you publish a mod that depends on another, the server needs
-**both** installed, not just yours — and this is the diagnostically expensive
-case, because the symptom points at the game version while the cause is one
-absent dependency on one machine.
+warning — see [mod anatomy](mod-anatomy.md) for that drop. The two sides then hold different mod
+sets, and if the dropped mod is one of the hash-moving kind the client reports
+the same `Error/BadProtocolVersion`; nothing in it names a dependency. So when
+you publish a mod that depends on another, the server needs **both** installed,
+not just yours — and this is the diagnostically expensive case, because the
+symptom points at the game version while the cause is one absent dependency on
+one machine.
 
 ### Version filtering is client-side only
 
