@@ -131,7 +131,13 @@ The two ObjectIDs are `MapMarker = 2402` and `MapMarkerCoreAttention = 2403`.
 | 1 | 0–3 | placed by the player through the vanilla UI |
 | 1 | 14 | automatic, lowest-segment marker |
 | 1 | 30–37 | automatic, injected by a world-version migration for echo dungeons |
-| other | — | a mod's, see below |
+| ≥ 6000, or 0 alongside a fixed variation | — | written by a mod, see below |
+
+Match the automatic ranges on `Variation` and treat `Amount` as confirmation
+rather than as the key: the migration that injects the echo-dungeon markers sets
+only the object id and the variation, so an amount of `1` on those is observed
+rather than written, and a marker arriving by some other route need not carry
+it.
 
 **Third-party mods can repurpose `Amount`.** A marker has no use for an amount,
 so the field is free — and at least one widely used marker mod stores its icon
@@ -150,10 +156,18 @@ whether or not you care about that mod:
 A mod's own icon table is in its installed sources, and it grows with each of
 its releases — read it rather than hardcoding it.
 
-**Position comes from a fixed offset, not from a parser.** The `LocalTransform`
-array follows the object array in the same chunk, slot-parallel, so the
-transform of the record at offset *N* is at *N* + (chunk capacity × 12). For
-this archetype that is +1536, `y` is always exactly `0.0`, and x/z are integers.
+**Position comes from a fixed offset, not from a parser** — and the position is
+stored under a different type than the one the running entity carries. A live
+entity has `LocalTransform` (position, rotation, scale); serialisation reduces it
+to **`Translation`, a bare `float3`**, exactly as `ObjectDataCD` is reduced to
+`ObjectDataSerializedCD`. The name simply lacks the `Serialized` suffix, which
+makes it easy to reach for the runtime type and compute a stride that finds
+nothing.
+
+That reduction is also where the arithmetic comes from: a `Translation` is 12
+bytes, the array follows the object array in the same chunk slot-parallel, so
+the position of the record at offset *N* is at *N* + (chunk capacity × 12) — for
+this archetype +1536. `y` is always exactly `0.0`, and x/z are integers.
 **Derive the summand for any other archetype rather than reusing this one** — it
 is capacity times record size, and both change.
 
