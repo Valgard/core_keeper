@@ -175,8 +175,18 @@ class TestMarkdownFiles:
         assert [p.name for p in present] == ["kept.md"]
         assert [p.name for p in missing] == ["gone.md"]
 
-    def test_ignores_untracked_files(self, tmp_path):
+    def test_includes_untracked_files(self, tmp_path):
+        # A chapter written and not yet staged is the file most likely to carry
+        # a broken link; skipping it reported OK on exactly the wrong run.
         repo = self._repo(tmp_path)
-        write(repo, "untracked.md", "# Nope\n")
+        write(repo, "untracked.md", "# Not staged yet\n")
         present, missing = mod.markdown_files(repo)
-        assert present == [] and missing == []
+        assert [p.name for p in present] == ["untracked.md"]
+        assert missing == []
+
+    def test_ignores_files_git_is_told_to_ignore(self, tmp_path):
+        repo = self._repo(tmp_path)
+        write(repo, ".gitignore", "scratch/\n")
+        write(repo, "scratch/notes.md", "# Ignored\n")
+        present, missing = mod.markdown_files(repo)
+        assert [p.name for p in present] == [] and missing == []

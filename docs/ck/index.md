@@ -48,6 +48,9 @@ symptom, not the topic.
 | Patch loads cleanly, prefix never fires | [Harmony and ECS](harmony-and-ecs.md) — the target is Burst-compiled |
 | Works in single-player, does nothing in multiplayer | [Harmony and ECS](harmony-and-ecs.md) — the dedicated-server trap |
 | `Undefined target method for patch method …` | [Harmony and ECS](harmony-and-ecs.md) — `in`/`ref` parameter binding |
+| Every source mod fails to compile, on a non-English machine | [Platforms and hosts](platforms.md) — the Roslyn satellite lookup |
+| A mod that loaded yesterday does not load today | [Platforms and hosts](platforms.md) — a delete that fails on a Wine host |
+| A tag you set on mod.io simply is not there | [Publishing to mod.io](publishing.md) — unknown values are dropped silently |
 | Mod fails to compile (`CompileFailed`) | [Sandbox and configuration](sandbox-and-config.md), then [Troubleshooting](troubleshooting.md) |
 | Scripts are not compiled at all, and the log says nothing | [Troubleshooting](troubleshooting.md) — the mod.io type tag |
 | An unrelated, previously working mod stopped patching | [Troubleshooting](troubleshooting.md) — the CompileFailed cascade |
@@ -79,7 +82,10 @@ symptom, not the topic.
 | Read or place map markers | [World and mechanics](world-and-mechanics.md) |
 | Ship a mod that works in multiplayer | [Multiplayer and server](multiplayer-and-server.md) |
 | Translate your mod's text | [Localisation](localisation.md) |
-| Read data out of a save | [Savegame formats](savegame-formats.md) |
+| Read data out of a save | [Publishing to mod.io](publishing.md) | Profile versus modfile and why a changelog cannot be edited, which manifest field becomes which tag, the silent tag drop, dependencies existing twice |
+| [Savegame formats](savegame-formats.md) |
+| Publish a mod, or fix what its listing says | [Publishing to mod.io](publishing.md) |
+| Find where the game keeps mods, saves or logs | [Platforms and hosts](platforms.md) |
 | Answer a question nothing here answers | [Reverse engineering](reverse-engineering.md) |
 | Get a build running in the first place | [Toolchain](toolchain.md) |
 
@@ -88,6 +94,7 @@ symptom, not the topic.
 | Chapter | Covers |
 |---|---|
 | [Toolchain](toolchain.md) | What the SDK requires of any setup — the exact Unity version, the build modules, the one-time wizard steps, the project lock, the macOS meta-file fix — then one worked example of a build arrangement |
+| [Platforms and hosts](platforms.md) | Where the game runs and keeps its files, what a Wine-based host breaks and how those failures look, reading logs on a translated host |
 | [Mod anatomy](mod-anatomy.md) | The `IMod` lifecycle, assembly definitions, the ModBuilderSettings `.asset` versus the generated manifest, the two kinds of GUID, dependencies, chat commands, and `requiredOn` with its crossed checks |
 | [Sandbox and configuration](sandbox-and-config.md) | What the load-time verification rejects and what it does not, why an Editor build proves nothing, and the three ways a sandboxed mod stores settings |
 | [Harmony and ECS](harmony-and-ecs.md) | Why Burst-compiled systems swallow patches, `BurstDisabler` and its silent failure on dedicated servers, patch binding, instrumenting generated DOTS code, live ECS access |
@@ -97,6 +104,7 @@ symptom, not the topic.
 | [World and mechanics](world-and-mechanics.md) | World geometry and the origin, tile layers and the `AddTile` queue, the placement permission model, map markers, entity radii, ore boulders, livestock and pets, cooked food |
 | [Multiplayer and server](multiplayer-and-server.md) | The NetCode/ghost protocol and what changes its hashes, the mod set as a second compatibility layer, how the dedicated server build differs |
 | [Localisation](localisation.md) | The game-wide table, first-write-wins and its consequences, the ways localisation has shipped broken, term-key conventions |
+| [Publishing to mod.io](publishing.md) | Profile versus modfile and why a changelog cannot be edited, which manifest field becomes which tag, the silent tag drop, dependencies existing twice |
 | [Savegame formats](savegame-formats.md) | World, map and character files — what is readable, what is not, and why the map is a fog-of-war snapshot |
 | [Troubleshooting](troubleshooting.md) | Symptom-first index for mods that will not load, will not compile, or take something else down with them |
 | [Reverse engineering](reverse-engineering.md) | Decompiling the assemblies, unpacking assets, querying prefab YAML, and how much evidence a claim needs |
