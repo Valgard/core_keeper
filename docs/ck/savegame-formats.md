@@ -25,7 +25,7 @@ for the API that reads and writes there.
 | `worlds/<n>.world.gzip` | one world — Brotli-compressed DOTS entity dump |
 | `worldinfos/<slot>.worldinfo` | plain JSON metadata for that world slot |
 | `saves/<slot>.json` | one **character** |
-| `maps/<character>/<world>.mapparts.gzip` | that character's explored map of that world |
+| `maps/<character-slot>/<server-index>.mapparts.gzip` | that character's explored map of one server they visited |
 | `mods/<ModName>/` | a mod's own persisted files |
 
 **Characters are in `saves/`, worlds are in `worlds/`.** The directory names
@@ -144,7 +144,7 @@ real even though every number is an undercount.
 
 ## The map file
 
-`maps/<character>/<world>.mapparts.gzip` is the friendly one, and it is
+`maps/<character-slot>/<server-index>.mapparts.gzip` is the friendly one, and it is
 object-aware.
 
 ### gzip → JSON → PNG tiles

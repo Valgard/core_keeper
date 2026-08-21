@@ -470,10 +470,13 @@ the popup's mask could clip them.
 
 ### PugText fields that must be set in the prefab
 
-- **`maxWidth` must stay `0`.** Any non-zero value routes the text through CK's word-wrap
-  `PugFont.AddNewLinesToLinesExceedingMaxWidth`, which throws an
-  `IndexOutOfRangeException` **every frame**. Check this on any `PugText` copied out of
-  the game.
+- **`maxWidth` is safe until a single token exceeds it.** Vanilla sets it
+  constantly — title text, the whole hover tooltip — and the word-wrap
+  `PugFont.AddNewLinesToLinesExceedingMaxWidth` only indexes out of range when
+  it meets one unbreakable token wider than the limit, because it looks back
+  for a preceding break that is not there. Long German compounds are the
+  reliable trigger. Leaving it `0` sidesteps the question; setting it means
+  owning the longest word any translation can produce.
 - **Alignment is a real serialized field, not a transform trick.**
   `PugTextStyle.HorizontalAlignment { left, center, right }` serialises as `0/1/2`, and
   `verticalAlignment` likewise.

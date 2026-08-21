@@ -15,10 +15,17 @@ let a mod's prefab YAML reference game components and sprites.
 authoring components are converted to entity data; in the shipped game that
 conversion has already happened for vanilla content, and the values you want to
 change (recipe ingredient amounts, craft time, sell value) live in a
-`BlobArray` that is read-only once built. There is **no official API and no
-CoreLib API** for editing vanilla object data.
+`BlobArray` that is read-only once built.
 
-The one window where the data is still mutable is
+Two supported hooks reach *conversion*: the SDK's `API.Authoring
+.OnObjectTypeAdded`, which hands you each entity as it is converted, and
+CoreLib's `[EntityModification]` / `[PrefabModification]` attributes, which
+dispatch through it. Both operate on the ECS components of an already-converted
+entity — which is the right level for adding or replacing a component, and the
+wrong one for the authoring values that get copied into the blob.
+
+For those — recipe ingredient amounts, craft time, sell value — the window
+where the data is still mutable is
 `PugDatabasePostConverter.PostConvert(GameObject authoring)` — the method that
 walks the authoring prefab list and copies each value into the blob. Harmony-
 **prefix** it, mutate the authoring `ObjectInfo` objects, and let the original
