@@ -101,16 +101,39 @@ def split_links(lines):
     return [m.group(0) for m in LINK.finditer(joined) if "\n" in m.group(0)]
 
 
-def pull_up_links(lines):
-    """Move a link that begins a line back onto the line before it.
+def wrap_tokens(text, width, initial_indent="", subsequent_indent=""):
+    """Wrap through textwrap, with links whole and never starting a line.
 
-    textwrap places an over-long token on a line of its own. For a link that
-    is wrong twice over — the previous line ends short *and* the link's line
-    overshoots anyway — so it is pulled back up and the break falls after it.
-    Everything else textwrap decided is left alone.
+    textwrap does the wrapping; two rules it cannot express are applied on top.
+    A link is masked by a placeholder of its *visible* length while the breaks
+    are decided, because textwrap measures len() and a link's markup is far
+    longer than its text. And a link that still ends up starting a line is
+    pulled onto the line before it — that line may overshoot, which is the
+    better trade than a short line followed by an over-long one.
+
+    Pulling a link up shortens what remains, so the remainder is wrapped
+    again. Without that the line after a pulled-up link keeps whatever length
+    was left over, which is the raggedness this all exists to remove.
     """
+
+    def fill(source, indent):
+        masked, links = mask_links(source)
+        return [
+            unglue(unmask_links(line, links))
+            for line in textwrap.wrap(
+                masked,
+                width=width,
+                initial_indent=indent,
+                subsequent_indent=subsequent_indent,
+                break_long_words=False,
+                break_on_hyphens=False,
+            )
+        ]
+
+    lines = fill(text, initial_indent)
     out = []
-    for line in lines:
+    while lines:
+        line = lines.pop(0)
         stripped = line.lstrip()
         match = LINK_TOKEN_START.match(stripped) if out else None
         if not match:
@@ -119,28 +142,9 @@ def pull_up_links(lines):
         link = match.group(0)
         rest = stripped[len(link) :].lstrip()
         out[-1] = f"{out[-1]} {link}"
-        if rest:
-            out.append(line[: len(line) - len(stripped)] + rest)
+        tail = " ".join(x.strip() for x in ([rest] if rest else []) + lines)
+        lines = fill(tail, subsequent_indent) if tail else []
     return out
-
-
-def wrap_tokens(text, width, initial_indent="", subsequent_indent=""):
-    """Wrap through textwrap with links kept whole, then pull links up.
-
-    The wrapping itself is textwrap's — only the one rule it cannot express
-    (a link stays on the line it began on) is applied afterwards.
-    """
-    masked, links = mask_links(text)
-    wrapped = textwrap.wrap(
-        masked,
-        width=width,
-        initial_indent=initial_indent,
-        subsequent_indent=subsequent_indent,
-        break_long_words=False,
-        break_on_hyphens=False,
-    )
-    restored = [unglue(unmask_links(line, links)) for line in wrapped]
-    return pull_up_links(restored)
 
 
 def first_token(line):

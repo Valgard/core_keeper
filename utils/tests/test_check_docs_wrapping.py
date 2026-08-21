@@ -257,3 +257,39 @@ class TestVisibleWidth:
         # that stops far short of the target
         assert all(mod.visible_len(l) <= 80 for l in lines)
         assert mod.visible_len(lines[0]) > 60
+
+
+class TestFixpoint:
+    """What the fixer produces, the checker must accept.
+
+    Otherwise the gate blocks on a state --fix cannot leave: pulling a link
+    onto the previous line makes that line overshoot, which forces the next
+    line to start short — and the short-line rule then reported it.
+    """
+
+    CASES = [
+        "One mechanic solves two problems: **click-outside-to-close** and "
+        "[mouse-wheel ownership](#mouse-wheel-ownership-is-decided-by-the-hover-flag). "
+        "Note the direction: screen to world is fine and useful; the dead end "
+        "that [prefabs and rendering](prefabs-and-rendering.md) warns about is "
+        "the opposite projection.",
+        "Short lead "
+        + "["
+        + "x" * 60
+        + "](t.md)"
+        + " and a tail of ordinary words here.",
+        "word " * 40,
+        "See [a](b.md) — for one thing, and for [another](c.md#anchor).",
+    ]
+
+    def test_wrapping_output_is_accepted_by_the_checker(self):
+        for text in self.CASES:
+            for width in (80, 88):
+                wrapped = mod.wrap_tokens(text, width)
+                assert mod.defects(wrapped, width) == [], (text[:40], width, wrapped)
+
+    def test_wrapping_is_idempotent(self):
+        for text in self.CASES:
+            once = mod.wrap_tokens(text, 80)
+            twice = mod.wrap_tokens(" ".join(l.strip() for l in once), 80)
+            assert once == twice
