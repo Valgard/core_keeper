@@ -24,6 +24,7 @@ Usage:
 
 import re
 import subprocess
+import textwrap
 import sys
 from pathlib import Path
 
@@ -39,6 +40,8 @@ BULLET = re.compile(r"^(\s*)([-*+]|\d+\.)(\s+)(.*)$")
 GLUE = "\x00"  # stands in for a space inside a link while wrapping
 # a token is "a link" even with trailing punctuation: "[x](y)," is still one
 LINK_TOKEN = re.compile(r"\[[^\]]*\]\([^)\s]+\)[.,;:!?)\]]*$", re.S)
+# the same shape anchored at the start, for a line that begins with a link
+LINK_TOKEN_START = re.compile(r"\[[^\]]*\]\([^)\s]+\)[.,;:!?)\]]*", re.S)
 SPECIAL = ("#", "|", ">", "-", "*", "+", " ", "\t")
 WIDE_WIDTH, NARROW_WIDTH = 88, 80
 MIN_SAMPLE = 10  # prose lines needed before a file's own width is believed
@@ -61,33 +64,44 @@ def split_links(lines):
     return [m.group(0) for m in LINK.finditer(joined) if "\n" in m.group(0)]
 
 
-def wrap_tokens(text, width, initial_indent="", subsequent_indent=""):
-    """Greedy wrap in which a link never starts a line it did not have to.
+def pull_up_links(lines):
+    """Move a link that begins a line back onto the line before it.
 
-    A generic wrapper moves an over-long token onto a line of its own. For a
-    link that is the wrong call twice over: the previous line ends short *and*
-    the link's line overshoots anyway. Here a link is appended to the line it
-    began on — which may overshoot — and the break falls after it.
+    textwrap places an over-long token on a line of its own. For a link that
+    is wrong twice over — the previous line ends short *and* the link's line
+    overshoots anyway — so it is pulled back up and the break falls after it.
+    Everything else textwrap decided is left alone.
     """
-    tokens = [unglue(x) for x in glue_links(text).split()]
-    lines, cur, indent = [], [], initial_indent
-    for token in tokens:
-        if not cur:
-            cur = [token]
+    out = []
+    for line in lines:
+        stripped = line.lstrip()
+        match = LINK_TOKEN_START.match(stripped) if out else None
+        if not match:
+            out.append(line)
             continue
-        if len(indent) + len(" ".join(cur)) + 1 + len(token) <= width:
-            cur.append(token)
-            continue
-        if LINK_TOKEN.match(token):
-            cur.append(token)
-            lines.append(indent + " ".join(cur))
-            cur, indent = [], subsequent_indent
-            continue
-        lines.append(indent + " ".join(cur))
-        cur, indent = [token], subsequent_indent
-    if cur:
-        lines.append(indent + " ".join(cur))
-    return lines
+        link = match.group(0)
+        rest = stripped[len(link) :].lstrip()
+        out[-1] = f"{out[-1]} {link}"
+        if rest:
+            out.append(line[: len(line) - len(stripped)] + rest)
+    return out
+
+
+def wrap_tokens(text, width, initial_indent="", subsequent_indent=""):
+    """Wrap through textwrap with links kept whole, then pull links up.
+
+    The wrapping itself is textwrap's — only the one rule it cannot express
+    (a link stays on the line it began on) is applied afterwards.
+    """
+    wrapped = textwrap.wrap(
+        glue_links(text),
+        width=width,
+        initial_indent=initial_indent,
+        subsequent_indent=subsequent_indent,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+    return pull_up_links([unglue(line) for line in wrapped])
 
 
 def first_token(line):
