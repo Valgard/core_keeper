@@ -48,8 +48,9 @@ Assets/<Mod>/<Mod>.asmdef   the runtime assembly definition
 Assets/<Mod>/Editor/        editor-only helpers, with their own asmdef
 ```
 
-How that source tree becomes an install directory is the build workflow — see
-[Toolchain](toolchain.md).
+How that source tree becomes an install directory is a build step; one
+arrangement of it is in [organising a mod
+project](organising-a-mod-project.md).
 
 ### What the "Create New Mod" wizard actually creates
 
