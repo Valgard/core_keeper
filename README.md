@@ -20,13 +20,13 @@ task, so you rarely need to know which chapter you want beforehand.
 ## Build & install
 
 All mods build through one shared copy of the build scripts in
-`core_keeper/utils/` — `build.sh`, `link.sh`, `install-macos.sh`,
-`upload.sh`, `uninstall-macos.sh`. The scripts
-are mod-agnostic: each mod supplies its identity through `export`s in its own
-`.envrc` (`MOD_NAME`, `MOD_NAME_ID`, `MOD_SUMMARY`, `FAKE_MOD_ID`,
-`MOD_INSTALL_PATH`, `CK_MODIO_TYPE`). The scripts read everything from the environment and
-never `source` anything themselves; they guard with `set -euo pipefail` +
-`: "${VAR:?…}"`, so a missing variable aborts with a clear message.
+`core_keeper/utils/` — `build.sh`, `link.sh`, `install-macos.sh`, `upload.sh`,
+`uninstall-macos.sh`. The scripts are mod-agnostic: each mod supplies its
+identity through `export`s in its own `.envrc` (`MOD_NAME`, `MOD_NAME_ID`,
+`MOD_SUMMARY`, `FAKE_MOD_ID`, `MOD_INSTALL_PATH`, `CK_MODIO_TYPE`). The scripts
+read everything from the environment and never `source` anything themselves;
+they guard with `set -euo pipefail` + `: "${VAR:?…}"`, so a missing variable
+aborts with a clear message.
 
 ### `.envrc` inheritance chain (parent → mod)
 
@@ -85,12 +85,11 @@ macOS auto-runs `install-macos.sh` to place the fresh build into the
 fake-ID locations so the loader picks it up on next launch. Each script
 resolves the mod repo from its first argument, defaulting to `$PWD`.
 
-To publish a mod to mod.io, `source` its `.envrc` and run
-`../utils/upload.sh` from the mod repo root. The script refreshes the SDK
-symlinks and runs a Unity batchmode build via
-`<MOD_NAME>.Editor.CLIPublishHelper.Publish`, which builds the mod and
-drives the mod.io plugin to create/update the mod profile and upload a new
-modfile. `upload.sh --dry-run` builds and validates without any writing
+To publish a mod to mod.io, `source` its `.envrc` and run `../utils/upload.sh`
+from the mod repo root. The script refreshes the SDK symlinks and runs a Unity
+batchmode build via `<MOD_NAME>.Editor.CLIPublishHelper.Publish`, which builds
+the mod and drives the mod.io plugin to create/update the mod profile and upload
+a new modfile. `upload.sh --dry-run` builds and validates without any writing
 mod.io call.
 
 Two narrower modes avoid cutting a release for something that is not one —
@@ -114,10 +113,10 @@ removes a fake-ID local dev install from the CrossOver bottle.
 ### The Discord forum post
 
 A mod with a forum thread carries a `discord-post.md` beside its
-`modio-description.md` — the text for that thread in the Core Keeper Discord's `#available-mods` channel.
-The two are written separately on purpose: mod.io is a store page, the forum
-post is a message in a conversation, and only one of them has a 2000-character
-ceiling.
+`modio-description.md` — the text for that thread in the Core Keeper Discord's
+`#available-mods` channel. The two are written separately on purpose: mod.io is
+a store page, the forum post is a message in a conversation, and only one of
+them has a 2000-character ceiling.
 
 `utils/discord_post.py` renders it. The post's text on stdout, the title, tags
 and length on stderr, so `python3 ../utils/discord_post.py | pbcopy` copies
@@ -165,9 +164,8 @@ The CLI editor helpers (`CLIBuildHelper`, `CLIPublishHelper`) and the
 `LocalizationGenerator` live in `core_keeper/utils/` (namespace
 `CoreKeeperModUtils`) and are symlinked into a mod's `unity/<Mod>/Editor/` by
 `link.sh`. They are the **unconditional** build/publish path for every mod:
-`build.sh` / `upload.sh` always invoke
-`-executeMethod CoreKeeperModUtils.CLIBuildHelper.Build` /
-`...CLIPublishHelper.Publish`.
+`build.sh` / `upload.sh` always invoke `-executeMethod
+CoreKeeperModUtils.CLIBuildHelper.Build` / `...CLIPublishHelper.Publish`.
 
 **Every mod uses the shared helpers.** ItemChecklist was the pilot;
 `faster-talents` and `disable-durability` were migrated; `caveling-divining-rod`
@@ -267,6 +265,29 @@ inside this one as separate repositories.
 ```bash
 uv run utils/check_docs_links.py     # prints the file and link count when clean
 ```
+
+## Documentation wrapping gate
+
+`utils/check_docs_wrapping.py` runs beside the link gate and blocks on a
+paragraph whose line breaks no longer fit it — the residue of editing prose by
+pattern, which lengthens a line without rewrapping what it sits in. One
+substitution left a 142-column line in a file wrapped at 80.
+
+```bash
+uv run utils/check_docs_wrapping.py           # report
+uv run utils/check_docs_wrapping.py --fix     # rewrap what it reported
+```
+
+Two decisions are worth knowing before trusting it. **It measures each file
+against the width that file already uses**, taken from its own median rather
+than a fixed number — two handbook chapters are written at ~88 columns and the
+rest at 80, and imposing one width would rewrite hundreds of untouched lines.
+**And a short line is only a defect when a better break was available**: a long
+code span or link cannot be split. A first version compared everything against
+a flat 80 and reported 763 findings, essentially none of them real.
+
+`docs/specs/` is excluded: a design spec records what was decided at a point in
+time, and reformatting one rewrites history for no reader's benefit.
 
 ## Python tooling and its tests
 

@@ -35,8 +35,8 @@ specific to this host: **the process must be detached.** `cxstart --no-wait`
 still keeps it attached to the calling shell, so it dies with the caller; the
 script uses `nohup … & disown`.
 
-Under CrossOver the log confirms the graphics device with
-`Renderer: AMD Compatibility Mode`.
+Under CrossOver the log confirms the graphics device with `Renderer: AMD
+Compatibility Mode`.
 
 ## Sharing one world with the client
 
@@ -70,8 +70,9 @@ the client's world file.
 
 ## Mirroring the mods
 
-Installed mods live unpacked in `<bottle>/drive_c/users/Public/mod.io/5289/mods/<modId>_<fileId>/`.
-Symlink them into the server:
+Installed mods live unpacked in
+`<bottle>/drive_c/users/Public/mod.io/5289/mods/<modId>_<fileId>/`. Symlink them
+into the server:
 
 ```
 CoreKeeperServer_Data/StreamingAssets/Mods/<name_id>  ->  …/mod.io/5289/mods/<modId>_<fileId>
@@ -79,11 +80,12 @@ CoreKeeperServer_Data/StreamingAssets/Mods/<name_id>  ->  …/mod.io/5289/mods/<
 
 Folder names are free — the loader reads each `ModManifest.json` — so `relink`
 names them after the mod.io slug (`modObject.name_id`): unique, filesystem-safe
-and readable, unlike `mod_<id>`. Note that a mod can carry three different names:
-`morelabels` (slug), `More Labels` (mod.io profile, what you see in game) and
-`NameChests` (`metadata.name`, the identity the server hashes its `ModId` from). Symlinks are
-the right tool here (mod.io is the only writer, the server only reads); copies
-would go stale on the next mod update, which immediately breaks the join.
+and readable, unlike `mod_<id>`. Note that a mod can carry three different
+names: `morelabels` (slug), `More Labels` (mod.io profile, what you see in game)
+and `NameChests` (`metadata.name`, the identity the server hashes its `ModId`
+from). Symlinks are the right tool here (mod.io is the only writer, the server
+only reads); copies would go stale on the next mod update, which immediately
+breaks the join.
 
 **The symlinks drift, and in four different ways** — all of them quiet, because
 the loader gates on `File.Exists(ModManifest.json)` and skips a broken link

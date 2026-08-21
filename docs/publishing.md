@@ -36,11 +36,11 @@ reach a release note, and why a wrong one used to stay wrong until the next
 version.
 
 `--changelog-only` therefore does what the plugin cannot — the plugin can only
-create modfiles, never edit one. This mode reads the active modfile with the public game key, then
-`PUT`s the new text with the plugin's own OAuth token, pulled out of the
-internal `ModIO.Implementation.UserData` by reflection (editor code, outside
-the Roslyn sandbox that forbids reflection in a mod's runtime sources; the
-token is never logged or written to disk).
+create modfiles, never edit one. This mode reads the active modfile with the
+public game key, then `PUT`s the new text with the plugin's own OAuth token,
+pulled out of the internal `ModIO.Implementation.UserData` by reflection (editor
+code, outside the Roslyn sandbox that forbids reflection in a mod's runtime
+sources; the token is never logged or written to disk).
 
 **It refuses unless the live modfile's version equals `CHANGELOG.md`'s topmost
 entry.** Without that guard, a repo already sitting on an unreleased entry would
