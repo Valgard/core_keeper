@@ -64,14 +64,28 @@ def markdown_files(root):
     # inherited, this would list the hook's repository no matter which root
     # was asked for. Strip them so -C means what it says.
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    # --others --exclude-standard adds files that are not tracked yet but are
+    # not ignored either: a chapter written and not yet staged is exactly the
+    # file most likely to carry a broken link, and skipping it reported OK.
     result = subprocess.run(
-        ["git", "-C", str(root), "ls-files", "*.md"],
+        [
+            "git",
+            "-C",
+            str(root),
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "*.md",
+        ],
         capture_output=True,
         text=True,
         check=True,
         env=env,
     )
-    tracked = [root / line for line in result.stdout.splitlines() if line]
+    tracked = [
+        root / line for line in dict.fromkeys(result.stdout.splitlines()) if line
+    ]
     return [p for p in tracked if p.is_file()], [p for p in tracked if not p.is_file()]
 
 
