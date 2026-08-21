@@ -56,7 +56,8 @@ static class ScaleRecipeCosts
                 var req = required[i];          // never name the element type
                 int scaled = req.amount / 4;
                 req.amount = scaled < 1 ? 1 : scaled;
-                required[i] = req;              // write back
+                                                // no write-back: the element is
+                                                // a class, so this mutated it
             }
         }
 
@@ -424,24 +425,35 @@ For everything else the value is derived:
 1. `GetRaritySellValue(rarity) = 1 + max(0, (int)rarity) * 5` is the base.
 2. If `info.sellValue >= 0`, that value is used directly and the rest is
    skipped.
-3. If `info.sellValue < 0`, start from the base, then add an ingredient
-   contribution (`extra`):
-   - **cooked food** (`CookedFoodAuthoring`): the sum of the two ingredients'
-     values, resolved via
+3. If `info.sellValue < 0`, the two cases diverge — and they are exclusive,
+   not additive:
+   - **cooked food** (`CookedFoodAuthoring`): the value **is** the sum of the
+     two ingredients' own values, resolved recursively via
      `CookedFoodCD.GetPrimaryIngredientFromVariation` /
-     `GetSecondaryIngredientFromVariation`;
+     `GetSecondaryIngredientFromVariation`. The base plays no part and the fold
+     in step 4 never runs.
    - **everything else**: `GetRaritySellValue(ingredientRarity) * amount`
-     summed over `requiredObjectsToCraft`.
-4. When `extra > 0`, the two are folded as
-   `round(max(1, base * 0.3) + extra)`.
-5. Finally an objectID-seeded jitter,
+     summed over `requiredObjectsToCraft`, **skipping any ingredient whose own
+     `sellValue` is 0**.
+4. For the craft case, when that sum is greater than zero, it is folded with the
+   base as `round(max(1, base * 0.3) + extra)`.
+5. **Levelled items add their upgrade cost.** When `variation > 0` and the item
+   carries the upgrade tag, every entry of its upgrade table contributes:
+   `AncientCoin` entries by their amount directly, everything else by
+   `GetRaritySellValue(rarity) * amount` — and a quarter of that total is added,
+   `round(upgradeTotal * 0.25)`. Omit this and every upgradeable item comes out
+   short.
+6. Finally an objectID-seeded jitter,
    `Random.CreateFromIndex((uint)objectID).NextFloat(-0.1, 0.1)`, and a
    `max(1, …)` floor. The seed is the objectID, so the jitter is deterministic
    — the same item is worth the same in every session.
 
-The canonical implementation of this is `ObjectUtility.GetValue` (sell mode) in
-moorowl's ItemBrowser (`ItemBrowserPackage/Scripts/Utilities/ObjectUtility.cs`),
-alongside `GetBaseLevel` and `GetRaritySellValue`.
+The authority is the game's own `InventoryUtility.GetCoinValue`. moorowl's
+ItemBrowser carries a readable port of it
+(`ItemBrowserPackage/Scripts/Utilities/ObjectUtility.cs`, alongside
+`GetBaseLevel` and `GetRaritySellValue`) — useful to read, but it predates the
+upgrade-cost term above and does not include it, which is worth knowing before
+treating it as a reference.
 
 All the types involved — `LevelCD`, `CantBeSoldAuthoring`,
 `CookedFoodAuthoring`, and `Unity.Mathematics`' `math` and `Random` — compile
