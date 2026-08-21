@@ -220,3 +220,40 @@ class TestListItems:
         p = write(tmp_path, "a.md", original)
         mod.process(p, fix=True)
         assert not any(l.lstrip().startswith("- -") for l in p.read_text().splitlines())
+
+
+class TestVisibleWidth:
+    """A link is far longer in source than on screen, and an editor that keeps
+    the source line breaks renders the paragraph ragged because of it."""
+
+    def test_a_link_counts_as_its_text(self):
+        assert (
+            mod.visible_len("[multiplayer and server](multiplayer-and-server.md)") == 22
+        )
+
+    def test_emphasis_and_code_are_not_discounted(self):
+        # bold renders wider, code renders in another face — dropping their
+        # markers would swap one wrong measure for another
+        assert mod.visible_len("**bold**") == 8
+        assert mod.visible_len("`code`") == 6
+
+    def test_masking_round_trips(self):
+        text = "see [a link](t.md) and [another one](u.md) here"
+        masked, links = mod.mask_links(text)
+        assert "](" not in masked
+        assert mod.unmask_links(masked, links) == text
+
+    def test_placeholder_has_the_visible_width(self):
+        masked, _ = mod.mask_links(
+            "[multiplayer and server](multiplayer-and-server.md)"
+        )
+        assert len(masked) == 22
+
+    def test_wrapping_fills_the_visible_width(self):
+        link = "[a link with text](a-considerably-longer-target-file-name.md)"
+        text = f"Start here {link} and then some more words that follow it along."
+        lines = mod.wrap_tokens(text, 80)
+        # the source line may overshoot; what must not happen is a visible line
+        # that stops far short of the target
+        assert all(mod.visible_len(l) <= 80 for l in lines)
+        assert mod.visible_len(lines[0]) > 60
