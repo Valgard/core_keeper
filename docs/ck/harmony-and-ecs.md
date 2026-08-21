@@ -231,9 +231,8 @@ Two caveats make an absent line meaningless:
 - The server log stops growing after world start, so read it *after* the
   session, not during.
 
-See [multiplayer-and-server](multiplayer-and-server.md) for version/protocol
-issues and [../dedicated-server.md](../dedicated-server.md) for running one
-locally.
+See [multiplayer and server](multiplayer-and-server.md) — for version and
+protocol issues, and for [getting one running](multiplayer-and-server.md#getting-one-running).
 
 ## Harmony binding mechanics
 

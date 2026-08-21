@@ -225,8 +225,7 @@ defaults alone. Ship the PNG with the same sprite settings (`textureType: 8`,
 source file — it sees the imported PNG, so the only requirements are the import
 settings above and the pixel conventions that follow from the game's art: 16 pixels
 per unit and point filtering. Any editor that can produce that works.
-[One such workflow](../pixaki-format.md), including sheet conversion, is written up
-in this repository because it happens to be the one used here.
+The choice has no bearing on anything downstream.
 
 ## A freshly added SpriteRenderer starts out broken
 

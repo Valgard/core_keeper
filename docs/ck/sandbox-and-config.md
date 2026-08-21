@@ -302,8 +302,7 @@ throws `Could not find a part of the path …`. Call
 Debug.LogError(...) }` with **no rethrow**, and its inner `File.Replace` /
 `File.Move` retry loop gives up after ten attempts with nothing but another
 `LogError`. A full disk, a file locked by something else, and the host-side
-filesystem faults covered in [macOS/CrossOver
-loader](../macos-crossover-loader.md) are therefore all invisible to your mod:
+filesystem faults covered in [platforms and hosts](platforms.md) are therefore all invisible to your mod:
 no exception, no return value, nothing to branch on. If the data matters, **read
 the file back** before you record the write as done — above all before caching
 any "content unchanged, skip the write" hash.
@@ -334,7 +333,7 @@ typed entries, defaults, `AcceptableValueRange` constraints and a TOML-ish
 `.cfg` on disk. You buy that with a **hard CoreLib dependency**, which your mod
 must declare in its ModBuilderSettings `.asset` and which propagates to your
 mod.io listing — see [mod anatomy](mod-anatomy.md) and
-[publishing](../publishing.md).
+[publishing](publishing.md).
 
 Take this route when the typed-entry ergonomics are worth the dependency, not
 because you assume route 1 cannot do it.
@@ -394,7 +393,7 @@ first two routes genuinely cannot express.
 Two costs: you lose the guarantee that your mod is inspectable-by-construction,
 and the flag **feeds a derived mod.io tag** — the `Access Type` tag on your
 published listing is computed from it, so flipping the flag re-tags the mod on
-the next publish. See [publishing](../publishing.md).
+the next publish. See [publishing](publishing.md).
 
 ## What the rest of the catalogue does
 

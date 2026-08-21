@@ -87,7 +87,7 @@ authoritative for months and change nothing. Delete it; edit the `.asset`.
 |---|---|---|
 | `guid` | `string` | Per-mod identity for the loader (see below). Auto-generated when the asset is created. |
 | `name` | `string` | Internal identity. Drives the namespace, the asmdef name, the `ModLoader` temp directory, and the string other mods depend on. |
-| `displayName` | `string` | Human-facing title. Used for the mod.io profile name (see [publishing](../publishing.md)). |
+| `displayName` | `string` | Human-facing title. Used for the mod.io profile name (see [publishing](publishing.md)). |
 | `skipSafetyChecks` | `bool` | Disables the Roslyn sandbox — see [sandbox and config](sandbox-and-config.md). |
 | `disableScripts` | `bool` | Skips the whole script compile step; the mod ships assets only. |
 | `accessesExtraAssemblies` | `bool` | Required to load a shipped `.dll`; also adds every assembly loaded at game start as a metadata reference for the Roslyn compile. |
@@ -523,7 +523,7 @@ To read the *actual* compile order at runtime, look for the loader's
 unlike the `loaded mod …` lines. A correctly declared dependent shows its dependency's
 line first.
 
-For which mods are auto-installed alongside yours, see [publishing](../publishing.md).
+For which mods are auto-installed alongside yours, see [publishing](publishing.md).
 
 ## `requiredOn` and its crossed checks
 
@@ -562,7 +562,7 @@ server that lacks a `Server`-flagged mod raises a dialogue whose only options
 are to disable the mod (and restart) or cancel the connection. What exactly a
 mismatch does to a join, on either side, is covered in [multiplayer and
 server](multiplayer-and-server.md); `requiredOn` also feeds a mod.io catalogue
-tag, which is described in [publishing](../publishing.md).
+tag, which is described in [publishing](publishing.md).
 
 ## The in-game mod menu, and when mod.io is contacted
 

@@ -10,7 +10,7 @@ cause, the cheapest check comes first.
 Most in-game diagnosis happens in `Player.log`. Under Wine the file is
 **UTF-16**, so `grep` reports "binary file matches" and prints nothing useful —
 pipe it through `strings -n 3` first (`iconv` was unreliable on it). The host
-path is in [macOS / CrossOver](../macos-crossover-loader.md).
+path is in [platforms and hosts](platforms.md).
 
 ## The mod loads, but its scripts are never compiled
 
@@ -62,9 +62,9 @@ where a working one shows `…,'Client','Script'`. If `Player.log` has no
 
 **Fix:** mod.io website → the mod's profile → Edit → Tags → uncheck `Asset`,
 check `Script` → save. Then open the in-game Mods menu once (that is what syncs
-tags into `state.json`) and restart. The publish tooling in this repo also
-synchronises this tag group and removes a hand-set `Asset` as surplus — see
-[publishing](../publishing.md).
+tags into `state.json`) and restart. `Asset` is a value the group offers that a
+script mod never earns, so anything that sets tags on publish should treat it as
+surplus rather than preserve it — see [publishing](publishing.md).
 
 **Trap: opening that menu deletes every local dev install on the machine.** The
 sync it triggers is destructive by design. `SyncUsersSubscriptions` **clears**
@@ -75,8 +75,7 @@ local registry that no user subscribes to (`ShouldThisModBeUninstalled` →
 gone. A locally installed dev build has a placeholder mod ID that resolves to
 nothing in the catalog, so it can never appear in that response and is removed
 without a prompt or a dialog. Starting the game, loading a world and playing do
-not trigger the sync; the mod browser does. Reinstall each dev build afterwards
-— details in [macOS / CrossOver](../macos-crossover-loader.md).
+not trigger the sync; the mod browser does. Reinstall each dev build afterwards; doing so rewrites all three locations a dev install occupies.
 
 ### Then: a stale game-version compatibility tag
 
@@ -101,8 +100,7 @@ This bites after every Core Keeper update: the game moved from 1.2.1.4 to
 subscribers, while a re-tagged CoreLib kept loading beside them.
 
 **A local dev install never reproduces either failure.** It builds its tags from
-the configured game version alone, carries no type tag, and skips the
-version-tag filter entirely (see [macOS / CrossOver](../macos-crossover-loader.md)).
+the configured game version alone, carries no type tag, and skips the version-tag filter entirely.
 "It works for me on the new version" therefore proves the *code* is compatible,
 not that the *listing* serves it.
 
@@ -341,8 +339,7 @@ the conflict backups:
 Write failed: Erfolg : '…\cloudconflicts\…pugbackup' (-2147024896)
 ```
 
-Those write failures are a Wine artifact ([macOS /
-CrossOver](../macos-crossover-loader.md)), and the word after `Write failed:` is
+Those write failures are a Wine artifact ([platforms and hosts](platforms.md)), and the word after `Write failed:` is
 the Windows locale's name for `ERROR_SUCCESS` — `Erfolg` because that host runs
 a German locale. Grep the `cloudconflicts` path, not the message; on a host that
 writes the backups successfully, the `CloudSyncDown` block and the diverging
@@ -356,7 +353,7 @@ timestamps are all this entry gives you to go on.
   `Player.log` ends normally with `pooled N modded prefabs` — no crash trace.
   The native crash comes afterwards, at the world-list / main-menu load.
 - It reproduces across game and host restarts, and it is orthogonal to the
-  game-DLL patches ([macOS / CrossOver](../macos-crossover-loader.md)) — those
+  game-DLL patches ([platforms and hosts](platforms.md)) — those
   fix directory deletion and save recovery, not the cloud-conflict backup
   writes.
 
@@ -590,8 +587,7 @@ assembly.
 **Fix ladder — both rungs, in order:**
 
 1. **Re-link every mod**, not just the one you are building, so all the symlinks
-   get a fresh mtime and the AssetDatabase reimports the sources (the re-link
-   command is in [the repository README](../../README.md)).
+   get a fresh mtime and the AssetDatabase reimports the sources.
 2. **`rm -rf CoreKeeperModSDK/Library/{ScriptAssemblies,Bee}`** with the Editor
    closed, so Unity recompiles every editor assembly from source on the next
    batchmode launch.
@@ -614,5 +610,5 @@ compile-and-freshness probe before any real publish.
 | `CompileFailed` with `failed code security verification`, illegal namespace/type/member references | [the sandbox](sandbox-and-config.md) |
 | Text renders as raw term keys instead of translations | [localisation](localisation.md) |
 | A Harmony patch that never binds at all ("Undefined target method"), or binds and never fires | [Harmony and ECS](harmony-and-ecs.md) |
-| Loader failures caused by stale `ModLoader/` directories, Roslyn satellite-assembly lookups, or failing save writes on a Wine host | [macOS / CrossOver](../macos-crossover-loader.md) |
+| Loader failures caused by stale `ModLoader/` directories, Roslyn satellite-assembly lookups, or failing save writes on a Wine host | [platforms and hosts](platforms.md) |
 | A client refusing to join with `Error/BadProtocolVersion`, or a dialog demanding a mod be disabled before connecting | [multiplayer and the dedicated server](multiplayer-and-server.md) |
