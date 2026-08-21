@@ -278,7 +278,7 @@ its own file. The export carries 4,607 `.prefab` files, 4,172 of them standalone
 in `Resources/Assets/GameObject/`, and that is where `SettingsMenu.prefab`,
 `Pause Menu.prefab`, `UISettings.prefab`, `ControlMappingMenu.prefab` and
 `CreateWorldMenu.prefab` sit — 17 of the standalone prefabs have "Menu" in the
-name. `utils/import_vanilla_prefab.py` takes exactly such a name.
+name — the kind of input a scripted importer takes.
 
 In-world HUD widgets are the other case: some have no prefab file at all and
 exist only as subtrees inside one giant `Resources/Assets/Resources/Global
@@ -309,8 +309,8 @@ in [database and baking](database-and-baking.md).
 Because the GUIDs are AssetRipper's and not the SDK's, an extracted vanilla
 prefab dropped into a mod loads with "Missing Script". The fix is a 1:1
 assembly-GUID remap plus copying the transitive asset hull — the fileIDs need no
-change at all. [Prefabs and rendering](prefabs-and-rendering.md) covers it;
-`utils/import_vanilla_prefab.py` automates it.
+change at all. [Prefabs and rendering](prefabs-and-rendering.md) covers it; It is worth scripting; the [example repository](https://github.com/Valgard/core_keeper)
+has one.
 
 ### What you may do with the export
 
@@ -338,17 +338,19 @@ headers. **Standard YAML parsers (PyYAML, `yq`) trip over the `!u!` tag handle
 on documents 2..N**, because the `%TAG` directive only applies to the first
 document — so the naive parse fails, and hand-tracing `fileID` references with
 `grep`/`sed` is brittle enough to produce wrong answers quietly.
-`utils/prefab_query.py` sidesteps both: it splits on the `--- ` marker, parses
+A purpose-built query tool sidesteps both — split on the `--- ` marker, parse
 the `!u!<classID> &<fileID>` header itself, and hands only the standard-YAML
 body to PyYAML, yielding `fileID -> (classID, body)`.
 
 | Command | Answers |
 |---|---|
-| `prefab_query.py <prefab> names` | Every named GameObject → its fileID |
-| `prefab_query.py <prefab> tree [Name]` | GameObject hierarchy with component types and active flags |
-| `prefab_query.py <prefab> dump-go <Name>` | One GameObject's components, children and sprites |
-| `prefab_query.py <prefab> sprite <fileID>` | The `m_Sprite` behind a SpriteRenderer |
-| `prefab_query.py <prefab> verify` | Orphans, broken `m_Script`, dangling refs (exit 1 if any) |
+| `<query> <prefab> names` | Every named GameObject → its fileID |
+| `<query> <prefab> tree [Name]` | GameObject hierarchy with component types and active flags |
+| `<query> <prefab> dump-go <Name>` | One GameObject's components, children and sprites |
+| `<query> <prefab> sprite <fileID>` | The `m_Sprite` behind a SpriteRenderer |
+| `<query> <prefab> verify` | Orphans, broken `m_Script`, dangling refs (exit 1 if any) |
+
+The [example repository](https://github.com/Valgard/core_keeper) has one such tool if you would rather read than write it.
 
 ### Trap: prefab architecture constraints are usually asserted, not checked
 
