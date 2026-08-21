@@ -52,9 +52,12 @@ public void Init()
 
 ### The call does two entirely different things, depending on the system
 
-`DisableBurstForSystemInternal` (`PugMod.SDK.Runtime:798`) branches on
-`TypeManager.IsSystemManaged` and **returns early** for a managed system. The
-two paths share nothing beyond the entry point:
+`DisableBurstForSystemInternal` (`PugMod.SDK.Runtime:798`) first calls
+`TypeManager.IsSystemType` — the check that throws a `NullReferenceException`
+when `TypeManager` is not yet initialised, which is why this cannot run in
+`EarlyInit` — and then branches on `TypeManager.IsSystemManaged`, **returning
+early** for a managed system. The two paths share nothing beyond the entry
+point:
 
 | System shape | What actually happens |
 |---|---|
@@ -396,11 +399,14 @@ ahead of the foreign prefix, and the matching **postfix still runs even when a
 prefix returned `false`** — then do the actual work in the `AddTile` prefix. One
 code path then serves both the vanilla and the modded world.
 
-Worth internalising as a general rule: **a patched method cannot be
-Burst-replaced.** While a foreign prefix sits on a method, your own prefix on
-the same method fires even without `BurstDisabler`; remove the foreign mod and
-yours goes quiet again unless you used the `AndJobs` variant. A patch that only
-works while another mod is installed is a real and confusing outcome.
+Recorded as an observation, not a rule: **while a foreign prefix sat on the
+method, our own prefix on it fired without `BurstDisabler`** — and went quiet
+again when the foreign mod was removed, unless the `AndJobs` variant was used. A
+patch that only works while another mod is installed is a real and confusing
+outcome. The mechanism was not established: Burst selection is per *system*,
+through the enable bits that `DisableBurstForSystemPatch` flips, not per patched
+method, so a general "a patched method cannot be Burst-replaced" does not follow
+from this one case.
 
 The placement *rules* themselves — which tile accepts which object — are in [world and mechanics](world-and-mechanics.md).
 
@@ -542,8 +548,10 @@ side in its `requiredOn` — see [mod anatomy](mod-anatomy.md).
 executes.** For any system using `Entities.ForEach` or `SystemAPI.*`, the DOTS
 source generator has moved the body into
 `Scripts/Generated/<System>__System_<id>.g.cs` as `__OnUpdate_<hash>()`, marked
-`[DOTSCompilerPatchedMethod("OnUpdate_T0")]`, and the mod loader rewires the
-method at runtime. Player.log states it per mod:
+`[DOTSCompilerPatchedMethod("OnUpdate_T0")]`, and the mod loader splices that
+body back into the original method **in the source, before compiling it** — so
+the generated code goes through the same Roslyn pass and the same sandbox check
+as everything else you ship. Player.log states it per mod:
 
 ```text
 Replacing method <Ns>.<System>/OnUpdate_T0 with __OnUpdate_<hash>
