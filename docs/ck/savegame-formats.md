@@ -99,15 +99,84 @@ for a plausible struct layout — say three little-endian `int32`s whose values
 fall inside two enums — finds matches, and they even cluster the way real chunk
 arrays would. Dumping the surrounding bytes is what settles it: a run of small
 integers with no consistent stride is an index or tile array, not a component
-array. Test any such hit by its context before believing it.
+array. Test any such hit by its context before believing it. That does not make the
+approach useless — the marker walk below is exactly such a scan — but it does
+mean a match is a hypothesis until something outside the file confirms it.
+
+### Worked example: reading map markers out of the file
+
+Markers are the case where the file wins, because a marker is not a separate
+save format — it is an ordinary world entity, and its on-disk record is small
+enough to find without a chunk walker.
+
+**There is no marker file.** No `.mapmarkers`, and markers are *not* in
+`mapparts` — those are fog-of-war pixels. A marker lives in the world file
+because the command that creates it does not attach `DontSerializeCD`, while
+the case directly beside it in the same switch does.
+
+**What survives the trip is less than the component you know.** On save,
+`ObjectDataCD` is repacked into `ObjectDataSerializedCD` — three `int`s,
+**12 bytes**: `ObjectID`, `Amount`, `Variation`. The fourth runtime field is
+dropped, which is why these records sit at a stride of 12 and not 16, the
+likelier guess. `MapMarkerCD` itself is never written; it comes back from the
+prefab at load. Markers also carry **no text** — the type enums are the entire
+vocabulary.
+
+The two ObjectIDs are `MapMarker = 2402` and `MapMarkerCoreAttention = 2403`.
+
+**Classify on the pair `(Amount, Variation)`, never on `Variation` alone:**
+
+| Amount | Variation | Meaning |
+|---|---|---|
+| 1 | 0–3 | placed by the player through the vanilla UI |
+| 1 | 14 | automatic, lowest-segment marker |
+| 1 | 30–37 | automatic, injected by a world-version migration for echo dungeons |
+| other | — | a mod's, see below |
+
+**Third-party mods can repurpose `Amount`.** A marker has no use for an amount,
+so the field is free — and at least one widely used marker mod stores its icon
+index there, keeping `Variation` fixed. Two consequences follow, and both bite
+whether or not you care about that mod:
+
+- **A filter like `Amount == 1` as "noise reduction" silently discards every
+  modded marker.** In one real world 64 of 76 markers were the mod's; read with
+  the vanilla rule alone they all decode as one wrong icon type. This was
+  written after doing exactly that — the out-of-range values looked like
+  garbage and were the payload.
+- **A modded marker outlives the mod.** It rides on vanilla's entity, so
+  uninstalling leaves it in the world, rendering as whatever plain icon its
+  `Variation` names.
+
+A mod's own icon table is in its installed sources, and it grows with each of
+its releases — read it rather than hardcoding it.
+
+**Position comes from a fixed offset, not from a parser.** The `LocalTransform`
+array follows the object array in the same chunk, slot-parallel, so the
+transform of the record at offset *N* is at *N* + (chunk capacity × 12). For
+this archetype that is +1536, `y` is always exactly `0.0`, and x/z are integers.
+**Derive the summand for any other archetype rather than reusing this one** — it
+is capacity times record size, and both change.
+
+That makes the whole scan: decompress, walk 4-byte-aligned for the little-endian
+ObjectID, read the next two `int`s as amount and variation, take the position at
+the fixed offset.
+
+**How to know the scan is right, which is the harder half.** A byte pattern that
+matches is not a finding — see the false-positive trap above. What settles it is
+a *second, independent* source for the same world: look up the map pixel under
+each candidate in the `mapparts` PNGs and require that different marker types
+land on **different** colours. The first version of that test asked only whether
+all markers of one type hit the same colour, which the background rock satisfies
+trivially because it is everywhere. A consistency check that the trivial case
+also passes measures nothing.
 
 **The practical route is the running game, not the file.** Inside the process
 the type registry exists and the entity-to-component mapping is free, so a query
 like `WithAll<MapMarkerCD>()` over the server world hands you the component and
-its transform together. See [reading the live ECS world](harmony-and-ecs.md) —
-for anything entity-shaped, that is the cheaper answer by a wide margin. The
-file is worth parsing only for what a running game cannot show you, such as a
-world you are not in.
+its transform together — for a world you are *in*, that beats the scan above.
+See [reading the live ECS world](harmony-and-ecs.md) — for anything entity-shaped, that is the cheaper
+answer by a wide margin. The file is worth parsing only for what a running game
+cannot show you, such as a world you are not in.
 
 ### Unloaded segments are a recycled entity pool
 

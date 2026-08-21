@@ -112,7 +112,7 @@ symptom, not the topic.
 | Build a HUD element or a menu window | [UI framework](ui-framework.md), [Prefabs and rendering](prefabs-and-rendering.md) |
 | Work with prefabs, sprites or fonts | [Prefabs and rendering](prefabs-and-rendering.md) |
 | Place tiles, or understand where things may be built | [World and mechanics](world-and-mechanics.md) |
-| Read or place map markers | [World and mechanics](world-and-mechanics.md) |
+| Read or place map markers | [World and mechanics](world-and-mechanics.md) — at runtime; [Savegame formats](savegame-formats.md) — out of a world file |
 | Ship a mod that works in multiplayer | [Multiplayer and server](multiplayer-and-server.md) |
 | Translate your mod's text | [Localisation](localisation.md) |
 | Read data out of a save | [Savegame formats](savegame-formats.md) |

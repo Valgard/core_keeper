@@ -168,6 +168,8 @@ waypoint entity, and the Core is a different object north of it.
 `MapMarkerActivatedCD` carries a generated ghost serializer, so activation state
 is replicated rather than recomputed per client.
 
+What of this survives into a save is less than it looks — `MapMarkerCD` is not written at all, and a marker on disk is three integers. Reading markers out of a world file is covered in [savegame formats](savegame-formats.md).
+
 **Reading the markers of a world means reading them at runtime.** They are
 ordinary entities, so a query over the server world returns each marker with its
 transform in one pass. Recovering them from a save file instead is impractical
