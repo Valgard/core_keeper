@@ -122,3 +122,7 @@ symptom, not the topic.
 | Answer a question nothing here answers | [Reverse engineering](reverse-engineering.md) |
 | Get a build running in the first place | [Toolchain requirements](toolchain.md) |
 | Lay out a mod so it stays in version control | [Organising a mod project](organising-a-mod-project.md) |
+
+## Licence note
+
+Core Keeper modding under Pugstorm's EULA is personal-use and non-commercial.
