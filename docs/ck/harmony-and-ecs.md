@@ -285,11 +285,20 @@ reflection runs inside trusted `0Harmony.dll`. Details in [sandbox rules](sandbo
 
 ### Not everything needs `BurstDisabler`
 
-Managed methods bind without it. `PlaceObjectSlot.PlaceItem` is the canonical
-example: `PlaceObjectSlot : EquipmentSlot` is in the global namespace, while the
-placement aspect and lookup types (`EquipmentUpdateAspect`,
-`EquipmentUpdateSharedData`, `LookupEquipmentUpdateData`) live in namespace
-`PlayerEquipment`.
+Managed methods bind without it — bake-time hooks such as
+`PugDatabasePostConverter.PostConvert`, or `SaveManager`'s own methods, are
+reached by a plain `[HarmonyPatch]`.
+
+**`PlaceObjectSlot.PlaceItem` is not one of them, and the distinction matters.**
+It *binds* without `BurstDisabler` — its declaring type is in the global
+namespace while the aspect and lookup types live in namespace `PlayerEquipment`,
+which is only a naming trap for the attribute. But its sole caller is
+`PlaceObjectSlot.UpdateEquipment`, called only from
+`EquipmentUpdateSystem.UpdateJob` — a `[BurstCompile]` job inside a
+`[BurstCompile] struct EquipmentUpdateSystem : ISystem`. So in a vanilla game
+the prefix binds and never fires: you need
+`DisableBurstForSystemAndJobs<EquipmentUpdateSystem>()`. A patch that binds
+without firing is the failure this chapter opens with.
 
 **Trap when picking the overload:** `PlaceObjectSlot` (decompile lines
 311283–311633) declares exactly *one* `PlaceItem`, the three-argument
@@ -325,13 +334,20 @@ ahead of all five of them.
 | `PlayerController.CanConsumeEntityInSlot` | `:311350` |
 | Creative / `ObjectType.PlaceablePrefab` check | `:311354` |
 
-`EntityUtility.AddTile` (`:311379`), immediately followed by vanilla's own
-`ConsumeEntityAt`, is the **first point past all five**.
+The **first unconditional commit point past all five** is
+`playerStateCD.ValueRW.PushState(PlayerStateEnum.PlaceObject)` (`:311368`),
+immediately followed by `StartCooldownForItem` (`:311370`).
 
-Any side effect gated only on item identity therefore over-fires massively. Gate
-on a signal that a placement actually **committed**: `AddTile` being reached, the
-`PlaceObject` player-state push, or the consume branch actually being taken. The
-postfix firing is not that signal.
+`EntityUtility.AddTile` (`:311379`) comes later and is **not universal**: it
+sits inside `if (…tileLookup.HasComponent(equipmentPrefab))`, so it is reached
+only for *tile* placements. Its `else` branch handles everything else — a chest,
+a cattle box, a critter. Gating a mod on "AddTile was reached" silently misses
+every non-tile placeable.
+
+Any side effect gated only on item identity over-fires massively. Gate instead
+on a signal that the placement actually **committed**: the `PlaceObject`
+player-state push for any placeable, `AddTile` when you specifically mean tiles,
+or the consume branch being taken. The postfix firing is not that signal.
 
 This generalises to every equipment/input path in CK: assume the method is
 polled, and find the commit point.
@@ -625,9 +641,10 @@ the identity:
 public struct ObjectTypeCD : IComponentData, IQueryTypeParameter { public ObjectType Value; }
 ```
 
-A name like `DiggingSpot` exists as an `ObjectType` value, as an `ObjectID` value
-and as a MonoBehaviour — but not as a component. Recognise an entity by
-`ObjectDataCD.objectID` and `ObjectTypeCD.Value`.
+A name like `DiggingSpot` exists as a `LootTableID` value, as an `ObjectID`
+value and as a MonoBehaviour — but not as an `ObjectType` and not as a
+component. Recognise an entity by `ObjectDataCD.objectID` and
+`ObjectTypeCD.Value`.
 
 **A DOTS query selects archetypes, not values.** `EntityQueryBuilder` /
 `CreateEntityQuery` cannot express "where `ObjectTypeCD.Value == X`". The
