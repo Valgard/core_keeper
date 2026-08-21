@@ -9,8 +9,8 @@ place, needs almost none of it; the pressure rises with the number of mods
 sharing one SDK clone. What is worth carrying between projects is the reasoning
 — which problem each piece answers — rather than any particular layout.
 
-The requirements underneath all of this are in
-[toolchain requirements](toolchain.md).
+The requirements underneath all of this are in [toolchain
+requirements](toolchain.md).
 
 One implementation of everything below — the scripts, the variables, the exact
 commands — is public at <https://github.com/Valgard/core_keeper>, if a worked

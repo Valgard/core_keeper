@@ -102,16 +102,15 @@ remedies; only the first one is what `dontDeactivateOnDeselect` suppresses.
 ### Subclassing a CK UI component
 
 **Check whether the method is virtual before overriding it — CK is not
-consistent about this.** Most UI base classes declare
-`protected virtual void Awake()`, so `override` is the right keyword:
-`SlotUIBase`, `RadicalMenuOption`, `RadicalMenu`, `ButtonUIElement`, and
-`UIelement.LateUpdate` are all virtual.
+consistent about this.** Most UI base classes declare `protected virtual void
+Awake()`, so `override` is the right keyword: `SlotUIBase`, `RadicalMenuOption`,
+`RadicalMenu`, `ButtonUIElement`, and `UIelement.LateUpdate` are all virtual.
 
 Some are not. `TextInputField` declares a plain `protected void Awake()`, and
-there a subclass cannot `override` at all: hide it with
-`private new void Awake()` and call `base.Awake()` explicitly. Unity dispatches
-the message once, to the most-derived method, so the base body runs only if you
-call it — which is also how you correct state a base `Awake` writes.
+there a subclass cannot `override` at all: hide it with `private new void
+Awake()` and call `base.Awake()` explicitly. Unity dispatches the message once,
+to the most-derived method, so the base body runs only if you call it — which is
+also how you correct state a base `Awake` writes.
 
 Grep the decompile for the specific class rather than assuming either shape.
 Applying the hiding idiom to a method CK declared virtual produces a `new`-hiding
@@ -131,16 +130,16 @@ other housekeeping quietly stop working.
 `Manager.camera.uiCamera.ScreenToWorldPoint(Input.mousePosition)` gives the
 cursor position in world space, and because the uiCamera is **orthographic** the
 resulting world X/Y are z-independent — no z calibration, no near-plane
-fiddling. Comparing that against a panel's world rect
-(`popupPanel.position ± panel.size / 2`) is a complete, collider-free hit test.
-`Manager.camera` is sandbox-safe.
+fiddling. Comparing that against a panel's world rect (`popupPanel.position ±
+panel.size / 2`) is a complete, collider-free hit test. `Manager.camera` is
+sandbox-safe.
 
 One mechanic solves two problems with it: **click-outside-to-close** (a naive
 "any mouse-down closes" also fires on clicks *inside* the popup) and
 [mouse-wheel ownership](#mouse-wheel-ownership). Note the direction: screen →
-uiCamera world is fine and useful; the dead end that
-[prefabs and rendering](prefabs-and-rendering.md) warns about is the opposite
-projection, world → HUD.
+uiCamera world is fine and useful; the dead end that [prefabs and
+rendering](prefabs-and-rendering.md) warns about is the opposite projection,
+world → HUD.
 
 ## Mounting a standalone window
 
@@ -190,9 +189,9 @@ always-on element is instead instantiated by the mod itself under
 for that are in [prefabs and rendering](prefabs-and-rendering.md).
 
 **Trap: the `root` child is the visibility carrier; the parent stays active
-forever.** CoreLib never touches the GameObject carrying the
-`Window` / `UIelement` / `IModUI` component: it instantiates the prefab once in
-its `UIManager.Init` postfix and leaves it active for the window's whole life.
+forever.** CoreLib never touches the GameObject carrying the `Window` /
+`UIelement` / `IModUI` component: it instantiates the prefab once in its
+`UIManager.Init` postfix and leaves it active for the window's whole life.
 Visibility is entirely your own code's job — `ShowUI()` and `HideUI()` are
 `IModUI` methods *you* implement, and they enable and disable `Root`, the
 **child**; CoreLib only calls `HideUI()` from its
@@ -337,14 +336,13 @@ background.sprite = Manager.ui
     .background;
 ```
 
-`UIManager.CraftingUIThemeType` has five members —
-`Wood`, `Stone`, `Merchant`, `UpgradeForge`, `DangerousUsage` (`Pug.Other`
-~272599) — and that is the whole set; `GetCraftingUITheme` walks
-`craftingUIThemes` for a match and logs *"Missing crafting ui theme setup for
-…"* when a theme was never configured. The returned sprites are named
-`crafting_ui_hand_NN`; `Stone` is `11`. The call is sandbox-clean, and the
-theme sprite **overrides whatever sprite you assigned in the Editor**, so the
-Editor assignment is only a design-time preview.
+`UIManager.CraftingUIThemeType` has five members — `Wood`, `Stone`, `Merchant`,
+`UpgradeForge`, `DangerousUsage` (`Pug.Other` ~272599) — and that is the whole
+set; `GetCraftingUITheme` walks `craftingUIThemes` for a match and logs
+*"Missing crafting ui theme setup for …"* when a theme was never configured. The
+returned sprites are named `crafting_ui_hand_NN`; `Stone` is `11`. The call is
+sandbox-clean, and the theme sprite **overrides whatever sprite you assigned in
+the Editor**, so the Editor assignment is only a design-time preview.
 
 ## Item slots, icons and tooltips
 
@@ -355,10 +353,10 @@ Editor assignment is only a design-time preview.
 `GetHoverTitle()`, `GetHoverDescription()`, `GetHoverStats(bool)` and
 `GetContainedObject()`. **No live ECS entity appears anywhere in that path.** To
 show the vanilla tooltip for an arbitrary catalog item, a `UIelement` need only
-return a `ContainedObjectsBuffer` wrapping a synthetic
-`ObjectDataCD { objectID, variation, amount = 1, variationUpdateCount = 0,
-auxDataIndex = 0 }`. Spawning an entity, or porting your element onto the slot
-grid, is the expensive wrong answer.
+return a `ContainedObjectsBuffer` wrapping a synthetic `ObjectDataCD { objectID,
+variation, amount = 1, variationUpdateCount = 0, auxDataIndex = 0 }`. Spawning
+an entity, or porting your element onto the slot grid, is the expensive wrong
+answer.
 
 The tooltip is positioned relative to the `pointer` transform (~357077) — it is
 **cursor-anchored**, so the selected element's own transform position is
@@ -412,12 +410,12 @@ vanilla's own menu objects with Harmony. Three classes matter:
 automatically. That single fact dictates *when* you must inject.
 
 **A row already has a second text field.** `RadicalMenuOption`
-(`Pug.Other:343031`) declares `labelText` (`:343056`) **and**
-`public PugText valueText` (`:343058`) — the latter is what CK uses for the
-right-aligned value of a toggle row. Where it is wired, a value or badge suffix
-costs no prefab, no new GameObject and no layout, only a string. Whether it is
-wired on a *particular* row is a per-row question: check the extracted prefab
-before building on it.
+(`Pug.Other:343031`) declares `labelText` (`:343056`) **and** `public PugText
+valueText` (`:343058`) — the latter is what CK uses for the right-aligned value
+of a toggle row. Where it is wired, a value or badge suffix costs no prefab, no
+new GameObject and no layout, only a string. Whether it is wired on a
+*particular* row is a per-row question: check the extracted prefab before
+building on it.
 
 **Do not persist through `PrefsManager` / `PrefsData`.** `PrefsData` is a fixed
 `[Serializable]` class of hardcoded vanilla fields with no slot for mods;
@@ -518,8 +516,8 @@ under `uiCamera`.
 
 **Auto-layout exists — use it.** `LinearLayoutUIComponent` is CK's vertical
 stacker: `RenderUIComponent(true)` plus `GetUIComponentRenderHeight()` replaces
-hand-rolled box positioning. A scrollable own menu is
-`: RadicalMenu, IScrollable` with a `UIScrollWindow` alongside.
+hand-rolled box positioning. A scrollable own menu is `: RadicalMenu,
+IScrollable` with a `UIScrollWindow` alongside.
 
 **But build and render are two steps, in that order around
 `base.Activate()`.** `LinearLayout` skips children that sit in an inactive
@@ -582,8 +580,8 @@ whether a term exists at all are in [localisation](localisation.md).
 `PugFont.Render` enters `AddNewLinesToLinesExceedingMaxWidth` only when
 `maxWidth > 0f`, and that method indexes out of range on text that actually
 overflows. It is a vanilla CK bug that English text often dodges and longer
-translations — German above all — hit routinely. The fix is
-`PugText.maxWidth = 0f` on every single-line label, **before** `Render`.
+translations — German above all — hit routinely. The fix is `PugText.maxWidth =
+0f` on every single-line label, **before** `Render`.
 
 **The symptom points nowhere near the cause.** The throw happens inside
 `ShowUI()`, so CoreLib never reaches the point where it sets `currentInterface`:
@@ -793,13 +791,12 @@ per-platform glyph**. There is no clean way to add an eighth.
 **But one of the seven is unclaimed.** `RESET_DEFAULTS` is fully wired and never
 used: `MenuHelperButtons.Awake` registers it in `helpButtonToGameObject`
 (`Pug.Other` ~338892) with a complete `HelpButton` — a `root` GameObject, an
-`InputDependentSprite` and a `description` `PugText` carrying
-`textString: Menu/Reset` with `localize: 1`, a term that exists in
-`I2Languages.asset`. No vanilla menu ever asks for it: the only two mentions of
-`RESET_DEFAULTS` in the whole of `Pug.Other` are the enum member and that
-registration, and no other assembly names it either. So if your
-prompt *means* what the slot is named, request it and take the per-platform
-glyphs and the translation for free.
+`InputDependentSprite` and a `description` `PugText` carrying `textString:
+Menu/Reset` with `localize: 1`, a term that exists in `I2Languages.asset`. No
+vanilla menu ever asks for it: the only two mentions of `RESET_DEFAULTS` in the
+whole of `Pug.Other` are the enum member and that registration, and no other
+assembly names it either. So if your prompt *means* what the slot is named,
+request it and take the per-platform glyphs and the translation for free.
 
 When no slot fits your prompt — "[Y] Toggle view" and the like — **roll your
 own hint object**: a `PugText` plus a sprite, parented under your own menu,
@@ -875,12 +872,12 @@ confuse it with the private `_scrollable`. `UIScrollWindow.Awake()` reads
 `scrollable` directly, copies it into `_scrollable` itself and, if it is null,
 sets `base.enabled = false` permanently — the window is dead for the rest of its
 life, with no error beyond a warning. Wire your `IScrollable` implementor into
-that slot in the Editor, or in the prefab YAML as
-`scrollable: {fileID: <your MonoBehaviour id>}`. Setting the private field later
-via reflection does not help; `Awake` has already disabled the component. And
-because `Awake` does that copy, a mod never needs to write `_scrollable` at all:
-the older three-call pattern (reflect `_scrollable` into place,
-`UpdateScrollHeight`, `SetScrollValue`) collapses to two calls.
+that slot in the Editor, or in the prefab YAML as `scrollable: {fileID: <your
+MonoBehaviour id>}`. Setting the private field later via reflection does not
+help; `Awake` has already disabled the component. And because `Awake` does that
+copy, a mod never needs to write `_scrollable` at all: the older three-call
+pattern (reflect `_scrollable` into place, `UpdateScrollHeight`,
+`SetScrollValue`) collapses to two calls.
 
 **`UpdateScrollHeight` is private, and must run before you reposition.** It computes
 `scrollHeight = <full content height> − scrollWindow.windowHeight`, and it is
@@ -918,14 +915,14 @@ components:
 | `ScrollBar : UIelement` | `scrollWindow`, `root` (GameObject, self-shown), `background` (the track `SpriteRenderer`), `handle` |
 | `ScrollBarHandle : ButtonUIElement` | `handleSpriteRenderer`, `handleCollider` (a `BoxCollider` for the click), `handleSpritesToResize` |
 
-`ScrollBar.Update()` does the rest itself: shows `root` while
-`ScrollHeight > 0`, converts a drag to `scrollWindow.SetScrollValue`, and sizes
-the handle to `max(VisibleRatio * background.size.y, MIN_HANDLE_SIZE)` with
-`MIN_HANDLE_SIZE = 0.625`. **`UIScrollWindow.scrollBar` must point back at the
-component** or the whole thing is a no-op; `autoHideScrollbar` hides it at
-`VisibleRatio >= 1`. The optional arrow slots (`arrowUp`, `arrowUpInactive`,
-`arrowDown`, `arrowDownInactive`) may stay at `fileID: 0`. Mouse-wheel scrolling
-works without any scrollbar at all — the bar is purely the visible affordance.
+`ScrollBar.Update()` does the rest itself: shows `root` while `ScrollHeight >
+0`, converts a drag to `scrollWindow.SetScrollValue`, and sizes the handle to
+`max(VisibleRatio * background.size.y, MIN_HANDLE_SIZE)` with `MIN_HANDLE_SIZE =
+0.625`. **`UIScrollWindow.scrollBar` must point back at the component** or the
+whole thing is a no-op; `autoHideScrollbar` hides it at `VisibleRatio >= 1`. The
+optional arrow slots (`arrowUp`, `arrowUpInactive`, `arrowDown`,
+`arrowDownInactive`) may stay at `fileID: 0`. Mouse-wheel scrolling works
+without any scrollbar at all — the bar is purely the visible affordance.
 
 **Trap: `ButtonUIElement.LateUpdate` toggles GameObject *activity* every
 frame**, and the wrong list makes your button vanish. Everything in

@@ -97,12 +97,11 @@ anything about a minor or major one. The point of the version stamp is not that
 drift is large; it is that you cannot tell without it.
 
 **Trap: decompile from stock DLLs.** If the installation carries locally applied
-IL patches — on macOS/CrossOver hosts it does, see
-[platforms and hosts](platforms.md) — the decompile
-bakes those patches in and presents them as the game's own code. A checkout made
-this way silently misrepresents `PugMod.Loader` and `Pug.Other`. Verify the
-install through Steam to restore stock DLLs first, decompile, then re-apply the
-patches to play.
+IL patches — on macOS/CrossOver hosts it does, see [platforms and
+hosts](platforms.md) — the decompile bakes those patches in and presents them as
+the game's own code. A checkout made this way silently misrepresents
+`PugMod.Loader` and `Pug.Other`. Verify the install through Steam to restore
+stock DLLs first, decompile, then re-apply the patches to play.
 
 **A `.prepatch-backup` is not stock by definition — it is stock by history.** It
 holds whatever some earlier patch run found in place. The patcher used here
@@ -286,9 +285,9 @@ Objects (Main Manager).prefab` — 6.5 MB, 2,626 GameObjects. `CoordinatesUI` is
 one of those; nothing in the export matches `*Coordinates*`, and it lives in
 that file from around line 7813 as five GameObjects.
 
-So look for a standalone prefab first, and fall back to
-`grep -n "m_Name: <Widget>"` in the Main Manager prefab. Lifting a subtree out
-of it means carrying its dependencies by hand — [prefabs and
+So look for a standalone prefab first, and fall back to `grep -n "m_Name:
+<Widget>"` in the Main Manager prefab. Lifting a subtree out of it means
+carrying its dependencies by hand — [prefabs and
 rendering](prefabs-and-rendering.md) covers what has to travel with it.
 
 The export is a nominally openable Unity project, but next to a decompile
@@ -303,8 +302,8 @@ is the **assembly** GUID and `fileID` identifies the class within that assembly
 — not the per-script GUID a Unity author expects. Two lookup tables reconstruct
 the mapping: assembly-GUID → assembly name, and `(guid, fileID)` → full class
 name. The `fileID` is a portable hash over namespace and class name, so it is
-identical in every install; the derivation is in
-[database and baking](database-and-baking.md).
+identical in every install; the derivation is in [database and
+baking](database-and-baking.md).
 
 Because the GUIDs are AssetRipper's and not the SDK's, an extracted vanilla
 prefab dropped into a mod loads with "Missing Script". The fix is a 1:1
@@ -332,12 +331,12 @@ it is for.
 
 Query the YAML. Do not reason about it.
 
-Unity prefab YAML is multi-document with a per-file
-`%TAG !u! tag:unity3d.com,2011:` directive and `--- !u!<classID> &<fileID>`
-document headers. **Standard YAML parsers (PyYAML, `yq`) trip over the `!u!` tag
-handle on documents 2..N**, because the `%TAG` directive only applies to the
-first document — so the naive parse fails, and hand-tracing `fileID` references
-with `grep`/`sed` is brittle enough to produce wrong answers quietly.
+Unity prefab YAML is multi-document with a per-file `%TAG !u!
+tag:unity3d.com,2011:` directive and `--- !u!<classID> &<fileID>` document
+headers. **Standard YAML parsers (PyYAML, `yq`) trip over the `!u!` tag handle
+on documents 2..N**, because the `%TAG` directive only applies to the first
+document — so the naive parse fails, and hand-tracing `fileID` references with
+`grep`/`sed` is brittle enough to produce wrong answers quietly.
 `utils/prefab_query.py` sidesteps both: it splits on the `--- ` marker, parses
 the `!u!<classID> &<fileID>` header itself, and hands only the standard-YAML
 body to PyYAML, yielding `fileID -> (classID, body)`.

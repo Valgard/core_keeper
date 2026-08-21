@@ -97,7 +97,8 @@ The game does exactly that query itself (`Pug.Other:181795`, in the routine that
 deletes duplicate cores). Two conditions apply: the Core resolves only while it
 is loaded — see [entity radii](#entity-radii-loaded-is-not-observed) — and the
 sandbox's verdict on ECS reads is per component type, so verify the load as
-described in [reading the live ECS world](harmony-and-ecs.md#reading-the-live-ecs-world-from-a-mod).
+described in [reading the live ECS
+world](harmony-and-ecs.md#reading-the-live-ecs-world-from-a-mod).
 
 Do not shortcut this with a constant. That same cleanup routine pins the
 surviving core at `float3(0, 0, 4)`, which corroborates that the Core sits north
@@ -149,9 +150,9 @@ its floor-then-measure order, not reading its marker position.
 Every marker icon vanilla draws on the map comes from an entity carrying
 `MapMarkerCD`, whose three fields are `mapMarkerType`, `userMapMarkerType` and
 `uniqueMarkerId`. That covers the icons, not the map as a whole: the explored
-terrain itself is map data rather than entities (see
-[savegame formats](savegame-formats.md)), and another mod may draw client-side
-markers of its own that no entity backs. Two enums divide the vanilla space:
+terrain itself is map data rather than entities (see [savegame
+formats](savegame-formats.md)), and another mod may draw client-side markers of
+its own that no entity backs. Two enums divide the vanilla space:
 
 | `MapMarkerType` | |
 |---|---|
@@ -272,10 +273,11 @@ makes it the right place to *change* a placement — but the wrong place to
 does it in the same method, one statement later: `EntityUtility.AddTile(...)`
 followed immediately by `Create.ConsumeEntityAt(..., destroy: true, ...)` pushed
 onto the inventory update buffer (`Pug.Other:311379`, then `:311382`). The one
-foreign placement mod measured here, PlacementPlus, behaves the same way. Blocking the call therefore consumes the item and
-produces nothing: a straight item loss. Letting the call through and having it
-fail validation only drops a pickup (see above). If you need to veto, veto
-earlier, at the placement decision, not at the tile write.
+foreign placement mod measured here, PlacementPlus, behaves the same way.
+Blocking the call therefore consumes the item and produces nothing: a straight
+item loss. Letting the call through and having it fail validation only drops a
+pickup (see above). If you need to veto, veto earlier, at the placement
+decision, not at the tile write.
 
 Another placement mod probably orders it the same way — it is the natural shape,
 since the debit belongs to a placement that succeeded — but that is an
@@ -559,14 +561,13 @@ the scale by a factor of thousands and makes narrow health windows look
 unreachable when they are in fact enormous. A worked case: the mod.io mod
 *EternalOreBoulders* (6042718) does not prevent mining but heals afterwards —
 every 30 ticks (≈0.5 s) it sets every entity carrying `RequiresDrillCD` and
-`DontDropSelfCD` back to `maxHealth`, but only while
-`0 < health < maxHealth * 0.1` (a boulder already at `health <= 0` is
-deliberately not reanimated). That 10% window is 1.296 million health wide — with
-eight drills at an 11× speed multiplier it stays open for roughly 12 minutes and
-some 1,400 heal opportunities. "The drill speed skips the window" is arithmetic
-that does not work out; when the numbers say a window cannot be missed, look for
-a situation in which the system is not running at all rather than for a
-collision.
+`DontDropSelfCD` back to `maxHealth`, but only while `0 < health < maxHealth *
+0.1` (a boulder already at `health <= 0` is deliberately not reanimated). That
+10% window is 1.296 million health wide — with eight drills at an 11× speed
+multiplier it stays open for roughly 12 minutes and some 1,400 heal
+opportunities. "The drill speed skips the window" is arithmetic that does not
+work out; when the numbers say a window cannot be missed, look for a situation
+in which the system is not running at all rather than for a collision.
 
 ### `RequiresDrillCD` selects exactly the ore boulders
 

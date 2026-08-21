@@ -301,8 +301,8 @@ When a mod persists its own scan results, that file is often the fastest ground
 truth available — it already holds the mod's *interpretation* of the world, so
 it answers "what does the mod actually count, and where?" directly.
 
-Such ledgers are typically plain ASCII under the mod's own
-`mods/<ModName>/` directory, in a line format like:
+Such ledgers are typically plain ASCII under the mod's own `mods/<ModName>/`
+directory, in a line format like:
 
 ```text
 x,z|id:count,id:count,…

@@ -62,9 +62,9 @@ Then branch by what you actually want to build:
 
 **If nothing builds yet, start with [toolchain requirements](toolchain.md)** —
 the exact Unity version, the build modules, the one-time wizard steps and the
-macOS meta-file fix. [Organising a mod
-project](organising-a-mod-project.md) then walks through one way to lay the
-project out. The rest of this handbook assumes you can already build and install
+macOS meta-file fix. [Organising a mod project](organising-a-mod-project.md)
+then walks through one way to lay the project out. The rest of this handbook
+assumes you can already build and install
 *something* and now need to know how the game behaves.
 
 One habit worth adopting from the start: when something does not work, come back

@@ -48,9 +48,8 @@ Assets/<Mod>/<Mod>.asmdef   the runtime assembly definition
 Assets/<Mod>/Editor/        editor-only helpers, with their own asmdef
 ```
 
-How that source tree becomes an install directory is a build step; one
-arrangement of it is in [organising a mod
-project](organising-a-mod-project.md).
+How that source tree becomes an install directory is a build step; one arrangement of it
+is in [organising a mod project](organising-a-mod-project.md).
 
 ### What the "Create New Mod" wizard actually creates
 
@@ -223,8 +222,8 @@ so a mod may have more than one handler. Conventionally the bootstrap `IMod` cla
 ### Reaching your own `LoadedMod` and asset bundle
 
 Nothing is handed to you — you look yourself up in the loader's list, matching on your
-internal `metadata.name`. The bundle handle that
-[prefab and sprite loading](prefabs-and-rendering.md) needs comes off the same object:
+internal `metadata.name`. The bundle handle that [prefab and sprite
+loading](prefabs-and-rendering.md) needs comes off the same object:
 
 ```csharp
 foreach (var mod in API.ModLoader.LoadedMods)
@@ -261,8 +260,8 @@ why `Init` is the earliest point with a live frame loop — and why it is still 
 anything that requires the game's object database to be populated.
 
 **On a dedicated server the relative order of `Init` and ECS startup differs from the
-client.** That has concrete consequences for Burst-disabling; see
-[Harmony and ECS](harmony-and-ecs.md).
+client.** That has concrete consequences for Burst-disabling; see [Harmony and
+ECS](harmony-and-ecs.md).
 
 **Trap: only the first `Init` or `Update` exception is ever logged.** Those two are the
 only lifecycle methods the loader routes through its `LoadedMods.ModContainer` wrapper,
@@ -519,10 +518,9 @@ removes a mod, so a second mod with a missing required dependency is neither war
 nor removed in that pass — it stays in the load list and fails later at the compile step
 instead.
 
-To read the *actual* compile order at runtime, look for the loader's
-`Creating modified script files at …ModLoader\<Mod>` lines. They are ordered by compile,
-unlike the `loaded mod …` lines. A correctly declared dependent shows its dependency's
-line first.
+To read the *actual* compile order at runtime, look for the loader's `Creating modified
+script files at …ModLoader\<Mod>` lines. They are ordered by compile, unlike the `loaded
+mod …` lines. A correctly declared dependent shows its dependency's line first.
 
 For which mods are auto-installed alongside yours, see [publishing](publishing.md).
 

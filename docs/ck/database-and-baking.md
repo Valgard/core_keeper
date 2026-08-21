@@ -260,8 +260,8 @@ filtering on one ObjectID.**
 At runtime the catalog is `PugDatabase.objectsByType`, a
 `Dictionary<ObjectDataCD, ObjectInfo>`. The key is **not** just the objectID:
 `ObjectDataCD.Equals`/`GetHashCode` (in `Pug.ECS.Components`) include the
-`variation` field, so the dictionary is keyed on the pair
-`(objectID, variation)`.
+`variation` field, so the dictionary is keyed on the pair `(objectID,
+variation)`.
 
 That makes dictionary membership a genuine discriminator:
 
@@ -273,9 +273,8 @@ That makes dictionary membership a genuine discriminator:
 **Trap: you cannot probe for a variation's existence via the getters.**
 `PugDatabase.GetObjectInfo(id, v)` and `TryGetObjectInfo` **fall back to
 variation 0** for an unauthored variation. They never return null for a valid
-objectID, so "call it until it fails" does not enumerate a colour set — the
-only "does this variation exist" signal is a direct lookup in
-`objectsByType`.
+objectID, so "call it until it fails" does not enumerate a colour set — the only
+"does this variation exist" signal is a direct lookup in `objectsByType`.
 
 **Non-zero variations are common, and mixed.** An in-game sweep on 1.2.1.4
 found roughly 600 DB-authored non-zero keys spread over 204 objectIDs (about
@@ -383,8 +382,8 @@ the declaring type. The id is the constant
 
 **Floors and walls are tilemap, not entities**, so per-colour tracking of a
 painted floor is not an entity query — only placeable *entities* (rugs and
-similar furniture) can be counted that way. See
-[World and mechanics](world-and-mechanics.md) for the tile side.
+similar furniture) can be counted that way. See [World and
+mechanics](world-and-mechanics.md) for the tile side.
 
 ## Item level and sell value
 
@@ -543,11 +542,11 @@ reference in your own prefab.
 
 **Do not hand-hash.** This repo's tooling ships a generated
 `{fileID: className}` map covering every MonoBehaviour/ScriptableObject-derived
-game type, produced from the decompile and aborting on any hash collision
-rather than guessing — an earlier hand-maintained table had eyeballed-and-wrong
-entries, which is exactly the failure mode the generated map removes. Generating one is a scripting job of its own; see
-[Reverse engineering](reverse-engineering.md) for producing the decompile it
-reads.
+game type, produced from the decompile and aborting on any hash collision rather
+than guessing — an earlier hand-maintained table had eyeballed-and-wrong
+entries, which is exactly the failure mode the generated map removes. Generating
+one is a scripting job of its own; see [Reverse
+engineering](reverse-engineering.md) for producing the decompile it reads.
 
 If you ever do need the hash by hand (no decompile available): **MD4 is often
 disabled** in OpenSSL 3 and on macOS, so `hashlib.new('md4')` may simply fail

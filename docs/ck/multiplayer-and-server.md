@@ -70,11 +70,11 @@ variant via Box64. Getting one running is [below](#getting-one-running).
 
 ## The second layer: the mod set
 
-Core Keeper runs its own mod comparison at connect time, in
-`ModInfoRpcSystem` and `NetworkClientStartSystem`, entirely independent of
-NetCode's hash validation. What it compares is driven by each mod's
-`requiredOn` flag — see [mod anatomy](mod-anatomy.md) for the enum itself and
-how to choose a value. What matters here is the network consequence.
+Core Keeper runs its own mod comparison at connect time, in `ModInfoRpcSystem`
+and `NetworkClientStartSystem`, entirely independent of NetCode's hash
+validation. What it compares is driven by each mod's `requiredOn` flag — see
+[mod anatomy](mod-anatomy.md) for the enum itself and how to choose a value.
+What matters here is the network consequence.
 
 **The checks are crossed.** This is the part that gets set wrong:
 
@@ -110,15 +110,15 @@ with `name.Substring(0, min(UTF8MaxLengthInBytes / 2, len))`
 (`Pug.Other:125927`), and `FixedString32Bytes` holds 29 UTF-8 bytes — so 14
 characters are all that survive. Matching is unaffected, and for a **published**
 mod neither is the display: when the server demands a mod the client lacks, the
-client resolves `modId` through `ModIOUnity.GetMod` and prints the mod.io profile
-name instead (`:125076`). The truncated field is reached only when there is no
-mod.io identity to resolve — a development build with a fake mod ID
+client resolves `modId` through `ModIOUnity.GetMod` and prints the mod.io
+profile name instead (`:125076`). The truncated field is reached only when there
+is no mod.io identity to resolve — a development build with a fake mod ID
 (`modId <= 0`), where a 26-character internal name such as
-`SimpleCraftingPoolExtender` really does reach the player as `SimpleCrafting`. In
-the other direction — your `Server`-flagged mod missing on the server — the
-dialogue prints the client's own local `metadata.name`
-(`localMod.name = loadedMod.Metadata.name`, `Pug.Other:124925`), untruncated, and
-never touches this field at all.
+`SimpleCraftingPoolExtender` really does reach the player as `SimpleCrafting`.
+In the other direction — your `Server`-flagged mod missing on the server — the
+dialogue prints the client's own local `metadata.name` (`localMod.name =
+loadedMod.Metadata.name`, `Pug.Other:124925`), untruncated, and never touches
+this field at all.
 
 **If you patch this layer:** `ModInfoRpcSystem.OnCreate` builds its mod list
 exactly **once**, not per request, and — unlike `OnUpdate` and `OnDestroy` in the

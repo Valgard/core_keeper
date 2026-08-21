@@ -1,14 +1,14 @@
 # Prefabs, sprites and text rendering
 
-This chapter covers the asset side of a Core Keeper mod: when a prefab may be edited
-by script and when it must be touched in the Unity Editor, how sprites have to be
-imported so they survive the AssetBundle bake, and the rendering traps — on-grid
-distortion, Z-sorting ties, mask clipping, self-deactivating text, the font atlas
-system — that make a structurally correct prefab render wrong. It closes with how a
-HUD is mounted at all and with the one geometric fact that surprises every HUD
-author: the world and the HUD are different coordinate spaces. Menu widgets, options entries, keybinds and scrolling belong to the
-[UI framework](ui-framework.md). What the game requires of a sprite is covered
-here; which program you draw it in is up to you.
+This chapter covers the asset side of a Core Keeper mod: when a prefab may be edited by
+script and when it must be touched in the Unity Editor, how sprites have to be imported
+so they survive the AssetBundle bake, and the rendering traps — on-grid distortion,
+Z-sorting ties, mask clipping, self-deactivating text, the font atlas system — that make
+a structurally correct prefab render wrong. It closes with how a HUD is mounted at all
+and with the one geometric fact that surprises every HUD author: the world and the HUD
+are different coordinate spaces. Menu widgets, options entries, keybinds and scrolling
+belong to the [UI framework](ui-framework.md). What the game requires of a sprite is
+covered here; which program you draw it in is up to you.
 
 ## Editing a prefab: script or Editor
 
@@ -56,9 +56,9 @@ the real layout in code where nobody looks for it.
 **The runtime-pool form of the same rule: clone a deactivated template child.** For a HUD
 that shows a varying number of like elements, keep one *deactivated* child in the prefab
 as the template and instantiate the pool from it. The clone inherits sprite, material,
-sorting layer, `sortingOrder` and Unity layer, so the C# has to set no render property at
-all. Let the pool **only ever grow**: switch surplus entries off with
-`sr.enabled = false` instead of destroying them.
+sorting layer, `sortingOrder` and Unity layer, so the C# has to set no render property
+at all. Let the pool **only ever grow**: switch surplus entries off with `sr.enabled =
+false` instead of destroying them.
 
 ### LinearLayout backgrounds must be a separate child
 
@@ -196,13 +196,13 @@ every UI element; for code-built UI, setting `textureType: 8` is the pragmatic r
 
 ### Sheet atlases: `spriteMode: 2` is correct on the prefab route
 
-Sheet atlases — the third-party ItemBrowser mod's `ui_icon.png` and `ui_group.png` are the
-ones mods pass around — are **multiple-mode**: `textureType: 8`, `spriteMode: 2`, with
-named sub-sprites, referenced from prefab YAML as
-`{fileID: <internalID>, guid: <atlas guid>, type: 3}`. Those two are a mod's files, not the
-game's; there is no `ui_icon.png` anywhere in the shipped assets. So the two modes are
-not a right-and-wrong pair: `1` belongs to the `LoadAsset<Sprite>(path)` route, `2` to the
-prefab-reference route.
+Sheet atlases — the third-party ItemBrowser mod's `ui_icon.png` and `ui_group.png` are
+the ones mods pass around — are **multiple-mode**: `textureType: 8`, `spriteMode: 2`,
+with named sub-sprites, referenced from prefab YAML as `{fileID: <internalID>, guid:
+<atlas guid>, type: 3}`. Those two are a mod's files, not the game's; there is no
+`ui_icon.png` anywhere in the shipped assets. So the two modes are not a right-and-wrong
+pair: `1` belongs to the `LoadAsset<Sprite>(path)` route, `2` to the prefab-reference
+route.
 
 **Never extract a single sprite out of an atlas.** An individually exported PNG loses the
 sheet-atlas meta and typically comes back as `textureType: 0`, at which point
@@ -222,10 +222,10 @@ defaults alone. Ship the PNG with the same sprite settings (`textureType: 8`,
 `spriteMode: 1`) and take `LoadAsset<Sprite>(path).texture` at runtime.
 
 **Which program you draw in is entirely your choice.** Core Keeper never sees your
-source file — it sees the imported PNG, so the only requirements are the import
-settings above and the pixel conventions that follow from the game's art: 16 pixels
-per unit and point filtering. Any editor that can produce that works.
-The choice has no bearing on anything downstream.
+source file — it sees the imported PNG, so the only requirements are the import settings
+above and the pixel conventions that follow from the game's art: 16 pixels per unit and
+point filtering. Any editor that can produce that works. The choice has no bearing on
+anything downstream.
 
 ## A freshly added SpriteRenderer starts out broken
 
@@ -233,14 +233,14 @@ Two independent traps that co-occur often enough to look like one.
 
 **Trap: the default material does not exist.** "Add Component → SpriteRenderer" in this
 SDK project assigns material `guid 274d4544…`, which is not backed by any asset. A
-renderer with a missing material **draws nothing** — with a valid sprite, correct sorting
-and a fully opaque colour, in the Editor as well as in game. The working mod UI renderers
-examined here all carry Unity's built-in **Sprites-Default**:
-`{fileID: 10754, guid: 0000000000000000f000000000000000, type: 0}` — set it on every
-hand-added renderer. Treat that as a rule of thumb, not a law: Sprites-Default is by a wide
-margin the most-used material across the game's own extracted prefabs, but a good many
-vanilla renderers run custom shaders instead, and CK prefabs pulled out with AssetRipper
-arrive with a placeholder material of their own (see below). The dangling default GUID is a
+renderer with a missing material **draws nothing** — with a valid sprite, correct
+sorting and a fully opaque colour, in the Editor as well as in game. The working mod UI
+renderers examined here all carry Unity's built-in **Sprites-Default**: `{fileID: 10754,
+guid: 0000000000000000f000000000000000, type: 0}` — set it on every hand-added renderer.
+Treat that as a rule of thumb, not a law: Sprites-Default is by a wide margin the
+most-used material across the game's own extracted prefabs, but a good many vanilla
+renderers run custom shaders instead, and CK prefabs pulled out with AssetRipper arrive
+with a placeholder material of their own (see below). The dangling default GUID is a
 property of this SDK project.
 
 **Trap: the sorting layer is `0`, not `"GUI"`.** A new renderer lands on sorting layer
@@ -343,10 +343,10 @@ only writes `.y`, so a prefab-side `.z` persists untouched.
 ## Clipping with a SpriteMask
 
 CK's `UIScrollWindow` does not clip its content — a scrolling list needs a `SpriteMask`
-of your own (the scrolling machinery itself is in the
-[UI framework](ui-framework.md)). Adding the mask is only the first of several steps, and
-every one of the remaining ones fails *silently*, with a clean build: either a sprite that
-should be clipped is not, or a sprite that should be visible is gone.
+of your own (the scrolling machinery itself is in the [UI framework](ui-framework.md)).
+Adding the mask is only the first of several steps, and every one of the remaining ones
+fails *silently*, with a clean build: either a sprite that should be clipped is not, or
+a sprite that should be visible is gone.
 
 ### A renderer is clipped only when both conditions hold
 
@@ -504,9 +504,9 @@ atlas, resolved via `Manager.text.GetFont(fontFace)`.
 | `boldHuge` | `67108928` | `rrs18` | 641×432 | 341 |
 | `button` | `134217744` | `buttonfont_new` | 339×161 | 90 |
 
-The atlases live in the `rrs*` family inside `resources.assets` — see
-[reverse engineering](reverse-engineering.md) for getting at them. The table is not the
-complete set: `TextManager.Init2` calls `InitCodePoints()` on **twelve** faces.
+The atlases live in the `rrs*` family inside `resources.assets` — see [reverse
+engineering](reverse-engineering.md) for getting at them. The table is not the complete
+set: `TextManager.Init2` calls `InitCodePoints()` on **twelve** faces.
 
 Which charset a face uses differs per face. `thinTiny` carries its own `_customCharset`
 starting at ASCII 33, `thinSmall` uses the shared static `latinCharset`; the `charset`
@@ -667,12 +667,12 @@ projection between world XZ and HUD XY.**
 **The uiCamera shows a constant world area, so a fixed-size prefab is
 resolution-independent.** `Manager.camera.uiCamera.orthographicSize` is exactly
 **8.4375** — the 8.44 in the table rounded — so the visible height is
-`2 × orthoSize = 16.875` world units and the width is
-`height × aspect` — a **30 × 16.875** viewport at 16:9. That area does not change with
-resolution (confirmed empirically across several), and CK exposes no UI-scale option at
-all. A prefab authored at a fixed size is therefore "fullscreen with a border" at every
-resolution, and a mod window needs **no runtime sizing logic**. For matching the vanilla
-look, CK's own inventory margin is 0.25 world units.
+`2 × orthoSize = 16.875` world units and the width is `height × aspect` — a **30 ×
+16.875** viewport at 16:9. That area does not change with resolution (confirmed
+empirically across several), and CK exposes no UI-scale option at all. A prefab authored
+at a fixed size is therefore "fullscreen with a border" at every resolution, and a mod
+window needs **no runtime sizing logic**. For matching the vanilla look, CK's own
+inventory margin is 0.25 world units.
 
 **Dead end — do not repeat it:** projecting a world position onto the HUD via
 `gameCamera.WorldToScreenPoint(...)` → `uiCamera.ScreenToWorldPoint(...)` (or the
@@ -774,11 +774,10 @@ if (show) uiCamera.cullingMask |=  1 << ObjectLayerID.HUD;
 else      uiCamera.cullingMask &= ~(1 << ObjectLayerID.HUD);
 ```
 
-Put **every** GameObject of the HUD prefab on the HUD layer — in the prefab via
-the `m_Layer` field, at runtime via `gameObject.layer =
-LayerMask.NameToLayer("HUD")`. `ObjectLayerID` (`Pug.Base`) resolves its layers
-by name rather than hard-coding numbers, so use the name and let it resolve; in
-stock Core Keeper it comes out as 27.
+Put **every** GameObject of the HUD prefab on the HUD layer — in the prefab via the
+`m_Layer` field, at runtime via `gameObject.layer = LayerMask.NameToLayer("HUD")`.
+`ObjectLayerID` (`Pug.Base`) resolves its layers by name rather than hard-coding
+numbers, so use the name and let it resolve; in stock Core Keeper it comes out as 27.
 
 Doing this buys most of a feature for free: because the whole gameplay HUD hangs
 off that one layer, `ShowHUD(false)` culls your element along with the rest
