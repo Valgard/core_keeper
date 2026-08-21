@@ -1,5 +1,10 @@
 # Core Keeper modding handbook — where to start
 
+> **This describes Core Keeper `1.2.1.5`** unless a passage names another
+> version. Everything here was read off a running game or out of decompiled
+> assemblies rather than from documentation, so a game update can invalidate any
+> statement in it without warning, and nothing announces that it has.
+
 Three ways in, depending on why you are here, and the full chapter list at the
 end if none of them fits. What this handbook is and what it rests on are in
 [README.md](README.md).
