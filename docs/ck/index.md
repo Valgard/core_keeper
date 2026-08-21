@@ -1,5 +1,7 @@
 # Core Keeper modding handbook — where to start
 
+## Preamble
+
 > **This describes Core Keeper `1.2.1.5`** unless a passage names another
 > version. Everything here was read off a running game or out of decompiled
 > assemblies rather than from documentation, so a game update can invalidate any
@@ -10,9 +12,32 @@ script, path or command belonging to a particular workspace. How you build,
 publish or run a server is yours to arrange; what the chapters describe is the
 machinery those arrangements sit on.
 
-Three ways in, depending on why you are here, and the full chapter list at the
-end if none of them fits. What this handbook is and what it rests on are in
-[README.md](README.md).
+What this handbook is, what it rests on and the licence it is written under are
+in [README.md](README.md).
+
+## The chapters
+
+| Chapter | Covers |
+|---|---|
+| [Toolchain requirements](toolchain.md) | What the SDK demands of any setup — the exact Unity version, the build modules, the one-time wizard steps, the project lock, the macOS meta-file fix |
+| [Organising a mod project](organising-a-mod-project.md) | One worked arrangement: keeping Editor-generated files in version control, machine values in one place, a blocking formatter, pinned tooling |
+| [Platforms and hosts](platforms.md) | Where the game runs and keeps its files, what a Wine-based host breaks and how those failures look, reading logs on a translated host |
+| [Mod anatomy](mod-anatomy.md) | The `IMod` lifecycle, assembly definitions, the ModBuilderSettings `.asset` versus the generated manifest, the two kinds of GUID, dependencies, chat commands, and `requiredOn` with its crossed checks |
+| [Sandbox and configuration](sandbox-and-config.md) | What the load-time verification rejects and what it does not, why an Editor build proves nothing, and the three ways a sandboxed mod stores settings |
+| [Harmony and ECS](harmony-and-ecs.md) | Why Burst-compiled systems swallow patches, `BurstDisabler` and its silent failure on dedicated servers, patch binding, instrumenting generated DOTS code, live ECS access |
+| [Database and baking](database-and-baking.md) | Editing baked object data through the converter hook, the `(objectID, variation)` key, variations and paint, item level and sell value, adding a craftable item, fileIDs |
+| [UI framework](ui-framework.md) | Sprite UI instead of uGUI, mounting windows, options-menu entries, rebindable keybinds, the hint bar, text input, scrolling, and disabled-but-visible options |
+| [Prefabs and rendering](prefabs-and-rendering.md) | When a prefab may be edited by script, nested prefabs and variants, sprite import, masking, Z-sorting, PugText and the font system, HUD versus world space |
+| [World and mechanics](world-and-mechanics.md) | World geometry and the origin, tile layers and the `AddTile` queue, the placement permission model, map markers, entity radii, ore boulders, livestock and pets, cooked food |
+| [Multiplayer and server](multiplayer-and-server.md) | The NetCode/ghost protocol and what changes its hashes, the mod set as a second compatibility layer, how the dedicated server build differs |
+| [Localisation](localisation.md) | The game-wide table, first-write-wins and its consequences, the ways localisation has shipped broken, term-key conventions |
+| [Publishing to mod.io](publishing.md) | Profile versus modfile and why a changelog cannot be edited, which manifest field becomes which tag, the silent tag drop, dependencies existing twice |
+| [Savegame formats](savegame-formats.md) | World, map and character files — what is readable, what is not, and why the map is a fog-of-war snapshot |
+| [Troubleshooting](troubleshooting.md) | Symptom-first index for mods that will not load, will not compile, or take something else down with them |
+| [Reverse engineering](reverse-engineering.md) | Decompiling the assemblies, unpacking assets, querying prefab YAML, and how much evidence a claim needs |
+
+Three ways lead into them, depending on why you are here — from nothing, from a
+symptom, or from a task.
 
 ## Start from nothing
 
@@ -100,24 +125,3 @@ symptom, not the topic.
 | Answer a question nothing here answers | [Reverse engineering](reverse-engineering.md) |
 | Get a build running in the first place | [Toolchain requirements](toolchain.md) |
 | Lay out a mod so it stays in version control | [Organising a mod project](organising-a-mod-project.md) |
-
-## The chapters
-
-| Chapter | Covers |
-|---|---|
-| [Toolchain requirements](toolchain.md) | What the SDK demands of any setup — the exact Unity version, the build modules, the one-time wizard steps, the project lock, the macOS meta-file fix |
-| [Organising a mod project](organising-a-mod-project.md) | One worked arrangement: keeping Editor-generated files in version control, machine values in one place, a blocking formatter, pinned tooling |
-| [Platforms and hosts](platforms.md) | Where the game runs and keeps its files, what a Wine-based host breaks and how those failures look, reading logs on a translated host |
-| [Mod anatomy](mod-anatomy.md) | The `IMod` lifecycle, assembly definitions, the ModBuilderSettings `.asset` versus the generated manifest, the two kinds of GUID, dependencies, chat commands, and `requiredOn` with its crossed checks |
-| [Sandbox and configuration](sandbox-and-config.md) | What the load-time verification rejects and what it does not, why an Editor build proves nothing, and the three ways a sandboxed mod stores settings |
-| [Harmony and ECS](harmony-and-ecs.md) | Why Burst-compiled systems swallow patches, `BurstDisabler` and its silent failure on dedicated servers, patch binding, instrumenting generated DOTS code, live ECS access |
-| [Database and baking](database-and-baking.md) | Editing baked object data through the converter hook, the `(objectID, variation)` key, variations and paint, item level and sell value, adding a craftable item, fileIDs |
-| [UI framework](ui-framework.md) | Sprite UI instead of uGUI, mounting windows, options-menu entries, rebindable keybinds, the hint bar, text input, scrolling, and disabled-but-visible options |
-| [Prefabs and rendering](prefabs-and-rendering.md) | When a prefab may be edited by script, nested prefabs and variants, sprite import, masking, Z-sorting, PugText and the font system, HUD versus world space |
-| [World and mechanics](world-and-mechanics.md) | World geometry and the origin, tile layers and the `AddTile` queue, the placement permission model, map markers, entity radii, ore boulders, livestock and pets, cooked food |
-| [Multiplayer and server](multiplayer-and-server.md) | The NetCode/ghost protocol and what changes its hashes, the mod set as a second compatibility layer, how the dedicated server build differs |
-| [Localisation](localisation.md) | The game-wide table, first-write-wins and its consequences, the ways localisation has shipped broken, term-key conventions |
-| [Publishing to mod.io](publishing.md) | Profile versus modfile and why a changelog cannot be edited, which manifest field becomes which tag, the silent tag drop, dependencies existing twice |
-| [Savegame formats](savegame-formats.md) | World, map and character files — what is readable, what is not, and why the map is a fog-of-war snapshot |
-| [Troubleshooting](troubleshooting.md) | Symptom-first index for mods that will not load, will not compile, or take something else down with them |
-| [Reverse engineering](reverse-engineering.md) | Decompiling the assemblies, unpacking assets, querying prefab YAML, and how much evidence a claim needs |
