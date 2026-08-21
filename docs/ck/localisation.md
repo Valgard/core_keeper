@@ -72,7 +72,7 @@ when your bundle changes its value.
 
 | Change you made | What the player sees |
 |---|---|
-| Added a new term | The new text, on the next launch, for everyone — no repair needed |
+| Added a new term | The new text, on the same launch, for everyone — no repair needed |
 | Changed an existing term's value | The **old** text, indefinitely |
 | Removed a term | The old row stays; the string keeps rendering |
 
@@ -132,8 +132,9 @@ The startup order is what makes that work:
 
 Step 4 is why this breaks the freeze rather than working around it: the merged
 value lands in the accumulator as well. It is also why a mod shipping a CSV is
-what re-creates the accumulator after you delete it — with no such mod installed,
-step 3 finds an empty source and step 4 never runs.
+what re-creates the accumulator after you delete it — with no such mod
+installed, `PostInit` returns at its entry on an empty source, so step 3 never
+runs and step 4 never happens.
 
 Two consequences follow from the same mechanism. A term that exists *only* in
 this file still renders — the CSV-backed source is a lookup source in its own

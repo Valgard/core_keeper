@@ -168,23 +168,24 @@ field is a plain `byte[]` on `MapPartSerialized`.
 
 ### Objects are pixels in their own map colour
 
-Every object whose data has `appearInMapUI: 1` is drawn into the tile in its own
-`mapColor` from the prefab. That makes objects findable **pixel-exact by
-colour** — and note the map is the *only* place that colour appears: the world
-save does not store it.
+Every object whose data has `appearInMapUI: 1` and is not currently hidden is
+drawn into the tile in its own `mapColor` from the prefab. That makes objects
+findable **pixel-exact by colour** — and note the map is the *only* place that
+colour appears: the world save does not store it.
 
 An object is drawn over the tiles it occupies, so a boulder — 2×2 and square —
 comes out as a clean 2×2 cluster, and connected-component clustering per colour
 recovers individual boulders.
 
 **Do not turn the cluster shape into a decode check.** The drawing loop
-(`UpdateAppearanceInMapUI`) uses the *direction-adjusted* size and corner offset,
-not the raw ones: `EntityUtility.GetPrefabSize` returns `prefabTileSize` verbatim
-only for an object without a `DirectionCD`, and otherwise routes it through
-`DirectionCD.GetPrefabTileSize`, which **transposes** it when
-`abs(direction.x) > 0.5`. A square prefab is unaffected — which is why the
-boulder example holds — but a 3×1 prefab is drawn 3×1 or 1×3 depending on how it
-was placed, so an unexpected cluster shape says nothing about your decode.
+(`UpdateAppearanceInMapUI`) uses the *direction-adjusted* size — the corner
+offset is passed through unchanged, not the raw ones:
+`EntityUtility.GetPrefabSize` returns `prefabTileSize` verbatim only for an
+object without a `DirectionCD`, and otherwise routes it through
+`DirectionCD.GetPrefabTileSize`, which **transposes** it when `abs(direction.x)
+> 0.5`. A square prefab is unaffected — which is why the boulder example holds —
+but a 3×1 prefab is drawn 3×1 or 1×3 depending on how it was placed, so an
+unexpected cluster shape says nothing about your decode.
 
 ### Tile index and in-tile position
 
