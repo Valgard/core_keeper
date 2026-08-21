@@ -9,8 +9,7 @@ server. This chapter covers how to make a patch bind, how to make it fire, and
 how to read and write the live ECS world once it does.
 
 Line numbers quoted below (`Pug.Other:295735`) are offsets into the decompiled
-game assemblies — see [reverse-engineering](reverse-engineering.md) for how to
-produce that decompile.
+game assemblies — see [reverse-engineering](reverse-engineering.md) for how to produce that decompile.
 
 ## Three failure modes, three different causes
 
@@ -231,8 +230,7 @@ Two caveats make an absent line meaningless:
 - The server log stops growing after world start, so read it *after* the
   session, not during.
 
-See [multiplayer and server](multiplayer-and-server.md) — for version and
-protocol issues, and for [getting one running](multiplayer-and-server.md#getting-one-running).
+See [multiplayer and server](multiplayer-and-server.md) — for version and protocol issues, and for [getting one running](multiplayer-and-server.md#getting-one-running).
 
 ## Harmony binding mechanics
 
@@ -353,9 +351,8 @@ population your mod actually runs beside, and *measure* the interaction rather
 than reasoning about it: with PlacementPlus active, a prefix on
 `PlaceObjectSlot.PlaceItem` fired **zero** times while laying rails. To test a
 suspected conflict, toggle the foreign mod through the loader's `disabledMods`
-list in `state.json`
-([the loader's two disable lists](troubleshooting.md#the-loaders-two-disable-lists-are-opposites))
-and count your own patch's invocations in both states.
+list in `state.json` ([the loader's two disable lists](troubleshooting.md#the-loaders-two-disable-lists-are-opposites)) and count your own patch's
+invocations in both states.
 
 And do not design around a change in the other mod. Whatever you ship has to
 work against the version players actually have installed, so a fix that depends
@@ -395,9 +392,9 @@ The placement *rules* themselves — which tile accepts which object — are in 
 
 A very common CK mod shape is two independent halves: a **bake-time**
 entitlement (the database says this object may now go there — bake time being
-the only mutable window, see [database and baking](database-and-baking.md)) and
-a **runtime** behaviour that makes the placement sensible. Design for the state
-in which only one half runs.
+the only mutable window, see [database and baking](database-and-baking.md)) and a **runtime** behaviour
+that makes the placement sensible. Design for the state in which only one half
+runs.
 
 A rail-bridge mod is the worked example. Its bake half made rails placeable on
 pits; its runtime half never fired under PlacementPlus. Rails were therefore laid
@@ -602,18 +599,18 @@ From there, `em.CreateEntityQuery(ComponentType.ReadOnly<…>())` →
 `ToEntityArray(Allocator.TempJob)` → `GetComponentData<T>`, `HasComponent<T>`,
 `GetBuffer<…>` all work.
 
-**Trap: the sandbox verdict is per component type, not per method.** The block is
-not on `GetComponentData` / `HasComponent` as such: `GetComponentData` over
+**Trap: the sandbox verdict is per component type, not per method.** The block
+is not on `GetComponentData` / `HasComponent` as such: `GetComponentData` over
 `ObjectDataCD` and `LocalTransform`, and `HasBuffer` / `GetBuffer` over
-`ContainedObjectsBuffer`, all load clean — which is what the scanning idiom above
-rests on. But `HasComponent<CharacterGuidCD>` plus
+`ContainedObjectsBuffer`, all load clean — which is what the scanning idiom
+above rests on. But `HasComponent<CharacterGuidCD>` plus
 `GetComponentData<CharacterGuidCD>` (with `Hash128`) fails verification, at one
 illegal namespace, one type and one member reference, which is why the GUID
-example [further up](#correlating-private-state-across-two-methods) goes through
-Harmony instead. Whether the ban sits on those specific game-side types or on
-some narrower slice of the generic surface has never been mapped. Treat the safe
-set as enumerated rather than general: if a query trips the sandbox, bisect it by
-component rather than abandoning the approach.
+example [further up](#correlating-private-state-across-two-methods) goes through Harmony instead. Whether the ban sits on those
+specific game-side types or on some narrower slice of the generic surface has
+never been mapped. Treat the safe set as enumerated rather than general: if a
+query trips the sandbox, bisect it by component rather than abandoning the
+approach.
 
 ### Identifying an entity as a particular object
 

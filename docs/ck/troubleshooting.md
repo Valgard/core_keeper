@@ -93,8 +93,7 @@ The mod is never added, so none of the tells above apply — no bundle, no entry
 in the loaded-mod list. Core Keeper's main menu raises the incompatible-mod
 dialog offering **Disable** or **Load Anyway**; "Load Anyway" writes the mod's
 GUID into `unsupportedModsToLoad`, the force-load allowlist that makes the
-loader skip this rejection on the next launch
-([the loader's two disable lists](#the-loaders-two-disable-lists-are-opposites),
+loader skip this rejection on the next launch ([the loader's two disable lists](#the-loaders-two-disable-lists-are-opposites),
 below).
 
 This bites after every Core Keeper update: the game moved from 1.2.1.4 to

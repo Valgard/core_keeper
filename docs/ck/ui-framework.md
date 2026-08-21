@@ -24,8 +24,7 @@ The canonical shape of a modded UI object:
 
 This shape describes an **interactive UI window** — something the player opens,
 clicks and navigates. A passive HUD element belongs on a different layer and
-follows different rules; see [why a mod HUD stays invisible](prefabs-and-rendering.md#why-a-mod-hud-stays-invisible)
-before building one.
+follows different rules; see [why a mod HUD stays invisible](prefabs-and-rendering.md#why-a-mod-hud-stays-invisible) before building one.
 
 | Element | What it must be |
 |---|---|
@@ -135,8 +134,7 @@ sandbox-safe.
 One mechanic solves two problems with it: **click-outside-to-close** (a naive
 "any mouse-down closes" also fires on clicks *inside* the popup) and [mouse-wheel ownership](#mouse-wheel-ownership).
 Note the direction: screen → uiCamera world is fine and useful; the dead end
-that [prefabs and rendering](prefabs-and-rendering.md) warns about is the
-opposite projection, world → HUD.
+that [prefabs and rendering](prefabs-and-rendering.md) warns about is the opposite projection, world → HUD.
 
 ## Mounting a standalone window
 
@@ -254,9 +252,8 @@ The cost is roughly a dozen extra Harmony patches for cursor, pause, input,
 mouse mode, hotbar and shortcut suppression — everything route A inherits from
 vanilla — plus the maintenance of those patches across game updates. `moorowl`'s
 `ItemBrowser` is the complete worked template for this route — read it for the
-*pattern*, but see [the warning about reference mods](reverse-engineering.md#every-installed-mod-is-readable-source)
-before lifting an identifier out of it: several of its most API-looking types
-are its own, not the game's.
+*pattern*, but see [the warning about reference mods](reverse-engineering.md#every-installed-mod-is-readable-source) before lifting an identifier
+out of it: several of its most API-looking types are its own, not the game's.
 
 ### Suppressing the gameplay UI while a modal window is open
 
@@ -362,12 +359,11 @@ irrelevant and an off-screen proxy element works.
 `SlotUIBase.GetHoverStats(ContainedObjectsBuffer, bool, bool)` (~327477) is an
 **instance** method. A bare `new GameObject().AddComponent<MySlot>()` throws an
 NRE inside `SlotUIBase.Awake` on `animator.enabled`; giving the subclass an
-empty `Awake` body (see [subclassing a CK UI component](#subclassing-a-ck-ui-component))
-fixes it, and the helper then returns title, description and stats correctly
-**without** `base.world` and without any of the serialized slot fields —
-verified by spike: a coin gave title and description and correctly no stats, a
-Copper Sword gave `statLines = 2`. The helper needs no prefab instantiation at
-all.
+empty `Awake` body (see [subclassing a CK UI component](#subclassing-a-ck-ui-component)) fixes it, and the helper
+then returns title, description and stats correctly **without** `base.world` and
+without any of the serialized slot fields — verified by spike: a coin gave title
+and description and correctly no stats, a Copper Sword gave `statLines = 2`. The
+helper needs no prefab instantiation at all.
 
 ### Icons are not scaled to fit — the slot is sized around them
 
@@ -604,8 +600,8 @@ Five details you must handle yourself:
 | clear `maxWidth` from code, not the prefab | `Awake` sets `pugText.maxWidth = maxWidth + (dontAllowNewLines ? 1 : 0)`, forcing the crash path above — a prefab `maxWidth = 0` is a no-op |
 | put the caret `SpriteRenderer` on a **child** GameObject | `Update()` re-asserts `characterMarkBlinker.transform.position = pugText.position` (world X/Y, Z preserved) every frame, clobbering any offset on the caret GameObject itself; a child at a constant `localPosition` inherits the per-frame position and adds the nudge |
 
-Because [hover drives selection](#how-uimouse-picks-and-selects-an-element),
-three further rules apply to any field inside a menu:
+Because [hover drives selection](#how-uimouse-picks-and-selects-an-element), three further rules apply to any field inside a
+menu:
 
 - **Never commit the value from `OnDeselected`** — it fires on mere hover. The
   usable signal is the transition of `Manager.input.activeInputField`.

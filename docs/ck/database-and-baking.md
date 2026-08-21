@@ -544,8 +544,8 @@ className}` map covering every MonoBehaviour/ScriptableObject-derived game type,
 produced from the decompile and aborting on any hash collision rather than
 guessing — an earlier hand-maintained table had eyeballed-and-wrong entries,
 which is exactly the failure mode the generated map removes. Generating one is a
-scripting job of its own; see [Reverse engineering](reverse-engineering.md) for
-producing the decompile it reads.
+scripting job of its own; see [Reverse engineering](reverse-engineering.md) for producing the decompile it
+reads.
 
 If you ever do need the hash by hand (no decompile available): **MD4 is often
 disabled** in OpenSSL 3 and on macOS, so `hashlib.new('md4')` may simply fail

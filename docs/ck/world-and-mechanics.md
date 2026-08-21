@@ -94,9 +94,8 @@ GhostPrefabType.All)]`, so it exists on the client ghost as well as on the
 server. Query it, take the single entity, read its `LocalTransform.Position`.
 The game does exactly that query itself (`Pug.Other:181795`, in the routine that
 deletes duplicate cores). Two conditions apply: the Core resolves only while it
-is loaded — see [entity radii](#entity-radii-loaded-is-not-observed) — and the
-sandbox's verdict on ECS reads is per component type, so verify the load as
-described in [reading the live ECS world](harmony-and-ecs.md#reading-the-live-ecs-world-from-a-mod).
+is loaded — see [entity radii](#entity-radii-loaded-is-not-observed) — and the sandbox's verdict on ECS reads is per
+component type, so verify the load as described in [reading the live ECS world](harmony-and-ecs.md#reading-the-live-ecs-world-from-a-mod).
 
 Do not shortcut this with a constant. That same cleanup routine pins the
 surviving core at `float3(0, 0, 4)`, which corroborates that the Core sits north

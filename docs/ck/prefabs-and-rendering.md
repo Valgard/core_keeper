@@ -7,8 +7,8 @@ Z-sorting ties, mask clipping, self-deactivating text, the font atlas system —
 a structurally correct prefab render wrong. It closes with how a HUD is mounted at all
 and with the one geometric fact that surprises every HUD author: the world and the HUD
 are different coordinate spaces. Menu widgets, options entries, keybinds and scrolling
-belong to the [UI framework](ui-framework.md). What the game requires of a sprite is
-covered here; which program you draw it in is up to you.
+belong to the [UI framework](ui-framework.md). What the game requires of a sprite is covered here; which
+program you draw it in is up to you.
 
 ## Editing a prefab: script or Editor
 
@@ -140,8 +140,8 @@ a mismatch deserialises silently to null with no compile error and no warning.
 
 Reducing a prefab to component-less chrome drops it from the mod's set of top-level
 loaded objects — it becomes a nested dependency only — so it never reaches
-`IMod.ModObjectLoaded` (see [mod anatomy](mod-anatomy.md)). Route `ModObjectLoaded` by
-an explicit **name whitelist** of the objects you actually care about, rather than an
+`IMod.ModObjectLoaded` (see [mod anatomy](mod-anatomy.md)). Route `ModObjectLoaded` by an explicit **name
+whitelist** of the objects you actually care about, rather than an
 else-register-everything branch that silently stops firing.
 
 ## Sprite import: a PNG is not automatically a Sprite

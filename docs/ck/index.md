@@ -60,12 +60,11 @@ Then branch by what you actually want to build:
 | a change to placement, tiles, creatures, world rules | [World and mechanics](world-and-mechanics.md) |
 | anything others will play together | [Multiplayer and server](multiplayer-and-server.md) — before publishing, not after |
 
-**If nothing builds yet, start with [toolchain requirements](toolchain.md)** —
-the exact Unity version, the build modules, the one-time wizard steps and the
-macOS meta-file fix. [Organising a mod project](organising-a-mod-project.md)
-then walks through one way to lay the project out. The rest of this handbook
-assumes you can already build and install *something* and now need to know how
-the game behaves.
+**If nothing builds yet, start with [toolchain requirements](toolchain.md)** — the exact Unity
+version, the build modules, the one-time wizard steps and the macOS meta-file
+fix. [Organising a mod project](organising-a-mod-project.md) then walks through one way to lay the project out.
+The rest of this handbook assumes you can already build and install *something*
+and now need to know how the game behaves.
 
 One habit worth adopting from the start: when something does not work, come back
 to the symptom table below rather than reading a chapter end to end. Nearly

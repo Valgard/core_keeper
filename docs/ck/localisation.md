@@ -47,16 +47,16 @@ matters, because it makes deleting the entire file a safe repair: nothing render
 does rewrite the file it writes the whole table again — base game *and* every
 installed mod — from the current TextDataBlocks.
 
-**Two conditions gate that rewrite, and a full delete trips the second one.** The
-import and the rewrite are one block of startup code, skipped whole under
+**Two conditions gate that rewrite, and a full delete trips the second one.**
+The import and the rewrite are one block of startup code, skipped whole under
 `-safemode` — a flag you may never have typed, because the game restarts itself
-with it after an init failure with mods loaded. And the rewrite happens only when
-the import left at least one term in the CSV-backed source: `PostInit` returns
-`false` on an empty source, and the file is written only when it returns `true`.
-With the file deleted there is nothing to import, so unless some mod seeds terms
-through [the CSV route below](#the-escape-hatch-ship-your-own-localizationcsv),
-the file simply stays gone. **An absent `Localization.csv` is a healthy state, not
-a failed repair** — every term renders from the bundle-derived source either way.
+with it after an init failure with mods loaded. And the rewrite happens only
+when the import left at least one term in the CSV-backed source: `PostInit`
+returns `false` on an empty source, and the file is written only when it returns
+`true`. With the file deleted there is nothing to import, so unless some mod
+seeds terms through [the CSV route below](#the-escape-hatch-ship-your-own-localizationcsv), the file simply stays gone. **An absent
+`Localization.csv` is a healthy state, not a failed repair** — every term
+renders from the bundle-derived source either way.
 
 Lookup happens through `API.Localization.GetLocalizedTerm(term)`. It returns
 null for a term the table does not know, and the conventional mod-side helper
