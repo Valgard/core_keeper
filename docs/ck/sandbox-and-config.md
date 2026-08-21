@@ -3,8 +3,9 @@
 A Core Keeper mod does not ship a compiled assembly. It ships C# sources
 (`Scripts/*.cs`) that the loader compiles with RoslynCSharp at game start, and
 then puts through a security verification before it is allowed to run. That
-verification is default-deny: whole namespaces and individual class symbols are
-off limits, and a violation kills the mod at load time — after the Editor build
+verification is **default-allow with explicit deny lists**: everything is
+permitted except seven namespaces, sixteen types, seven assemblies and two
+members, and a violation kills the mod at load time — after the Editor build
 already reported success. This chapter tells you what the sandbox actually
 forbids, why that is narrower than it looks, and the three ways a sandboxed mod
 stores settings and state anyway.
@@ -49,7 +50,7 @@ third. Grep for all of them:
 |---|---|---|
 | Editor compile | The SDK build | `error CS` |
 | Sandbox verification | RoslynCSharp security check at load | `failed code security verification`, `CompileFailed` |
-| Harmony bind | The loader's auto-`PatchAll` | `patching failed` |
+| Harmony bind | The loader's auto-`PatchAll` | `patching failed` (the loader's own annotation check) or `failed to patch mod <name>, got exception` (anything Harmony throws, e.g. `ArgumentException: Undefined target method`) |
 
 A mod can clear the first two and silently fail the third, in which case none of
 its hooks exist and it simply does nothing. The binding rules for that third
@@ -63,28 +64,51 @@ skipping the launch-and-grep cycle is justified rather than optimistic.
 
 ## What is banned
 
-Every entry below was verified by an actual failed load.
+**The list is data, not folklore.** The verifier reads
+`Resources/Assets/Resources/RoslynCSharpSettings.asset` from the game's own
+resources, and every group in it carries `defaultBehaviour: 0` — `Allow`. What
+follows is that file, complete as of this version. Nothing has to be discovered
+by bisection; if a load fails on something not listed here, the game has
+changed and the asset is where to look.
 
-| Banned | Notes |
+| Group | Denied |
 |---|---|
-| The whole `System.IO.*` namespace | Including purely in-memory types: `MemoryStream`, `BinaryWriter`, `BinaryReader`, `EndOfStreamException`. `BinaryWriter`-style framing has to be hand-rolled; string-to-`byte[]` does not — `System.Text.Encoding` is legal, see below. |
-| `Manager.saves.X()` — the `SaveManager` instance-access path | The entire class as an access surface, even trivial getters such as `GetWorldId()` that just return a cached int. `SaveManager` aggregates filesystem-touching methods, and the whole class symbol is banned. |
-| `System.Diagnostics.Process` | Process spawning. |
-| `System.Reflection.Emit.*` | Runtime code generation. |
-| `HarmonyLib.Traverse` | Banned even though it lives in the trusted `0Harmony.dll` — the reflection *wrapper class* is the banned symbol. `Traverse.Create(x).Field("y").GetValue<T>()` produces 1 illegal type ref plus 3 illegal member refs. Consequence: no private-field reflection *by this route* — there is a legal one, below. |
-| `System.Reflection.MemberInfo.get_Name()` — and anything that resolves to it through inheritance | `Type.Name` *is* `MemberInfo.Name`, so an innocent `ex.GetType().Name` yields 1 namespace + 1 type + 1 member illegal ref and fails the load. |
-| Some game-side ECS component reads | `em.HasComponent<CharacterGuidCD>(entity)` + `GetComponentData<CharacterGuidCD>(entity)` + `Hash128` together produced 1 namespace + 1 type + 1 member illegal ref. The exact blocked subset is not mapped — bisect when you hit it. |
+| Namespaces (7) | `System.IO.*`, `System.Diagnostics.*`, `System.Net.*`, `System.Runtime.InteropServices.*`, `System.Reflection.*`, `RoslynCSharp.*`, `Pug.Platform.*` |
+| Types (16) | `System.AppDomain`, and fifteen `HarmonyLib.*` types: `AccessTools`, `Code`, `FastAccess`, `FastInvokeHandler`, `Harmony`, `MethodInvoker`, `Patch`, `PatchClassProcessor`, `Patches`, `PatchInfo`, `PatchProcessor`, `ReversePatcher`, `SetterHandler`, `Transpilers`, `Traverse` |
+| Assemblies (7) | `UnityEditor.dll`, `Mono.Cecil.dll`, and the five `MonoMod.*` assemblies |
+| Members (2) | `UnityEngine.Application.Quit`, `System.Type.InvokeMember` |
 
-**Suspected but not load-verified: `AccessTools.Field` / `AccessTools.Property`.**
-They have the same shape as `Traverse` — reflection wrapper surface in
-`0Harmony.dll` — which is the whole reason to suspect them, and no load here has
-tested them in either direction. Do not read the `Traverse` row as covering them:
-the verifier resolves types one at a time by full name
-(`IsTypeReferenceAllowed` matches `reference.FullName` against its own list and
-only falls back to the namespace when the type is unlisted), and `Traverse` trips
-it as a *type*, not as a namespace — so a verdict on `HarmonyLib.Traverse`
-implies nothing about `HarmonyLib.AccessTools`. The question is also avoidable:
-the legal route below does the same job with no dependency.
+Three consequences the list makes obvious and a bisection would not:
+
+- **Whole namespaces, not selected types.** `System.Diagnostics.*` takes
+  `Stopwatch`, `StackTrace` and `Debug` with it, not just `Process` — which
+  matters to anyone trying to time their own scan. `System.Reflection.*` is why
+  an innocent `ex.GetType().Name` fails: `Type.Name` *is* `MemberInfo.Name`.
+- **Harmony's attribute surface is untouched.** Fifteen `HarmonyLib` types are
+  denied — but `[HarmonyPatch]`, `[HarmonyPrefix]` and friends are attributes,
+  not those types. That is why declarative patching works while every
+  programmatic entry point is closed.
+- **`System.Security.Cryptography` is not on any list**, which is why CoreLib
+  can hash with it.
+
+The following were observed to fail and are *not* on the list — the reason lies
+in what the expression resolves to, not in a listed symbol:
+
+| Observed failure | What it resolves to |
+|---|---|
+| `Manager.saves.X()` — property access on `SaveManager` | `SaveManager` is on no deny list. What trips is the *property* path: this repo's ItemChecklist records `Manager.saves.*` property access failing while field access on the same object passes, and the published ItemBrowser mod calls `Manager.saves.HasDiscoveredObject(...)` directly without trouble. Treat it as a property-versus-field distinction, not a banned class. |
+| Some game-side ECS component reads | `em.HasComponent<CharacterGuidCD>(entity)` + `GetComponentData<CharacterGuidCD>(entity)` + `Hash128` together produced 1 namespace + 1 type + 1 member illegal ref — something in that expression resolves into `System.Reflection.*` or `System.Runtime.InteropServices.*`. Bisect the expression, not the deny list. |
+
+`System.IO.*` deserves its own note because the namespace ban reaches further
+than the name suggests: purely in-memory types go with it — `MemoryStream`,
+`BinaryWriter`, `BinaryReader`, `EndOfStreamException`. `BinaryWriter`-style
+framing has to be hand-rolled; string-to-`byte[]` does not, since
+`System.Text.Encoding` is legal.
+
+**`AccessTools` is denied outright** — it sits on the type list beside
+`Traverse`, so the reflection-wrapper route into private fields is closed by
+both of its entrances. The legal route below does the same job with no
+dependency on either.
 
 **Not banned, contrary to expectation: `System.Security.Cryptography`.** It
 looks like exactly the BCL surface the sandbox rejects, and it is not: CoreLib
@@ -177,9 +201,18 @@ attribute is a special-cased compile-time-only reference: the reflection that
 resolves it happens inside the precompiled, trusted `0Harmony.dll`, not in your
 IL.
 
-**This unlocks every banned class's API.** Hook the method instead of calling
-it; your code sees the arguments and the result, while the member access itself
-happens inside trusted code.
+**This unlocks a banned class's API — within limits.** Hook the method instead
+of calling it; your code sees the arguments and the result, while the member
+access itself happens inside trusted code.
+
+The limits are worth knowing before relying on it. `InvokeChecker.CheckType`
+accepts a patch target only if its assembly name starts with `Pug`, `Unity`,
+`SpriteInstancing`, `I2` or `Rewired`, the type is not marked
+`[DisallowPatching]`, and it does not live in `PugMod.Loader` itself. BCL types,
+`modio.*`, `Newtonsoft.Json` and CoreLib are all outside those prefixes. And the
+rejection is **all-or-nothing**: one disallowed target makes the check return
+false for the whole assembly, `PatchAll` never runs, and *none* of the mod's
+patches bind. The log says `Trying to patch type X from unknown assembly`.
 
 **But the exemption stops at the attribute.** Calling `Manager.saves.X()` from
 *inside* a Harmony postfix is still a banned reference and still fails
@@ -291,10 +324,14 @@ constructed from, on the client and on the dedicated server alike:
   existing destination file throws. Neither shares `Delete`'s behaviour of
   renaming the file onto its `.pugbackup` sibling.
 
-**Trap: `Write` does not create missing directories.** There is no `mkdir -p`
-behaviour — a first-run `Write` into a mod directory that does not exist yet
-throws `Could not find a part of the path …`. Call
-`CreateDirectory("<ModName>")` before the first write.
+**Trap: `Write` does not create missing directories — and fails silently when
+they are absent.** There is no `mkdir -p` behaviour. A first-run `Write` into a
+mod directory that does not exist yet raises `DirectoryNotFoundException`
+internally, but `StandaloneFilesystem.Write` wraps its whole body in
+`catch (IOException)` and only logs `Write failed: Could not find a part of the
+path …`. Nothing propagates, so a `try/catch` around your call never fires and
+the write silently does not happen. Call `CreateDirectory("<ModName>")` before
+the first write.
 
 **Trap: a `Write` that did not throw is not a `Write` that landed.** The
 `StandaloneFilesystem.Write` path underneath ends in `catch (IOException) {
