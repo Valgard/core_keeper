@@ -20,7 +20,8 @@ machinery those arrangements sit on.
 | [Organising a mod project](organising-a-mod-project.md) | Why the Editor writes outside your repository and what closes that gap, separating machine paths from mod identity, a formatting gate that cannot silently pass, pinning what produces shipped bytes |
 | [Platforms and hosts](platforms.md) | Where the game runs and keeps its files, what a Wine-based host breaks and how those failures look, reading logs on a translated host |
 | [Mod anatomy](mod-anatomy.md) | The `IMod` lifecycle, assembly definitions, the ModBuilderSettings `.asset` versus the generated manifest, the two kinds of GUID, dependencies, chat commands, and `requiredOn` with its crossed checks |
-| [Sandbox and configuration](sandbox-and-config.md) | What the load-time verification rejects and what it does not, why an Editor build proves nothing, the three ways a sandboxed mod stores settings, and writing state in lockstep with the game's own save |
+| [The load-time sandbox](sandbox.md) | What the verification rejects and what it does not, why an Editor build proves nothing, why Harmony attributes are exempt, and how to find the identifier that failed |
+| [Storing configuration and state](persistence.md) | The three routes a sandboxed mod has to a file, what the rest of the catalogue actually uses, and writing state in lockstep with the game's own save |
 | [Harmony and ECS](harmony-and-ecs.md) | Why Burst-compiled systems swallow patches, `BurstDisabler` and its silent failure on dedicated servers, patch binding, instrumenting generated DOTS code, live ECS access |
 | [Database and baking](database-and-baking.md) | Editing baked object data through the converter hook, the `(objectID, variation)` key, variations and paint, item level and sell value, adding a craftable item, fileIDs |
 | [UI framework](ui-framework.md) | Sprite UI instead of uGUI, mounting windows, options-menu entries, rebindable keybinds, the hint bar, text input, scrolling, and disabled-but-visible options |
@@ -44,7 +45,7 @@ they cover what every mod does regardless of what it is for.
 
 1. **[Mod anatomy](mod-anatomy.md)** — what a mod consists of, what the loader
    reads, and how it is configured. Without this the rest has no frame.
-2. **[Sandbox and configuration](sandbox-and-config.md)** — what your code may
+2. **[The load-time sandbox](sandbox.md)** — what your code may
    reference at all. This is the chapter that prevents the classic first
    experience: a mod that builds perfectly and dies at load.
 3. **[Harmony and ECS](harmony-and-ecs.md)** — how to hook into the game. Read
@@ -83,7 +84,7 @@ symptom, not the topic.
 | Every source mod fails to compile, on a non-English machine | [Platforms and hosts](platforms.md) — the Roslyn satellite lookup |
 | A mod that loaded yesterday does not load today | [Troubleshooting](troubleshooting.md) — a stale game-version tag, the commonest cause; [Multiplayer and server](multiplayer-and-server.md) if it is a join that broke; [Platforms and hosts](platforms.md) on a Wine host |
 | A tag you set on mod.io simply is not there | [Publishing to mod.io](publishing.md) — unknown values are dropped silently |
-| Mod fails to compile (`CompileFailed`) | [Sandbox and configuration](sandbox-and-config.md), then [Troubleshooting](troubleshooting.md) |
+| Mod fails to compile (`CompileFailed`) | [The load-time sandbox](sandbox.md), then [Troubleshooting](troubleshooting.md) |
 | Scripts are not compiled at all, and the log says nothing | [Troubleshooting](troubleshooting.md) — the mod.io type tag |
 | An unrelated, previously working mod stopped patching | [Troubleshooting](troubleshooting.md) — the CompileFailed cascade |
 | Game closes at the loading screen | [Troubleshooting](troubleshooting.md) — Steam Cloud conflict, not your mod |
@@ -103,9 +104,9 @@ symptom, not the topic.
 | What you want to do | Go to |
 |---|---|
 | Understand what a mod is made of and what the loader reads | [Mod anatomy](mod-anatomy.md) |
-| Give your mod a config file | [Sandbox and configuration](sandbox-and-config.md) |
-| Persist mod state across sessions, without corrupting a save | [Sandbox and configuration](sandbox-and-config.md) |
-| Know what you may reference at compile time | [Sandbox and configuration](sandbox-and-config.md) |
+| Give your mod a config file | [Storing configuration and state](persistence.md) |
+| Persist mod state across sessions, without corrupting a save | [Storing configuration and state](persistence.md) |
+| Know what you may reference at compile time | [The load-time sandbox](sandbox.md) |
 | Patch a DOTS system, or read the live ECS world | [Harmony and ECS](harmony-and-ecs.md) |
 | Change a recipe, an item stat, or any baked object data | [Database and baking](database-and-baking.md) |
 | Add an options-menu entry or a rebindable keybind | [UI framework](ui-framework.md) |

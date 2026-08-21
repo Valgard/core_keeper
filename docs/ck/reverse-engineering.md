@@ -60,7 +60,7 @@ having locally:
 |---|---|
 | `0Harmony` | The patching API itself |
 | `RoslynCSharp`, `RoslynCSharp.Compiler` | The load-time compile pipeline |
-| `Trivial.CodeSecurity` | The verifier that walks your mod's IL and rejects banned surface — the enforcement side of the [sandbox](sandbox-and-config.md) |
+| `Trivial.CodeSecurity` | The verifier that walks your mod's IL and rejects banned surface — the enforcement side of the [sandbox](sandbox.md) |
 | `modio.UI`, `modio.UnityPlugin` | The mod.io plugin the SDK wraps |
 | `I2` | The `I2.Loc` engine behind [localisation](localisation.md) |
 | `Unity.Entities` | DOTS internals — `SystemBaseRegistry`, `WorldUnmanagedImpl.UpdateSystem` and the managed-vs-Burst dispatch chain that explains a misbehaving ECS patch |

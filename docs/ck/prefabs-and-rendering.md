@@ -534,7 +534,7 @@ slot in an atlas is not a space glyph waiting to be widened.
 renders `?` for them. Reaching them means switching that `PugText`'s `fontFace` at
 runtime. When you write such a character in mod source, write it as a Unicode escape
 (`'\u2666'`, `'\u2662'`) and keep the source pure ASCII: a literal non-ASCII character is
-encoding-unsafe through the [Roslyn sandbox](sandbox-and-config.md) compile.
+encoding-unsafe through the [Roslyn sandbox](sandbox.md) compile.
 
 **Some painted cells carry no codepoint and are structurally unreachable by character.**
 `PugFont.GetGlyphData` starts at `codePoints.TryGetValue(c, …)`, so a glyph slot without a
@@ -560,7 +560,7 @@ missing-glyph symptom, not a layout bug.
 
 ### Overriding glyphs at runtime, sandbox-safe
 
-Adding or replacing a single glyph needs no `System.IO` and passes the [Roslyn sandbox](sandbox-and-config.md):
+Adding or replacing a single glyph needs no `System.IO` and passes the [Roslyn sandbox](sandbox.md):
 
 ```csharp
 Manager.text.<face>.codePoints[c] = idx;

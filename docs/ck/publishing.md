@@ -62,7 +62,7 @@ reproduce the verification failures they report. Setting the field is only how
 a publisher derives the tag; the tag is what the game obeys.
 
 `requiredOn` and what its values mean for joining a server is in [mod anatomy](mod-anatomy.md);
-`skipSafetyChecks` and what it buys is in [the sandbox chapter](sandbox-and-config.md).
+`skipSafetyChecks` and what it buys is in [the sandbox chapter](sandbox.md).
 
 ## Tags, and the silence around them
 
