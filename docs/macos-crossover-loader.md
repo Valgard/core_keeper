@@ -12,8 +12,10 @@ what each does and how to clear a stuck mod — are in [`docs/ck/troubleshooting
 
 What remains here is the fake-ID install: Pugstorm's loader only looks at mods
 that arrive via the mod.io subscription path, so a mod sitting in a bottle
-folder with no matching `state.json` entry is simply not seen. The fake ID is
-what makes a local build visible to it.
+folder with no matching `state.json` entry is not seen *by that loader*. The
+fake ID is what makes a local build visible to it. (The loader has two further
+platforms — a `StreamingAssets/Mods` side-loader, which is how the dedicated
+server gets its mods, and Steam Workshop.)
 
 ## Fake-ID dev install — loading a not-yet-published local mod
 
