@@ -463,11 +463,18 @@ System.InvalidOperationException: Can't find file /tmp/ilpp.sock-<hash>
 ```
 
 The IL-Post-Processor subprocess never creates its Unix socket, so the asset-DB
-refresh blocks forever. It does **not** self-recover. The batchmode build
-invalidates the `Library/Bee` + ILPP artifacts and the next interactive open
-hits stale ILPP state. Note that no `dotnet`/ILPP runner process is even
-running, and the `ilpp.sock-<hash>` name is identical across hung sessions — the
-wedged Hub/licensing IPC environment is what prevents the runner from starting.
+refresh blocks forever. It does **not** self-recover.
+
+**What is established:** a preceding batchmode build is the reliable trigger,
+and no `dotnet`/ILPP runner process is running at all — so the socket is missing
+because nothing ever started, not because a runner crashed. The
+`ilpp.sock-<hash>` name is identical across hung sessions.
+
+**What is inference:** *why* the runner does not start. The batchmode build
+leaves the `Library/Bee` and ILPP artifacts in a state the next interactive open
+does not accept, and the Hub restart below being decisive points at the
+licensing IPC environment rather than at the artifacts alone. Both are
+consistent with the evidence; neither is proven.
 
 **This is not a corrupt prefab or script.** If the batchmode build reported
 success, it already imported and ILPP-processed the whole project.
