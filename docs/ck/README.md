@@ -18,10 +18,10 @@ happens to live in. Individual mods document their own architecture and their
 own traps in their own repositories; what is collected here is what holds for
 the game whoever is building against it.
 
-> **→ [index.md](index.md) is where you start reading.** It lists every
-> chapter and routes into them three ways: by **symptom** ("my patch never
-> fires"), by **task** ("add an options-menu entry"), and by **starting from
-> nothing** if you have never built a mod for this game.
+**[index.md](index.md) is where you start reading.** It lists every chapter and
+routes into them three ways: by **symptom** ("my patch never fires"), by
+**task** ("add an options-menu entry"), and by **starting from nothing** if you
+have never built a mod for this game.
 
 ## Licence note
 
