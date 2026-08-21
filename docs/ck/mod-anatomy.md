@@ -10,13 +10,16 @@ take effect.
 
 ## What ships, and what the loader reads
 
-A built mod is a directory containing exactly three kinds of payload plus a manifest:
+A built mod is a directory of payload plus a manifest. Five kinds ship, and
+the last two are copied verbatim rather than bundled:
 
 | In the install directory | What it is |
 |---|---|
 | `Scripts/*.cs` | Your mod's **source**, compiled by Roslyn at load time inside the game process |
 | `Bundles/*.assetbundle` | Prefabs, sprites, generated data assets |
-| `*.dll` | Precompiled assemblies — only loaded when `accessesExtraAssemblies` is set |
+| `Libraries/*.dll` | Precompiled assemblies — only loaded when `accessesExtraAssemblies` is set |
+| `Conf/*.json` | Configuration, copied as-is by `BuildConf` |
+| `Localization/*.csv` | Translation tables, copied as-is by `BuildLocalization` |
 | `ModManifest.json` | Build-generated; the loader's entry point into all of the above |
 
 The loader reads `ModManifest.json` with `JsonUtility.FromJson<ModMetadata>` and then
@@ -30,14 +33,18 @@ After adding a source file, check that it reached both the install `Scripts/` di
 and the generated `ModManifest.json`.
 
 Because the SDK's ModBuilder assigns everything under the mod's `modPath` to the
-AssetBundle, and Unity imports text files as `TextAsset`s, any `.yaml`/`.md`/`.json`
-sitting in the mod folder is baked into the shipped bundle too. Two things keep a file
-out: keeping it out of the mod folder, or putting it in an `Editor/` or `CodeGen/`
-subdirectory of it. `ModBuilder.BuildAssets` skips every asset whose path passes through
-a directory of either name on the way up to `modPath` — the same `IsInEditorFolder`
-filter that keeps editor-only `.cs` out of the shipped `Scripts/` and editor-only DLLs
-out of the shipped assemblies. That is why a mod's `Editor/logo.png` and its
-`Editor/<Mod>_modio.asset` sit inside the mod folder and still do not ship.
+AssetBundle, and Unity imports text files as `TextAsset`s, a stray `.yaml` or `.md`
+sitting in the mod folder is baked into the shipped bundle too. Three things keep a file
+out: keeping it out of the mod folder, putting it in an `Editor/` or `CodeGen/`
+subdirectory of it, or having it claimed by one of the verbatim-copy passes —
+`BuildConf` and `BuildLocalization` remove every `.json` under `Conf/` and every `.csv`
+under `Localization/` from the bundle's asset list before it is built, exactly as
+`BuildScripts` and `BuildLibraries` do for `.cs` and `.dll`. `ModBuilder.BuildAssets`
+skips every asset whose path passes through a directory of either name on the way up to
+`modPath` — the same `IsInEditorFolder` filter that keeps editor-only `.cs` out of the
+shipped `Scripts/` and editor-only DLLs out of the shipped assemblies. That is why a
+mod's `Editor/logo.png` and its `Editor/<Mod>_modio.asset` sit inside the mod folder and
+still do not ship.
 
 In the repo, a mod is authored as:
 
@@ -51,10 +58,13 @@ Assets/<Mod>/Editor/        editor-only helpers, with their own asmdef
 How that source tree becomes an install directory is a build step; one arrangement of it
 is in [organising a mod project](organising-a-mod-project.md).
 
-### What the "Create New Mod" wizard actually creates
+### What the "Create Mod" wizard actually creates
 
-`ModBuilderWindow.CreateNewMod` emits four things and no more: the ModBuilderSettings
-`.asset`, the runtime `.asmdef`, the mod folder, and the `.meta` GUIDs that go with them.
+`ModBuilderWindow.CreateNewMod` emits four things inside the project: the
+ModBuilderSettings `.asset`, the runtime `.asmdef`, the mod folder, and the `.meta`
+GUIDs that go with them. It also registers the mod folder as a scriptable-data context
+and marks it for overloading — the one effect that reaches outside the mod's own
+files.
 Its template-unpacking step is a no-op in this SDK clone — the `ModTemplate.zip` it looks
 for is not present.
 
@@ -206,7 +216,9 @@ public interface IMod
 }
 ```
 
-The loader instantiates every `IMod` implementation it finds in your compiled assembly,
+The loader instantiates every **public** `IMod` implementation it finds in your
+compiled assembly — the search passes `includeNonPublic: false`, so an `internal`
+bootstrap class is skipped silently, with no log line to say your mod did nothing —
 so a mod may have more than one handler. Conventionally the bootstrap `IMod` class and the
 `[HarmonyPatch]` classes live in separate files.
 
@@ -262,14 +274,15 @@ anything that requires the game's object database to be populated.
 **On a dedicated server the relative order of `Init` and ECS startup differs from the
 client.** That has concrete consequences for Burst-disabling; see [Harmony and ECS](harmony-and-ecs.md).
 
-**Trap: only the first `Init` or `Update` exception is ever logged.** Those two are the
-only lifecycle methods the loader routes through its `LoadedMods.ModContainer` wrapper,
-whose try/catch blocks share a single `_hasPrintedException` latch. Once *any* mod throws
-once from either, every later exception from every mod is swallowed silently for the rest
-of the process. A per-frame `NullReferenceException` in `Update` therefore shows up as one
-stack trace and then nothing. `EarlyInit`, `ModObjectLoaded` and `Shutdown` are invoked on
-a different path — the load pass and the reset routine call them directly — and always
-log.
+**Trap: only the first `Init` or `Update` exception is ever logged.** `ModContainer`
+wraps four lifecycle methods, but only `Init` and `Update` are ever *dispatched* through
+it — `EarlyInit`, `ModObjectLoaded` and `Shutdown` are called on the handler directly.
+The two that go through the wrapper share whose try/catch blocks share a single
+`_hasPrintedException` latch. Once *any* mod throws once from either, every later
+exception from every mod is swallowed silently for the rest of the process. A per-frame
+`NullReferenceException` in `Update` therefore shows up as one stack trace and then
+nothing. `EarlyInit`, `ModObjectLoaded` and `Shutdown` are invoked on a different path —
+the load pass and the reset routine call them directly — and always log.
 
 ### The world-load anchor
 
@@ -307,6 +320,13 @@ your first query or before `GetObjectName(localize: true)` runs. Read as a guard
 looks redundant and invites deletion; it is a proxy for "a frame has passed", not a signal,
 and removing it produces the worst failure shape there is: correct-looking code that fails
 sporadically.
+
+**What this anchor does *not* guarantee is a populated ECS world.** It fires early
+enough that a one-shot probe taken here can pin an empty or wrong world for the rest of
+the session — see [reading the live ECS world](harmony-and-ecs.md). The yield above buys one update cycle,
+which is enough for the managed state this hook is for and not enough to make a world
+probe safe. Anything scanning entities needs a re-probe path rather than a single
+anchored read.
 
 This is the anchor for *reading* the world and the baked database. It is **not** the
 anchor for changing baked data — that has to happen far earlier, from `EarlyInit`; see [database and baking](database-and-baking.md).
@@ -364,8 +384,9 @@ Both inherit `ICommandInfo`, which supplies `GetTriggerNames()` — an array, so
 may answer to several triggers — and `GetDescription()`.
 
 **Trap: implementing both interfaces does not get you both.** CoreLib tests
-`handler is IServerCommandHandler` first and takes the server path whenever that holds, so
-the client `Execute` is never called.
+`typeof(IServerCommandHandler).IsAssignableFrom(handlerType)` on the registered type
+first and takes the server path whenever that holds, so the client `Execute` is never
+called.
 
 **Either way the server sees the command first.** The chat window RPCs the typed line to the
 server; the server resolves the trigger and applies its permission check, and only then
@@ -496,7 +517,7 @@ looks impossible: CoreLib is installed, visibly loaded, and your mod still fails
 `CS0246`/`CS0103` on every CoreLib type. The reason is that your mod was compiled *before*
 CoreLib, so CoreLib's assembly was not yet among the metadata references.
 
-The loader's `ModSorter.SortMods` does the work:
+The loader's `DependencySorter.SortMods` does the work:
 
 1. It indexes every mod by `metadata.name`.
 2. It scans the mod list backwards; a mod with a **required** dependency whose name is not
