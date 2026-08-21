@@ -134,17 +134,26 @@ what remains is published one compatibility tag each (all in
 exists and when it aborts the publish).
 
 ### Runtime asmdef from the wizard
-The "Create New Mod" wizard emits the mod's runtime `.asmdef` already
-populated with the full game-DLL reference set (`Pug.Other.dll`,
-`0Harmony.dll`, `PugMod.SDK.Runtime.dll`, …). Mod code compiles against game
-types and Harmony out of the box — no manual reference editing is needed.
+**Run "Update Game Files" BEFORE "Create Mod".** Creating the mod freezes its
+precompiled-reference list from a one-time scan of the assemblies present at
+that moment, and nothing re-runs that scan; the assemblies arrive with Update
+Game Files and are not in the SDK repository. In the right order the wizard
+emits the mod's runtime `.asmdef` already populated with the full game-DLL
+reference set (`Pug.Other.dll`, `0Harmony.dll`, `PugMod.SDK.Runtime.dll`, …).
+Mod code compiles against game types and Harmony out of the box — no manual
+reference editing is needed.
 
 ## Runtime constraints (apply to every mod's code)
 
 ### RoslynCSharp sandbox — no System.IO
-Mods ship `Scripts/*.cs` and are compiled at load time inside a default-deny
-sandbox. `System.IO.*`, `System.Diagnostics.Process`, reflection-emit and
-similar BCL surface fail the compile on first reference (`mod load error:
+Mods ship `Scripts/*.cs` and are compiled at load time inside a **default-allow**
+sandbox with explicit deny lists — seven namespaces (`System.IO.*`,
+`System.Diagnostics.*`, `System.Net.*`, `System.Runtime.InteropServices.*`,
+`System.Reflection.*`, `RoslynCSharp.*`, `Pug.Platform.*`), sixteen types
+(`System.AppDomain` plus fifteen `HarmonyLib.*` including `AccessTools` and
+`Traverse`), seven assemblies and two members. The complete list is data, not
+folklore: `Resources/Assets/Resources/RoslynCSharpSettings.asset` in the
+decompile. A violation fails the compile on first reference (`mod load error:
 CompileFailed`).
 
 **This does not mean a mod cannot have a runtime config** — the sandbox

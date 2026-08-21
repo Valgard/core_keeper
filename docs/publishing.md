@@ -160,7 +160,8 @@ Three distinct uses of a "mod.io ID", deliberately kept separate:
   client when you subscribe normally in the in-game Mods menu.
 - **Local dev builds** use the **fake** `FAKE_MOD_ID` via `install-macos.sh`,
   which is the mechanism by which a not-yet-published mod can be loaded at
-  all (Pugstorm's loader only walks the mod.io subscription path); the
+  all through the mod.io path; the loader also has a `StreamingAssets/Mods`
+  side-loader and a Steam Workshop loader, so this is one route of three. The
   fake ID also keeps the dev build out of the real mod.io catalog sync.
 
 **Dev/Prod coexistence:** never have both the fake-ID dev install and a real
