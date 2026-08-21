@@ -28,11 +28,12 @@ Then branch by what you actually want to build:
 | a change to placement, tiles, creatures, world rules | [World and mechanics](world-and-mechanics.md) |
 | anything others will play together | [Multiplayer and server](multiplayer-and-server.md) — before publishing, not after |
 
-**If nothing builds yet, start with [the toolchain](toolchain.md)** — the exact
-Unity version, the build modules, the one-time wizard steps and the macOS
-meta-file fix, plus one worked example of a build arrangement. The rest of this
-handbook assumes you can already build and install *something* and now need to
-know how the game behaves.
+**If nothing builds yet, start with [toolchain requirements](toolchain.md)** —
+the exact Unity version, the build modules, the one-time wizard steps and the
+macOS meta-file fix. [Organising a mod
+project](organising-a-mod-project.md) then walks through one way to lay the
+project out. The rest of this handbook assumes you can already build and install
+*something* and now need to know how the game behaves.
 
 One habit worth adopting from the start: when something does not work, come back
 to the symptom table below rather than reading a chapter end to end. Nearly
@@ -87,13 +88,15 @@ symptom, not the topic.
 | Publish a mod, or fix what its listing says | [Publishing to mod.io](publishing.md) |
 | Find where the game keeps mods, saves or logs | [Platforms and hosts](platforms.md) |
 | Answer a question nothing here answers | [Reverse engineering](reverse-engineering.md) |
-| Get a build running in the first place | [Toolchain](toolchain.md) |
+| Get a build running in the first place | [Toolchain requirements](toolchain.md) |
+| Lay out a mod so it stays in version control | [Organising a mod project](organising-a-mod-project.md) |
 
 ## The chapters
 
 | Chapter | Covers |
 |---|---|
-| [Toolchain](toolchain.md) | What the SDK requires of any setup — the exact Unity version, the build modules, the one-time wizard steps, the project lock, the macOS meta-file fix — then one worked example of a build arrangement |
+| [Toolchain requirements](toolchain.md) | What the SDK demands of any setup — the exact Unity version, the build modules, the one-time wizard steps, the project lock, the macOS meta-file fix |
+| [Organising a mod project](organising-a-mod-project.md) | One worked arrangement: keeping Editor-generated files in version control, machine values in one place, a blocking formatter, pinned tooling |
 | [Platforms and hosts](platforms.md) | Where the game runs and keeps its files, what a Wine-based host breaks and how those failures look, reading logs on a translated host |
 | [Mod anatomy](mod-anatomy.md) | The `IMod` lifecycle, assembly definitions, the ModBuilderSettings `.asset` versus the generated manifest, the two kinds of GUID, dependencies, chat commands, and `requiredOn` with its crossed checks |
 | [Sandbox and configuration](sandbox-and-config.md) | What the load-time verification rejects and what it does not, why an Editor build proves nothing, and the three ways a sandboxed mod stores settings |

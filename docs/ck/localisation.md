@@ -282,8 +282,9 @@ against a file whose mtime you have checked.
 Finally, keep the full build log. The generation step names its target directory
 outright, and that single line is what distinguishes "wrote to the wrong tree"
 from every other explanation — a build run without a captured log leaves you
-guessing. See [Toolchain](toolchain.md) for how builds and installs are
-driven.
+guessing. See [organising a mod
+project](organising-a-mod-project.md#build-and-install) for one way builds and
+installs are driven.
 
 ## Generating the term assets
 
