@@ -159,7 +159,8 @@ The loader has **three** platforms: a side-loader that scans
 mod.io loader, and the Steam Workshop loader. `-safemode` disables only the
 first two — the Steam Workshop loader is registered unconditionally, even in
 safe mode, though it is usually inert there too, since `SteamClient.IsValid`
-fails without a live Steam session. Only the mod.io loader consults
-subscriptions — which is why a not-yet-published mod can be made loadable in
-more than one way, and why the dedicated server loads its mods from a
-directory rather than an account.
+fails without a live Steam session. Two of the three — the mod.io loader and
+the Steam Workshop loader — load from a subscription list; the side-loader is
+the one that reads a directory instead — which is why a not-yet-published mod
+can be made loadable in more than one way, and why the dedicated server loads
+its mods from a directory rather than an account.
