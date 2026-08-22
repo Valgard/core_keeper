@@ -221,6 +221,33 @@ class TestListItems:
         mod.process(p, fix=True)
         assert not any(l.lstrip().startswith("- -") for l in p.read_text().splitlines())
 
+    def test_check_mode_reports_an_overlong_list_item(self, tmp_path):
+        # regression: check mode used to skip straight past the defect the
+        # early-out any() had just found, so --fix rewrapped what check
+        # reported clean
+        original = "# T\n\n- " + "word " * 30 + "end of a genuinely long list item.\n"
+        p = write(tmp_path, "a.md", original)
+        problems, rewrapped = mod.process(p, fix=False)
+        assert rewrapped == 0
+        assert p.read_text() == original
+        assert any("a.md:3" in why and "list item" in why for why in problems)
+
+    def test_check_mode_is_silent_on_a_list_item_ending_on_a_link_and_a_full_stop(
+        self, tmp_path
+    ):
+        # the list path exempted a long line via a trailing ")"; a link
+        # followed by punctuation ends on "." instead, and prose already
+        # exempts that shape via LINK_TOKEN — the list path has to match it
+        link = (
+            "["
+            + "a fairly long link text for this exact case"
+            + "](target-file-name.md)"
+        )
+        original = "# T\n\n- some lead-in words before the " + link + ".\n"
+        p = write(tmp_path, "a.md", original)
+        problems, rewrapped = mod.process(p, fix=False)
+        assert problems == [] and rewrapped == 0
+
 
 class TestVisibleWidth:
     """A link is far longer in source than on screen, and an editor that keeps
