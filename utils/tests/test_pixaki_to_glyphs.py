@@ -94,18 +94,20 @@ def test_load_layers_reads_a_directory_package_exactly_like_a_zip(tmp_path):
         "Rects": Image.new("RGBA", (1, 1), MAGENTA),
         "Atlas": Image.new("RGBA", (1, 1), WHITE),
     }
-    loaded = {}
-    for form in PIXAKI_FORMS:
+
+    # Two named calls rather than a loop over PIXAKI_FORMS: the loop looked
+    # generic while the unpacking names the two forms outright.
+    def load(form):
         master = _pixaki(
             tmp_path / f"m-{form}.pixaki", layers, offset=(16, 12), form=form
         )
         # Without this the "directory" run could quietly be an archive, and the
         # comparison would pass over two runs of the same backend.
         assert os.path.isdir(master) == (form == "directory")
-        loaded[form] = g.load_layers(master)
+        return g.load_layers(master)
 
-    rects_zip, atlas_zip = loaded["zip"]
-    rects_dir, atlas_dir = loaded["directory"]
+    rects_zip, atlas_zip = load("zip")
+    rects_dir, atlas_dir = load("directory")
     # Non-trivial first: two all-transparent canvases would compare equal for
     # free, and prove nothing about the drawings ever being read.
     assert rects_zip.getpixel((16, 12)) == MAGENTA

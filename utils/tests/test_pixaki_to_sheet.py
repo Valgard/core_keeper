@@ -3,7 +3,7 @@
 import os
 
 from PIL import Image
-from conftest import PIXAKI_DIRECTORIES, PIXAKI_FORMS, write_pixaki
+from conftest import PIXAKI_DIRECTORIES, write_pixaki
 import pixaki_to_sheet as p
 
 EXCLUDE_TOP = {"Outsorted", "Background", "Search Field Complete", "Dropdown Complete"}
@@ -184,35 +184,9 @@ def test_load_config_normalizes_and_defaults(tmp_path):
 def test_build_sheet_in_place_template_not_truncated(tmp_path):
     """Regression: in-place regen defaults --meta-template to <out>.meta; the
     template must be READ before the output .meta is opened-for-write (truncated)."""
-    import zipfile, json, io
-
-    doc = {
-        "sprites": [
-            {
-                "cels": [{"identifier": "D1", "frame": [[0, 0], [4, 4]]}],
-                "layers": [
-                    {
-                        "name": "Icon",
-                        "clips": [{"itemIdentifier": "D1"}],
-                        "isVisible": True,
-                    }
-                ],
-            }
-        ]
-    }
-    pixaki = tmp_path / "s.pixaki"
-    with zipfile.ZipFile(pixaki, "w") as z:
-        z.writestr("document.json", json.dumps(doc))
-        bio = io.BytesIO()
-        Image.new("RGBA", (4, 4), (255, 0, 0, 255)).save(bio, "PNG")
-        z.writestr("images/drawings/D1.png", bio.getvalue())
-    (tmp_path / "s.json").write_text("{}")
+    pixaki = _write_sprite_pixaki(tmp_path, "{}", count=1)
     out = tmp_path / "s.png"
-    (tmp_path / "s.png.meta").write_text(
-        "fileFormatVersion: 2\nguid: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
-        "TextureImporter:\n  spriteMode: 2\n  spriteSheet:\n    serializedVersion: 2\n"
-        "    sprites:\n    nameFileIdTable:\n  mipmapLimitGroupName: \n  userData: \n"
-    )
+    (tmp_path / "s.png.meta").write_text(_TEMPLATE_META)
     p.build_sheet(str(pixaki), str(out))  # in-place: template defaults to s.png.meta
     meta = (tmp_path / "s.png.meta").read_text()
     assert "name: Icon" in meta  # the sprite was written
@@ -299,8 +273,11 @@ def test_build_sheet_reads_a_directory_package_exactly_like_a_zip(tmp_path):
     reads at all" would be far too weak a check here: build_sheet is
     deterministic -- stable internalIDs, packing, dedup -- so anything the
     container form perturbed would surface as a differing byte."""
-    built = {}
-    for form in PIXAKI_FORMS:
+
+    # Two named calls rather than a loop over PIXAKI_FORMS: the loop looked
+    # generic while the unpacking below names the two forms outright, so a third
+    # would have been built and then never compared.
+    def build(form):
         home = tmp_path / form
         home.mkdir()
         pixaki = _write_sprite_pixaki(home, "{}", form=form, count=len(_SPRITE_COLOURS))
@@ -310,17 +287,13 @@ def test_build_sheet_reads_a_directory_package_exactly_like_a_zip(tmp_path):
         assert os.path.isdir(pixaki) == (form == "directory")
         (home / "s.png.meta").write_text(_TEMPLATE_META)
         # Pin the guid: unpinned it is derived from the out path, which differs
-        # per run, and the packaging must be the only variable left.
+        # per form here, and the packaging must be the only variable left.
         mapping, guid = p.build_sheet(str(pixaki), str(home / "s.png"), guid="c" * 32)
-        built[form] = (
-            mapping,
-            guid,
-            (home / "s.png").read_bytes(),
-            (home / "s.png.meta").read_text(),
-        )
+        png = (home / "s.png").read_bytes()
+        return mapping, guid, png, (home / "s.png.meta").read_text()
 
-    mapping_zip, guid_zip, png_zip, meta_zip = built["zip"]
-    mapping_dir, guid_dir, png_dir, meta_dir = built["directory"]
+    mapping_zip, guid_zip, png_zip, meta_zip = build("zip")
+    mapping_dir, guid_dir, png_dir, meta_dir = build("directory")
     # A big enough sheet that the two listings can actually differ in order:
     # at two or three members, archive order and os.walk order coincide by
     # chance and the comparison is blind on that axis.
