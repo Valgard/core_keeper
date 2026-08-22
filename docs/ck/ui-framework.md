@@ -80,8 +80,12 @@ scrollbar handle). Two consequences worth knowing: an open popup drawn over a
 list does **not** leak hover to the elements behind it, so a guard for that is
 dead weight; and `ScrollBar.UpdateHandleSize` — which runs only when the handle is dragged
 or the content height changes — overwrites the handle collider's `y` whenever
-it runs, so authoring that value is pointless either way: content height
-becomes non-zero on the very first frame there is anything to show.
+it runs, so authoring that value is pointless either way: `ScrollHeight` —
+content height minus window height (`Pug.Other:357633`) — is 0 until content
+actually overflows the window, and below that `ScrollBar.Update` deactivates
+the whole scrollbar root and never calls `UpdateHandleSize` at all; the
+moment it does overflow, `UpdateHandleSize` runs that same frame and
+overwrites the authored value anyway.
 
 **Hover, not click, drives selection.** `RadicalMenu.SelectOptionIndex` fires
 `OnDeselected()` on mere hover exactly as it does on arrow-key navigation.
@@ -359,10 +363,10 @@ the Editor**, so the Editor assignment is only a design-time preview.
 `GetHoverTitle()`, `GetHoverDescription()`, `GetHoverStats(bool)` and
 `GetContainedObject()`. **No live ECS entity appears anywhere in that path.** To
 show the vanilla tooltip for an arbitrary catalog item, a `UIelement` need only
-return a `ContainedObjectsBuffer { objectData = new ObjectDataCD { objectID,
-variation, amount = 1, variationUpdateCount = 0 }, auxDataIndex = 0 }`. Spawning
-an entity, or porting your element onto the slot grid, is the expensive wrong
-answer.
+return a `ContainedObjectsBuffer { objectData = new ObjectDataCD { objectID =
+objectID, variation = variation, amount = 1, variationUpdateCount = 0 },
+auxDataIndex = 0 }`. Spawning an entity, or porting your element onto the slot
+grid, is the expensive wrong answer.
 
 The tooltip is positioned relative to the `pointer` transform (~357077) — it is
 **cursor-anchored**, so the selected element's own transform position is
@@ -439,12 +443,14 @@ see [storing configuration and state](persistence.md).
 `RadicalOptionsMenuOption_PushMenu` — out of `MenuManager.optionsMenuPrefab`, and
 repoints its `menuToPush` at an id of your own.
 
-**Patch 2** instantiates the mod's own AssetBundle prefab —
-`Object.Instantiate(prefab, Manager.camera.uiCamera.transform)` — and gives it
-a title, rather than cloning a vanilla menu. `MenuManager.Init` itself does
-`optionsMenu = InstantiateMenu<RadicalMenu>(optionsMenuPrefab)`;
-`optionsMenuPrefab` is a public `GameObject` field and `optionsMenu` a public
-property with a private setter.
+**Patch 2** instantiates the mod's own AssetBundle prefabs — the settings screen
+and the list-detail screen, each via `Object.Instantiate(prefab,
+Manager.camera.uiCamera.transform)` then `SetActive(false)` — rather than
+cloning a vanilla menu. The title is not set here; the screen renders it later,
+itself, from `Populate()`. `MenuManager.Init` itself does `optionsMenu =
+InstantiateMenu<RadicalMenu>(optionsMenuPrefab)`; `optionsMenuPrefab` is a
+public `GameObject` field and `optionsMenu` a public property with a private
+setter.
 
 **Patch 3** is the mechanism that makes an invented id work. `MenuType` is a
 normal enum, so you cast an integer far outside its range and intercept the

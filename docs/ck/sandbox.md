@@ -200,10 +200,14 @@ Verified by passing live loads:
 ## Harmony attributes are exempt — hook bodies are not
 
 `[HarmonyPatch(typeof(SaveManager), nameof(SaveManager.SetObjectAsDiscovered))]`
-loads cleanly — `SaveManager` is on no deny list to begin with. The patch
-attribute is in any case a special-cased compile-time-only reference: the
-reflection that resolves it happens inside the precompiled, trusted
-`0Harmony.dll`, not in your IL.
+loads cleanly, but proves nothing on its own — `SaveManager` is on no deny
+list to begin with. The exemption is a property of the mechanism, not of this
+example: the patch attribute is a special-cased compile-time-only reference,
+resolved inside the precompiled, trusted `0Harmony.dll` rather than in your
+IL, so it clears the deny list even for a type that IS on it. No live example
+demonstrates that, though: neither `System.AppDomain` nor the fifteen
+`HarmonyLib.*` internals — the whole of the type deny list — is a patch target
+anyone would plausibly write.
 
 **Hook the method instead of calling `Manager.saves` directly — within limits.**
 Your code sees the arguments and the result, while the member access itself

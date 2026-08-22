@@ -395,7 +395,7 @@ conversion pipeline that [database and baking](database-and-baking.md#changing-a
 The accurate reason to prefer the `PostConvert` seam is **ordering, not
 non-existence**: `Convert` snapshots the list
 (`SetPropertyList("PlaceableObject/canBePlacedOnObjects", …)`,
-`Pug.ECS.Conversion:2891`) and all converters run before any post-converter
+`Pug.ECS.Conversion:2893`) and all converters run before any post-converter
 (`PugConversion:751-790`), so a `PostConvert` mutation lands in the *next*
 conversion pass — which is what makes the "requires a restart" advice true.
 
