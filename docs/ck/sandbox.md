@@ -133,7 +133,7 @@ the sandbox by accident is a diagnostic log line. Three ways around it:
   happens inside that trusted assembly, so it costs no reference of your own. A
   reflective lookup written as
   `typeof(UIScrollWindow).GetMembersChecked().FirstOrDefault(x =>
-  x.GetNameChecked() == "_scrollable")` passes cleanly.
+  x.GetNameChecked() == "UpdateScrollHeight")` passes cleanly.
 
 ### Reaching a private member: resolving it is only half the job
 
@@ -165,7 +165,7 @@ API.Reflection.Invoke(UpdateScrollHeight, scrollWindow);
 ```
 
 **Both halves are SDK surface, so the whole recipe costs no dependency at all.**
-`GetMembersChecked` and `GetNameChecked` are extension methods in
+`GetNameChecked` and `GetMembersChecked` are extension methods in
 `PugMod.SDK.Runtime` (`:602`, `:642`) alongside `API.Reflection` itself — CoreLib
 is not involved anywhere in this.
 
@@ -194,9 +194,9 @@ Verified by passing live loads:
   `HasBuffer<T>` / `GetBuffer<T>`. **ECS writes are sandbox-legal too**, not
   just reads. The query patterns and the performance rules that govern them are
   in [Harmony and ECS](harmony-and-ecs.md).
-
-`JsonUtility` is the one serialisation entry point still unverified in either
-direction — no load here has exercised it.
+- **`UnityEngine.JsonUtility`** — no `UnityEngine` entry appears on any deny
+  list, and the loader itself serialises with it: `JsonUtility.ToJson` in
+  `ModAPIConfig.Set` (`Pug.Other:279624`).
 
 ## Harmony attributes are exempt — hook bodies are not
 
@@ -249,7 +249,8 @@ read a public field and a value-type argument.
 
 A failed verification writes **two** separate error entries, back to back:
 
-1. the counts summary — `Illegal Namespace/Type/Member References = N`
+1. the counts summary — the single-quoted, five-counter line shown
+   [above](#what-the-verification-checks)
 2. a full occurrence report, one line per usage site, of the form
    `Referenced in method body: '<Type>.<Method>()' at instruction: '<IL_…>'`
 
