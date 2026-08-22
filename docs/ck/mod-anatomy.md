@@ -10,8 +10,10 @@ take effect.
 
 ## What ships, and what the loader reads
 
-A built mod is a directory of payload plus a manifest. Five kinds ship, and
-the last two are copied verbatim rather than bundled:
+A built mod is a directory of payload plus a manifest. Five kinds ship, and only
+`Bundles/` is actually an AssetBundle — the other four are copied verbatim by their own
+build passes, which remove their hits from the asset list before `BuildAssets` bundles
+what remains:
 
 | In the install directory | What it is |
 |---|---|
@@ -62,8 +64,8 @@ is in [organising a mod project](organising-a-mod-project.md).
 
 `ModBuilderWindow.CreateNewMod` emits four things inside the project: the
 ModBuilderSettings `.asset`, the runtime `.asmdef`, the mod folder, and the `.meta`
-GUIDs that go with them. It also registers the mod folder as a scriptable-data context
-and marks it for overloading — the one effect that reaches outside the mod's own
+GUIDs that go with them. It also registers the mod's `Data/` folder as a scriptable-data
+context and marks it for overloading — the one effect that reaches outside the mod's own
 files.
 Its template-unpacking step is a no-op in this SDK clone — the `ModTemplate.zip` it looks
 for is not present.
@@ -112,9 +114,11 @@ Without `accessesExtraAssemblies`, loading a shipped `.dll` fails with
 ### There is no mod version at runtime
 
 That table is the whole of `ModMetadata`, and the runtime `LoadedMod` wrapper around it
-adds only `ModId`, `Handlers`, `Assets` and `AssetBundles`. **No version field exists
-anywhere in the loader's view of a mod.** A mod that wants to know which build of itself —
-or of another mod — is running has to derive it.
+adds only `ModId`, `Handlers`, `Assets`, `AssetBundles` and `GetFile(string path)`. The
+last reads any shipped file from the install directory — a path-traversal guard, then
+`File.ReadAllBytes`, both inside the trusted assembly, so it costs nothing against the
+sandbox. **No version field exists anywhere in the loader's view of a mod.** A mod that
+wants to know which build of itself — or of another mod — is running has to derive it.
 
 The one derivable identifier is the **modfile ID**. Installations live in a directory
 named `<modId>_<modfileId>`, and `API.ModLoader.GetDirectory(long modId)`
@@ -277,7 +281,7 @@ client.** That has concrete consequences for Burst-disabling; see [Harmony and E
 **Trap: only the first `Init` or `Update` exception is ever logged.** `ModContainer`
 wraps four lifecycle methods, but only `Init` and `Update` are ever *dispatched* through
 it — `EarlyInit`, `ModObjectLoaded` and `Shutdown` are called on the handler directly.
-The two that go through the wrapper share whose try/catch blocks share a single
+The two that go through the wrapper have try/catch blocks that share a single
 `_hasPrintedException` latch. Once *any* mod throws once from either, every later
 exception from every mod is swallowed silently for the rest of the process. A per-frame
 `NullReferenceException` in `Update` therefore shows up as one stack trace and then
@@ -542,6 +546,9 @@ script files at …ModLoader\<Mod>` lines. They are ordered by compile, unlike t
 mod …` lines. A correctly declared dependent shows its dependency's line first.
 
 For which mods are auto-installed alongside yours, see [publishing](publishing.md).
+
+A mod that silently is not there — the symptom both traps above produce — has its own
+symptom-first index: [troubleshooting](troubleshooting.md).
 
 ## `requiredOn` and its crossed checks
 
