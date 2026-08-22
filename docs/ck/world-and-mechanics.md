@@ -247,9 +247,9 @@ EntityUtility.AddTile(int tileSet, TileType tileType, int2 position,
 ```
 
 `Pug.Other:256440`. Its core is `tileUpdateBuffer.Add(new TileUpdateBuffer {
-command = Add, … })` — plus, for a `wall`, a paired `Remove` of `roofHole`. It
-rejects `tileSet < 0 || tileSet >= 75` and guards the spawn-area tiles. **The
-layer rules above are judged later**, when the buffer is applied.
+command = Add, … })`. It rejects `tileSet < 0 || tileSet >= 75` and guards the
+spawn-area tiles. **The layer rules above are judged later**, when the buffer
+is applied.
 
 **Two tile types queue extra removals of their own.** A `wall` pairs its `Add`
 with a `Remove` of `roofHole`; a `ground` pairs it with a `Remove` of both
@@ -389,7 +389,7 @@ reflection and invoked virtually.
 referencing it; `RunConverters` (`PugConversion:981-992`) calls
 `converter.Convert(gameObject)`, which `SingleAuthoringComponentConverter<T>`
 (`:1376-1386`) forwards to the abstract `Convert(T authoring)` — the same
-twice-per-boot conversion pipeline that [database and baking](database-and-baking.md#changing-a-vanilla-objects-baked-data) describes for
+conversion pipeline that [database and baking](database-and-baking.md#changing-a-vanilla-objects-baked-data) describes for
 `PugDatabasePostConverter`.
 
 The accurate reason to prefer the `PostConvert` seam is **ordering, not
@@ -818,7 +818,7 @@ them all:
 | Group | ObjectIDs | Note |
 |---|---|---|
 | Net-catchable critters | 9800-9819 | 20 entries, no gaps |
-| Fireflies / glowbugs | 3500-3504 | `YellowFireFly`, `BlueFireFly`, `GreenFireFly`, `RedFireFly`, `PurpleFireFly` (`Pug.Base:2648`); carry `FireflyCD`, **not** `CritterCD` |
+| Fireflies / glowbugs | 3500-3504 | `YellowFirefly` (`Pug.Base:2644`, lower-case `f` — vanilla is inconsistent here), `BlueFireFly`, `GreenFireFly`, `RedFireFly`, `PurpleFireFly` (`:2648`); carry `FireflyCD`, **not** `CritterCD` |
 
 Because the fireflies use a different component, following `TryCatchAnyCritters`
 in the decompile leads away from them entirely. They are bug-net catchable
@@ -838,12 +838,12 @@ Pet talents are structurally unlike player talents, which live in `SaveManager`.
   **5 points**. Every caller is managed UI (`PetTalentUIElement.CanPlacePoints`,
   the pet-info `UpdatePointsText`), so it is Harmony-patchable **with no
   BurstDisabler**.
-- **Trap: patching `GetTotalTalentPoints` alone does not move the budget.**
-  The JIT can inline that call inside `GetAvailableTalentPoints`, so a patch on
-  `GetTotalTalentPoints` silently fails to change what `GetAvailableTalentPoints`
-  returns unless `GetAvailableTalentPoints` is patched as well. Verified in a
-  mod that scales this budget: patching only `GetTotalTalentPoints` did
-  nothing until `GetAvailableTalentPoints` was patched too.
+- **Trap: patching `GetTotalTalentPoints` alone may not move the budget.**
+  Inlining a one-line method is a known Harmony pitfall: if the JIT inlines
+  that call inside `GetAvailableTalentPoints`, a patch on
+  `GetTotalTalentPoints` alone would not change what `GetAvailableTalentPoints`
+  returns. A mod that scales this budget patches both methods defensively,
+  against exactly that risk.
 - **The server does not validate the budget.** `InventoryUtility.
   SetPetTalentPoints` writes `buffer[talentIndex].points = points` directly and
   trusts the client; the only enforcement anywhere is the client-side UI reading
