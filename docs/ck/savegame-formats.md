@@ -208,7 +208,7 @@ would have to keep archetype layouts, chunk occupancy, entity IDs *and* the
 free-range pool mutually consistent. A mistake does not yield a missing object;
 it yields `DeserializationStates.SaveFileCorrupt`. A **read-only** parser is a
 different matter — the exact serialization code is in `Unity.Entities`, so it is
-buildable, but treat it as a real project rather than a quick script (see [reverse-engineering.md](reverse-engineering.md)
+buildable, but treat it as a real project rather than a quick script (see [Reverse engineering](reverse-engineering.md)
 for getting at that code).
 
 ### Cheap indicative measurement, without a parser
@@ -317,7 +317,7 @@ both ways:
   in one case it surfaced 2 losses where roughly 19 had occurred.
 
 If you need current state rather than remembered state, read the live ECS world
-instead — see [harmony-and-ecs.md](harmony-and-ecs.md).
+instead — see [Harmony and ECS](harmony-and-ecs.md).
 
 ## Telling save copies apart — GUID, never slot number
 
@@ -378,7 +378,7 @@ Practical order of attack:
    workbench sat at the base and none in any remote cluster.
 
 Decode ObjectIDs you do not recognise from the game's `ObjectID` enum in the
-decompile — a single-file bounded grep, see [reverse-engineering.md](reverse-engineering.md).
+decompile — a single-file bounded grep, see [Reverse engineering](reverse-engineering.md).
 
 ### Reading a mod's own ledger
 
