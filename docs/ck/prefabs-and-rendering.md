@@ -64,8 +64,9 @@ false` instead of destroying them.
 
 CK's `LinearLayoutUIComponent.background` must point at a `SpriteRenderer` on a
 **child** GameObject — never at a component on the layout GameObject itself.
-`UpdateBackground` offsets `background.transform.localPosition` to `-height/2`; if the
-background sits on the layout's own transform, that offset moves the entire layout.
+`UpdateBackground` offsets `background.transform.localPosition` — to `-height/2` on y in
+the vertical-layout branch, to `-width/2` on x in the horizontal one; if the background
+sits on the layout's own transform, that offset moves the entire layout.
 
 ## Nested prefabs and variants
 
@@ -136,13 +137,18 @@ every reference intact. A *serialized field* is the opposite case: the prefab st
 **by key**, so renaming it needs a matching YAML edit in every prefab that carries it, and
 a mismatch deserialises silently to null with no compile error and no warning.
 
-### Side effect: a component-less prefab leaves ModObjectLoaded
+### An unreproduced observation: a component-less prefab and ModObjectLoaded
 
-Reducing a prefab to component-less chrome drops it from the mod's set of top-level
-loaded objects — it becomes a nested dependency only — so it never reaches
-`IMod.ModObjectLoaded` (see [mod anatomy](mod-anatomy.md)). Route `ModObjectLoaded` by an explicit **name
-whitelist** of the objects you actually care about, rather than an
-else-register-everything branch that silently stops firing.
+A component-less prefab was once observed to drop out of the mod's set of top-level
+loaded objects — becoming a nested dependency only, and never reaching
+`IMod.ModObjectLoaded` (see [mod anatomy](mod-anatomy.md)). A later look at the build and
+load path found nothing that would cause that: `ModBuilder.BuildAssets` adds every
+remaining non-`Editor`/`CodeGen` asset path to the bundle and names each in the manifest,
+and the loader dispatches `ModObjectLoaded` for every manifest entry it loads — nothing in
+either step filters on component count. The observation has not been reproduced since, and
+the mechanism behind it, if any, is unexplained. Route `ModObjectLoaded` by an
+explicit **name whitelist** of the objects you actually care about regardless — an
+else-register-everything branch is worth avoiding either way.
 
 ## Sprite import: a PNG is not automatically a Sprite
 
@@ -231,17 +237,24 @@ anything downstream.
 
 Two independent traps that co-occur often enough to look like one.
 
-**Trap: the default material does not exist.** "Add Component → SpriteRenderer" in this
-SDK project assigns material `guid 274d4544…`, which is not backed by any asset. A
-renderer with a missing material **draws nothing** — with a valid sprite, correct
-sorting and a fully opaque colour, in the Editor as well as in game. The working mod UI
-renderers examined here all carry Unity's built-in **Sprites-Default**: `{fileID: 10754,
-guid: 0000000000000000f000000000000000, type: 0}` — set it on every hand-added renderer.
-Treat that as a rule of thumb, not a law: Sprites-Default is by a wide margin the
-most-used material across the game's own extracted prefabs, but a good many vanilla
-renderers run custom shaders instead, and CK prefabs pulled out with AssetRipper arrive
-with a placeholder material of their own (see below). The dangling default GUID is a
-property of this SDK project.
+**Trap: the default material is a dummy, not a missing one.** "Add Component →
+SpriteRenderer" in this SDK project assigns material `guid 274d4544…`. That GUID is not
+dangling: it resolves to `Assets/Materials/Default/UGC Lit Opaque.mat`, whose own shader
+GUID (`51ae811a…`) resolves too, to `Assets/Shaders/UGCDummy_Opaque.shader`. The
+assignment comes from a project **Preset** (`Assets/Graphics/Presets/SpriteRenderer.preset`),
+not a Unity built-in default. The SDK's own note on it explains the rest: these are dummy
+preview materials that "during runtime … are swapped out for actual game materials" — the
+swap is `ReplaceMaterials` in `PugMod.Loader`, matching **by material name** against
+`Resources.Load<MaterialSwapTable>("ModSDK/MaterialSwapTable")`. A renderer left on the
+unswapped dummy **draws nothing** — with a valid sprite, correct sorting and a fully
+opaque colour, in the Editor as well as in game. The working mod UI renderers examined
+here all carry Unity's built-in **Sprites-Default**: `{fileID: 10754, guid:
+0000000000000000f000000000000000, type: 0}` — set it on every hand-added renderer. Treat
+that as a rule of thumb, not a law: Sprites-Default is by a wide margin the most-used
+material across the game's own extracted prefabs, but a good many vanilla renderers run
+custom shaders instead, and CK prefabs pulled out with AssetRipper arrive with a
+placeholder material of their own (see below). The dummy-by-default assignment is a
+property of this SDK project's Preset, not of Unity or the game.
 
 **Trap: the sorting layer is `0`, not `"GUI"`.** A new renderer lands on sorting layer
 `0` ("Default"). This is not limited to runtime `AddComponent` — it recurs just as
@@ -359,9 +372,9 @@ a sprite that should be visible is gone.
    about *capture* — which renderers this mask governs — not about draw order.
 
 The corollary is the deliberate exemption: leaving a renderer at `maskInteraction: None`
-is how you keep it visible even though it sits inside the range. CK's own `ScrollBar` and
-handle sprites, at orders 46/47/48 inside a 40..55 mask range, need exactly that, or the
-row mask eats them.
+is how you keep it visible even though it sits inside the range. A mod's own `ScrollBar`
+and handle sprites, at orders 46/47/48 inside a 40..55 mask range, needed exactly that,
+or the row mask ate them.
 
 ### `VisibleInsideMask` with no active mask renders nothing at all
 
@@ -458,9 +471,10 @@ CK UI text is `PugText` rendering through `TextManager` / `PugFont`, all in
 ### Every PugText draws in front of every sprite
 
 `PugText.style.sortingLayer` defaults to `int.MinValue`, which is a **sentinel, not a
-layer**: `PugText.Render` resolves it to `SortingLayer.NameToID("GUI")` and then applies
-`style.orderInLayer` verbatim as the renderer's `sortingOrder`, with no runtime reset. The
-default `orderInLayer` is **9999**.
+layer**: `PugFont.Render` resolves it to the constant `SortingLayerID.GUI` and then
+applies `style.orderInLayer` verbatim as the renderer's `sortingOrder`, with no runtime
+reset. (`SortingLayer.NameToID("GUI")` is a different code path — it appears only on the
+TextMeshPro exception described above.) The default `orderInLayer` is **9999**.
 
 Glyphs and `SpriteRenderer`s therefore share the GUI layer, and at 9999 every `PugText`
 draws in front of every sprite. A popup background at order 54 cannot cover a label until
@@ -487,13 +501,16 @@ the popup's mask could clip them.
   `PugTextStyle.HorizontalAlignment { left, center, right }` serialises as `0/1/2`, and
   `verticalAlignment` likewise.
 
-### CK's drop shadow is a second text object
+### A CK drop-shadow pattern: a second text object
 
-CK's text shadow does **not** come from `PugText`'s built-in `outline` — that field is `0`
-on the widgets that have a shadow. The shadow is a second, black `PugText` carrying the
+CK's text shadow does **not** come from `outline` — a flag on `PugTextStyle`, not on
+`PugText` itself — which is `0` on the widgets that have a shadow. In the one HUD prefab
+this was checked against, the shadow is instead a second, black `PugText` carrying the
 same string, offset by `0.0625` world units to the right and down (exactly 1 px at 16
-pixels per unit) and drawn behind the real one with an `orderInLayer` one lower. Reaching
-for `outline` instead gives you a visible deviation from the vanilla look.
+pixels per unit) and drawn behind the real one with an `orderInLayer` one lower — but
+another shipped prefab builds its shadow differently, so treat this as one observed
+convention, not a rule that holds across CK. Reaching for `outline` instead gives you a
+visible deviation from the vanilla look.
 
 ### Faces and atlases
 
@@ -516,12 +533,13 @@ The atlases live in the `rrs*` family inside `resources.assets` — see [reverse
 for getting at them. The table is not the complete set: `TextManager.Init2` calls
 `InitCodePoints()` on **twelve** faces.
 
-Which charset a face uses differs per face. `thinTiny` carries its own `_customCharset`
-starting at ASCII 33, `thinSmall` uses the shared static `latinCharset`; the `charset`
-property (`Pug.Other:350400`) picks `_customCharset` whenever it is not null or
-whitespace. `thinTiny`'s 114 codepoints are a **true subset** of `thinSmall`'s 331 — the
-difference measures empty, so going from one to the other is a pure gain of 217
-characters.
+Which charset a face uses differs per face. `thinTiny` carries its own `_customCharset`,
+but it does not start at ASCII 33: index 0 is unmapped (`glyphs[0]` carries no `chars`)
+and `'!'` sits at index 1 — the charset holds 118 entries for 114 actual codepoints.
+`thinSmall` uses the shared static `latinCharset`; the `charset` property
+(`Pug.Other:350400`) picks `_customCharset` whenever it is not null or whitespace.
+`thinTiny`'s 114 codepoints are a **true subset** of `thinSmall`'s 331 — the difference
+measures empty, so going from one to the other is a pure gain of 217 characters.
 
 ### What the atlases do and do not contain
 
@@ -602,14 +620,17 @@ Non-obvious constraints:
   lands the pivot on vanilla's baseline. `charDims` stays `(8, 10)` regardless — it is a
   layout metric (line advance, reported size), not atlas geometry, and does not track the
   rect inflation.
-- **The 32-column charset atlases are 257 px wide rather than 256 because of the
-  horizontal inflation.** `InitCodePoints` widens every rect by `x -= 1; width += 2` —
-  but only while `rect2.width + rect2.x + 2 < texture.width`. When that fails it leaves
-  the glyph un-inflated and logs *"you need to make the font texture 1 pixel wider to
-  the right to support outlines"*. The same pass **skips** three kinds of cell: one
-  already present in `codePoints` (a duplicate character silently loses its later cell),
-  one whose charset character is a space, and one with a zero-size rect — a zero-size
-  rect is the encoding for "empty cell".
+- **32-column charset atlases end up one to two pixels wider than their cell grid — not
+  a fixed 257 px.** `InitCodePoints` widens every rect by `x -= 1; width += 2`, but only
+  while `rect2.width + rect2.x + 2 < texture.width`. `thinTiny`'s 256 px grid lands on
+  257; the same inflation lands `thinMedium`/`boldMedium` on 513, `boldLarge` on 514 and
+  `boldHuge` on 641 — each one to two pixels over its own grid width, not a shared 257.
+  When the inflation would overflow the texture it leaves the glyph un-inflated and
+  `LogError`s *"you need to make the font texture 1 pixel wider to the right to support
+  outlines"*, naming the texture in the message. The same pass **skips** three kinds of
+  cell: one already present in `codePoints` — **not silent**: it logs `"<font>: Already
+  defined glyph #<i> <char>"` for every duplicate except `§` — one whose charset
+  character is a space, and one with a zero-size rect, the encoding for "empty cell".
 - **A codepoint-keyed replacement cannot reach index-addressed glyphs.** The slots that
   carry no codepoint (CK's controller symbols, template orphans) will receive your pixels
   and never render them, because character lookup cannot address them at all. Glyphs with
@@ -654,16 +675,20 @@ assets is exactly 14 prefabs: the seven inventory/progress slots, `RecipeSlot`,
 `RecipeCategorySlot`, `BossStatueRecipeSlot`, `DroppedItem`'s ground stack size,
 `ConditionUI`, the score-text prefab and the main-manager prefab.
 
-CK's `isDamageNumber → SetDefaultFont(thinTiny)` branch in `TextManager` is **dead code**:
-rendering reads `style.fontFace`, `SetDefaultFont` only writes `defaultStyle.fontFace`,
-and the single copy running in the other direction (`defaultStyle = style.GetCopy()`)
-fires once in `Awake` — so a later `SetDefaultFont` call never reaches anything that
-renders.
+CK's `isDamageNumber → SetDefaultFont(thinTiny)` branch lives in `CombatText.OnOccupied`,
+not `TextManager` — and `SetDefaultFont` itself is a `PugText` method. It is still **dead
+code**: rendering reads `style.fontFace`, `SetDefaultFont` only writes
+`defaultStyle.fontFace`, and the single copy running in the other direction
+(`defaultStyle = style.GetCopy()`) fires once in `Awake` — so a later `SetDefaultFont`
+call never reaches anything that renders.
 
 ## HUD space and world space are not the same space
 
-CK renders with exactly **two orthographic cameras**, and they are separate coordinate
-spaces.
+CK renders with **three** orthographic cameras, not two: a Game Camera, a UI Camera and a
+`creditsCamera` used only for the credits screen — plus narrower-purpose cameras
+elsewhere (a bilinear-quad auto-sizer camera, a screenshot camera) that don't figure in
+ordinary gameplay rendering. The two below are what a mod's own rendering intersects
+with, and they are separate coordinate spaces.
 
 | Camera | Depth | Renders | Plane | Ortho size |
 |---|---|---|---|---|
@@ -673,6 +698,12 @@ spaces.
 Neither uses a RenderTexture. The UI camera maps the player's world-Y (≈0) to a constant
 viewport Y, so it cannot see the game-world position at all: **there is no clean
 projection between world XZ and HUD XY.**
+
+**The Game Camera's ortho size is not a fixed constant — it is recomputed every frame,**
+`gameCamera.orthographicSize = m_zoom * 0.5f * (pixelHeight / 16f)`, with `pixelHeight`
+coming from the render pipeline, so it tracks zoom and output resolution. At default zoom
+and a 270 px output height it happens to land on the same **8.4375** the table shows for
+the UI Camera, whose ortho size, by contrast, genuinely is fixed — see below.
 
 **The uiCamera shows a constant world area, so a fixed-size prefab is
 resolution-independent.** `Manager.camera.uiCamera.orthographicSize` is exactly
@@ -684,16 +715,22 @@ and CK exposes no UI-scale option at all. A prefab authored at a fixed size is t
 sizing logic**. For matching the vanilla look, CK's own inventory margin is 0.25 world
 units.
 
-**Dead end — do not repeat it:** projecting a world position onto the HUD via
-`gameCamera.WorldToScreenPoint(...)` → `uiCamera.ScreenToWorldPoint(...)` (or the
-viewport variants). The game camera is a fixed internal camera that **does not follow the
-player**, so `WorldToScreenPoint` returns a different pixel space — observed `screen.x ≈
-6026` on that display, `viewport.x ≈ 1.66`. The projected "centre" lands at the
-player's absolute world coordinate, i.e. off-screen, and the element simply vanishes.
-This is only visible by logging the actual runtime values; static reasoning about the
-camera setup will not reveal it.
+**A fiddlier way to project world → HUD:** `gameCamera.WorldToScreenPoint(...)` →
+`uiCamera.ScreenToWorldPoint(...)` (or the viewport variants). Fed a raw absolute ECS
+coordinate, this is **not** a categorical dead end so much as a coordinate-space
+mismatch: the game camera *does* follow the player — in follow mode it runs
+`ApplyCameraPosition(playerToFollow.WorldPosition)` every frame, and
+`UpdateRenderOrigo()` sets `RenderOrigo = m_cameraCurrentPosition.RoundToInt()`, which
+is what everything else renders against. The camera's own space is **rebased to that
+origin**, not the world's absolute one. An unadjusted absolute world position fed
+straight into `WorldToScreenPoint` therefore lands wildly outside the rebased frame —
+observed `screen.x ≈ 6026` on that display, `viewport.x ≈ 1.66` — and the element simply
+vanishes off-screen. Subtracting the origin first,
+`gameCamera.WorldToScreenPoint(worldPos - (Vector3)Manager.camera.RenderOrigo)`,
+projects correctly. This is only visible by logging the actual runtime values; static
+reasoning about the camera setup will not reveal it.
 
-**The working approach:** put the HUD root at **world origin `(0, 0, 0)`**. The UI camera
+**The simpler approach:** put the HUD root at **world origin `(0, 0, 0)`**. The UI camera
 renders world-origin near screen centre, and the game camera renders the *player* near
 screen centre too — so a HUD element at the root already sits approximately on the player
 for free, with no projection. The residual is CK's fixed camera look-offset (the player
@@ -741,9 +778,13 @@ The plain route is two steps:
 That is the same parent modal CoreLib windows end up under; what differs between a HUD and
 a modal window is the layer and the activation path, not the mount point.
 
-**Trap: guard the lazy instantiation on a static `Instance` that the HUD class sets in
-`Awake`, not in `Start`.** With the assignment in `Start` there is a one-frame window in
-which the update loop still sees no instance and instantiates the HUD a second time.
+**Guard the lazy instantiation against a double-instantiate — two shapes seen in
+practice.** One guards on a static `Instance` that the HUD class sets in `Awake`, not in
+`Start`: with the assignment in `Start` there is a one-frame window in which the update
+loop still sees no instance and instantiates the HUD a second time. Another guards with a
+plain `static GameObject` field instead, checked at the point of use, with its own reason
+documented in a comment there. Either avoids the double-instantiate; this is not a single
+rule with one correct form.
 
 ## Why a mod HUD stays invisible
 
@@ -808,7 +849,10 @@ below includes for exactly this reason.
 `IngameUI` sits at world z = −10, which is outside the uiCamera frustum. A child
 left at local z = 0 inherits that position and is never rendered. Give the HUD
 content **local z = 10**, bringing it to world z ≈ 0 — the plane the camera
-actually renders, and the same z CoreLib moves modal UIs to when it opens them.
+actually renders. That matches CoreLib's default for modal UIs too, though not for the
+reason it might look like: `initialInterfacePosition` (default `(0, 0, 10)`) is a
+per-prefab serialized field, not a constant, and CoreLib applies it once — in its
+`UIManager.Init` postfix — not each time a window opens.
 
 ### Never scale a mod HUD with `CalcGameplayUITargetScaleMultiplier`
 
