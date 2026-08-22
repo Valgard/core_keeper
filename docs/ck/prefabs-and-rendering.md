@@ -718,15 +718,15 @@ units.
 **A fiddlier way to project world → HUD:** `gameCamera.WorldToScreenPoint(...)` →
 `uiCamera.ScreenToWorldPoint(...)` (or the viewport variants). Fed a raw absolute ECS
 coordinate, this is **not** a categorical dead end so much as a coordinate-space
-mismatch: the game camera *does* follow the player — in follow mode it runs
-`ApplyCameraPosition(playerToFollow.WorldPosition)` every frame, and
-`UpdateRenderOrigo()` sets `RenderOrigo = m_cameraCurrentPosition.RoundToInt()`, which
-is what everything else renders against. The camera's own space is **rebased to that
-origin**, not the world's absolute one. An unadjusted absolute world position fed
-straight into `WorldToScreenPoint` therefore lands wildly outside the rebased frame —
-observed `screen.x ≈ 6026` on that display, `viewport.x ≈ 1.66` — and the element simply
-vanishes off-screen. Subtracting the origin first,
-`gameCamera.WorldToScreenPoint(worldPos - (Vector3)Manager.camera.RenderOrigo)`,
+mismatch: the game camera *does* follow the player — `currentCameraStyle` is
+`…FollowPlayer`, and `ApplyCameraPosition` subtracts `RenderOrigo` from whatever
+position it is given; `UpdateRenderOrigo()` sets `RenderOrigo =
+m_cameraCurrentPosition.RoundToInt()`, which is what everything else renders against.
+The camera's own space is **rebased to that origin**, not the world's absolute one. An
+unadjusted absolute world position fed straight into `WorldToScreenPoint` therefore
+lands wildly outside the rebased frame — observed `screen.x ≈ 6026` on that display,
+`viewport.x ≈ 1.66` — and the element simply vanishes off-screen. Subtracting the origin
+first, `gameCamera.WorldToScreenPoint(worldPos - (Vector3)Manager.camera.RenderOrigo)`,
 projects correctly. This is only visible by logging the actual runtime values; static
 reasoning about the camera setup will not reveal it.
 
