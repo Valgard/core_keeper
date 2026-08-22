@@ -146,7 +146,7 @@ loader keys on the guid and would clash on top of the name collision.
 
 ## When it will not take a connection
 
-Every symptom this setup produces — "wrong game version", the crossplay
+Every symptom this setup produces — "Game version mismatch", the crossplay
 privilege, a server that exits during world generation, mods listed but inert —
 belongs to the game rather than to the bottle, and each is written up under what
 you see in [`docs/ck/multiplayer-and-server.md`](ck/multiplayer-and-server.md) and [`docs/ck/troubleshooting.md`](ck/troubleshooting.md).
