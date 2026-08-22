@@ -42,7 +42,11 @@ def load_config(pixaki_path):
 
     Missing keys fall back to _CONFIG_DEFAULTS; a missing .json raises
     FileNotFoundError."""
-    cfg_path = os.path.splitext(pixaki_path)[0] + ".json"
+    # normpath first: a directory package is likely typed with the trailing
+    # slash shell completion appends, and splitext sees no extension on
+    # '<name>.pixaki/' -- which sent this lookup INSIDE the package while the
+    # error below said "next to the .pixaki".
+    cfg_path = os.path.splitext(os.path.normpath(pixaki_path))[0] + ".json"
     if not os.path.exists(cfg_path):
         raise FileNotFoundError(
             f"sprite-def config not found next to the .pixaki: {cfg_path}"

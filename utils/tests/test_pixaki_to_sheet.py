@@ -307,6 +307,21 @@ def test_build_sheet_reads_a_directory_package_exactly_like_a_zip(tmp_path):
     assert png_dir == png_zip  # last: a mismatch here prints two PNG blobs
 
 
+def test_build_sheet_accepts_a_directory_package_with_a_trailing_slash(tmp_path):
+    """Shell completion appends a slash to a DIRECTORY and never to a file, so
+    this is the likelier way the new packaging gets typed at all.
+
+    `os.path.splitext` sees no extension on '…/s.pixaki/' and left the sibling
+    lookup pointing INSIDE the package, at '…/s.pixaki/.json' -- while the
+    error said "next to the .pixaki". The line is untouched by the adapter and
+    was correct as long as it was unreachable: a directory path used to die one
+    level earlier on IsADirectoryError."""
+    pixaki = _write_two_sprite_pixaki(tmp_path, "{}", form="directory")
+    (tmp_path / "s.png.meta").write_text(_TEMPLATE_META)
+    mapping, _ = p.build_sheet(f"{pixaki}/", str(tmp_path / "s.png"))
+    assert len(mapping) == 2
+
+
 def test_validate_pins_rejects_unused_pin(tmp_path):
     """A pin key that matches no produced sprite (a typo) silently no-ops the
     pin; the build must fail loud so the typo can't ship a hash-id sprite."""
