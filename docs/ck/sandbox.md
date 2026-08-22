@@ -194,9 +194,10 @@ Verified by passing live loads:
   `HasBuffer<T>` / `GetBuffer<T>`. **ECS writes are sandbox-legal too**, not
   just reads. The query patterns and the performance rules that govern them are
   in [Harmony and ECS](harmony-and-ecs.md).
-- **`UnityEngine.JsonUtility`** — no `UnityEngine` entry appears on any deny
-  list, and the loader itself serialises with it: `JsonUtility.ToJson` in
-  `ModAPIConfig.Set` (`Pug.Other:279624`).
+- **`UnityEngine.JsonUtility`** — the deny lists never touch `JsonUtility`:
+  among Members they name only `UnityEngine.Application.Quit` and
+  `System.Type.InvokeMember`. The loader itself serialises with it:
+  `JsonUtility.ToJson` in `ModAPIConfig.Set` (`Pug.Other:279626`).
 
 ## Harmony attributes are exempt — hook bodies are not
 
