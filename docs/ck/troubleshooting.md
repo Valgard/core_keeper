@@ -7,10 +7,9 @@ an Editor that hangs, a build that produces nothing. Each entry names what you
 observe, then the mechanism, then the fix. Where a symptom has more than one
 cause, the cheapest check comes first.
 
-Most in-game diagnosis happens in `Player.log`. Under Wine the file is
-**UTF-16**, so `grep` reports "binary file matches" and prints nothing useful —
-pipe it through `strings -n 3` first (`iconv` was unreliable on it). The host
-path is in [platforms and hosts](platforms.md).
+Most in-game diagnosis happens in `Player.log`, and every recipe below greps
+it directly — on every installation checked, including under Wine, it is plain
+UTF-8 text with no NUL bytes. The host path is in [platforms and hosts](platforms.md).
 
 ## The mod loads, but its scripts are never compiled
 
@@ -74,14 +73,16 @@ sync it triggers is destructive by design. `SyncUsersSubscriptions` **clears**
 the local subscription set and rebuilds it from the account's `/me/subscribed`
 response, then wakes the mod-management pass, which uninstalls every mod in the
 local registry that no user subscribes to (`ShouldThisModBeUninstalled` →
-`PerformOperation_Delete`) — installation directory and modfile archive both
-gone. A locally installed dev build has a placeholder mod ID that resolves to
-nothing in the catalog, so it can never appear in that response and is removed
-without a prompt or a dialog. Starting the game, loading a world and playing do
-not trigger the sync; the mod browser does. Reinstall each dev build afterwards;
-doing so rewrites all three locations a dev install occupies.
+`PerformOperation_Delete`) — the installation directory is gone, but the
+modfile archive is not: `PerformOperation_Delete` calls only the
+delete-installed-mod step, never `TryDeleteModfileArchive` (that runs only on
+a low-storage cleanup or a failed download). A locally installed dev build has
+a placeholder mod ID that resolves to nothing in the catalog, so it can never
+appear in that response and is removed without a prompt or a dialog. Starting
+the game, loading a world and playing do not trigger the sync; the mod browser
+does. Reinstall each dev build afterwards.
 
-### Then: a stale game-version compatibility tag
+### Cheaper if you have a log: a stale game-version compatibility tag
 
 **This one is not silent — check it first if you have a log.** A published mod
 whose profile carries no compatibility tag for the running game version is
@@ -106,12 +107,15 @@ game version and each tag and compares only those three groups, so `1.2.1.4` and
 the other. Most Core Keeper releases are fourth-component patches and need no
 re-tagging at all; a move like `1.2.0.x` → `1.2.1.x` does.
 
-**A local dev install can reproduce it.** The install writes the configured
+**A local dev install can reproduce it — but only when installed through the
+mod.io cache, not when side-loaded.** The install writes the configured
 game-version list into its own tags, so it goes through the same filter and
-passes because of them — a stale `CK_GAME_VERSION` fails locally just as it
-would for a subscriber. What a dev install genuinely does not carry is a type
-tag, so it never reproduces the `Asset` failure above; and like any mod without
-`Script (Elevated Access)`, it gets `skipSafetyChecks` forced to false.
+passes because of them — a stale configured version list fails locally just as
+it would for a subscriber. A side-loaded mod never runs this check at all: its
+loader passes `supportsCurrentVersion: true` unconditionally (see [multiplayer and server](multiplayer-and-server.md)).
+What a dev install genuinely does not carry is a type tag, so it never
+reproduces the `Asset` failure above; and like any mod without `Script (Elevated
+Access)`, it gets `skipSafetyChecks` forced to false.
 
 **Fix:** add the new version tag on the mod.io website; no rebuild is needed if
 the code already runs. Keep the publish configuration's game-version list
@@ -172,7 +176,7 @@ local dev install**, so budget a reinstall of each.
   `rm -rf CoreKeeperModSDK/Library/{SourceAssetDB,ArtifactDB,Artifacts}`
   (Editor closed).
 - **Read the right manifest.** The publish path builds into a temporary cache
-  directory and deletes it — there is no manifest left to inspect, and a a
+  directory and deletes it — there is no manifest left to inspect, and a
   validation-only publish run inspects nothing. Only a normal build writes
   `ModManifest.json` into the install output. Verify the GUID there, after a
   fresh build, or you are reading an hours-old file and drawing the wrong
@@ -270,11 +274,11 @@ two lists below.
 | `…/Public/mod.io/5289/state.json` | `existingUsers["<userId>"].disabledMods` | *skip this mod* — the loader drops it before the compile step, with no warning dialog |
 | `…/LocalLow/Pugstorm/Core Keeper/Steam/<account>/modloader/config.json` | `unsupportedModsToLoad` | *load this incompatible mod anyway* — a force-load override |
 
-`disabledMods` takes mod.io IDs as **strings** (not GUIDs) and the file is
-minified JSON — preserve `separators=(",", ":")` when writing it
-programmatically. `unsupportedModsToLoad` takes mod **GUIDs**. To get rid of a
-stuck incompatible mod cleanly, remove its GUID from `unsupportedModsToLoad`
-*and* add its mod.io ID to `disabledMods`.
+`disabledMods` takes mod.io IDs as **strings** (not GUIDs); the game itself
+writes the file as minified JSON, but that is not load-bearing — an indented
+`state.json` loads just as well. `unsupportedModsToLoad` takes mod **GUIDs**. To
+get rid of a stuck incompatible mod cleanly, remove its GUID from
+`unsupportedModsToLoad` *and* add its mod.io ID to `disabledMods`.
 
 Both files belong to the loader itself, not to any one host — only the root of
 the path above changes with the platform. `unsupportedModsToLoad` is not
@@ -286,11 +290,19 @@ updates (see [multiplayer and server](multiplayer-and-server.md)).
 
 ### "Loading screen hangs forever" is usually a quit deadlock
 
-Not a slow load. When a `Manager.<Initialize…>` throws — e.g. `Init failed for
-UI Manager` — Unity calls `Application.Quit()`, but `ModManager` has registered
-a quit-blocking callback that waits on mod.io async operations. Those operations
-never complete, because the init crash never let them start, so the quit hangs
-forever. What you see is a frozen loading screen.
+Not a slow load. When a `Manager.<Initialize…>` throws, grep for **`Manager
+failed to initialize properly. Check previous log messages for errors.
+Exiting...`** — the unambiguous anchor. The per-manager line just above it
+(`Init failed for <Manager>`) is a dead end: it logs and then does nothing more
+than a `yield break`. The caller that logs the anchor line is what actually
+quits — with mods loaded and no `-safemode` it first calls
+`_platformInterface.Restart(…)`, attempting a restart into safe mode, and
+`Restart` itself calls `Application.Quit()`; otherwise it calls
+`Application.Quit()` directly. Either way, `ModManager` has registered a
+quit-blocking callback that waits on mod.io async operations, and those
+operations never complete, because the init crash never let them start — so
+the quit (restart or outright) hangs forever. What you see is a frozen loading
+screen.
 
 **The four lines everyone greps for are not the tell — a clean exit logs all
 four too.** The block is deliberate: `ModManager`'s handler logs
@@ -516,10 +528,10 @@ output.
 (`Packages/dev.pugstorm.mod/SDK/Editor/ModBuilder.cs:53`) calls
 `AssetDatabase.FindAssets("t:Object", new[] { modDirectory })`. In batchmode
 that resolves against `Library/SourceAssetDB` — Unity's persistent asset
-database, a SQLite file updated incrementally when the Editor opens, and a
-cache separate from Bee and ScriptAssemblies. It does not pick up the children
-of a freshly symlinked mod folder. `IsValidFolder` returns true while
-`FindAssets` returns zero hits.
+database, an LMDB file (its meta page opens with the `0xBEEFC0DE` magic) updated
+incrementally when the Editor opens, and a cache separate from Bee and
+ScriptAssemblies. It does not pick up the children of a freshly symlinked mod
+folder. `IsValidFolder` returns true while `FindAssets` returns zero hits.
 
 **None of these help** (all verified): deleting only `Library/Bee` and
 `Library/ScriptAssemblies`; `AssetDatabase.Refresh(ForceUpdate | ForceSynchronousImport)`;

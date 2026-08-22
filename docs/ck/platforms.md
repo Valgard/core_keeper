@@ -95,9 +95,9 @@ files themselves are written and worlds are unaffected.
 
 ## Reading logs on a translated host
 
-`Player.log` is written as **UTF-16** under Wine, so `grep` reports "binary file
-matches" and prints nothing useful; decode it first. Its Windows-side error
-strings also arrive in the **host system's language**, which produces the
+`Player.log` greps directly on every installation checked, including under
+Wine — it is plain UTF-8 text with no NUL bytes. Its Windows-side error strings
+still arrive in the **host system's language**, though, which produces the
 memorable case of a write failure whose error text is the locale's word for
 success — `ERROR_SUCCESS` rendered as `Erfolg`. Match on the numeric code, not
 on the message.
