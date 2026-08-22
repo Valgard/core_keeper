@@ -95,7 +95,7 @@ client-side" — it declares that every server you join must also run it.
 
 Once the connection is up the client sends an empty `ModInfoRequestRPC`, and the
 server answers with one `ModInfoRPC` per loaded mod
-(`Pug.ECS.Components:3680`):
+(`Pug.ECS.Components:3681`):
 
 | Field | Type |
 |---|---|
@@ -115,13 +115,15 @@ with `name.Substring(0, min(UTF8MaxLengthInBytes / 2, len))`
 characters are all that survive. Matching is unaffected, and for a **published**
 mod neither is the display: when the server demands a mod the client lacks, the
 client resolves `modId` through `ModIOUnity.GetMod` and prints the mod.io
-profile name instead (`:125076`). When that lookup has no mod.io identity to
-resolve — a mod side-loaded from `StreamingAssets/Mods`, whose `modId` is
-negative — `GetMod` fails and the dialogue falls back to `"Unknown"`
-(`:125066`, `:125071`), not to the truncated field. In the other direction —
-your `Server`-flagged mod missing on the server — the dialogue prints the
-client's own local `metadata.name` (`localMod.name = loadedMod.Metadata.name`,
-`Pug.Other:124927`), untruncated, and never touches this field at all.
+profile name instead (`:125076`), or `"Unknown"` if that lookup fails
+(`:125066`, `:125071`) — `GetMod` is only ever called for a **positive**
+`modId` (`Pug.Other:125064-125083`). For a **negative** one — a mod
+side-loaded from `StreamingAssets/Mods` — `GetMod` is skipped entirely, and
+the truncated field is exactly what reaches the player. In the other
+direction — your `Server`-flagged mod missing on the server — the dialogue
+prints the client's own local `metadata.name` (`localMod.name =
+loadedMod.Metadata.name`, `Pug.Other:124927`), untruncated, and never touches
+this field at all.
 
 **If you patch this layer:** `ModInfoRpcSystem.OnCreate` builds its mod list
 exactly **once**, not per request, and — unlike `OnUpdate` and `OnDestroy` in the
@@ -188,7 +190,7 @@ worked example below.
 
 **The world you wrote it in decides the direction, and there is only one
 direction.** Snapshots are produced in the server world — `GhostSendSystem`,
-which `NetworkingManager.InitWorld` (`Pug.Other:285325`, the class itself at
+which `NetworkingManager.InitWorld` (`Pug.Other:285322`, the class itself at
 `:284453`) configures only in the world that has one, called from
 `ECSManager.InitWorld` (`:2996`) for both worlds — and applied in the client
 world, `GhostUpdateSystem`, which CK fetches from `Manager.ecs.ClientWorld`. So
