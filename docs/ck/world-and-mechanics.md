@@ -122,11 +122,12 @@ computes
 int2 x = (int2)math.floor(mapUI.GetCursorWorldPosition());
 ```
 
-— the map **cursor**, not the player — and renders it as `"%d, %d"` followed
-by `"(%d)"`. That parenthesised number is the straight-line distance to the world
+— the map **cursor**, not the player — and renders each coordinate through
+`ToString("F0")` (`Pug.Other:318520-318528`), not a printf-style `"%d, %d"`
+template. That parenthesised number is the straight-line distance to the world
 origin, computed **from the already-floored ints** rather than from the float
-position. Measured: at `63, -14` the readout shows `(65)`, matching
-`sqrt(63² + 14²) = 64.5 → 65`.
+position, formatted the same way. Measured: at `63, -14` the readout shows
+`(65)`, matching `sqrt(63² + 14²) = 64.5 → 65`.
 
 **Which cursor depends on the input device.** `MapUI.GetCursorScreenPosition`
 (`Pug.Other:333982`) branches on `inputModule.PrefersKeyboardAndMouse()`: with
@@ -136,7 +137,12 @@ not a pointer — and reproducing vanilla's number means reading the same source
 does, rather than assuming a mouse exists.
 
 The player marker drawn on the map is rasterised independently, through
-`RoundToMultiple(0.0625f)`.
+`MakePixelPerfectMapPosition` (`:333968`, called from `:333387`), which
+quantises with `GetPixelPerfectQuantization()` — `0.0625f / GetCurrentZoom()`
+(`:332990`) — so the step shrinks as you zoom in rather than staying fixed at
+`0.0625f`. The literal `RoundToMultiple(0.0625f)` does exist in the code, but
+in `MapUI.CenterMapOnLocalPlayer` (`:333504`), operating on a screen-coordinate
+offset, not on the marker.
 
 **Trap: at a tile boundary the readout and the marker may differ by 1.** They are
 two separate quantities, so reproducing vanilla's numbers exactly means copying
@@ -177,13 +183,13 @@ for the reasons in [savegame formats](savegame-formats.md).
 
 ## Tile layers: what may sit on what
 
-`TileType.GetNeededTile` (`Pug.Base:18111`) and `GetInvalidTile` (`:18155`) are
+`TileType.GetNeededTile` (`Pug.Base:18111`) and `GetInvalidTile` (`:18156`) are
 the authority. A tile is applied only if at least one of its needed tiles is
 present at that position and none of its invalid ones is.
 
 | Tile | Requires (ANY of) |
 |---|---|
-| `rail`, `wall`, `thinWall`, `floor`, `fence`, `rug`, `litFloor`, `looseFlooring`, `circuitPlate`, `smallStones`, `debris`, `debris2`, `bigRoot`, `groundSlime`, `chrysalis` | `ground`, `bridge` |
+| `rail`, `wall`, `thinWall`, `floor`, `fence`, `rug`, `litFloor`, `looseFlooring`, `circuitPlate`, `ancientCircuitPlate`, `smallStones`, `debris`, `debris2`, `bigRoot`, `groundSlime`, `chrysalis` | `ground`, `bridge` |
 | `bridge` | `pit`, `water` |
 | `dugUpGround`, `smallGrass`, `floorCrack` | `ground` |
 | `wateredGround` | `ground`, `dugUpGround` |
@@ -223,9 +229,14 @@ apply-time rule uses. The correct predicate for "can a rail/floor/wall go here"
 is `ground || bridge`.
 
 Vanilla itself substitutes a tile the player never asked for:
-`PlaceObjectSlot.GetTileTypeToPlace` (`Pug.Other:311561`) silently lays `ground`
-first when a `wall` is placed on a position that has neither `ground` nor
-`bridge`. Inserting a missing substrate is an established pattern, not a hack.
+`PlaceObjectSlot.GetTileTypeToPlace` (`Pug.Other:311561-311568`) returns
+`TileType.ground` **instead of** `wall` when a wall is placed on a position
+with neither `ground` nor `bridge` — gated on a third condition alongside the
+missing-substrate check: a ground item must exist for that tileset. The wall
+itself does not follow automatically in the same click; it needs a second
+click, handled by `IsPlacingWallAfterPreviouslyPlacedGround`
+(`:311570-311577`). Inserting a missing substrate is an established pattern,
+not a hack.
 
 ## `AddTile` is a queue append, not a commit
 
@@ -239,6 +250,12 @@ EntityUtility.AddTile(int tileSet, TileType tileType, int2 position,
 command = Add, … })` — plus, for a `wall`, a paired `Remove` of `roofHole`. It
 rejects `tileSet < 0 || tileSet >= 75` and guards the spawn-area tiles. **The
 layer rules above are judged later**, when the buffer is applied.
+
+**Two tile types queue extra removals of their own.** A `wall` pairs its `Add`
+with a `Remove` of `roofHole`; a `ground` pairs it with a `Remove` of both
+`pit` and `water`. The second matters if you follow this chapter's advice to
+lay `ground` as a substrate — doing so destroys any pit or water already at
+that position, silently and without a placement check.
 
 ### Ordering: the buffer is reversed twice, so insertion order survives
 
@@ -263,10 +280,9 @@ costs the player a walk to pick it back up, nothing more.
 
 `AddTile` is the convergence point of **equipment-driven** tile placement: every
 path where the player's held item produces a tile — placing, digging, watering,
-painting, roofing — routes through it. Vanilla calls it at
-`Pug.Other:311379`/`:311382`, and third-party placement mods call it too. That
-makes it the right place to *change* a placement — but the wrong place to
-*cancel* one:
+painting, roofing — routes through it. Vanilla calls it at `Pug.Other:311379`,
+and third-party placement mods call it too. That makes it the right place to
+*change* a placement — but the wrong place to *cancel* one:
 
 **The item is debited from the inventory *after* the `AddTile` call.** Vanilla
 does it in the same method, one statement later: `EntityUtility.AddTile(...)`
@@ -285,7 +301,7 @@ actually running against, as described above.
 
 **Trap: `AddTile` is not the only writer of the buffer.** Nine call sites reach
 it, and outside them `Pug.Other` builds a `TileUpdateBuffer` entry with
-`command = Add` directly at 29 further places — world spawning
+`command = Add` directly at 28 further places — world spawning
 (`SpawnObjectAtPosition`), the `SpawnTileOnDeathCD` handler, plant growth
 (`RootPlantCD`), caveling territory, melee-attack state code, and a private
 `AddTile(ref EntityCommandBuffer, …)` helper with a different signature. Patching
@@ -306,11 +322,12 @@ grants permission through **two independent, OR-ed routes**:
 
 1. **`PlacementCD` bool flags** — `canPlaceOnWalkableTiles`, `canPlaceOnWater`,
    `canBePlacedOnLava` (which is `water` with `tileset == 3`), `canPlaceOnPit`,
-   … They are set in `PlacementHandler.Activate` (`:296019`) from
+   … They are set in `PlacementHandler.Activate` (`:296014`) from
    `ObjectPropertiesCD` hashes:
 
    | Hash | Flag |
    |---|---|
+   | `1497889171` | `canPlaceOnWalkableTiles` (`:296026`) |
    | `-1324171664` | `canPlaceOnWater` |
    | `-1535225238` | `canBePlacedOnLava` |
    | `-1827158511` | `canPlaceOnPit` |
@@ -352,7 +369,10 @@ conveyor belts.
 
 `ObjectCanBePlacedOnObject` is a plain membership scan — veto list first as a
 hard block, then the allow list, where a hit returns `true` with no further
-condition.
+condition. A third, reciprocal step follows if neither list resolves it:
+`:295898-295930` resolves the **target**'s own primary prefab and tests
+whether *its* `-789473209` (`canBePlacedOnObjects`) list contains the object
+being placed — so either object naming the other is enough.
 
 Note that permission and layer rules are separate gates. Being allowed to place
 a rail on a pit does not conjure a substrate: the rail still needs `ground` or
@@ -361,8 +381,23 @@ a rail on a pit does not conjure a substrate: the rail still needs `ground` or
 ### Changing the list requires the bake-time hook
 
 `PlaceableObjectConverter.Convert(PlaceableObjectAuthoring)`
-(`Pug.ECS.Conversion:2825`) is **editor-side only** — zero calls were measured
-in the shipped game, so patching it does nothing at all.
+(`Pug.ECS.Conversion:2825`) **does run in the shipped game.** Zero *static* call
+sites is expected, not a sign the converter never fires: converters are found by
+reflection and invoked virtually.
+`ConversionManager.FindAllConvertersInCurrentAssembly()`
+(`PugConversion:632-650`) scans the executing assembly and every loaded assembly
+referencing it; `RunConverters` (`PugConversion:981-992`) calls
+`converter.Convert(gameObject)`, which `SingleAuthoringComponentConverter<T>`
+(`:1376-1386`) forwards to the abstract `Convert(T authoring)` — the same
+twice-per-boot conversion pipeline that [database and baking](database-and-baking.md#changing-a-vanilla-objects-baked-data) describes for
+`PugDatabasePostConverter`.
+
+The accurate reason to prefer the `PostConvert` seam is **ordering, not
+non-existence**: `Convert` snapshots the list
+(`SetPropertyList("PlaceableObject/canBePlacedOnObjects", …)`,
+`Pug.ECS.Conversion:2891`) and all converters run before any post-converter
+(`PugConversion:751-790`), so a `PostConvert` mutation lands in the *next*
+conversion pass — which is what makes the "requires a restart" advice true.
 
 The list is reachable from `PugDatabasePostConverter.PostConvert(GameObject)`
 (`Pug.Other:3474`/`:3478`), which does run per world/database conversion. From a
@@ -416,8 +451,8 @@ move the work to `UpdatePlaceablePosition` instead.
 
 ## Consuming an item from an inventory slot
 
-`InventoryUtility.ConsumeEntityAt` (`Pug.Other:409859`) takes an
-`optionalTargetObjectID`.
+`InventoryUtility.ConsumeEntityAt` (`Pug.Other:409858`, class at `:409602`)
+takes an `optionalTargetObjectID`.
 
 **Trap: despite the name, it is not optional.** The slot's ObjectID is compared
 **only** when that argument is set. Left at `ObjectID.None`, the call consumes
@@ -427,8 +462,12 @@ data loss for the player, and because it needs a race to happen it will not show
 up in an unhurried manual test. With the argument set, the consume fails
 instead, which is the direction you want this failure to go.
 
-An overload `ConsumeEntityAt(Entity inventory, int index, …)`
-(`Pug.Other:407732`) accepts any inventory entity.
+`Create.ConsumeEntityAt(Entity inventory, int index, …)` (`Pug.Other:407732`,
+class `Create` at `:407719`) looks like an overload of the same method but is
+not — it is a different class. It builds an `InventoryChangeData` command and
+pushes it onto the inventory-update buffer; it consumes nothing itself.
+`InventoryUtility.ConsumeEntityAt` above already takes an `Entity inventory`,
+so reaching for `Create`'s version for that reason buys nothing.
 
 ## Entity radii: loaded is not observed
 
@@ -557,14 +596,19 @@ the ore *yield*, not the health.** At `12,960,480` health for 1,800 ore that is
 the scale by a factor of thousands and makes narrow health windows look
 unreachable when they are in fact enormous. A worked case: the mod.io mod
 *EternalOreBoulders* (6042718) does not prevent mining but heals afterwards —
-every 30 ticks (≈0.5 s) it sets every entity carrying `RequiresDrillCD` and
+every 30 ticks it sets every entity carrying `RequiresDrillCD` and
 `DontDropSelfCD` back to `maxHealth`, but only while `0 < health < maxHealth *
-0.1` (a boulder already at `health <= 0` is deliberately not reanimated). That
-10% window is 1.296 million health wide — with eight drills at an 11× speed
-multiplier it stays open for roughly 12 minutes and some 1,400 heal
-opportunities. "The drill speed skips the window" is arithmetic that does not
-work out; when the numbers say a window cannot be missed, look for a situation
-in which the system is not running at all rather than for a collision.
+0.1` (a boulder already at `health <= 0` is deliberately not reanimated). At
+Core Keeper's 20 Hz simulation rate (`defaultSimulationTickRate = 20`,
+`Pug.Base:13190`/`:13887`) 30 ticks is ≈1.5 s, not the ≈0.5 s a 60 Hz frame
+rate would give — if the mod is instead counting Unity frames rather than
+simulation ticks, the ≈0.5 s figure stands, but the qualitative point holds
+either way. That 10% window is 1.296 million health wide — with eight drills
+at an 11× speed multiplier it stays open for roughly 12 minutes and, at 1.5 s
+per heal, some 480 heal opportunities. "The drill speed skips the window" is
+arithmetic that does not work out; when the numbers say a window cannot be
+missed, look for a situation in which the system is not running at all rather
+than for a collision.
 
 ### `RequiresDrillCD` selects exactly the ore boulders
 
@@ -601,8 +645,6 @@ essentially of one prefix on that predicate:
 [HarmonyPatch(typeof(SaveManager), "IsCreativeModeWorld")]
 static bool Prefix(ref bool __result) { __result = true; return false; }
 ```
-
-**Two tile types queue extra removals of their own.** A `wall` pairs its `Add` with a `Remove` of `roofHole`; a `ground` pairs it with a `Remove` of both `pit` and `water`. The second matters if you follow this chapter's advice to lay `ground` as a substrate — doing so destroys any pit or water already at that position, silently and without a placement check.
 
 which makes the browser — boulders included — available in any survival world.
 (Its own filter drops foreign-mod items with `objectID >= 30000` outside real
@@ -699,7 +741,7 @@ two distinct consume sites:
 | Event | Where | What happens |
 |---|---|---|
 | Capture | `CageCattle()` `Pug.Other:404656` | Gated on `objectID == ObjectID.CattleCage`; calls `EntityUtility.DropPetInCage(...)` (`:404701`), `DestroyEntity(cattle)` (`:404702`), then `Create.ConsumeEntityAt(.., 1, destroy: true, ..)` (`:404706`) eats the empty box |
-| Release | `PlaceItem()` ~`:311388` | The carried item is placed and consumed via `Create.ConsumeEntityAt` |
+| Release | `PlaceItem()` `:311465` | The carried item is placed and consumed via `Create.ConsumeEntityAt(.., destroy: false, ..)`, amount from `objectDataCD2.amount` (`:311451-311454`); `:311388` is the `else` branch, not the consume |
 
 **There is no "filled box" item.** This is the natural assumption and it is
 wrong. `DropPetInCage` (`:254079`) spawns a `DroppedItem` that carries the
@@ -716,6 +758,10 @@ so the carried item can still be placed at amount 0.
 
 Both sites live in Burst-compiled DOTS player systems (state-update and
 equipment-update aspects), so intercepting them needs the Burst treatment in [Harmony and ECS](harmony-and-ecs.md).
+Which call that treatment needs depends on where the patch target sits: patching
+a system's own `OnUpdate` directly needs only the plain `DisableBurstForSystem`;
+patching something a nested job calls — as `PlaceItem` is, from
+`EquipmentUpdateSystem.UpdateJob` — needs `DisableBurstForSystemAndJobs` (see [nested jobs need the `AndJobs` variant](harmony-and-ecs.md#nested-jobs-need-the-andjobs-variant)).
 
 **Trap: the data-only loot path does not fire on placement.** Emitting an empty
 `CattleCage` through `SpawnsItemsOnUseCD` / `OpenItemAndSpawnLoot` (`:404518`)
@@ -741,8 +787,8 @@ seen** — a skin collection is necessarily mod-owned state.
 | Skin storage | `PetSkinCD { int skinIndex }`, an `[InventoryAuxDataComponent]` in the world-global `InventoryAuxDataSystem` — not a variation, not a direct entity component |
 | Assignment | Random on hatch, `rng.NextInt(maxSkins)` |
 | ObjectID | All skins of a pet share one ID (`PetDog` = 1222) |
-| Skin count | `Manager.ui.petInfosTable.GetPetSkinInfo(id).skins.Count` — more reliable than `PetCD.maxSkins` |
-| Rendering | Gradient recolours of the base `ObjectInfo.icon` (`_GradientMap` from `skins[i].primaryGradientMap` plus the `USE_GRADIENT_MAP` keyword on the `Amplify/UISpriteColorReplace` shader), not separate sprites; `GradientMapDataBlock` lives in `ScriptableData.dll` |
+| Skin count | `Manager.ui.petInfosTable.GetPetSkinInfo(id).skins.Count` — `PetCD.maxSkins` is baked from this same value (`Pug.ECS.Conversion:2761`) |
+| Rendering | Gradient recolours of the base `ObjectInfo.icon` (`_GradientMap` from `skins[i].primaryGradientMap` plus the `USE_GRADIENT_MAP` keyword on the `Amplify/UISpriteColorReplace` shader), not separate sprites; `GradientMapDataBlock` lives in `PugSprite.dll` (`PugSprite.decompiled.cs:42`, global namespace) — only its base `ScriptableDataBlock` is in `ScriptableData.dll` (`ScriptableData:1563`) |
 | Stacking | Pets are non-stackable, one per slot |
 
 Reading `skinIndex` is sandbox-safe:
@@ -772,7 +818,7 @@ them all:
 | Group | ObjectIDs | Note |
 |---|---|---|
 | Net-catchable critters | 9800-9819 | 20 entries, no gaps |
-| Fireflies / glowbugs | 3500-3504 | `YellowFirefly` … `PurpleFirefly`; carry `FireflyCD`, **not** `CritterCD` |
+| Fireflies / glowbugs | 3500-3504 | `YellowFireFly`, `BlueFireFly`, `GreenFireFly`, `RedFireFly`, `PurpleFireFly` (`Pug.Base:2648`); carry `FireflyCD`, **not** `CritterCD` |
 
 Because the fireflies use a different component, following `TryCatchAnyCritters`
 in the decompile leads away from them entirely. They are bug-net catchable
@@ -792,6 +838,12 @@ Pet talents are structurally unlike player talents, which live in `SaveManager`.
   **5 points**. Every caller is managed UI (`PetTalentUIElement.CanPlacePoints`,
   the pet-info `UpdatePointsText`), so it is Harmony-patchable **with no
   BurstDisabler**.
+- **Trap: patching `GetTotalTalentPoints` alone does not move the budget.**
+  The JIT can inline that call inside `GetAvailableTalentPoints`, so a patch on
+  `GetTotalTalentPoints` silently fails to change what `GetAvailableTalentPoints`
+  returns unless `GetAvailableTalentPoints` is patched as well. Verified in a
+  mod that scales this budget: patching only `GetTotalTalentPoints` did
+  nothing until `GetAvailableTalentPoints` was patched too.
 - **The server does not validate the budget.** `InventoryUtility.
   SetPetTalentPoints` writes `buffer[talentIndex].points = points` directly and
   trusts the client; the only enforcement anywhere is the client-side UI reading
@@ -835,28 +887,36 @@ tracked recipe: the in-game cookbook lists one row per variation via
 `Manager.saves.GetDiscoveredCookedFoods()` and shows no total — just the count
 discovered.
 
-The arithmetic:
+The arithmetic, measured in game on Core Keeper 1.2.1.5:
 
 | Quantity | Value |
 |---|---|
-| Cooking ingredients | 79 |
-| Distinct ingredient pairs, `n·(n+1)/2` | 3,160 (symmetric — `GetFoodVariation(a,b) == GetFoodVariation(b,a)`) |
-| Rarity tiers per pair | 3 (base, `rareVersion`, `epicVersion` on `CookedFoodCD`) |
+| Distinct ingredient pairs | 3,003 (symmetric — `GetFoodVariation(a,b) == GetFoodVariation(b,a)`) |
+| Rarity tiers per pair | base and `rareVersion` unconditionally; `epicVersion` gated — see below |
 | Cooked-food `ObjectID`s (15 families × 3 tiers) | 45 |
-| **Distinct dishes** | **9,480** — counted at runtime, not derived |
+| Pairs whose epic tier is actually reachable | 858 |
+| Pairs whose epic tier is baked but phantom | 2,145 |
+| **Distinct obtainable dishes** | **6,864** — `3,003 × 2` (base + rare, unconditional) `+ 858` (reachable epic) |
 
-All three tiers are reachable from the cooking roll
-(`ChanceToGainExtraCookedFood` → `ChanceForExtraCookedFoodToBeRare`,
-`Pug.Other` ~`:324098`).
+**The epic tier is gated, not unconditional.** A `flag` in
+`Pug.Other:324037-324077` guards the epic counter (`num5++`) entirely: it
+requires a Rare-rarity Flower among the ingredients or any Legendary
+ingredient. Without it, only base and rare are reachable — which is why
+2,145 of the 3,003 pairs have an epic `ObjectID`/variation baked into the
+database that no cooking roll can ever produce. Base and rare themselves stay
+unconditional draws from the cooking roll (`ChanceToGainExtraCookedFood` →
+`ChanceForExtraCookedFoodToBeRare`, `Pug.Other` ~`:324098`); only the epic
+roll additionally checks the gate.
 
 **Trap: the widely cited wiki figure of 5,550 dishes is wrong.** It lists three
 rarity colours and then multiplies by two — self-contradicting. The code has
-three tiers, and a runtime enumeration counts 3,160 pairs across them.
+three tiers, and a runtime enumeration counts 3,003 pairs across them, of
+which only 858 ever reach epic.
 
-This dominates any exhaustive item catalogue. In one measured bake the cooked
-block was 9,480 of roughly 10,900 rows — around 87%, leaving well under 1,500
-"real" items. The exact totals move with the game version, and the bake logs
-only a grand total, so a cooked-only figure needs your own counter; what does
-not move is the ratio. Any UI rendering such a catalogue needs viewport
-virtualisation, because naive per-item `GameObject`s choke on the cooked
-block.
+This still dominates any exhaustive item catalogue: a bake enumerates every
+baked `ObjectID`/variation row, phantom epics included, so the cooked block
+in a catalogue is larger than the 6,864 dishes a player can actually obtain.
+The exact ratio against the rest of the database moves with the game version
+and needs its own fresh count; what has not changed is that the block is
+large enough that any UI rendering it needs viewport virtualisation, because
+naive per-item `GameObject`s choke on it.
