@@ -306,7 +306,8 @@ def render_meta(template_meta_path, new_guid, placements_named):
     w, h, border)."""
     import re
 
-    tpl = open(template_meta_path).read()
+    with open(template_meta_path) as f:
+        tpl = f.read()
     head, rest = tpl.split("  spriteSheet:\n", 1)
     _, tail = rest.split("  mipmapLimitGroupName:", 1)
     tail = "  mipmapLimitGroupName:" + tail

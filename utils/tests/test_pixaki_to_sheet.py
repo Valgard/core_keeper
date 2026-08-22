@@ -346,6 +346,25 @@ def test_build_sheet_accepts_a_directory_package_with_a_trailing_slash(tmp_path)
     assert len(mapping) == 2
 
 
+def test_build_sheet_closes_the_meta_template_it_reads(tmp_path):
+    """Predates the container work and shows on BOTH packagings: render_meta
+    read the template with a bare open().read(), leaving the handle to the
+    garbage collector. Worth closing here rather than later, because the
+    leftover warnings would otherwise make the container-side fix look
+    incomplete."""
+    import gc
+    import warnings
+
+    pixaki = _write_sprite_pixaki(tmp_path, "{}")
+    (tmp_path / "s.png.meta").write_text(_TEMPLATE_META)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        p.build_sheet(str(pixaki), str(tmp_path / "s.png"))
+        gc.collect()
+    unclosed = [w for w in caught if issubclass(w.category, ResourceWarning)]
+    assert [str(w.message) for w in unclosed] == []
+
+
 def test_load_pixaki_names_an_icloud_placeholder_instead_of_dying_on_a_uuid(tmp_path):
     """A package whose contents iCloud has evicted carries '.D1.png.icloud'
     stubs where the drawings were. The stub misses the '.png' filter, so the
