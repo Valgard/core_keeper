@@ -107,7 +107,11 @@ def test_open_returns_a_binary_stream(container):
 
 
 def test_open_pixaki_accepts_a_path_object_as_well_as_a_string(container):
-    # The tools hand it argparse strings, the tests hand it pathlib paths.
+    # The tools hand it argparse strings, the tests hand it pathlib paths. Both
+    # spelled out here: the Path half used to be covered only incidentally, by
+    # the other tests happening to pass the fixture through unconverted.
+    with open_pixaki(container) as c:
+        assert c.read("metadata.json") == PAYLOAD["metadata.json"]
     with open_pixaki(str(container)) as c:
         assert c.read("metadata.json") == PAYLOAD["metadata.json"]
 
