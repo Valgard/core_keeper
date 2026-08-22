@@ -16,7 +16,7 @@ machinery those arrangements sit on.
 
 | Chapter | Covers |
 |---|---|
-| [Toolchain requirements](toolchain.md) | What the SDK demands of any setup — the exact Unity version, the build modules, the one-time wizard steps, the project lock, the macOS meta-file fix |
+| [Toolchain requirements](toolchain.md) | What the SDK demands of any setup — the exact Unity version, the build modules, the one-time wizard steps, the project lock, and where the macOS meta-file fix is written up |
 | [Organising a mod project](organising-a-mod-project.md) | Why the Editor writes outside your repository and what closes that gap, separating machine paths from mod identity, a formatting gate that cannot silently pass, pinning what produces shipped bytes |
 | [Platforms and hosts](platforms.md) | Where the game runs and keeps its files, what a Wine-based host breaks and how those failures look, reading logs on a translated host |
 | [Mod anatomy](mod-anatomy.md) | The `IMod` lifecycle, assembly definitions, the ModBuilderSettings `.asset` versus the generated manifest, the two kinds of GUID, dependencies, chat commands, and `requiredOn` with its crossed checks |
@@ -38,6 +38,10 @@ Three ways lead into them, depending on why you are here — from nothing, from 
 symptom, or from a task.
 
 ## Start from nothing
+
+**If nothing builds yet, start with [toolchain requirements](toolchain.md)** — the exact Unity
+version, the build modules, the one-time wizard steps and where the macOS meta-file
+fix is written up.
 
 If you have not built a Core Keeper mod before, read three chapters in this
 order. They are the ones whose absence causes the most wasted time, and together
@@ -61,9 +65,7 @@ Then branch by what you actually want to build:
 | a change to placement, tiles, creatures, world rules | [World and mechanics](world-and-mechanics.md) |
 | anything others will play together | [Multiplayer and server](multiplayer-and-server.md) — before publishing, not after |
 
-**If nothing builds yet, start with [toolchain requirements](toolchain.md)** — the exact Unity
-version, the build modules, the one-time wizard steps and the macOS meta-file
-fix. [Organising a mod project](organising-a-mod-project.md) then walks through one way to lay the project out.
+[Organising a mod project](organising-a-mod-project.md) then walks through one way to lay the project out.
 The rest of this handbook assumes you can already build and install *something*
 and now need to know how the game behaves.
 
