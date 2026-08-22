@@ -78,9 +78,10 @@ must win forward via `m_Center.z` (`-0.1` was enough in two cases, `-0.5` in
 another). The collider's `z` extent is raycast depth (`4` in the shipped
 scrollbar handle). Two consequences worth knowing: an open popup drawn over a
 list does **not** leak hover to the elements behind it, so a guard for that is
-dead weight; and `ScrollBar.UpdateHandleSize` — which runs when the handle is dragged or the
-content height changes, not every frame — overwrites the handle collider's
-`y` every frame, so authoring that value is pointless.
+dead weight; and `ScrollBar.UpdateHandleSize` — which runs only when the handle is dragged
+or the content height changes — overwrites the handle collider's `y` whenever
+it runs, so authoring that value is pointless either way: content height
+becomes non-zero on the very first frame there is anything to show.
 
 **Hover, not click, drives selection.** `RadicalMenu.SelectOptionIndex` fires
 `OnDeselected()` on mere hover exactly as it does on arrow-key navigation.
@@ -93,7 +94,9 @@ editing is in [text rendering and text input](#text-rendering-and-text-input).
 `TrySelectNewElement` opens with a hardcoded
 `Manager.input.activeInputField.Deactivate(commit: false)`, but that line is
 gated on its `interactDownThisFrame` argument, which the caller fills with
-`WasButtonPressedDownThisFrame(UI_INTERACT)` — a real click, never a hover. So
+`WasButtonPressedDownThisFrame(UI_INTERACT)` (inside an active menu, that value
+is replaced with `Manager.input.IsMenuMouseInteractButtonDown()` before the
+call — a press either way) — a real click, never a hover. So
 hover-deactivation and click-deactivation are two mechanisms with two different
 remedies; only the first one is what `dontDeactivateOnDeselect` suppresses.
 
@@ -168,7 +171,8 @@ root.
 
 The third part is a convention, not a check. `IModUI.Root` is a `GameObject`
 property *you* supply, and CoreLib never inspects the name of what it points
-at — the string `"root"` appears nowhere in its `UserInterface` module. Every
+at — the string `"root"` never appears in code its `UserInterface` module
+executes, only once, in an XML doc comment on `IModUI.Root` itself. Every
 mod in this family points it at a child GameObject named `root` holding all the
 actual UI elements, and the next trap is why that split is worth keeping.
 
@@ -213,7 +217,9 @@ Manager.ui.HideAllInventoryAndCraftingUI(forceClose: false);
 
 mirroring `PlayerController.CloseAnyOpenInventory`. For the open-vs-closed
 decision itself, read *real* visibility (`Instance.Root.activeSelf`) rather than
-`currentInterface`, which can be transiently stale.
+`currentInterface` — which is `internal static` in CoreLib's
+`UserInterfaceModule`, unreachable from a mod assembly at all, not merely prone
+to going transiently stale.
 
 **CoreLib forces `isAnyInventoryShowing` true for mod UIs — and only that
 getter.** The per-UI getters (`Manager.ui.isPlayerInventoryShowing` and
@@ -275,10 +281,14 @@ player's prefs on disk — the same class of damage as writing through
 *runtime* scale-multiplier field; it is CK's own mechanism for opening a
 `RadicalMenu`, and roughly 51 HUD elements self-scale to zero from it.
 
-The shortcuts panel needs the per-frame prefix because
-`InventoryShortCutsButton.ShortcutsCanBeToggled()` gates only the "?" prompt
-visuals — the **S keybind itself** checks `isAnyInventoryShowing` directly and
-is not gated by it. The patch does bind: `ShortCutsWindow.LateUpdate` is a
+The shortcuts panel needs the per-frame prefix even though
+`InventoryShortCutsButton.ShortcutsCanBeToggled()` **does** gate the S keybind
+itself:
+`if (InventoryShortCutsButton.ShortcutsCanBeToggled() &&
+!Manager.input.textInputWasActiveThisFrame && …TOGGLE_SHORTCUTS_WINDOW)`. The
+gate is not what reopens the panel — `ShortcutsCanBeToggled()` itself reads
+`isAnyInventoryShowing`, and CoreLib forcing that getter true is what makes the
+predicate pass. The patch does bind: `ShortCutsWindow.LateUpdate` is a
 `protected override` declared on the type, and `HideUI()` is public.
 `InGameButtonHintsUI` needs its own prefix for a different reason: its
 `LateUpdate` re-asserts `container.SetActive(showKeyHints)` every frame, so a
@@ -349,8 +359,8 @@ the Editor**, so the Editor assignment is only a design-time preview.
 `GetHoverTitle()`, `GetHoverDescription()`, `GetHoverStats(bool)` and
 `GetContainedObject()`. **No live ECS entity appears anywhere in that path.** To
 show the vanilla tooltip for an arbitrary catalog item, a `UIelement` need only
-return a `ContainedObjectsBuffer` wrapping a synthetic `ObjectDataCD { objectID,
-variation, amount = 1, variationUpdateCount = 0, auxDataIndex = 0 }`. Spawning
+return a `ContainedObjectsBuffer { objectData = new ObjectDataCD { objectID,
+variation, amount = 1, variationUpdateCount = 0 }, auxDataIndex = 0 }`. Spawning
 an entity, or porting your element onto the slot grid, is the expensive wrong
 answer.
 
@@ -429,9 +439,9 @@ see [storing configuration and state](persistence.md).
 `RadicalOptionsMenuOption_PushMenu` — out of `MenuManager.optionsMenuPrefab`, and
 repoints its `menuToPush` at an id of your own.
 
-**Patch 2** clones `Manager.menu.uiOptionsMenuPrefab` under
-`Manager.camera.uiCamera`, clears its `Options/Scroll` children and its
-`menuOptions` list, and gives it a title. `MenuManager.Init` itself does
+**Patch 2** instantiates the mod's own AssetBundle prefab —
+`Object.Instantiate(prefab, Manager.camera.uiCamera.transform)` — and gives it
+a title, rather than cloning a vanilla menu. `MenuManager.Init` itself does
 `optionsMenu = InstantiateMenu<RadicalMenu>(optionsMenuPrefab)`;
 `optionsMenuPrefab` is a public `GameObject` field and `optionsMenu` a public
 property with a private setter.
@@ -461,11 +471,15 @@ prefix instead.
 
 ### Traps when cloning menu objects
 
-**`Object.Instantiate(gameObject, parent)` throws.** The two-argument overload
-activates the clone mid-clone inside `Internal_CloneSingleWithParent`, so
-`OnEnable` and `PugTextEffectMenuOption.ResetEffect` fire before the row's
-`PugText` component has been cloned — a `NullReferenceException`, and your entry
-silently never appears. Clone **parentless** and reparent afterwards:
+**`Object.Instantiate(gameObject, parent)` threw an NRE when cloning a menu
+option row.** The likely explanation: the two-argument overload activates the
+clone mid-clone inside `Internal_CloneSingleWithParent`, so `OnEnable` and
+`PugTextEffectMenuOption.ResetEffect` would fire before the row's `PugText`
+component has been cloned. That internal call sequence is not checkable from
+the decompile, and CoreLib itself uses this same overload without trouble, so
+treat it as a hazard observed on this row shape rather than a blanket property
+of the overload. Clone **parentless** and reparent afterwards, which sidesteps
+it either way:
 
 ```csharp
 var clone = Object.Instantiate(originalTransform);   // no parent argument
@@ -615,7 +629,7 @@ Five details you must handle yourself:
 | **set** the serialized `trim` to `0` — CK's default is `true` | `AppendString` runs `s.Trim()` over the frame's `Input.inputString`, so with the default a typed space is trimmed to nothing and never arrives at all |
 | set `dontDeactivateOnDeselect = true` | CK selection is hover-based, so the moment the cursor leaves the collider `OnDeselected` → `Deactivate` fires and typing stops |
 | call `Deactivate(false)` when you close | otherwise **WASD stays blocked after the window is gone** |
-| clear `maxWidth` from code, not the prefab | `Awake` sets `pugText.maxWidth = maxWidth + (dontAllowNewLines ? 1 : 0)`, forcing the crash path above — a prefab `maxWidth = 0` is a no-op |
+| clear `maxWidth` from code, not the prefab | `Awake` sets `pugText.maxWidth = maxWidth + (dontAllowNewLines ? 1 : 0)`, forcing the crash path above — a prefab `maxWidth = 0` stays `0` (a no-op) only while `dontAllowNewLines` is off; with it on, `Awake` turns `0` into `1` |
 | put the caret `SpriteRenderer` on a **child** GameObject | `Update()` re-asserts `characterMarkBlinker.transform.position = pugText.position` (world X/Y, Z preserved) every frame, clobbering any offset on the caret GameObject itself; a child at a constant `localPosition` inherits the per-frame position and adds the nudge |
 
 Because [hover drives selection](#how-uimouse-picks-and-selects-an-element), three further rules apply to any field inside a
@@ -752,8 +766,7 @@ Three independent layers make a CoreLib bind work, all under CoreLib's
 
 1. The action and its `ActionElementMap` go into **Rewired's `UserData`** —
    this is what makes the bind functional and rebindable.
-2. A `ControlMapping_CategoryLayoutData` entry is appended to CoreLib's shared
-   a `CategoryLayoutData` entry appended to CoreLib's shared
+2. A `CategoryLayoutData` entry is appended to CoreLib's shared
    `modCategoryLayout` — the data behind a *visible* section, added only when
    the category is newly created.
 3. A Harmony **prefix on `ControlMappingMenu.Initialize`** injects
@@ -815,12 +828,14 @@ repurpose a slot whose label means something else: the text is vanilla's, and
 your prompt breaks the moment CK decides to request that slot itself.
 
 **Trap: never call `base.GetHelpButtonsToShow().Add(...)`.** The base
-implementation returns `Manager.menu.defaultHelpButtons` — a **public field on
-the menu-manager singleton**, and the very list instance the default path hands
-to every other menu. A single `Add` therefore mutates global state permanently:
-from the first time your UI opens, the pause menu, the options menu and the main
-menu all show your extra prompt, and the damage outlives your menu. Copy the
-list before you touch it. `MenuHelperButtons.UpdateShowingButtons` stores the
+implementation returns `Manager.menu.defaultHelpButtons` only when
+`CanActivateCurrentOption()` is true — a **public field on the menu-manager
+singleton**, and the very list instance the default path hands to every other
+menu — and the menu's own private `helpButtonsNoSelect` otherwise. A single
+`Add` on the shared list therefore mutates global state permanently: from the
+first time your UI opens, the pause menu, the options menu and the main menu
+all show your extra prompt, and the damage outlives your menu. Copy whichever
+list you get before you touch it. `MenuHelperButtons.UpdateShowingButtons` stores the
 reference it is handed and compares the next frame's list against it with
 `SequenceEqual`, so an in-place edit is invisible to that check and the bar
 stops refreshing as well.
@@ -839,9 +854,10 @@ a normal settings menu, but not unpolled: `ModIOBrowserInputCapture` reads it
 (`~269987`) to fire `InputReceiver.OnAlternate()` while the mod.io browser has
 focus. Use it when 223 is taken.
 
-Both are category `"Menu"`, defined in `PugMod.SDK.Runtime` (so both are
-reachable through `RewiredConsts`; `223` is defined only in `Pug.Other`), bound
-by default to a controller face button, and polled the same way:
+Both are category `"Menu"` and both are `RewiredConsts.Action` constants in
+`Pug.Other`; `221` is additionally mirrored as
+`CoreKeeperInput.Action.MenuSecondaryActivate` in `PugMod.SDK.Runtime`. Both
+are bound by default to a controller face button, and polled the same way:
 
 ```csharp
 Manager.input.GetButtonDown(223);
@@ -891,7 +907,9 @@ pattern (reflect `_scrollable` into place, `UpdateScrollHeight`,
 
 **`UpdateScrollHeight` is private, and must run before you reposition.** It computes
 `scrollHeight = <full content height> − scrollWindow.windowHeight`, and it is
-private, so a mod invokes it by reflection. After **any** change to what your
+private, so a mod invokes it via `API.Reflection.Invoke` over a member resolved
+through `GetMembersChecked()`/`GetNameChecked()` — the sandbox-legal reflection
+surface, detailed in [the load-time sandbox](sandbox.md). After **any** change to what your
 `IScrollable` reports — row count, row height — the sequence is
 `UpdateScrollHeight` **first**, then the reposition. The staleness is not
 lasting: `UIScrollWindow.LateUpdate` calls `UpdateScrollHeight()` itself every
@@ -974,10 +992,15 @@ visible area, so a viewport bounds check has to be explicit.
 ### Mouse-wheel ownership
 
 `UIScrollWindow.UpdateScroll` — called from its own `LateUpdate` — reads the
-wheel **independently**, via `Manager.input.GetScrollValue()`, and scrolls
-whenever the cursor is inside the window bounds (`bounds.Contains`). An overlay
-your mod draws on top of a scroll window therefore scrolls the list underneath as
-well.
+wheel **independently**, via `Manager.input.GetScrollValue()`. Whether the
+cursor's position matters at all is gated by a serialized
+`cursorMustBeInsideWindowToScroll` field that **defaults to false**, and every
+prefab in this family ships it off — so by default the window consumes the
+wheel no matter where the cursor is, which makes the prefix below *more*
+necessary, not less. When the flag is on, the position check is
+`IsMouseWithinScrollArea()`, a `Rect.Contains` test, not `Bounds.Contains`. An
+overlay your mod draws on top of a scroll window therefore scrolls the list
+underneath as well.
 
 Take the wheel with a Harmony **prefix on `UIScrollWindow.UpdateScroll`**
 returning `false` for the frames your overlay owns it, and compute that
@@ -1110,7 +1133,7 @@ value, and four independent effects follow for free:
 
 | Effect | Mechanism |
 |---|---|
-| Navigation skips the row | `RadicalMenu.SelectNextIndex` / `SelectPrevIndex` walk on while `!IsSelectionEnabled()` (= `!ShouldBeGrayedOut()`) |
+| Navigation skips the row | `RadicalMenu.SelectNextIndex` / `SelectPrevIndex` walk on while `!IsSelectionEnabled()` — the base implementation is `enabled && gameObject.activeInHierarchy && !ShouldBeGrayedOut()`, not merely the last term |
 | The mouse cannot click it | `UpdateClickCollider` enables the collider only for `ACTIVE` |
 | It keeps its place in the layout | `GetAllCurrentlyActiveMenuOptions` and `Activate` accept `ACTIVE \|\| GRAYED_OUT`; only `INACTIVE` gets `SetActive(false)` |
 | The row turns red | `PugTextEffectMenuOption.UNSELECTABLE_TEXT_COLOR` (`#6C2C2F`), chosen via `IsSelectionEnabled(visualOnly: true)`, applied to the text *and* the effect's `spriteRenderers` |
