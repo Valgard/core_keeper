@@ -122,8 +122,26 @@ class TestHandbookComplete:
         files = self._handbook(tmp_path, "no list here\n", "[c](chapter.md)\n")
         assert mod.check_handbook_complete(files, tmp_path) == []
 
+    def test_a_link_carrying_an_anchor_still_counts(self, tmp_path):
+        files = self._handbook(tmp_path, "no list here\n", "[c](chapter.md#section)\n")
+        assert mod.check_handbook_complete(files, tmp_path) == []
+
     def test_reports_a_chapter_missing_from_the_index(self, tmp_path):
         files = self._handbook(tmp_path, "[c](chapter.md)\n", "nothing\n")
+        (problem,) = mod.check_handbook_complete(files, tmp_path)
+        assert "index.md" in problem and "chapter.md" in problem
+
+    def test_a_bare_prose_mention_does_not_count_as_a_link(self, tmp_path):
+        # naming the file is not the same as linking to it
+        files = self._handbook(
+            tmp_path, "no list here\n", "see chapter.md for detail\n"
+        )
+        (problem,) = mod.check_handbook_complete(files, tmp_path)
+        assert "index.md" in problem and "chapter.md" in problem
+
+    def test_a_mention_inside_a_code_fence_does_not_count_as_a_link(self, tmp_path):
+        # a directory listing in a fenced block names the file without linking it
+        files = self._handbook(tmp_path, "no list here\n", "```\nchapter.md\n```\n")
         (problem,) = mod.check_handbook_complete(files, tmp_path)
         assert "index.md" in problem and "chapter.md" in problem
 
