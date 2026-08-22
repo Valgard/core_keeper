@@ -37,29 +37,46 @@ the catalogue for as long as it takes to finish it. Setting `visible = false`
 on creation and switching it on the website afterwards is a choice the
 publisher makes, not something the platform does for you.
 
+The SDK window is the one route where that choice is already made: its
+Register button sets `visible = false` explicitly, so a profile created
+through it starts **hidden**, not public — the plugin's own default only
+applies to a caller that leaves the field unset.
+
 ## Which metadata field becomes what
 
-The listing does not read `ModManifest.json` — and neither does the publisher.
-Both read the **ModBuilderSettings `.asset`**, whose `metadata` block carries
-the same `ModMetadata` field names. Editing the generated manifest changes
-nothing. Several of those fields reach mod.io, each through a separate call,
-and two arrive as *tags* rather than as text:
+The listing does not read `ModManifest.json` — and neither does the SDK
+window's own publish button. Both read the **ModBuilderSettings `.asset`**,
+whose `metadata` block carries the `ModMetadata` field names. Editing the
+generated manifest changes nothing.
 
 | `metadata` field in the `.asset` | Becomes |
 |---|---|
-| `displayName` (fallback: `name`) | the profile name — so the human title may differ from the internal identity |
-| `requiredOn` | a tag in the `Application Type` group |
-| `skipSafetyChecks` | a tag in the `Access Type` group — `Script` or `Script (Elevated Access)` |
+| `name` | the profile name the SDK window sends — **not** `displayName`, which is `[HideInInspector]` and reaches no publish call at all |
 | `dependencies` | the mod.io **platform** dependency list — see below |
 
-The consequence worth remembering runs the *other* way, and it is the one that
-bites: **at load time the tag is authoritative, not the field.** Both loaders
-force `metadata.skipSafetyChecks = false` unless the profile carries
+`logo` and `summary` do not come from this `.asset` either: the SDK window
+keeps them on a separate settings asset of its own, so neither tracks
+`metadata.name`.
+
+`requiredOn` and `skipSafetyChecks` do not become mod.io tags through
+anything the SDK does — the window makes no mod.io tag call at all; the only
+tag picker it ships is a manual one for Steam Workshop, a different target
+with its own vocabulary. Whichever `Application Type` or `Access Type` tags a
+listing ends up carrying are a **publisher's own convention**, set by hand on
+the website or by tooling written for the purpose — never something the
+platform or the SDK derives for you.
+
+The consequence worth remembering runs the *other* way, and it is the one
+that bites: **at load time the tag is authoritative, not the field.** Both
+loaders force `metadata.skipSafetyChecks = false` unless the profile carries
 `Script (Elevated Access)`. A mod that ships `skipSafetyChecks: true` and is
-published without that tag therefore runs sandboxed at every subscriber, while
-its author — who runs a local build that never consults the profile — cannot
-reproduce the verification failures they report. Setting the field is only how
-a publisher derives the tag; the tag is what the game obeys.
+published without that tag therefore runs sandboxed at every subscriber,
+while its author — who runs a local build that never consults the profile —
+cannot reproduce the verification failures they report. The field never
+turns into the tag by itself: a publisher who sets `skipSafetyChecks: true`,
+publishes through the SDK window, and assumes the `Access Type` tag follows
+ships an elevated-access mod **without** the warning that tag exists to
+give.
 
 `requiredOn` and what its values mean for joining a server is in [mod anatomy](mod-anatomy.md);
 `skipSafetyChecks` and what it buys is in [the sandbox chapter](sandbox.md).
@@ -137,9 +154,12 @@ Before testing a published build the way a player receives it, remove the local
 one. The reverse case is the quieter one: subscribing to your own mod for a
 quick look leaves it subscribed.
 
-The loader has **three** platforms, registered at startup unless `-safemode` is
-set: a side-loader that scans `StreamingAssets/Mods` for any directory holding a
-`ModManifest.json`, the mod.io loader, and the Steam Workshop loader. Only the
-second consults subscriptions — which is why a not-yet-published mod can be made
-loadable in more than one way, and why the dedicated server loads its mods from
-a directory rather than an account.
+The loader has **three** platforms: a side-loader that scans
+`StreamingAssets/Mods` for any directory holding a `ModManifest.json`, the
+mod.io loader, and the Steam Workshop loader. `-safemode` disables only the
+first two — the Steam Workshop loader is registered unconditionally, even in
+safe mode, though it is usually inert there too, since `SteamClient.IsValid`
+fails without a live Steam session. Only the mod.io loader consults
+subscriptions — which is why a not-yet-published mod can be made loadable in
+more than one way, and why the dedicated server loads its mods from a
+directory rather than an account.

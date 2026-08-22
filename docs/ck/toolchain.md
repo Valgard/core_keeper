@@ -23,7 +23,10 @@ Install it through Unity Hub with these modules:
 | **Windows Build Support (Mono)** | the target every build produces |
 | **Linux Build Support (Mono)** | the second target, built while the mod's `buildLinux` setting is on — it is on by default |
 
-An Editor host needs the module for every platform it is not itself — so a macOS or Linux host needs Windows Build Support, and a Windows host needs the Linux one.
+An Editor host needs the module for every platform it is not itself — a Linux
+host needs Windows Build Support, a Windows host needs Linux Build Support,
+and a macOS host needs **both**: macOS is neither, so there is no target it
+builds natively and can skip.
 
 ## The SDK clone, initialised once
 

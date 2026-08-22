@@ -87,7 +87,7 @@ relying on it:
   missing the Roslyn fix loads its mods and compiles none of them — which the
   client then rejects as a protocol mismatch, not as a compile failure. See
   [multiplayer and server](multiplayer-and-server.md) for why that surfaces as
-  "wrong game version".
+  "Game version mismatch".
 
 There is also a residual write failure for JSON side files — on the server for its own config files, on the client for cloud-conflict backups
  whose `.pugbackup` copies fail to write. The
