@@ -6,9 +6,10 @@ That does not leave a mod without storage. The verification inspects references
 in *your* code, so a call into an already-trusted assembly costs nothing, and
 the loader ships a file API of its own for exactly this purpose.
 
-What follows is the three routes that gives you, what the rest of the mod
-catalogue actually does, and how to write state without corrupting the game's
-save.
+What follows is the three routes that gives you for state a mod writes at
+runtime, a fourth route for reading back a file a mod ships, what the rest of
+the mod catalogue actually does, and how to write state without corrupting the
+game's save.
 
 ## Storing configuration: three routes
 
@@ -178,6 +179,42 @@ Two costs: you lose the guarantee that your mod is inspectable-by-construction,
 and the flag **feeds a derived mod.io tag** — the `Access Type` tag on your
 published listing is computed from it, so flipping the flag re-tags the mod on
 the next publish. See [publishing](publishing.md).
+
+## Reading a file your mod ships
+
+The three routes above are all for state a mod **writes** at runtime — a config,
+a ledger, a cache. A file a mod **ships** — the `Conf/*.json` payload [mod anatomy](mod-anatomy.md#what-ships-and-what-the-loader-reads)
+lists as one of the five kinds a build produces — is a different question, and
+none of the three routes reach it: it never passes through
+`API.ConfigFilesystem`, because the loader never wrote it there in the first
+place.
+
+`LoadedMod.GetFile(string path)` (`PugMod.SDK.Runtime:702`) is the answer. It
+resolves `path` against the mod's own install directory
+(`API.ModLoader.GetDirectory(ModId)`), rejects a path that escapes that
+directory, and returns the file's bytes with `File.ReadAllBytes` — all inside
+the trusted loader assembly, so referencing it costs nothing against [the sandbox](sandbox.md).
+
+Reach it off your own `LoadedMod`, [resolved the usual way](mod-anatomy.md#reaching-your-own-loadedmod-and-asset-bundle):
+
+```csharp
+foreach (var mod in API.ModLoader.LoadedMods)
+{
+    if (mod.Metadata.name == ModName)
+    {
+        var bytes = mod.GetFile("Conf/settings.json");
+        var text = Encoding.UTF8.GetString(bytes);
+        break;
+    }
+}
+```
+
+This needs no `dependencies` entry and no `accessesExtraAssemblies` — the
+payload already ships inside your own mod directory, and `GetFile` is a plain
+method on the trusted `LoadedMod` wrapper, not a shipped `.dll`. See [mod anatomy](mod-anatomy.md#there-is-no-mod-version-at-runtime)
+for `GetFile`'s other documented use — deriving a build identifier from the
+install directory's name, since no version field exists anywhere in the loader's
+view of a mod.
 
 ## What the rest of the catalogue does
 

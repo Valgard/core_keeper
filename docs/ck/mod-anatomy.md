@@ -117,8 +117,10 @@ That table is the whole of `ModMetadata`, and the runtime `LoadedMod` wrapper ar
 adds only `ModId`, `Handlers`, `Assets`, `AssetBundles` and `GetFile(string path)`. The
 last reads any shipped file from the install directory — a path-traversal guard, then
 `File.ReadAllBytes`, both inside the trusted assembly, so it costs nothing against the
-sandbox. **No version field exists anywhere in the loader's view of a mod.** A mod that
-wants to know which build of itself — or of another mod — is running has to derive it.
+sandbox. See [persistence](persistence.md#reading-a-file-your-mod-ships) for using it to read a shipped `Conf/` payload — what follows
+here is its other use, deriving a version proxy instead. **No version field exists
+anywhere in the loader's view of a mod.** A mod that wants to know which build of itself
+— or of another mod — is running has to derive it.
 
 The one derivable identifier is the **modfile ID**. Installations live in a directory
 named `<modId>_<modfileId>`, and `API.ModLoader.GetDirectory(long modId)`

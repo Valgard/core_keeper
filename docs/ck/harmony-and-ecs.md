@@ -91,6 +91,12 @@ false`, which makes the managed path run; only then does half 1 select
 `ManagedFunctionsUnBursted`, the `OnUpdate` you can patch. If half 2 never armed
 for the world your system runs in, half 1 is dead weight.
 
+The same patch's `Postfix` restores `EnableBurstCompilation` to whatever it was
+before the `Prefix` ran. So the bypass is a **window around that one system's
+`UpdateSystem` call, not a lasting state change** — it closes the moment
+`OnUpdate` returns, and the next system to update runs Burst-compiled again
+unless it is armed too.
+
 ### Nested jobs need the `AndJobs` variant
 
 `DisableBurstForSystem<T>` is not enough when the system's real work lives in a
@@ -99,6 +105,34 @@ nested job. `EquipmentUpdateSystem` (`Pug.Other:419765`) does everything in
 `PlaceObjectSlot.UpdateEquipment` (`:419899`). With the plain variant, **no**
 patch on that path fires; with `BurstDisabler.DisableBurstForSystemAndJobs<T>()`
 (`PugMod.SDK.Runtime:783`) all of them do.
+
+**The criterion is what you patch, not which system it belongs to.**
+`DisableBurstForSystem<T>` calls `DisableBurstForSystemInternal(type,
+burstEnabled, addCompleteDependencyPatch: false)` (`:780`);
+`DisableBurstForSystemAndJobs<T>` passes `true` (`:785`). For an unmanaged
+`ISystem`, `PatchSystem` (`:862-870`) does nothing with that flag off — it
+builds an empty method list and stops. With the flag on, it adds exactly one
+more thing: a postfix on `OnUpdate(ref SystemState)` that calls
+`state.Dependency.Complete()`. That one postfix is the entire difference
+between the two calls.
+
+It is also why `EquipmentUpdateSystem` needs it. Its `OnUpdate`
+(`Pug.Other:420556`) ends `state.Dependency =
+__ScheduleViaJobChunkExtension_0(new UpdateJob { … })`, and that extension
+returns a `.Schedule(...)` call — not `.Run(...)`. The job is *queued*, not
+executed, before `OnUpdate` returns, so `UpdateJob` runs after the bypass
+window above has already closed and Burst is back on. `Complete()` is what
+pulls that execution back inside the window.
+
+**Trap: the shortcut "does `OnUpdate` assign a `JobHandle` to
+`state.Dependency`? then use `AndJobs`" is wrong.** `ChangeDurabilitySystem`,
+`AddSkillValueSystem` and `PetHandlerSystem` all schedule a job from inside
+their own `OnUpdate` the same way `EquipmentUpdateSystem` does, and all three
+are correctly served by the plain variant — because what gets patched on them
+is `OnUpdate` itself, which runs inside the window regardless of what it goes
+on to schedule afterwards. `EquipmentUpdateSystem` differs only because its
+actual patch target, `PlaceObjectSlot.UpdateEquipment`, sits inside the
+scheduled job, not inside `OnUpdate`.
 
 A system whose `OnUpdate` you patch directly, with no job in between, gets away
 with the plain call.
@@ -193,10 +227,43 @@ the registry behind `AddWorld` is a `HashSet`, so the pass is a harmless no-op i
 the client ordering. Write it unconditionally rather than branching on
 client/server.
 
+**The order in that snippet is mandatory, not stylistic.** `AddWorld` only
+iterates `SystemTypesToDisableBurstFor` as it stands at the moment it runs —
+call `DisableBurstForSystem*` for everything you want it to see *before* the
+`World.All` pass, or the pass walks a set that is still empty and arms nothing.
+
 **`EarlyInit` is not the fix.** Moving the registration there fails on client
 *and* server: `TypeManager` is not initialised that early, so
 `TypeManager.IsSystemType` throws `NullReferenceException` out of
 `DisableBurstForSystemInternal` and the registration never happens at all.
+
+### The pass is load-bearing — measured, not assumed
+
+A counter placed in `IMod.Init()`, reporting how many of the worlds `World.All`
+saw at that point actually got armed by the manual pass above, read:
+
+```text
+Client            armed by this pass in  0/6  live world(s)
+Dedicated Server  armed by this pass in  1/12 live world(s)
+```
+
+On the server, that one armed world is the manual pass's own doing: `StartEcs`'s
+own call to `AddWorld` (above) had already taken its snapshot before `Init()`
+ran, so without the `foreach` loop the count would read `0/12` instead. This
+turns "the manual pass matters on the server" from a derivation into a
+measurement.
+
+**On the client, `0/N` with `N > 0` is the healthy result, not a fault.**
+`Init()` runs before `ServerWorld` and the client's own simulation world are
+created, so at the moment the counter above reads, none of the worlds the mod
+actually cares about exist yet to arm — that is not the dedicated-server bug,
+it is the client working as intended: `StartEcs` runs its own `AddWorld` pass
+afterwards, once those worlds exist, and by then the registration from `Init()`
+is already in place. A self-check written against this counter — warning
+whenever `worlds > 0 && armed == 0` — fires on every healthy client. **No
+unhealthy state is observable from inside `Init()`**, so do not build a
+self-check there; check after the worlds you actually depend on exist, not at
+registration time.
 
 ### How the breakage presents itself
 
@@ -372,6 +439,14 @@ than reasoning about it: with PlacementPlus active, a prefix on
 suspected conflict, toggle the foreign mod through the loader's `disabledMods`
 list in `state.json` ([the loader's two disable lists](troubleshooting.md#the-loaders-two-disable-lists-are-opposites)) and count your own patch's
 invocations in both states.
+
+**A log line's count is not an event count.** A client connected to a
+dedicated server can log the same postfix more than once for a single release
+— NetCode re-prediction re-runs client-side logic, and how many times follows
+connection latency, not how many items actually arrived; a server, with no
+re-prediction, logs once per item. The zero-versus-non-zero comparison above
+still holds — an absence is an absence on either side — but do not read an
+absolute count past that as if it counted events.
 
 And do not design around a change in the other mod. Whatever you ship has to
 work against the version players actually have installed, so a fix that depends
