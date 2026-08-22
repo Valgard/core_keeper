@@ -11,11 +11,17 @@ let a mod's prefab YAML reference game components and sprites.
 
 ## Changing a vanilla object's baked data
 
-**The authoring converters never run in the shipped game.** In the Editor,
-authoring components are converted to entity data; in the shipped game that
-conversion has already happened for vanilla content, and the values you want to
-change (recipe ingredient amounts, craft time, sell value) live in a
-`BlobArray` that is read-only once built.
+**The authoring converters run twice: once at boot, and again per ECS world.**
+`ECSManager` finds every converter in the assembly, enqueues the whole
+`pugDatabase.prefabList`, and converts it immediately at startup; then
+`ECSManager.ConvertAuthoringData` reconverts the same prefab list per world,
+from `StartEcs`, for both the server and client worlds.
+`PugDatabasePostConverter` — the hook this chapter recommends below — is
+registered into that same pipeline, and its post-converters run only after the
+converters have. What is actually immutable is the *result*: once a conversion
+builds it, the values you want to change (recipe ingredient amounts, craft
+time, sell value) live in a `BlobArray`, and each conversion rebuilds that
+blob fresh from the authoring `ObjectInfo` objects.
 
 Two supported hooks reach *conversion*: the SDK's `API.Authoring
 .OnObjectTypeAdded`, which hands you each entity as it is converted, and
@@ -186,9 +192,10 @@ A station's craftable list is `CraftingAuthoring.canCraftObjects`, declared
 `public List<CraftableObject>`. `CraftableObject` is a struct **nested inside
 `CraftingAuthoring`**, not a top-level type — reference it accordingly.
 
-Beside `objectID`, `moddedObjectID`, `amount` and `entityAmountToConsume`, the
-struct carries `allowCraftingNone`, `craftingTime`, `hasPrerequisites` and a
-nested `Prerequisites` struct.
+Beside `objectID`, `moddedObjectID`, `amount`, `entityAmountToConsume` and
+`craftingConsumesEntityAmount` — the `[ShowIf]` gate for `entityAmountToConsume`
+— the struct carries `allowCraftingNone`, `craftingTime`, `hasPrerequisites`
+and a nested `Prerequisites` struct.
 
 **`Prerequisites` gates a recipe on game progress.** It keys off the presence or
 absence of content bundles and off individual boss kills — fields such as
@@ -227,12 +234,11 @@ and mutate its authoring list.
 | 3 | `ObjectInfo.prefabInfos[0].ecsPrefab` |
 | 4 | its `CraftingAuthoring.canCraftObjects` |
 
-**What is not established:** this path is known to work when called from `Init`
-— that is, *after* the bake — and it mutates the authoring list rather than the
-blob. Whether the change survives a further world conversion, or has to be
-reapplied (or guarded against re-applying) the way a `PostConvert` prefix must
-be, is open. Treat the idempotency question above as unanswered here rather than
-as settled either way.
+**Now established, from the conversion pipeline above:** conversion reconverts
+the whole prefab list per world, rebuilding the blob from the authoring data
+on each pass — so a `canCraftObjects` list mutated from `Init` is read by the
+next per-world conversion, not lost to it. Whether it also needs the same
+re-entrancy guard a `PostConvert` prefix needs remains open.
 
 ## Naming objects: `ObjectID`, `ObjectType` and class names
 
@@ -417,7 +423,7 @@ pets-only, computed per instance from XP (`SlotUIBase.GetLevel` →
 A negative `sellValue` is a signal to derive the value, not a flag for an item
 that cannot be sold. An item is genuinely unsellable only when:
 
-- `PugDatabase.HasComponent<CantBeSoldAuthoring>(od)`, **or**
+- `PugDatabase.HasComponent<CantBeSoldCD>(od)`, **or**
 - `rarity == Legendary` — legendaries return value 0.
 
 For everything else the value is derived:
@@ -427,7 +433,7 @@ For everything else the value is derived:
    skipped.
 3. If `info.sellValue < 0`, the two cases diverge — and they are exclusive,
    not additive:
-   - **cooked food** (`CookedFoodAuthoring`): the value **is** the sum of the
+   - **cooked food** (`CookedFoodCD`): the value **is** the sum of the
      two ingredients' own values, resolved recursively via
      `CookedFoodCD.GetPrimaryIngredientFromVariation` /
      `GetSecondaryIngredientFromVariation`. The base plays no part and the fold
@@ -438,15 +444,22 @@ For everything else the value is derived:
 4. For the craft case, when that sum is greater than zero, it is folded with the
    base as `round(max(1, base * 0.3) + extra)`.
 5. **Levelled items add their upgrade cost.** When `variation > 0` and the item
-   carries the upgrade tag, every entry of its upgrade table contributes:
+   carries the upgrade tag, every step from the item's current `level + 1` up
+   to its `variation` contributes — not the whole upgrade table:
    `AncientCoin` entries by their amount directly, everything else by
-   `GetRaritySellValue(rarity) * amount` — and a quarter of that total is added,
-   `round(upgradeTotal * 0.25)`. Omit this and every upgradeable item comes out
-   short.
+   `GetRaritySellValue(rarity) * amount`, **skipping any entry whose own
+   `sellValue` is 0** just like the craft-ingredient case above — and a
+   quarter of that total is added, `round(upgradeTotal * 0.25)`. Omit this and
+   every upgradeable item comes out short.
 6. Finally an objectID-seeded jitter,
    `Random.CreateFromIndex((uint)objectID).NextFloat(-0.1, 0.1)`, and a
    `max(1, …)` floor. The seed is the objectID, so the jitter is deterministic
    — the same item is worth the same in every session.
+7. **The floored value is then multiplied by the stack's `amount`** when the
+   item `isStackable`, or by 1 otherwise:
+   `num * (isStackable ? objectData.amount : 1)`. `GetCoinValue` returns the
+   value of the whole stack, not of a single unit — a reader stopping at step
+   6 comes out low by that factor.
 
 The authority is the game's own `InventoryUtility.GetCoinValue`. moorowl's
 ItemBrowser carries a readable port of it
@@ -455,10 +468,9 @@ ItemBrowser carries a readable port of it
 upgrade-cost term above and does not include it, which is worth knowing before
 treating it as a reference.
 
-All the types involved — `LevelCD`, `CantBeSoldAuthoring`,
-`CookedFoodAuthoring`, and `Unity.Mathematics`' `math` and `Random` — compile
-inside the RoslynCSharp sandbox; `Unity.Mathematics` needs to be referenced by
-your runtime asmdef. See [the load-time sandbox](sandbox.md).
+All the types involved — `LevelCD`, `CantBeSoldCD`, `CookedFoodCD`, and
+`Unity.Mathematics`' `math` and `Random` — compile inside the RoslynCSharp
+sandbox; `Unity.Mathematics` needs to be referenced by your runtime asmdef. See [the load-time sandbox](sandbox.md).
 
 ## Display names for foreign-mod items
 
@@ -583,9 +595,11 @@ m_Sprite: {fileID: <internalID>, guid: <sheet guid>, type: 3}
 The `guid` is the sheet's; the `fileID` is that sub-sprite's `internalID` from
 the sheet `.meta`. And that `internalID` is **derived from the sprite's name** —
 a signed int32 taken from the first 4 bytes, little-endian, of
-`SHA1(final sprite name)`. (That is how this repo's sheet generator reproduces
-the IDs Unity assigns, matching Unity's output; it is not a documented Unity
-algorithm.)
+`SHA1(final sprite name)`. (A sprite-sheet generator can author each
+`.png.meta`'s `internalID` this same way, deterministically — not to
+reproduce whatever Unity would itself assign, since that derivation is not a
+documented Unity algorithm, but so a regenerated sheet keeps every reference
+resolvable; a pin table exists to override the hash where one is needed.)
 
 Two consequences follow:
 
