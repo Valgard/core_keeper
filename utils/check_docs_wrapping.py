@@ -313,11 +313,17 @@ def process(path, fix):
     for first, end, cont, prefix in list_items(lines):
         item = lines[first:end]
         splits = split_links(item)
-        if not splits and not any(
-            visible_len(x) > width + OVERSHOOT and not x.rstrip().endswith(")")
-            for x in item
-        ):
+        overlong = [
+            (k, x)
+            for k, x in enumerate(item)
+            if visible_len(x) > width + OVERSHOOT and not LINK_TOKEN.search(x)
+        ]
+        if not splits and not overlong:
             continue
+        for k, x in overlong:
+            problems.append(
+                f"{display(path)}:{first + k + 1}  list item: {visible_len(x)} visible columns, target {width}"
+            )
         for link in splits:
             problems.append(
                 f"{display(path)}:{first + 1}  list item: {' '.join(link.split())[:60]}"
