@@ -65,6 +65,22 @@ def test_a_missing_member_raises_each_backend_s_own_error(container, packaging):
             c.read("images/drawings/nope.png")
 
 
+def test_a_member_name_cannot_read_outside_the_package(container, packaging):
+    """An archive gets this for free -- `ZipFile` resolves a name against its
+    own namespace, where '..' matches nothing -- while joining onto a real
+    directory walks straight out of the package. Left alone, the adapter would
+    be strictly MORE permissive than the thing it replaces, which is a poor
+    property for a class that claims to mirror it.
+
+    The name is not always the tool's own, either: pixaki_to_glyphs builds it
+    from a cel identifier inside document.json, i.e. out of the very file being
+    read."""
+    (container.parent / "outside.txt").write_bytes(b"not part of the package")
+    with open_pixaki(container) as c:
+        with pytest.raises(KeyError if packaging == "zip" else ValueError):
+            c.read("../outside.txt")
+
+
 def test_open_pixaki_fails_loudly_on_a_path_that_does_not_exist(tmp_path):
     """Guards the dispatch itself. `if not os.path.isfile(path)` reads like a
     harmless rewrite of `if os.path.isdir(path)` and passes the whole suite --

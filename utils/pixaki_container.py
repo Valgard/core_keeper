@@ -84,7 +84,25 @@ class _DirectoryContainer:
             return handle.read()
 
     def open(self, name):
-        return open(os.path.join(self._root, *name.split("/")), "rb")
+        return open(self._member_path(name), "rb")
+
+    def _member_path(self, name):
+        """The file a member name refers to, refusing to leave the package.
+
+        An archive needs no such check: `ZipFile` resolves a name against its
+        own namespace, where '..' matches nothing and an absolute name is just
+        a name. Joining onto a real directory walks out, which would leave this
+        backend strictly MORE permissive than the one it stands in for.
+
+        Splitting on '/' rather than passing the name whole is part of the same
+        guard: `os.path.join(root, '/etc/passwd')` discards the root, while
+        joining the segments keeps it. It is also the exact inverse of what
+        `namelist()` does on the way out."""
+        member = os.path.abspath(os.path.join(self._root, *name.split("/")))
+        root = os.path.abspath(self._root)
+        if os.path.commonpath((root, member)) != root:
+            raise ValueError(f"member {name!r} resolves outside the package")
+        return member
 
     def close(self):
         """A no-op: the container itself holds nothing open.
