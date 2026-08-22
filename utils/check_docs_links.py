@@ -6,16 +6,17 @@ renders, the link is still blue, it just lands nowhere. It happens whenever a
 heading is reworded, which is why docs/ck/ carries the rule that headings are
 never renamed — this script is that rule, enforced.
 
-Scope is the repository's own tracked Markdown, taken from `git ls-files`. That
-matters here: the SDK clone and every mod repo sit inside this one as separate
-repositories, so a plain directory walk would reach thousands of foreign files.
-It is the same reasoning that makes .csharpierignore an allowlist.
+Scope is the repository's own tracked and untracked-but-not-ignored Markdown,
+taken from `git ls-files`. That matters here: the SDK clone and every mod repo
+sit inside this one as separate repositories, so a plain directory walk would
+reach thousands of foreign files. It is the same reasoning that makes
+.csharpierignore an allowlist.
 
 Checked per file: relative links resolve to an existing file; `#anchors` match a
 heading in the target; no two headings in one file produce the same anchor; code
 fences are balanced. Plus one rule for the handbook: every chapter under docs/ck
-is linked from both its README.md and its index.md, so a new chapter cannot be
-added and left unreachable.
+is linked from its index.md, so a new chapter cannot be added and left
+unreachable.
 
 Usage:
     uv run utils/check_docs_links.py [repo-root]
@@ -54,7 +55,8 @@ def mask_fences(text):
 
 
 def markdown_files(root):
-    """Tracked *.md, so foreign repositories nested here are never reached.
+    """Tracked and untracked-but-not-ignored *.md, so foreign repositories
+    nested here are never reached.
 
     Returns (existing, missing). A tracked file that is gone from the working
     tree is a finding, not a crash: that is exactly the state of a deleted .md
