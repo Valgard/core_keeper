@@ -1,13 +1,13 @@
-# Finding things out
+# Reverse engineering
 
 Core Keeper has no published API reference. Every non-trivial question — what a
 system does before it writes a component, which field a prefab actually carries,
 whether the behaviour you are looking at is the game's or your own patch's —
 gets answered from the shipped build itself: a decompile of the game
 assemblies, an extraction of the asset file, and a test in a running game. This
-chapter covers how to produce those three, how deep to dig before calling an
-answer settled, and which external sources are worth a look once the local
-material is exhausted.
+chapter covers how to produce the first two, and how to design the third so it
+proves something, how deep to dig before calling an answer settled, and which
+external sources are worth a look once the local material is exhausted.
 
 ## Decompiling the game assemblies
 
@@ -470,7 +470,7 @@ consulted after the repo and the decompile, and ahead of a general web search.
 | mod.io guide: ECS component compendium | `/g/corekeeper/r/ecs-component-compendium` | The most useful of the guides for game-logic work — a catalogue of components, and the one that also settles negatives |
 | mod.io guide: missing scripts | `/g/corekeeper/r/how-to-fix-missing-scripts` | The "Missing Script" symptom on prefabs |
 | mod.io guide: dnSpy | `/g/corekeeper/r/how-to-use-dnspy` | IL inspection, interactive |
-| mod.io guide: user guidelines | `/g/corekeeper/r/user-guidelines` | Publishing rules — see also [../publishing.md](publishing.md) |
+| mod.io guide: user guidelines | `/g/corekeeper/r/user-guidelines` | Publishing rules — see also [Publishing to mod.io](publishing.md) |
 
 **Cross-check the compendium, absences included.** ILSpy stays the authority,
 but the compendium is a cheap second opinion on a decompile finding — and the

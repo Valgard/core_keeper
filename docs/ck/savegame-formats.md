@@ -396,4 +396,4 @@ x,z|id:count,id:count,…
 Parsing one gives you positions, cluster membership and which IDs cluster
 together — enough to check distance to the Core, spot that a "base" scan is
 really picking up a remote structure, or confirm which objects a rule fires on.
-How a mod writes such a file in the first place belongs to [storing configuration and state.md](persistence.md).
+How a mod writes such a file in the first place belongs to [Storing configuration and state](persistence.md).

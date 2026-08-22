@@ -2,8 +2,8 @@
 
 Where Core Keeper actually runs, where it keeps its files, and what breaks on a
 host the game was never built for. Most of this chapter matters only if you mod
-from macOS — but the file layout at the end is what every chapter means when it
-names a path.
+from macOS — but the file layout in the next section is what every chapter means
+when it names a path.
 
 ## There is no macOS build
 
