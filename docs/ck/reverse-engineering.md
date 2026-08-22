@@ -132,8 +132,8 @@ others settle it after the fact, on the checkout you already have:
   `modio.UnityPlugin` is settled without ever anchor-testing its backup.
 - **Read the patched region in the output.** Each patch has a recognisable shape,
   so its absence is the answer. Stock `StandaloneFilesystem.DeleteDirectory`
-  (`Pug.Other:435027`) reads `Directory.Delete(Rel2Abs(path), recursive: true)`
-  and stock `SystemIOWrapper.DeleteDirectory` (`modio.UnityPlugin:39200`) reads
+  (`Pug.Other:435029`) reads `Directory.Delete(Rel2Abs(path), recursive: true)`
+  and stock `SystemIOWrapper.DeleteDirectory` (`modio.UnityPlugin:39208`) reads
   `Directory.Delete(path, recursive: true)` — neither is the iterate-and-delete
   rewrite the host patches install in their place.
 
