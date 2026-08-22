@@ -28,9 +28,9 @@ Usage:
 import argparse
 import json
 import sys
-import zipfile
 
 from PIL import Image
+from pixaki_container import open_pixaki
 
 CDX, CDY = 8, 12  # cell size (thinSmall grid)
 COLS, ROWS = 32, 12
@@ -45,7 +45,7 @@ BOX_Y, BOX_H = 0, 10  # the rect box inside every cell (thinTiny metric)
 # CK's discarded row falls outside the drawn glyph.
 
 
-def layer_full(zf, sprite, cels, name):
+def layer_full(container, sprite, cels, name):
     """Composite one named layer onto a full-canvas RGBA image.
 
     Exits with the layer names the master actually has if `name` is not among
@@ -60,23 +60,24 @@ def layer_full(zf, sprite, cels, name):
     cel = cels[layer["clips"][0]["itemIdentifier"]]
     (fx, fy), _ = cel["frame"]
     full = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    drawing = Image.open(zf.open(f"images/drawings/{cel['identifier']}.png"))
+    drawing = Image.open(container.open(f"images/drawings/{cel['identifier']}.png"))
     full.alpha_composite(drawing.convert("RGBA"), (fx, fy))
     return full
 
 
 def load_layers(pixaki_path):
-    """Return (rects_img, atlas_img) from a .pixaki (a plain ZIP).
+    """Return (rects_img, atlas_img) from a .pixaki in either packaging.
 
-    Both layers are composited before the ZIP closes, so the returned images
-    own their pixels and do not read the archive again.
+    The exported ZIP and the native directory package are both accepted; see
+    pixaki_container. Both layers are composited before the container closes,
+    so the returned images own their pixels and never read it again.
     """
-    with zipfile.ZipFile(pixaki_path) as zf:
-        doc = json.load(zf.open("document.json"))
+    with open_pixaki(pixaki_path) as container:
+        doc = json.load(container.open("document.json"))
         sprite = doc["sprites"][0]
         cels = {c["identifier"]: c for c in sprite["cels"]}
-        rects = layer_full(zf, sprite, cels, "Rects")
-        atlas = layer_full(zf, sprite, cels, "Atlas")
+        rects = layer_full(container, sprite, cels, "Rects")
+        atlas = layer_full(container, sprite, cels, "Atlas")
     return rects, atlas
 
 

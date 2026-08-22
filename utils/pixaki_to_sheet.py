@@ -15,7 +15,6 @@ existing meta as its own header/tail template.
 """
 
 import json
-import zipfile
 import io
 import hashlib
 import argparse
@@ -23,6 +22,7 @@ import copy
 import os
 from dataclasses import dataclass
 from PIL import Image
+from pixaki_container import open_pixaki
 
 _CONFIG_DEFAULTS = {
     "exclude": [],
@@ -111,8 +111,11 @@ def collect_layers(doc, exclude_top):
 
 
 def load_pixaki(path):
-    """Return (document.json dict, {drawing_uuid: RGBA Image})."""
-    with zipfile.ZipFile(path) as z:
+    """Return (document.json dict, {drawing_uuid: RGBA Image}).
+
+    Reads a .pixaki in either packaging -- the exported ZIP or the native
+    directory package; see pixaki_container."""
+    with open_pixaki(path) as z:
         doc = json.loads(z.read("document.json"))
         drawings = {}
         for n in z.namelist():

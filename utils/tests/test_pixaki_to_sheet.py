@@ -1,9 +1,16 @@
 """Unit tests for pixaki_to_sheet (Iter-12 sprite-sheet generator)."""
 
 from PIL import Image
+from conftest import PIXAKI_FORMS, write_pixaki
 import pixaki_to_sheet as p
 
 EXCLUDE_TOP = {"Outsorted", "Background", "Search Field Complete", "Dropdown Complete"}
+
+_TEMPLATE_META = (
+    "fileFormatVersion: 2\nguid: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+    "TextureImporter:\n  spriteMode: 2\n  spriteSheet:\n    serializedVersion: 2\n"
+    "    sprites:\n    nameFileIdTable:\n  mipmapLimitGroupName: \n  userData: \n"
+)
 
 
 def _doc():
@@ -212,10 +219,14 @@ def test_build_sheet_in_place_template_not_truncated(tmp_path):
     )  # the template tail survived (not truncated)
 
 
-def _write_two_sprite_pixaki(tmp_path, cfg_json):
+def _write_two_sprite_pixaki(tmp_path, cfg_json, form="zip"):
     """A .pixaki with two DISTINCT sprites named 'Icon' and 'Icon2', plus a
-    sibling s.json holding cfg_json. Returns the .pixaki path."""
-    import zipfile, json, io
+    sibling s.json holding cfg_json. Returns the .pixaki path.
+
+    `form` selects the packaging (see conftest.write_pixaki); it defaults to
+    the ZIP that Pixaki's Export produces, which is what every caller but the
+    equivalence test wants."""
+    import json, io
 
     doc = {
         "sprites": [
@@ -239,16 +250,15 @@ def _write_two_sprite_pixaki(tmp_path, cfg_json):
             }
         ]
     }
-    pixaki = tmp_path / "s.pixaki"
-    with zipfile.ZipFile(pixaki, "w") as z:
-        z.writestr("document.json", json.dumps(doc))
-        for did, color in (
-            ("D1", (255, 0, 0, 255)),
-            ("D2", (0, 255, 0, 255)),
-        ):  # distinct pixels
-            bio = io.BytesIO()
-            Image.new("RGBA", (4, 4), color).save(bio, "PNG")
-            z.writestr(f"images/drawings/{did}.png", bio.getvalue())
+    members = {"document.json": json.dumps(doc).encode()}
+    for did, color in (
+        ("D1", (255, 0, 0, 255)),
+        ("D2", (0, 255, 0, 255)),
+    ):  # distinct pixels
+        bio = io.BytesIO()
+        Image.new("RGBA", (4, 4), color).save(bio, "PNG")
+        members[f"images/drawings/{did}.png"] = bio.getvalue()
+    pixaki = write_pixaki(tmp_path / "s.pixaki", members, form)
     (tmp_path / "s.json").write_text(cfg_json)
     return pixaki
 
@@ -262,6 +272,39 @@ def test_validate_pins_rejects_collision(tmp_path):
     with pytest.raises(ValueError, match="duplicate internalID"):
         p.build_sheet(str(pixaki), str(tmp_path / "s.png"))
     assert not (tmp_path / "s.png").exists()  # nothing written on failure
+
+
+def test_build_sheet_reads_a_directory_package_exactly_like_a_zip(tmp_path):
+    """Both packagings must yield the same sheet, byte for byte.
+
+    A .pixaki is a ZIP when it came through Pixaki's Export and a directory
+    when it was pulled straight out of iCloud (docs/pixaki-format.md). "It
+    reads at all" would be far too weak a check here: build_sheet is
+    deterministic -- stable internalIDs, packing, dedup -- so anything the
+    container form perturbed would surface as a differing byte."""
+    built = {}
+    for form in PIXAKI_FORMS:
+        home = tmp_path / form
+        home.mkdir()
+        pixaki = _write_two_sprite_pixaki(home, "{}", form=form)
+        (home / "s.png.meta").write_text(_TEMPLATE_META)
+        # Pin the guid: unpinned it is derived from the out path, which differs
+        # per run, and the packaging must be the only variable left.
+        mapping, guid = p.build_sheet(str(pixaki), str(home / "s.png"), guid="c" * 32)
+        built[form] = (
+            mapping,
+            guid,
+            (home / "s.png").read_bytes(),
+            (home / "s.png.meta").read_text(),
+        )
+
+    mapping_zip, guid_zip, png_zip, meta_zip = built["zip"]
+    mapping_dir, guid_dir, png_dir, meta_dir = built["directory"]
+    assert len(mapping_zip) == 2  # the ZIP run really did build a two-sprite sheet
+    assert mapping_dir == mapping_zip
+    assert guid_dir == guid_zip
+    assert meta_dir == meta_zip
+    assert png_dir == png_zip  # last: a mismatch here prints two PNG blobs
 
 
 def test_validate_pins_rejects_unused_pin(tmp_path):

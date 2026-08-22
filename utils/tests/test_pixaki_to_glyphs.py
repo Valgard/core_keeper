@@ -2,11 +2,11 @@
 
 import io
 import json
-import zipfile
 
 import pixaki_to_glyphs as g
 import pytest
 from PIL import Image
+from conftest import PIXAKI_FORMS, write_pixaki
 
 MAGENTA = (229, 59, 223, 255)
 WHITE = (255, 255, 255, 255)
@@ -26,12 +26,16 @@ def _paint_rect(img, cell_index, dx, dy, w, h, colour=MAGENTA):
             img.putpixel((x0 + dx + xx, y0 + dy + yy), colour)
 
 
-def _pixaki(path, layers, size=(257, 144), offset=(0, 0)):
+def _pixaki(path, layers, size=(257, 144), offset=(0, 0), form="zip"):
     """Write a minimal .pixaki holding {layer name: image}.
 
     Enough of the real format for load_layers(): one cel per layer, each
     placed at `offset` on a `size` canvas. Lets the loader be tested without
     the mod repo's real master, which is only present in a full checkout.
+
+    `form` selects the packaging (conftest.write_pixaki); the ZIP default is
+    what Pixaki's Export produces and what every caller but the equivalence
+    test below wants.
     """
     doc = {
         "sprites": [
@@ -48,13 +52,12 @@ def _pixaki(path, layers, size=(257, 144), offset=(0, 0)):
             }
         ]
     }
-    with zipfile.ZipFile(path, "w") as zf:
-        zf.writestr("document.json", json.dumps(doc))
-        for name, img in layers.items():
-            buf = io.BytesIO()
-            img.save(buf, format="PNG")
-            zf.writestr(f"images/drawings/cel-{name}.png", buf.getvalue())
-    return path
+    members = {"document.json": json.dumps(doc).encode()}
+    for name, img in layers.items():
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        members[f"images/drawings/cel-{name}.png"] = buf.getvalue()
+    return write_pixaki(path, members, form)
 
 
 def test_load_layers_composites_each_layer_at_its_cel_offset(tmp_path):
@@ -73,6 +76,36 @@ def test_load_layers_composites_each_layer_at_its_cel_offset(tmp_path):
     assert rects.getpixel((16, 12)) == MAGENTA
     assert atlas.getpixel((16, 12)) == WHITE
     assert rects.getpixel((0, 0)) == CLEAR
+
+
+def test_load_layers_reads_a_directory_package_exactly_like_a_zip(tmp_path):
+    """Both packagings must composite to pixel-identical layers.
+
+    A .pixaki is a ZIP when it came through Pixaki's Export and a directory
+    when it was pulled straight out of iCloud (docs/pixaki-format.md). Reading
+    both is not the claim; producing the same pixels is, because everything
+    downstream -- widths, the kerning matrix, the shipped atlas compared by
+    byte-identity -- is derived from exactly these two images."""
+    layers = {
+        "Rects": Image.new("RGBA", (1, 1), MAGENTA),
+        "Atlas": Image.new("RGBA", (1, 1), WHITE),
+    }
+    loaded = {}
+    for form in PIXAKI_FORMS:
+        master = _pixaki(
+            tmp_path / f"m-{form}.pixaki", layers, offset=(16, 12), form=form
+        )
+        loaded[form] = g.load_layers(master)
+
+    rects_zip, atlas_zip = loaded["zip"]
+    rects_dir, atlas_dir = loaded["directory"]
+    # Non-trivial first: two all-transparent canvases would compare equal for
+    # free, and prove nothing about the drawings ever being read.
+    assert rects_zip.getpixel((16, 12)) == MAGENTA
+    assert atlas_zip.getpixel((16, 12)) == WHITE
+    assert (rects_dir.size, atlas_dir.size) == (rects_zip.size, atlas_zip.size)
+    assert rects_dir.tobytes() == rects_zip.tobytes()
+    assert atlas_dir.tobytes() == atlas_zip.tobytes()
 
 
 def test_load_layers_names_the_layer_a_renamed_master_lacks(tmp_path):
