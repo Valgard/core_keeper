@@ -711,20 +711,9 @@ per-entity component reads mattered.
 ### Hooking the save
 
 To persist mod state in lockstep with CK's own save, Harmony-postfix
-**`SaveManager.WriteCharacter(int saveId)`** — the real character-file write
-(`characterFiles[saveId].Write(EncodeJson(...))`), which fires on autosave *and*
-on "Save & Quit". The parameterless `WriteCharacter()` delegates to it. The
-symmetric load point is `CharacterData.OnAfterDeserialize`.
+**`SaveManager.WriteCharacter(int saveId)`**. It is patchable despite the
+`Manager.saves` verification failure observed above, for the same reason: the
+patch attribute never goes through `Manager.saves` at all.
 
-`SaveManager` is on no deny list, and even the calls through `Manager.saves` that
-have been observed to fail verification do not block this: the patch attribute
-runs in trusted `0Harmony.dll`, not through `Manager.saves` at all.
-
-**Trap:** do **not** gate your save on a return-to-menu signal such as
-`SetCharacterId(-1)`. A normal "Save & Quit" does not reliably call it, so the
-gated save never reaches disk — the file simply stays absent with no error, a
-silent data-loss path. Saving in lockstep also avoids a post-crash desync where
-CK reverts the character while your file is newer. Keep a `Shutdown()` and a
-character-switch save as cheap backstops.
-
-Where that data goes, and the file API to write it with, is [storing configuration and state](persistence.md).
+What the hook fires on, its symmetric load point, the trap that loses a save
+silently, and the cost of writing on that thread are all in [writing in lockstep with the game's save](persistence.md#writing-in-lockstep-with-the-games-save).

@@ -565,11 +565,14 @@ symptom-first index: [troubleshooting](troubleshooting.md).
 
 | Check site | Test | Effect |
 |---|---|---|
-| `NetworkClientStartSystem` (`Pug.Other`, decompiled ~124928) | `requiredOn & ModExistsOn.Server` | The **Server** flag makes the **client** demand the mod on the server |
-| `ModInfoRpcSystem` (`Pug.Other`, decompiled ~125929) | `requiredOn & ModExistsOn.Client` | The **Client** flag makes the **server** demand it on the client |
+| `NetworkClientStartSystem` (`Pug.Other`, decompiled ~124928) | `localMod.required = (requiredOn & ModExistsOn.Server) != 0` | The **Server** flag makes the **client** demand the mod on the server |
+| `ModInfoRpcSystem` (`Pug.Other`, decompiled ~125929) | `required = (requiredOn & ModExistsOn.Client) != 0` | The **Client** flag makes the **server** demand it on the client |
 
-A mod without the relevant flag is removed from the check list entirely and never
-interferes with a connection.
+A mod without the relevant flag is removed from the check list, but by two different
+mechanisms depending on direction: on the server side, `localMods.RemoveAt`
+(~124944-124946) drops it outright; on the client side, the server reports `required =
+false` for it and the client never adds it to `modsToCheck` in the first place
+(~124577-124578). Either way it never interferes with a connection.
 
 ### Choosing a value
 

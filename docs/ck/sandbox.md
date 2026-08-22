@@ -82,7 +82,7 @@ changed and the asset is where to look.
 | Assemblies (7) | `UnityEditor.dll`, `Mono.Cecil.dll`, and the five `MonoMod.*` assemblies |
 | Members (2) | `UnityEngine.Application.Quit`, `System.Type.InvokeMember` |
 
-Three consequences the list makes obvious and a bisection would not:
+Two consequences the list makes obvious and a bisection would not:
 
 - **Whole namespaces, not selected types.** `System.Diagnostics.*` takes
   `Stopwatch`, `StackTrace` and `Debug` with it, not just `Process` — which
@@ -92,8 +92,6 @@ Three consequences the list makes obvious and a bisection would not:
   denied — but `[HarmonyPatch]`, `[HarmonyPrefix]` and friends are attributes,
   not those types. That is why declarative patching works while every
   programmatic entry point is closed.
-- **`System.Security.Cryptography` is not on any list**, which is why CoreLib
-  can hash with it.
 
 The following were observed to fail and are *not* on the list — the reason lies
 in what the expression resolves to, not in a listed symbol:

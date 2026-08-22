@@ -8,10 +8,11 @@ when it names a path.
 ## There is no macOS build
 
 Core Keeper ships **Windows and Linux depots only**, for the game and for the
-dedicated server alike, and nothing suggests that will change. On macOS it runs
-as the Windows build under a Wine-based translation layer — CrossOver, or Wine
-directly. On Apple Silicon that stacks a second translation underneath, since
-the Windows build is x86-64.
+dedicated server alike, and nothing suggests that will change — the Steam
+store API confirms it directly, reporting `platforms.mac = False` for app
+1621690. On macOS it runs as the Windows build under a Wine-based translation
+layer — CrossOver, or Wine directly. On Apple Silicon that stacks a second
+translation underneath, since the Windows build is x86-64.
 
 This has one consequence that is easy to miss and expensive to rediscover: **a
 macOS modder is running the Windows build**, so every Windows path, registry
