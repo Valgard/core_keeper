@@ -105,9 +105,12 @@ mean a match is a hypothesis until something outside the file confirms it.
 
 ### Worked example: reading map markers out of the file
 
-Markers are the case where the file wins, because a marker is not a separate
-save format — it is an ordinary world entity, and its on-disk record is small
-enough to find without a chunk walker.
+Of everything in a world file, markers are the one thing a byte-level scan can
+actually reach — a marker is not a separate save format, it is an ordinary
+world entity, and its on-disk record is small enough to find without a chunk
+walker. That earns the marker walk below its place as a worked example; it is
+not a claim that the file is the route to take — this section closes by naming
+the running game instead.
 
 **There is no marker file.** No `.mapmarkers`, and markers are *not* in
 `mapparts` — those are fog-of-war pixels. A marker lives in the world file

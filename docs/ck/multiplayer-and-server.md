@@ -313,10 +313,11 @@ not just yours — and this is the diagnostically expensive case, because the
 symptom points at the game version while the cause is one absent dependency on
 one machine.
 
-### Version filtering is client-side only
+### Version filtering belongs to the subscription loaders
 
-Only the client checks a mod's version-compatibility tags. It skips a mod that
-does not match the running game version, unless the mod's GUID sits in
+Which loader fetched a mod decides whether its version-compatibility tags get
+checked — not which machine is running it. A subscription loader skips a mod
+that does not match the running game version, unless the mod's GUID sits in
 `modloader/config.json` → `unsupportedModsToLoad`, which is what the "load
 anyway" dialogue writes.
 

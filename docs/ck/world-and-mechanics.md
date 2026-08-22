@@ -607,7 +607,7 @@ static bool Prefix(ref bool __result) { __result = true; return false; }
 which makes the browser — boulders included — available in any survival world.
 (Its own filter drops foreign-mod items with `objectID >= 30000` outside real
 creative worlds; vanilla 2200-2218 are unaffected. It bails out on
-`IsDedicatedServer`, so the patch is client-side only.)
+`IsDedicatedServer`, so the patch has no effect on a dedicated server.)
 
 **The reusable lesson: Core Keeper separates "is this object placeable"
 (prefab data, `objectInfo.objectType`) from "may the player see it in the

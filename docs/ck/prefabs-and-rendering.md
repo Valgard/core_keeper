@@ -347,12 +347,15 @@ Adding the mask is only the first of several steps, and every one of the remaini
 fails *silently*, with a clean build: either a sprite that should be clipped is not, or
 a sprite that should be visible is gone.
 
-### A renderer is clipped only when both conditions hold
+### A renderer is clipped only when three conditions hold
 
 1. **`maskInteraction = VisibleInsideMask`** — `m_MaskInteraction: 1` on a
    `SpriteRenderer`, `style: maskInteraction` on a `PugText`. The default `0` (None)
    ignores every mask there is.
-2. **Its sorting order lies inside the mask's custom sorting-layer range.** The range is
+2. **It sits on the `"GUI"` sorting layer.** A renderer left on the `"Default"` layer it
+   starts on (see [a freshly added SpriteRenderer starts out broken](#a-freshly-added-spriterenderer-starts-out-broken) above) is not clipped
+   at all, mask or no mask.
+3. **Its sorting order lies inside the mask's custom sorting-layer range.** The range is
    about *capture* — which renderers this mask governs — not about draw order.
 
 The corollary is the deliberate exemption: leaving a renderer at `maskInteraction: None`
@@ -472,13 +475,14 @@ the popup's mask could clip them.
 
 ### PugText fields that must be set in the prefab
 
-- **`maxWidth` is safe until a single token exceeds it.** Vanilla sets it
-  constantly — title text, the whole hover tooltip — and the word-wrap
-  `PugFont.AddNewLinesToLinesExceedingMaxWidth` only indexes out of range when
-  it meets one unbreakable token wider than the limit, because it looks back
-  for a preceding break that is not there. Long German compounds are the
-  reliable trigger. Leaving it `0` sidesteps the question; setting it means
-  owning the longest word any translation can produce.
+- **`maxWidth` is safe until the wrapper meets a character its face does not map.**
+  Vanilla sets it constantly — title text, the whole hover tooltip — and the crash is
+  not simple overflow, and not an unbreakable token either: it is an unguarded
+  kerning-table lookup inside `PugFont.AddNewLinesToLinesExceedingMaxWidth` that only
+  misfires on a character the current face's own glyph table lacks (German `ä/ö/ü/ß` in
+  `thinTiny` are the reliable trigger) on a kerning-enabled face. Full mechanism in [text rendering and text input](ui-framework.md#a-non-zero-maxwidth-can-crash-on-a-character-its-face-does-not-map).
+  Leaving it `0` sidesteps the question; setting it means owning every translation's
+  charset against the face in use.
 - **Alignment is a real serialized field, not a transform trick.**
   `PugTextStyle.HorizontalAlignment { left, center, right }` serialises as `0/1/2`, and
   `verticalAlignment` likewise.

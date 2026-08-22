@@ -573,13 +573,25 @@ whether a term exists at all are in [localisation](localisation.md).
 
 ## Text rendering and text input
 
-### A non-zero `maxWidth` crashes `PugFont.Render` on overflow
+### A non-zero `maxWidth` can crash on a character its face does not map
 
 `PugFont.Render` enters `AddNewLinesToLinesExceedingMaxWidth` only when
-`maxWidth > 0f`, and that method indexes out of range on text that actually
-overflows. It is a vanilla CK bug that English text often dodges and longer
-translations — German above all — hit routinely. The fix is `PugText.maxWidth =
-0f` on every single-line label, **before** `Render`.
+`maxWidth > 0f`. Inside it, the kerning lookup at `Pug.Other:350905-350917`
+(`kerning[cp]`) is unguarded — neither `num5 < glyphData.Length` nor
+`cp < kerning.Length` is checked, unlike the twin lookup inside `PugFont.Render`
+itself (`:350634-350646`), which carries both guards. `cp`/`num5` land outside
+the current face's tables when the character is one the face does not itself
+map — `thinTiny`'s 118-cell charset has no German `ä/ö/ü/ß`, for instance — and
+the lookup falls through to a **fallback font**'s glyph data (`GetGlyphData`,
+`:350973-351021`) at an index the current face's arrays were never sized for.
+It only bites a **kerning-enabled** face: `Font5.asset` is one of only three
+shipped faces with `enableKerning: 1`. Neither "overflow" nor "one unbreakable
+token with no preceding break" survives a code read as the trigger — the
+no-preceding-break case is exactly the branch the method handles (`num3 == 0`
+and `num2 == num` take the `text.Insert(i, "\n")` branch; `text[num3 - 1]` is
+reached only once `num3 >= 1`). The code path is verified; a runtime crash was
+not reproduced this round. The fix stands regardless: `PugText.maxWidth = 0f`
+on every single-line label, **before** `Render`.
 
 **The symptom points nowhere near the cause.** The throw happens inside
 `ShowUI()`, so CoreLib never reaches the point where it sets `currentInterface`:
@@ -936,16 +948,17 @@ holds for `ScrollBarHandle` and for every other `ButtonUIElement` subclass.
 ### Clipping with a `SpriteMask`
 
 Clipping in CK's sprite UI is a `SpriteMask` with a **Custom Sorting-Layer
-Range** on the `"GUI"` layer. Four preconditions, each of which silently clips
-*nothing* when violated:
+Range** on the `"GUI"` layer. Five preconditions, each of which silently breaks
+the clip when violated — the first four by clipping nothing, the last by
+clipping almost everything:
 
 | Precondition | What goes wrong |
 |---|---|
-| every renderer has `maskInteraction = VisibleInsideMask` | the default `None` ignores every mask there is — see [when a renderer is clipped](prefabs-and-rendering.md#a-renderer-is-clipped-only-when-both-conditions-hold) |
+| every renderer has `maskInteraction = VisibleInsideMask` | the default `None` ignores every mask there is — see [when a renderer is clipped](prefabs-and-rendering.md#a-renderer-is-clipped-only-when-three-conditions-hold) |
 | every renderer in the region is already on `"GUI"` | one left on `"Default"` is not clipped at all |
 | every renderer's `sortingOrder` falls inside the band | outside the band it is not clipped |
 | `PugText` needs `style.orderInLayer` set; `sortingLayer` defaults to a sentinel that already resolves to `"GUI"` | the prefab keys are `sortingLayer:` / `orderInLayer:` — **not** `m_SortingLayer` / `m_SortingOrder`, which are `SpriteRenderer` keys and are silently ignored on a `PugText` |
-| the mask sprite's `.meta` needs `spritePixelsToUnits: 1` | at CK's default of 16 a 1×1 white PNG is 0.0625 units, so a Transform scale of (11, 6) yields a 0.69 × 0.375 mask |
+| the mask sprite's `.meta` needs `spritePixelsToUnits: 1` | at CK's default of 16 a 1×1 white PNG is 0.0625 units, so a Transform scale of (11, 6) yields a 0.69 × 0.375 mask, which clips almost everything |
 
 `PugText` has a `SetOrderInLayer` method but **no** sorting-layer setter — assign
 `style.sortingLayer` directly, it is a public field.

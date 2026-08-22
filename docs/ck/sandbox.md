@@ -100,7 +100,7 @@ in what the expression resolves to, not in a listed symbol:
 
 | Observed failure | What it resolves to |
 |---|---|
-| `Manager.saves.X()` — property access on `SaveManager` | `SaveManager` is on no deny list. What trips is the *property* path: this repo's ItemChecklist records `Manager.saves.*` property access failing while field access on the same object passes, and the published ItemBrowser mod calls `Manager.saves.HasDiscoveredObject(...)` directly without trouble. Treat it as a property-versus-field distinction, not a banned class. |
+| `Manager.saves.X()` on `SaveManager` | `SaveManager` is on no deny list. What trips is unexplained: this repo's ItemChecklist recorded `Manager.saves.GetWorldId()` failing verification, yet the published ItemBrowser mod calls `Manager.saves.HasDiscoveredObject(...)` — an instance method reached through the same static property — without trouble, and `faster-talents` calls `Manager.saves.GetSkillValue(skillId)` and `Manager.saves.GetSkillTalentTreesPoints(skillTreeID)` cleanly too. Bisect the expression, not the deny list. |
 | Some game-side ECS component reads | `em.HasComponent<CharacterGuidCD>(entity)` + `GetComponentData<CharacterGuidCD>(entity)` + `Hash128` together produced 1 namespace + 1 type + 1 member illegal ref — something in that expression resolves into `System.Reflection.*` or `System.Runtime.InteropServices.*`. Bisect the expression, not the deny list. |
 
 `System.IO.*` deserves its own note because the namespace ban reaches further
@@ -201,14 +201,16 @@ direction — no load here has exercised it.
 ## Harmony attributes are exempt — hook bodies are not
 
 `[HarmonyPatch(typeof(SaveManager), nameof(SaveManager.SetObjectAsDiscovered))]`
-loads cleanly, even though `SaveManager` is a banned access surface. The patch
-attribute is a special-cased compile-time-only reference: the reflection that
-resolves it happens inside the precompiled, trusted `0Harmony.dll`, not in your
-IL.
+loads cleanly — `SaveManager` is on no deny list to begin with. The patch
+attribute is in any case a special-cased compile-time-only reference: the
+reflection that resolves it happens inside the precompiled, trusted
+`0Harmony.dll`, not in your IL.
 
-**This unlocks a banned class's API — within limits.** Hook the method instead
-of calling it; your code sees the arguments and the result, while the member
-access itself happens inside trusted code.
+**Hook the method instead of calling `Manager.saves` directly — within limits.**
+Your code sees the arguments and the result, while the member access itself
+happens inside trusted code, which sidesteps the `Manager.saves.X()` calls that
+have been *observed* to fail verification (see [what is banned](#what-is-banned)),
+whatever the underlying reason turns out to be.
 
 The limits are worth knowing before relying on it. `InvokeChecker.CheckType`
 accepts a patch target only if its assembly name starts with `Pug`, `Unity`,
@@ -219,9 +221,10 @@ rejection is **all-or-nothing**: one disallowed target makes the check return
 false for the whole assembly, `PatchAll` never runs, and *none* of the mod's
 patches bind. The log says `Trying to patch type X from unknown assembly`.
 
-**But the exemption stops at the attribute.** Calling `Manager.saves.X()` from
-*inside* a Harmony postfix is still a banned reference and still fails
-verification. Only the attribute is free.
+**But the workaround stops at the attribute.** Calling `Manager.saves.X()` from
+*inside* a Harmony postfix has been observed to fail verification just the
+same, for the same unexplained reason as above. Only the attribute reference is
+clear of it.
 
 Two patterns follow from this:
 
@@ -264,9 +267,9 @@ Fall back on these only when the log was truncated or the detail entry is
 genuinely absent:
 
 1. **Bisect.** Comment out the most recently added external API call, rebuild,
-   reload. If verification passes, that call was it. This is how the
-   `Manager.saves.GetWorldId()` ban was found, and it is nearly always faster
-   than the alternative.
+   reload. If verification passes, that call was it. This is how
+   `Manager.saves.GetWorldId()` was found to fail verification, and it is
+   nearly always faster than the alternative.
 2. **Decompile** the mod's freshly built DLL from `ModLoader/<Mod>/` and match
    its external type references against the reported counts. See
    [reverse engineering](reverse-engineering.md).
