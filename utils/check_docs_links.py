@@ -18,6 +18,14 @@ fences are balanced. Plus one rule for the handbook: every chapter under docs/ck
 is linked from its index.md, so a new chapter cannot be added and left
 unreachable.
 
+Three link forms it does not recognise, all absent from the tracked docs when
+this was written and left unhandled rather than guessed at: reference-style
+links (`[text][ref]` and the shortcut form), Setext headings and HTML anchors
+(`<a id>`) as anchor targets, and a fence opened with ``` and closed with ~~~,
+which is invalid Markdown but toggles the same flag here. The first two would
+report a false *positive* — a link the checker cannot see is reported broken —
+so they announce themselves rather than passing silently.
+
 Usage:
     uv run utils/check_docs_links.py [repo-root]
 """

@@ -19,6 +19,10 @@ a paragraph that ends at column 60 because the next token is 25 characters wide
 is correctly wrapped. A first version of this check compared against a flat 80
 and reported 763 findings, essentially none of them real.
 
+One known gap, shared with check_docs_links: a fence opened with ``` and closed
+with ~~~ toggles the same flag, so the two are interchangeable here though
+Markdown requires them to match. No tracked file uses ~~~ at all.
+
 Usage:
     uv run utils/check_docs_wrapping.py [--fix] [path ...]
 """
