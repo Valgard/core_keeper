@@ -65,31 +65,21 @@ including the world generation that needs OpenGL/Mesa on the server side. The
 pragmatic path for anything server-authoritative is always the official server
 binary plus a server-side mod.
 
-**There is no macOS build at all** — not of the server, not of the game. The
-Steam store API reports `platforms.mac = False` for app 1621690, and server
-depots exist for Windows and Linux only. On Apple Silicon that leaves Wine/
-CrossOver or a Linux container; the `escapingnetwork` server image has an ARM
-variant via Box64. Getting one running is [below](#getting-one-running).
+**There is no macOS build** — see [platforms](platforms.md#there-is-no-macos-build).
+On Apple Silicon that leaves Wine/CrossOver or a Linux container for running
+the server; the `escapingnetwork` server image has an ARM variant via Box64.
+Getting one running is [below](#getting-one-running).
 
 ## The second layer: the mod set
 
 Core Keeper runs its own mod comparison at connect time, in `ModInfoRpcSystem`
 and `NetworkClientStartSystem`, entirely independent of NetCode's hash
-validation. What it compares is driven by each mod's `requiredOn` flag — see [mod anatomy](mod-anatomy.md)
-for the enum itself and how to choose a value. What matters here is the network
-consequence.
+validation. What it compares, why the two checks are crossed, and how to
+choose a `requiredOn` value are in [mod anatomy](mod-anatomy.md#requiredon-and-its-crossed-checks).
 
-**The checks are crossed.** This is the part that gets set wrong:
-
-| Flag on your mod | Effect |
-|---|---|
-| `Server` (2) | `NetworkClientStartSystem` (Pug.Other ~124928): `localMod.required = (requiredOn & ModExistsOn.Server) != 0` — the **client** demands the mod **on the server** |
-| `Client` (1) | `ModInfoRpcSystem` (~125929): `required = (requiredOn & ModExistsOn.Client) != 0` — the **server** demands it **on the client** |
-| flag absent, `Server` direction | the mod is removed from the check list entirely (`localMods.RemoveAt`, ~124944-124946) and never interferes |
-| flag absent, `Client` direction | the server reports `required = false` for it, and the client never adds it to `modsToCheck` in the first place (~124577-124578) |
-
-So a client-only HUD mod that carries `Server` does not "declare itself
-client-side" — it declares that every server you join must also run it.
+The consequence for the network layer: a client-only HUD mod that carries
+`Server` does not "declare itself client-side" — it declares that every
+server you join must also run it.
 
 ### What the server actually sends
 
