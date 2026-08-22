@@ -571,10 +571,10 @@ symptom-first index: [troubleshooting](troubleshooting.md).
 | `ModInfoRpcSystem` (`Pug.Other`, decompiled ~125929) | `required = (requiredOn & ModExistsOn.Client) != 0` | The **Client** flag makes the **server** demand it on the client |
 
 A mod without the relevant flag is removed from the check list, but by two different
-mechanisms depending on direction: on the server side, `localMods.RemoveAt`
-(~124944-124946) drops it outright; on the client side, the server reports `required =
-false` for it and the client never adds it to `modsToCheck` in the first place
-(~124577-124578). Either way it never interferes with a connection.
+mechanisms depending on direction: in the `Server` direction, `localMods.RemoveAt`
+(~124944-124946) drops it outright; in the `Client` direction, the server reports
+`required = false` for it and the client never adds it to `modsToCheck` in the first
+place (~124577-124578). Either way it never interferes with a connection.
 
 ### Choosing a value
 
