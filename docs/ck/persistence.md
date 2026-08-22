@@ -16,9 +16,10 @@ In order of preference.
 
 ### 1. `API.ConfigFilesystem` — the default answer
 
-`PugMod.API.ConfigFilesystem` is the loader's own file API, implemented in the
-trusted `PugMod.SDK.Runtime.dll`. The real I/O happens inside that DLL, so a
-call to it is sandbox-free. It is the right answer for anything a `config.json`
+`PugMod.API.ConfigFilesystem` is the loader's own file API. `PugMod.SDK.Runtime.dll`
+holds only its interface, `IConfigFilesystem`; the real I/O lives in
+`StandaloneFilesystem`, in the equally trusted `Pug.Other`. Either way, a call
+to it is sandbox-free. It is the right answer for anything a `config.json`
 would hold, it needs no dependency, and it is **initialised before any mod's
 `EarlyInit`** — so you can read your settings at the earliest point of the [IMod lifecycle](mod-anatomy.md).
 
@@ -102,9 +103,10 @@ source mod (`skipSafetyChecks: false`) with **zero** `System.IO` references,
 and it persists `CoreLib.cfg` and `KeyBindsActions.json` entirely through this
 API.
 
-There is also **`API.Config`**, a typed key-value store (`Get` / `Set` /
-`Register<T>`) for simple scalar settings such as a tunable radius, when you do
-not want to own a file format at all.
+There is also **`API.Config`**, a typed store keyed by a `(mod, section, key)`
+triple — `Get<T>` / `TryGet<T>` / `Set<T>` / `Register<T>`, the last with a
+mandatory `description` — for simple scalar settings such as a tunable radius,
+when you do not want to own a file format at all.
 
 ### 2. CoreLib's `ConfigFile` — typed entries, at a price
 
@@ -130,7 +132,7 @@ terms.
 |---|---|
 | `ConfigFile.AllConfigFilesReadOnly` | every `ConfigFile` in the process |
 | `cf.Entries` | `Dictionary<ConfigDefinition, ConfigEntryBase>` |
-| `cf.ConfigFilePath` | `"<ModName>/<file>.cfg"` |
+| `cf.ConfigFilePath` | the path passed to `ConfigFile`'s constructor — a mod's own choice, not a derived value |
 | `ConfigEntryBase.SettingType` | the entry's declared type |
 | `ConfigEntryBase.BoxedValue` | non-generic read/write path |
 | `ConfigEntryBase.DefaultValue` | the declared default |
@@ -142,9 +144,12 @@ Three things to know before writing against that registry:
 - **Enums survive the serialized round trip.** TOML writes an enum as its
   *name*, so `GetSerializedValue` / `SetSerializedValue` carry enum tokens
   losslessly without a per-type code path.
-- **The owning mod's display name is not part of the public surface.** It is
-  private on `ConfigFile`, so the first segment of `ConfigFilePath` is the label
-  you actually have to work with.
+- **The owning mod's display name is not part of the public surface, and
+  `ConfigFilePath` is not derived from it.** `ConfigFile`'s constructor takes
+  the path as a literal argument — CoreLib itself passes
+  `"CoreLib/CoreLib.cfg"`, a settings-menu framework built here passes
+  `"<ModId>/config.cfg"` — so a third-party mod need not follow either shape,
+  and its first segment is only a convention to lean on, not a guarantee.
 - **`BoxedValue` casts must be type-exact.** An `int` range entry is a boxed
   `int`, and `(float)` on it throws. Branch on `SettingType` — never on what
   the value looks like.
