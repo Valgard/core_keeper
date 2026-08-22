@@ -23,6 +23,17 @@ import os
 import zipfile
 
 
+def _raise(error):
+    """`os.walk`'s `onerror`, which defaults to ignoring a failed scan.
+
+    Under that default an unreadable subtree drops out of the listing without a
+    word: `load_pixaki` gets a drawings dict that is quietly short and the tool
+    dies much later on a `KeyError` naming a bare cel UUID. An archive cannot
+    fail that way -- the constructor throws, or the listing is complete -- so
+    the failure is raised here instead of being carried forward as a gap."""
+    raise error
+
+
 def open_pixaki(path):
     """Return a ZipFile-like reader for a .pixaki in either packaging."""
     if os.path.isdir(path):
@@ -43,13 +54,10 @@ class _DirectoryContainer:
     def namelist(self):
         """Every FILE below the root, as a '/'-joined path relative to it."""
         names = []
-        for dirpath, _dirnames, filenames in os.walk(self._root):
-            relative = os.path.relpath(dirpath, self._root)
+        for dirpath, _dirnames, filenames in os.walk(self._root, onerror=_raise):
             for filename in filenames:
-                member = (
-                    filename if relative == "." else os.path.join(relative, filename)
-                )
-                names.append(member.replace(os.sep, "/"))
+                member = os.path.join(dirpath, filename)
+                names.append(os.path.relpath(member, self._root).replace(os.sep, "/"))
         return names
 
     def read(self, name):
