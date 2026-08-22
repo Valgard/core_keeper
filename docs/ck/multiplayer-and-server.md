@@ -106,7 +106,7 @@ characters are all that survive. Matching is unaffected, and for a **published**
 mod neither is the display: when the server demands a mod the client lacks, the
 client resolves `modId` through `ModIOUnity.GetMod` and prints the mod.io
 profile name instead (`:125076`), or `"Unknown"` if that lookup fails
-(`:125066`, `:125071`) — `GetMod` is only ever called for a **positive**
+(`:125066`, `:125072`) — `GetMod` is only ever called for a **positive**
 `modId` (`Pug.Other:125064-125083`). For a **negative** one — a mod
 side-loaded from `StreamingAssets/Mods` — `GetMod` is skipped entirely, and
 the truncated field is exactly what reaches the player. In the other
@@ -205,7 +205,7 @@ refreshes on its own.
 
 For those flags the consequence runs the other way — writing them on one side
 changes nothing on the other. The surrounding code is present on both:
-`EquipmentSystemGroup` (`Pug.Other:418855`) runs in the server **and** the client
+`EquipmentSystemGroup` (`Pug.Other:418856`) runs in the server **and** the client
 simulation world, and `EquipmentUpdateSystem.UpdateJob` is a scheduled job.
 Whether a Harmony prefix in that area therefore behaves identically across
 singleplayer, a hosted session and a dedicated server is an open question — treat
