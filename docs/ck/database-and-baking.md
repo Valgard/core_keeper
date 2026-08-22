@@ -455,11 +455,13 @@ For everything else the value is derived:
    `Random.CreateFromIndex((uint)objectID).NextFloat(-0.1, 0.1)`, and a
    `max(1, …)` floor. The seed is the objectID, so the jitter is deterministic
    — the same item is worth the same in every session.
-7. **The floored value is then multiplied by the stack's `amount`** when the
-   item `isStackable`, or by 1 otherwise:
-   `num * (isStackable ? objectData.amount : 1)`. `GetCoinValue` returns the
-   value of the whole stack, not of a single unit — a reader stopping at step
-   6 comes out low by that factor.
+7. **This is the sell path (`buy == false`); the floored value is then
+   multiplied by the stack's `amount`** when the item `isStackable`, or by 1
+   otherwise: `num * (isStackable ? objectData.amount : 1)`. `GetCoinValue`
+   returns the value of the whole stack, not of a single unit, on this path —
+   a reader stopping at step 6 comes out low by that factor. With `buy ==
+   true`, step 7 never runs: `GetCoinValue` returns earlier via
+   `round(max(1, num) * 5 * buyValueMultiplier)` instead.
 
 The authority is the game's own `InventoryUtility.GetCoinValue`. moorowl's
 ItemBrowser carries a readable port of it
