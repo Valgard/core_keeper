@@ -20,9 +20,12 @@ Three layers, all of them off-the-shelf:
 
 The replication layer is stock **NetCode for Entities / DOTS Netcode**. The
 server assemblies carry its symbols verbatim — `GhostCollectionSystem`,
-`GhostCollectionPrefabSerializer`, `GhostCollectionHash`,
-`GhostCollectionCustomSerializers`, `NetworkProtocolVersion` — and the SDK
-matches them with `ProjectSettings/NetCode{Client,Server,ClientAndServer}Settings.asset`.
+`GhostCollectionPrefabSerializer`, `GhostCollectionCustomSerializers`,
+`NetworkProtocolVersion` — and the SDK matches them with
+`ProjectSettings/NetCode{Client,Server,ClientAndServer}Settings.asset`. The
+similarly-named `ghostCollectionHash` further down is not one of these — it is
+CK's own field on `PlayerConnectRequestRPC` (`Pug.ECS.Components:3628`), not a
+symbol from `Unity.NetCode.dll`.
 
 SDR does **not** come from Unity. It is Facepunch's Steamworks binding
 (`SteamNetworkingSockets`, `SteamNetworkingIdentity`, `SteamDatagramHostedAddress`,
@@ -82,7 +85,8 @@ consequence.
 |---|---|
 | `Server` (2) | `NetworkClientStartSystem` (Pug.Other ~124928): `localMod.required = (requiredOn & ModExistsOn.Server) != 0` — the **client** demands the mod **on the server** |
 | `Client` (1) | `ModInfoRpcSystem` (~125929): `required = (requiredOn & ModExistsOn.Client) != 0` — the **server** demands it **on the client** |
-| flag absent | the mod is removed from the check list entirely (`localMods.RemoveAt`) and never interferes in that direction |
+| flag absent, `Server` direction | the mod is removed from the check list entirely (`localMods.RemoveAt`, ~124944-124946) and never interferes |
+| flag absent, `Client` direction | the server reports `required = false` for it, and the client never adds it to `modsToCheck` in the first place (~124577-124578) |
 
 So a client-only HUD mod that carries `Server` does not "declare itself
 client-side" — it declares that every server you join must also run it.
@@ -91,7 +95,7 @@ client-side" — it declares that every server you join must also run it.
 
 Once the connection is up the client sends an empty `ModInfoRequestRPC`, and the
 server answers with one `ModInfoRPC` per loaded mod
-(`Pug.ECS.Components:3682`):
+(`Pug.ECS.Components:3680`):
 
 | Field | Type |
 |---|---|
@@ -107,28 +111,33 @@ something to print; it ends up in `ModCheck.modName`.
 
 **Trap: that name is truncated to 14 characters.** The server fills the field
 with `name.Substring(0, min(UTF8MaxLengthInBytes / 2, len))`
-(`Pug.Other:125927`), and `FixedString32Bytes` holds 29 UTF-8 bytes — so 14
+(`Pug.Other:125928`), and `FixedString32Bytes` holds 29 UTF-8 bytes — so 14
 characters are all that survive. Matching is unaffected, and for a **published**
 mod neither is the display: when the server demands a mod the client lacks, the
 client resolves `modId` through `ModIOUnity.GetMod` and prints the mod.io
-profile name instead (`:125076`). The truncated field is reached only when there
-is no mod.io identity to resolve — a development build with a fake mod ID
-(`modId <= 0`), where a 26-character internal name such as
-`SimpleCraftingPoolExtender` really does reach the player as `SimpleCrafting`.
-In the other direction — your `Server`-flagged mod missing on the server — the
-dialogue prints the client's own local `metadata.name` (`localMod.name =
-loadedMod.Metadata.name`, `Pug.Other:124925`), untruncated, and never touches
-this field at all.
+profile name instead (`:125076`). When that lookup has no mod.io identity to
+resolve — a mod side-loaded from `StreamingAssets/Mods`, whose `modId` is
+negative — `GetMod` fails and the dialogue falls back to `"Unknown"`
+(`:125066`, `:125071`), not to the truncated field. In the other direction —
+your `Server`-flagged mod missing on the server — the dialogue prints the
+client's own local `metadata.name` (`localMod.name = loadedMod.Metadata.name`,
+`Pug.Other:124927`), untruncated, and never touches this field at all.
 
 **If you patch this layer:** `ModInfoRpcSystem.OnCreate` builds its mod list
 exactly **once**, not per request, and — unlike `OnUpdate` and `OnDestroy` in the
-same struct — carries **no `[BurstCompile]` attribute**. On the client,
+same struct — carries **no `[BurstCompile]` attribute** of its own. The struct
+itself does (`Pug.Other:125498`), so a grep for the attribute on the type still
+turns it up — only `OnCreate` is exempt. On the client,
 `NetworkClientStartSystem.OnUpdate` (`Pug.Other:124905`) is a plain
 `protected override void OnUpdate()` and already holds the client's copy of the
-list; the job that receives the RPCs is an `IJobChunk` and may be Burst-compiled.
-Whether a Harmony patch on `OnCreate` binds early enough on a **dedicated
-server** — where `IMod.Init()` runs after the worlds are built, see below — is
-untested.
+list; the job that actually receives the RPCs,
+`NetworkClientStartSystem_33002849_LambdaJob_0_Job` (`Pug.Other:124547`),
+carries no `[BurstCompile]` attribute either, holds a managed
+`NetworkClientStartSystem __this` field (`:124549`), and is dispatched through
+`RunWithoutJobsInternal` (`:124642`) — it cannot be Bursted, so a Harmony patch
+on it is viable. Whether a Harmony patch on `OnCreate` binds early enough on a
+**dedicated server** — where `IMod.Init()` runs after the worlds are built, see
+below — is untested.
 
 ### What a mismatch looks like to the player
 
@@ -139,11 +148,12 @@ offers exactly two ways out:
 - **disable the mod** — `ModIOUnity.DisableMod` plus a restart of the game, or
 - **cancel the connection** — `cancel = true` → `Disconnect`.
 
-There is no "join anyway". And with a **development build carrying a fake mod ID**
-(`modId <= 0`) it is worse: the disable branch is not offered at all, because
-there is no mod.io subscription to disable, so the dialogue reduces to
-`cancelDialogue` — the player cannot get onto that server by any route the game
-provides.
+There is no "join anyway". And for **a mod side-loaded from
+`StreamingAssets/Mods`** (`modId <= 0`) it is worse: the dialogue key itself
+changes, to `Menu/LocalModMissingServerDialogue` ("Required mod {0} is missing
+from server."), and the disable branch is not offered at all, because there is
+no mod.io subscription to disable — the dialogue reduces to `cancelDialogue`,
+so the player cannot get onto that server by any route the game provides.
 
 This is why an over-broad `requiredOn` costs real usability: it turns "my HUD
 mod does nothing on unmodded servers" into "my HUD mod cannot be installed by
@@ -178,14 +188,16 @@ worked example below.
 
 **The world you wrote it in decides the direction, and there is only one
 direction.** Snapshots are produced in the server world — `GhostSendSystem`,
-which `Manager.InitWorld` configures only in the world that has one
-(`Pug.Other:285325`) — and applied in the client world, `GhostUpdateSystem`,
-which CK fetches from `Manager.ecs.ClientWorld` (`:285380`). So a `[GhostField]`
-write in the server world replicates, and the identical write in the client
-world reaches nobody and is overwritten by the next snapshot. Client → server is
-a separate mechanism, not ghost fields: player input (`ClientInputData`, an
-`IInputComponentData`, `Pug.ECS.Components:3444`, carried by the generated
-command send/receive systems at `:15462` and `:15612`) and RPCs.
+which `NetworkingManager.InitWorld` (`Pug.Other:285325`, the class itself at
+`:284453`) configures only in the world that has one, called from
+`ECSManager.InitWorld` (`:2996`) for both worlds — and applied in the client
+world, `GhostUpdateSystem`, which CK fetches from `Manager.ecs.ClientWorld`. So
+a `[GhostField]` write in the server world replicates, and the identical write
+in the client world reaches nobody and is overwritten by the next snapshot.
+Client → server is a separate mechanism, not ghost fields: player input
+(`ClientInputData`, an `IInputComponentData`, `Pug.ECS.Components:3444`, carried
+by the generated command send/receive systems at `:15462` and `:15612`) and
+RPCs.
 
 Read the attribute before assuming either way — and read it per *field*, not per
 component:
@@ -236,7 +248,9 @@ Four things about starting it are not obvious:
   Game ID.
 - **`-allowonlyplatform Steam`** avoids a join refused for a *"missing the
   crossplay privilege"*: it puts client and server on one platform, and the
-  check is skipped.
+  check is skipped. It does nothing on its own — the shipped `ARGUMENTS.txt`
+  says it "has no effect unless -port is also set", because the flag is read
+  only inside the direct-connection branch that `-port` gates.
 - **A cold start with a full mod set takes minutes** — every source mod goes
   through Roslyn and the world is decompressed on load. A server that looks hung
   shortly after launch usually is not.
@@ -259,14 +273,17 @@ Got quit request
 Exit blocked by ECSManager     <- the manager holding the world defers the quit
 Quit blocked
 Got quit request
-Running quit handlers          <- Deinit() on every manager, then PID.txt goes
+Running quit handlers          <- Deinit() on every manager
 ```
 
-`Running quit handlers` appears only on the graceful path. The second tell is
-`PID.txt` beside the executable: written at startup, removed *only* by the quit
-handler. A leftover one means the previous run was cut short — and the next
-start reads it back as "a server is already running", which is a confusing way
-to learn that yesterday's shutdown was not clean.
+`Running quit handlers` appears only on the graceful path.
+
+**`PID.txt` is never written.** `IsPreviousServerRunning()` — the function that
+would write it — has no call site in either build, so the installed server
+directory holds none. The function that reads one, `CheckPIDFile`, reports "a
+server is already running" only when `Process.GetProcessById(pid)` resolves to
+a live process whose `MainModule.FileName` matches — but with nothing ever
+writing the file, that check has nothing to find.
 
 ### The client builds no server world
 
@@ -278,14 +295,16 @@ its value.
 
 ### A mod-set mismatch reports a version error
 
-The client shows **"wrong game version"**. The actual error is
-`Error/BadProtocolVersion`, and it almost never has anything to do with the game
-version — a mod set that differs in mods which **register ECS components or ghost
-prefabs** produces exactly this message, because those are the mods that move the
+The client shows **"Game version mismatch"** — the English text of the
+localisation key `Error/BadProtocolVersion` (the German build reads "Falsche
+Spielversion"; the wording is whatever the client is localised to, the key is
+not). It almost never has anything to do with the game version — a mod set
+that differs in mods which **register ECS components or ghost prefabs**
+produces exactly this message, because those are the mods that move the
 hashes the two sides compare. Nothing in the message mentions mods.
 
-**No mod name appears anywhere in the protocol**, which is why the split in the
-table above decides who can hit this. CK's own connect handshake rejects on two
+**No mod name appears anywhere in the connect handshake**, which is why the
+split in the table above decides who can hit this. CK's own connect handshake rejects on two
 values (`Pug.Other:126187`, `:126203`): `localVersionHash`, which is
 `PlayerConnectRequestRPC.GetVersionHash(Manager.version)` — the game version and
 nothing else (`:126655`) — and `ghostCollectionHash`, the XOR of every
@@ -305,13 +324,14 @@ Diagnose in `Player.log`: hundreds of `ComponentHash[N]` lines followed by
 **A missing required dependency is one of the ways the sets drift apart.** If a
 mod declares a `required` dependency that is not installed on the server, the
 loader's `SortMods` drops the *dependent* mod there and says so only in a log
-warning — see [mod anatomy](mod-anatomy.md) for that drop. The two sides then hold different mod
-sets, and if the dropped mod is one of the hash-moving kind the client reports
-the same `Error/BadProtocolVersion`; nothing in it names a dependency. So when
-you publish a mod that depends on another, the server needs **both** installed,
-not just yours — and this is the diagnostically expensive case, because the
-symptom points at the game version while the cause is one absent dependency on
-one machine.
+warning — and does that for at most one such mod per pass; see [mod anatomy](mod-anatomy.md) for
+that limit. The two sides then hold different mod sets, and if the dropped mod
+is one of the hash-moving kind the client reports the same
+`Error/BadProtocolVersion`; nothing in it names a dependency. So when you
+publish a mod that depends on another, the server needs **both** installed, not
+just yours — and this is the diagnostically expensive case, because the symptom
+points at the game version while the cause is one absent dependency on one
+machine.
 
 ### Version filtering belongs to the subscription loaders
 
@@ -391,7 +411,10 @@ mod.io (<Profile>)` for a mod.io subscription (`PugMod.Platform:97`, what the
 client usually uses), `… from steam workshop (<Title>)` for the third.
 Afterwards both processes log `Loading mod with ID <modId>` once per loaded mod,
 from `ModManager.Init()`, regardless of source. So `grep "loaded mod "` is the
-one pattern that works on both sides and the only one that gives you names.
+one pattern that works on both sides — it is not the only one that names a mod,
+though: `not loading incompatible mod <name>` (`PugMod.Loader:1175`), `skipping
+mod <name> because of missing dependency` (`:990`) and `failed to load mod
+<name> …` (`:2175`) each name one too, for their own failure case.
 
 ### Warning: the lifecycle order is inverted
 
@@ -416,7 +439,8 @@ Within `Pug.Other`, only 43 types differ, and most of that volume is not game
 logic: a generated type table, the client-only account/session layer, the Steam
 platform wrapper and the preferences manager. The modding-relevant residue is
 roughly 450 lines across `NetworkingManager`, `NetworkCommandServerSystem`,
-`SerializeWorldSystem`, `SaveManager`, `ModManager`, `Manager` and `ECSManager`.
+`SerializeWorldSystem`, `SaveManager`, `ModManager`, `Manager`, `ECSManager`
+and others — the source list this is drawn from does not end there.
 
 The type inventory is lopsided in the direction you would expect: exactly **one
 server-exclusive type**, `NetworkUpdateServerLateSystem` (a `SystemBase` filtered
