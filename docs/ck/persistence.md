@@ -211,10 +211,11 @@ Two shapes to avoid:
 
 For per-character mod data, do not invent your own save moment. Harmony-postfix
 **`SaveManager.WriteCharacter(int saveId)`** — CK's real character-file write
-(`characterFiles[saveId].Write(EncodeJson(...))`). It fires on autosave *and*
-on "Save & Quit"; the no-argument `WriteCharacter()` overload delegates to it.
-`SaveManager` is a banned access surface but a perfectly patchable one, because
-the patch attribute is exempt.
+(`characterFiles[saveId].Write(EncodeJson(...))`). It fires on autosave *and* on
+"Save & Quit"; the no-argument `WriteCharacter()` overload delegates to it.
+`SaveManager` is on no deny list, and it is a perfectly patchable class — calls
+through `Manager.saves` are merely *observed* to fail verification, which a
+Harmony patch attribute never goes through in the first place (see [the load-time sandbox](sandbox.md#what-is-banned)).
 
 The symmetric load point is `CharacterData.OnAfterDeserialize`.
 

@@ -388,10 +388,14 @@ lose:
 | **Patch the convergence point** | The one that survives |
 
 The robust target is the point where all routes converge. Queuing a tile means
-writing into the `TileUpdateBuffer`, and `EntityUtility.AddTile` is the one
-utility that does it; the foreign mod calls it too. Patching there lets you
-change *whether and where* something is placed without reimplementing the act of
-placing, and per-tile decisions cover grid/multi-tile placement for free.
+writing into the `TileUpdateBuffer`, and `EntityUtility.AddTile` is the
+convergence point of **equipment-driven** placement; the foreign mod calls it
+too. World generation, plant growth and the `SpawnTileOnDeathCD` handler write
+the buffer directly, without passing through it at all. Patching there lets you
+change *where* and *what* is placed without reimplementing the act of placing,
+and per-tile decisions cover grid/multi-tile placement for free — but not
+*whether* one happens: see [Never suppress an `AddTile` call to veto a placement](world-and-mechanics.md#never-suppress-an-addtile-call-to-veto-a-placement)
+for why blocking the call costs the player their item for nothing.
 
 `AddTile`'s parameters carry no player or inventory context. Get that from a
 prefix on `UpdateEquipment` marked `[HarmonyPriority(Priority.First)]` — it runs
@@ -468,15 +472,18 @@ internal static class CharacterDataDiscoverySnapshot
 ```
 
 That example obtains the active character's GUID, for which every direct route is
-closed: `PlayerController.characterGuid` does not exist, `SaveManager` is a
-banned class so `Manager.saves.GetCharacterGuid()` is out, `HarmonyLib.Traverse`
-is banned as a reflection wrapper, and `EntityManager.HasComponent<CharacterGuidCD>`
-plus `GetComponentData` trips the sandbox on namespace, type and member.
+closed: `PlayerController.characterGuid` does not exist, `Manager.saves.GetCharacterGuid()`
+is out — `SaveManager` is on no deny list, but calls through `Manager.saves` have been
+*observed* to fail verification anyway (see [what is banned](sandbox.md#what-is-banned)) —
+`HarmonyLib.Traverse` is banned as a reflection wrapper, and
+`EntityManager.HasComponent<CharacterGuidCD>` plus `GetComponentData` trips the
+sandbox on namespace, type and member.
 
 Nothing in the hook bodies violates the sandbox: only value-type parameters
-(`int id`), a public `string` field on a non-banned class, and the mod's own
-statics. The `[HarmonyPatch(typeof(BannedClass), …)]` attribute is legal because
-the reflection behind it runs in trusted `0Harmony.dll`.
+(`int id`), a public `string` field on a class that appears on no deny list,
+and the mod's own statics. The `[HarmonyPatch(typeof(SaveManager), …)]`
+attribute is legal regardless — the reflection behind it runs in trusted
+`0Harmony.dll`.
 
 **Preconditions — verify all three in the decompile before committing to this:**
 
@@ -709,8 +716,9 @@ To persist mod state in lockstep with CK's own save, Harmony-postfix
 on "Save & Quit". The parameterless `WriteCharacter()` delegates to it. The
 symmetric load point is `CharacterData.OnAfterDeserialize`.
 
-`SaveManager` being a sandbox-banned class does not block this: Harmony patches
-run in trusted `0Harmony.dll`.
+`SaveManager` is on no deny list, and even the calls through `Manager.saves` that
+have been observed to fail verification do not block this: the patch attribute
+runs in trusted `0Harmony.dll`, not through `Manager.saves` at all.
 
 **Trap:** do **not** gate your save on a return-to-menu signal such as
 `SetCharacterId(-1)`. A normal "Save & Quit" does not reliably call it, so the

@@ -279,9 +279,10 @@ stuck incompatible mod cleanly, remove its GUID from `unsupportedModsToLoad`
 Both files belong to the loader itself, not to any one host — only the root of
 the path above changes with the platform. `unsupportedModsToLoad` is not
 save-game state and uses no PlayerPrefs, but it does not survive a game update
-either: the loader compares `config.version` against the running version on
-startup and clears the whole list on a mismatch, so a mod you confirmed once is
-silently dropped again after the next update (see [multiplayer and server](multiplayer-and-server.md)).
+either: the loader compares the first three components of `config.version`
+against the running version on startup and clears the whole list when they
+differ, so a mod you confirmed once is silently dropped again after most game
+updates (see [multiplayer and server](multiplayer-and-server.md)).
 
 ### "Loading screen hangs forever" is usually a quit deadlock
 
