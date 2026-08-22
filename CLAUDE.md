@@ -79,7 +79,7 @@ Read it rather than reproducing it here; what follows is what this file adds.
   same invocation works for any build. Apply it to **each installation
   separately**: the Dedicated Server (`CoreKeeperServer_Data`) needs all six
   patches too, and without Patch 2 its mods load but never compile, which the
-  client then rejects as `Error/BadProtocolVersion` ("wrong game version").
+  client then rejects as `Error/BadProtocolVersion` ("Game version mismatch").
   Rationale + canonical commands in the `corekeeper-roslyn-locale-bug` memory.
 
 ## SDK quirks (apply to every mod)
@@ -106,7 +106,9 @@ do **not** keep one. So edit manifest fields directly in the `.asset` YAML's
   - The cost of an over-broad value is real: joining a server that lacks a
     `Server`-flagged mod raises `Menu/ModMissingServerDialogue` offering only
     "disable the mod (+ restart)" or "cancel the connection" (~124940-124978) —
-    a hard block, not a warning. With a fake-ID dev build (`modId <= 0`) the
+    a hard block, not a warning. With a side-loaded mod (`modId <= 0`, negated by
+    the loader's own side-loader as `ModId = -Mathf.Abs(metadata.name.GetHashCode())`
+    — a fake-ID dev build carries a positive id and is not this case) the
     disable option is not even offered. A mod without the flag is dropped from
     the check list entirely (`localMods.RemoveAt`) and never interferes.
   - **The question to ask: does the SERVER need this mod for it to work?**
@@ -180,7 +182,11 @@ preference:
 ### Burst-compiled systems are not Harmony-patchable
 A DOTS system whose `OnUpdate` is Burst-compiled cannot be intercepted by
 Harmony. Call `BurstDisabler.DisableBurstForSystem<TSystem>()` in `IMod.Init()`
-to move the system off Burst *before* the patch needs to bind. Every system this
+to move the system off Burst *before* the patch needs to bind — or
+`DisableBurstForSystemAndJobs<TSystem>()` when the actual patch target sits
+inside a job the system schedules rather than in `OnUpdate` itself, since the
+plain variant leaves that job Bursted (`docs/ck/harmony-and-ecs.md` has the
+mechanism and a documented false shortcut for telling the two apart). Every system this
 repo's mods disable Burst for is an **`ISystem` struct** (`OnUpdate(ref
 SystemState)` — the prefix binds with no "Undefined target method"; verified in
 `faster-talents`/`faster-pet-talents`). A managed `SystemBase` takes a
@@ -241,7 +247,7 @@ Wine host breaks is `docs/ck/platforms.md`; the loader's two disable lists
 Read `docs/dedicated-server.md` before starting, stopping or debugging the local
 dedicated server — it runs in the same bottle and shares one world with the
 client via directory symlinks. How a server behaves, and why a mod-set mismatch
-surfaces as "wrong game version", is `docs/ck/multiplayer-and-server.md`. The
+surfaces as "Game version mismatch", is `docs/ck/multiplayer-and-server.md`. The
 helper is `utils/server.sh start|stop|status|log|relink`. The mod symlinks drift
 four ways — a release mints a new `<fileId>`, a mod is switched off or
 unsubscribed, a mod is added or moves between mod.io and a dev build, or one ends
