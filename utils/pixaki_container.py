@@ -11,12 +11,20 @@ readers beside it use -- `namelist()`, `read(name)`, `open(name)` -- so neither
 has to learn which form it was handed. For a ZIP that IS `zipfile.ZipFile`,
 whose read surface the directory backend therefore mirrors rather than invents.
 
-One asymmetry stays on purpose: a real Pixaki export stores directory entries,
-the empty `images/references/` and `images/selections/` among them, and a
-directory package cannot produce such an entry at all. Both readers pick members
-by the `images/drawings/<uuid>.png` shape, which no directory entry matches, so
-the difference never reaches them -- and hiding it would mean wrapping ZipFile
-for nobody's benefit.
+One asymmetry is deliberate. A real export stores six directory members of its
+own -- `cache/`, `cache/keyframes/`, `images/`, `images/drawings/`,
+`images/references/`, `images/selections/`. A package has those directories on
+disk and `os.walk` duly reports them, but this backend lists files, so nothing
+here answers to them. Neither way of hiding that is worth taking: synthesising
+the entries would put members in a listing that no package stores, and dropping
+them from the archive's would mean wrapping ZipFile instead of handing back the
+real one.
+
+The difference reaches neither reader, though for two different reasons, which
+is worth stating because the wrong one invites a wrong conclusion:
+`pixaki_to_sheet` scans `namelist()` and keeps only `images/drawings/*.png`, so
+a directory entry is filtered out; `pixaki_to_glyphs` never enumerates at all
+and opens each member by the exact name its `document.json` names.
 """
 
 import os
@@ -35,17 +43,28 @@ def _raise(error):
 
 
 def open_pixaki(path):
-    """Return a ZipFile-like reader for a .pixaki in either packaging."""
+    """Return a reader for a .pixaki in either packaging, as a context manager.
+
+    What it guarantees is `namelist()`, `read(name)` and `open(name)`, and no
+    more: the archive branch hands back the real `zipfile.ZipFile`, so reaching
+    past those three works on every export and fails on the first package."""
     if os.path.isdir(path):
         return _DirectoryContainer(path)
     return zipfile.ZipFile(path)
 
 
 class _DirectoryContainer:
-    """`zipfile.ZipFile`'s read surface, backed by a directory on disk.
+    """The three members the readers use, backed by a directory on disk.
 
-    Listing order is unspecified, exactly as it is for an archive (there it is
-    insertion order); both readers key what they find by name.
+    Not a ZipFile stand-in beyond those and the context-manager protocol:
+    `infolist()`, `getinfo()`, `extractall()` and the rest are absent here and
+    present on the other branch, so a call reaching for one of them passes every
+    archive and falls over on the first package.
+
+    Listing order is arbitrary, and NOT arbitrary in the same way an archive's
+    is: a ZIP lists its central directory, so one file always reads back in the
+    order it was written, while `os.walk` follows the filesystem. Nothing may
+    rely on it; both readers key what they find by name.
     """
 
     def __init__(self, root):
