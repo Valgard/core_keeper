@@ -39,13 +39,16 @@ Key	Type	Desc	English	German	Japanese	Korean	Spanish	Chinese (Simplified)	Thai
 
 The whole file is a regenerable accumulator — no shipped base block lives in it.
 A typical installation holds roughly 7,500 terms, essentially all of them
-carrying ` [new]`; the handful without it arrived with a description of their
-own, not from a hand-authored core block. A value may contain newlines, so a
-term can span several lines of the file — a line count is not a term count. That
-matters, because it makes deleting the entire file a safe repair: nothing renders
-*from* it that the bundle-derived source does not also hold, and when the game
-does rewrite the file it writes the whole table again — base game *and* every
-installed mod — from the current TextDataBlocks.
+carrying ` [new]`. The auto-add pass appends that suffix unconditionally — a
+term that already carries its own description still ends up as `"<description>
+[new]"` — so the handful of rows without it never went through that pass at all:
+their `Desc` came from a CSV imported through [the escape hatch below](#the-escape-hatch-ship-your-own-localizationcsv), not from
+the auto-add. A value may contain newlines, so a term can span several lines of
+the file — a line count is not a term count. That matters, because it makes
+deleting the entire file a safe repair: nothing renders *from* it that the
+bundle-derived source does not also hold, and when the game does rewrite the
+file it writes the whole table again — base game *and* every installed mod —
+from the current TextDataBlocks.
 
 **Two conditions gate that rewrite, and a full delete trips the second one.**
 The import and the rewrite are one block of startup code, skipped whole under
@@ -144,22 +147,42 @@ base-game term overwrites the game's own string.
 
 **Getting the file into the build:** put it at `Localization/Localization.csv`
 inside your mod's folder in the Unity project. `ModBuilder` copies every `.csv`
-under that folder into the built mod directory verbatim and lists it in the
-generated manifest's `files[]`. The loader imports only the file named exactly
-`Localization.csv`; any other `.csv` ships and is never read.
+under that `Localization` directory into the built mod directory verbatim and
+lists it in the generated manifest's `files[]`. The loader imports only the
+file named exactly `Localization.csv`; any other `.csv` ships and is never
+read.
+
+**Trap: a locally-placed build can silently carry no `Localization/` at all.**
+The loader looks for that directory inside whatever directory it resolves for
+the installed mod — the same directory `Scripts/` and `Bundles/` live in. If
+that directory does not carry a `Localization/` subfolder, the merge step
+never sees a file to import — no error, no log line, and the escape hatch just
+looks broken. This is a property of the loader, not of any particular install
+step: whatever places a local build has to carry `Localization/` across, and a
+packaging step that copies only the manifest, `Scripts/` and `Bundles/` drops
+it without a word.
 
 **The format is the accumulator's own** — tab-separated, a header row whose first
 cell reads `Key`, then `Type` and `Desc`, then one column per language *matched
 by name*. A language name the game does not know is not rejected; it is appended
-to the source as a new language. Published mods use that latitude: one ships the
-game's own language set exactly, another a 13-language superset.
+to the source as a new language. The accumulator's own column set is not fixed
+by the game either: `PostInit` only ever adds terms, never languages, and
+`Sources[0]` starts out with none at all — so whichever CSV reaches it first is
+what seeds its language columns. Published mods use that latitude: one ships
+the game's own language set exactly, another a 13-language superset.
 
 **Trap: a malformed file imports nothing and says nothing.** The importer bails
-out with a `"Bad Spreadsheet Format"` return value when the first header cell
-does not contain `Key`, and CK discards that return — only a thrown exception
-reaches the log. The `Loading extra localization from <path>` line proves the
-file was found, not that one term came out of it. Confirm by looking for the
-terms in the rewritten accumulator after the launch.
+out with a `"Bad Spreadsheet Format"` return value when the header row does not
+split into more than one cell, or when its first cell does not contain `Key`,
+and CK discards that return either way — only a thrown exception reaches the
+log. The likelier trigger is the first half of that check: CK's reader splits
+only on tabs, so a comma-separated file collapses the whole header row into a
+single cell. That cell's text still contains `Key`, but the row never clears
+the more-than-one-cell half of the guard, so the import bails anyway — exactly
+the mistake a comma-separated file makes. The `Loading extra localization from
+<path>` line proves the file was found, not that one term came out of it.
+Confirm by looking for the terms in the rewritten accumulator after the
+launch.
 
 **What it costs:** a second term source beside the generated `TextDataBlock`
 assets, in a format nothing validates, and the two can disagree silently. The
@@ -263,7 +286,7 @@ at a bundle that predates your change — check its real modification time with
 shifts under a non-English locale.
 
 To confirm a specific *string* rather than a count, you have to decompress: the
-bundles are LZ4-compressed, so plain `strings` or `grep -a` produce
+bundles are LZMA-compressed, so plain `strings` or `grep -a` produce
 false negatives. Load and byte-grep instead:
 
 ```python
