@@ -96,7 +96,7 @@ for the world your system runs in, half 1 is dead weight.
 `DisableBurstForSystem<T>` is not enough when the system's real work lives in a
 nested job. `EquipmentUpdateSystem` (`Pug.Other:419765`) does everything in
 `UpdateJob`, which carries its own `[BurstCompile]` (`:419767`) and calls
-`PlaceObjectSlot.UpdateEquipment` (`:419898`). With the plain variant, **no**
+`PlaceObjectSlot.UpdateEquipment` (`:419899`). With the plain variant, **no**
 patch on that path fires; with `BurstDisabler.DisableBurstForSystemAndJobs<T>()`
 (`PugMod.SDK.Runtime:783`) all of them do.
 
@@ -242,7 +242,7 @@ See [multiplayer and server](multiplayer-and-server.md) — for version and prot
 Not every hook has to be a patch. Some extension points are plain public
 multicast delegate **fields** — not `event`s — which any assembly can assign to
 or combine onto. `Mods.OnModManagementEvent` is one: it is declared
-`public static ModManagementEventDelegate` in `modio.UI` (`Modio.Mods`), and the
+`public static ModManagementEventDelegate` in `modio.UI` (`ModIOBrowser.Mods`), and the
 game's own `RadicalMainMenuOption_OpenMods.Awake` combines its handler onto it
 via `Delegate.Combine` at `Pug.Other:338594`. A field rather than an event
 matters, because an `event` would only let you `+=` from inside its declaring
@@ -304,7 +304,7 @@ the prefix binds and never fires: you need
 without firing is the failure this chapter opens with.
 
 **Trap when picking the overload:** `PlaceObjectSlot` (decompile lines
-311283–311633) declares exactly *one* `PlaceItem`, the three-argument
+311283–311632) declares exactly *one* `PlaceItem`, the three-argument
 `(in EquipmentUpdateAspect, EquipmentUpdateSharedData, LookupEquipmentUpdateData)`
 at `:311319`. Identical-looking overloads at `:310177` and `:311118` belong to
 **other classes** — patching by shape rather than by owning type binds the wrong
@@ -334,8 +334,8 @@ ahead of all five of them.
 | `if (!valueRW.canPlaceObject) return;` | `Pug.Other:311322` |
 | `CanPlaceItem` → `tilePlacementTimer` (0.65 s in this build) | call `:311332`, declaration `:311533`, timer logic `:311538-311555` |
 | `timeSincePlaced.isRunning && … < 1f && pos == positionLastPlacedAt` | `:311337` |
-| `PlayerController.CanConsumeEntityInSlot` | `:311350` |
-| Creative / `ObjectType.PlaceablePrefab` check | `:311354` |
+| `PlayerController.CanConsumeEntityInSlot` | `:311349` |
+| Creative / `ObjectType.PlaceablePrefab` check | `:311353` |
 
 The **first unconditional commit point past all five** is
 `playerStateCD.ValueRW.PushState(PlayerStateEnum.PlaceObject)` (`:311368`),
@@ -359,11 +359,11 @@ polled, and find the commit point.
 
 A prefix returning `false` in someone else's mod erases your patch target
 wholesale. PlacementPlus (mod.io `3400322`) prefixes
-`PlaceObjectSlot.UpdateEquipment` and returns `false`, so vanilla's method and
-everything it calls — `PlaceItem` included — never runs for its users. It then
-drives its own `ObjectPlacementLogic.PlaceItemGrid`, calls
-`EntityUtility.AddTile` itself (in its own `ObjectPlacementLogic.cs`, at `:276`
-and `:555`) and consumes the item only afterwards (`:283`).
+`PlaceObjectSlot.UpdateEquipment` and conditionally returns `false`, so vanilla's method and
+everything it calls — `PlaceItem` included — may be skipped for its users. It then
+drives its own placement logic, calls `EntityUtility.AddTile` itself to queue
+tiles, and consumes the item via its own utility rather than delegating to the
+standard handler.
 
 **"Works on its own" is not a definition of "works".** Design against the mod
 population your mod actually runs beside, and *measure* the interaction rather
@@ -647,7 +647,7 @@ approach.
 
 **Trap: there is no per-object-type component.** Hunting the decompile for a
 `<Thing>CD` that marks one kind of object is the wrong search and will fail after
-a long detour. `PugObjectConverter.Convert` (`Pug.ECS.Conversion:5837`) fills
+a long detour. `EntityMonoBehaviourDataConverter.Convert` (`Pug.ECS.Conversion:5808`) fills
 `ObjectTypeCD` and `ObjectDataCD` on *every* object entity, and those two carry
 the identity:
 
@@ -673,7 +673,7 @@ carries the same component set — so the query is almost never the filter.
 
 ```csharp
 // Pug.ECS.Components:4503-4507
-[StructLayout(Size = 1)]
+[StructLayout(LayoutKind.Sequential, Size = 1)]
 [GhostComponent(PrefabType = GhostPrefabType.All)]
 public struct DiggableCD : IComponentData, IQueryTypeParameter { }
 ```
