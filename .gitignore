@@ -1,7 +1,8 @@
 # Ignore everything by default; the mod repos and the SDK clone are
-# independent git repos and must not be embedded here, and docs/ holds
-# process artifacts (specs, plans) intentionally left untracked. Only the
-# shared, machine-agnostic files are tracked.
+# independent git repos and must not be embedded here, and docs/ holds plan
+# artefacts intentionally left untracked (specs and adrs are tracked below —
+# a spec is committed before implementation, then replaced by a distilled
+# adr). Only the shared, machine-agnostic files are tracked.
 .DS_Store
 __pycache__
 /*

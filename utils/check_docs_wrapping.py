@@ -8,9 +8,10 @@ accumulates: one substitution left a 142-column line in a file wrapped at 80.
 Two things this does NOT do, both learned the hard way:
 
 **It does not impose a width.** Each file is measured against the width it
-already uses, taken from its own 90th percentile. Two chapters here are written
-at ~88 columns and the rest at 80; forcing one number on all of them would
-rewrite hundreds of untouched lines to satisfy a convention nobody agreed on.
+already uses, taken from its own median line length. Two chapters here are
+written at ~88 columns and the rest at 80; forcing one number on all of them
+would rewrite hundreds of untouched lines to satisfy a convention nobody
+agreed on.
 
 **It does not flag a line for being short.** A break is only a defect if a
 better one was available — a long code span or link simply cannot be split, and
