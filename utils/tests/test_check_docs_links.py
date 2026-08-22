@@ -106,6 +106,25 @@ class TestCheck:
         (problem,) = mod.check([a], tmp_path)
         assert problem.startswith("a.md:6")
 
+    def test_a_bad_anchor_is_caught_on_a_target_outside_the_checked_scope(
+        self, tmp_path
+    ):
+        # a target that exists on disk but is not in `files` (a gitignored
+        # file, say) used to skip the anchor check entirely, because it was
+        # never in `known` — the scope rule governs which files are checked,
+        # not which are resolvable as link targets
+        write(tmp_path, "ignored.md", "# Real Heading\n")
+        a = write(tmp_path, "a.md", "See [it](ignored.md#wrong-anchor).\n")
+        (problem,) = mod.check([a], tmp_path)
+        assert "no such anchor" in problem
+
+    def test_a_good_anchor_on_a_target_outside_the_checked_scope_is_silent(
+        self, tmp_path
+    ):
+        write(tmp_path, "ignored.md", "# Real Heading\n")
+        a = write(tmp_path, "a.md", "See [it](ignored.md#real-heading).\n")
+        assert mod.check([a], tmp_path) == []
+
 
 class TestHandbookComplete:
     def _handbook(self, tmp_path, readme, index):

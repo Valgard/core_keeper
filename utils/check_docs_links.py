@@ -42,6 +42,16 @@ def anchor(heading):
     return s.replace(" ", "-")  # every space becomes a hyphen, runs included
 
 
+def heading_anchors(text):
+    """The anchor each heading in this (already fence-masked) text produces."""
+    anchors = set()
+    for line in text.splitlines():
+        match = HEADING.match(line)
+        if match:
+            anchors.add(anchor(match.group(1)))
+    return anchors
+
+
 def mask_fences(text):
     """Blank out fenced blocks, keeping the line count so numbers stay true."""
     out, inside = [], False
@@ -131,8 +141,18 @@ def check(files, root):
             dest = (path.parent / file_part).resolve()
             if not dest.exists():
                 problems.append(f"{where}  no such file -> {target}")
-            elif frag and dest in known and frag not in known[dest]:
-                problems.append(f"{where}  no such anchor -> {target}")
+            elif frag:
+                if dest in known:
+                    target_anchors = known[dest]
+                else:
+                    # the scope rule governs which files are *checked*, not
+                    # which are resolvable as link targets: a target that
+                    # exists on disk but sits outside scope (gitignored, say)
+                    # still gets its headings parsed here, on demand
+                    target_text, _ = mask_fences(dest.read_text())
+                    target_anchors = heading_anchors(target_text)
+                if frag not in target_anchors:
+                    problems.append(f"{where}  no such anchor -> {target}")
 
     problems.extend(check_handbook_complete(files, root))
     return problems
