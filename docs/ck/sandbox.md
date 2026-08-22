@@ -100,7 +100,7 @@ in what the expression resolves to, not in a listed symbol:
 
 | Observed failure | What it resolves to |
 |---|---|
-| `Manager.saves.X()` on `SaveManager` | `SaveManager` is on no deny list. What trips is unexplained: this repo's ItemChecklist recorded `Manager.saves.GetWorldId()` failing verification, yet the published ItemBrowser mod calls `Manager.saves.HasDiscoveredObject(...)` — an instance method reached through the same static property — without trouble, and `faster-talents` calls `Manager.saves.GetSkillValue(skillId)` and `Manager.saves.GetSkillTalentTreesPoints(skillTreeID)` cleanly too. Bisect the expression, not the deny list. |
+| `Manager.saves.X()` on `SaveManager` | `SaveManager` is on no deny list. What trips is unexplained: this repo's ItemChecklist recorded `Manager.saves.GetWorldId()` failing verification, yet the published ItemBrowser mod calls `Manager.saves.HasDiscoveredObject(...)` — an instance method reached through the same static property — without trouble, and another mod in this repo, which reads talent point values, calls `Manager.saves.GetSkillValue(skillId)` and `Manager.saves.GetSkillTalentTreesPoints(skillTreeID)` cleanly too. Bisect the expression, not the deny list. |
 | Some game-side ECS component reads | `em.HasComponent<CharacterGuidCD>(entity)` + `GetComponentData<CharacterGuidCD>(entity)` + `Hash128` together produced 1 namespace + 1 type + 1 member illegal ref — something in that expression resolves into `System.Reflection.*` or `System.Runtime.InteropServices.*`. Bisect the expression, not the deny list. |
 
 `System.IO.*` deserves its own note because the namespace ban reaches further
@@ -228,7 +228,7 @@ clear of it.
 
 Two patterns follow from this:
 
-**Direct-args.** If the banned method's parameters already carry what you need,
+**Direct-args.** If the hooked method's parameters already carry what you need,
 hook it and read them — you only touch `int`/`string`/value types, so nothing
 banned appears in your assembly.
 `SaveManager.SetObjectAsDiscovered(ObjectDataCD, bool __result)` gives you the
