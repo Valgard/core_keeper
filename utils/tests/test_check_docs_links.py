@@ -185,6 +185,21 @@ class TestHandbookComplete:
         (problem,) = mod.check_handbook_complete(files, tmp_path)
         assert "index.md" in problem and "chapter.md" in problem
 
+    def test_a_filename_collision_is_not_mistaken_for_a_link(self, tmp_path):
+        # "chapter.md" is a substring of "prefix-chapter.md" — a bare "in
+        # text" check reported the former reachable because the latter was
+        # linked. This handbook already has dedicated-server.md next to
+        # other *-server.md chapters, so the shape is one new chapter away.
+        docs = tmp_path / "docs" / "ck"
+        files = [
+            write(tmp_path, "docs/ck/index.md", "[c](prefix-chapter.md)\n"),
+            write(tmp_path, "docs/ck/chapter.md", "# Chapter\n"),
+            write(tmp_path, "docs/ck/prefix-chapter.md", "# Prefix Chapter\n"),
+        ]
+        assert docs.exists()
+        (problem,) = mod.check_handbook_complete(files, tmp_path)
+        assert "index.md" in problem and problem.endswith("chapter chapter.md")
+
     def test_the_readme_is_not_required_to_enumerate_chapters(self, tmp_path):
         # README.md describes the work; enumerating it there too would be the
         # duplicate list that splitting the two files was meant to avoid.

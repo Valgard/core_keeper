@@ -362,9 +362,12 @@ class TestFixpoint:
 
 
 class TestMarkdownFiles:
-    """No test at all until now, unlike its sibling in check_docs_links —
-    mirror the coverage that matters: the GIT_ strip and that ignored files
-    stay out."""
+    """No test at all until now, unlike its sibling in check_docs_links.
+
+    Both hooks are configured pass_filenames: false, which makes this the
+    only path production ever takes — worth covering beyond the bare
+    minimum, and this script's own FROZEN exclusion has no sibling
+    equivalent to borrow coverage from."""
 
     def test_strips_inherited_git_env_so_dash_c_is_honoured(
         self, tmp_path, monkeypatch
@@ -389,6 +392,45 @@ class TestMarkdownFiles:
         write(repo, ".gitignore", "scratch/\n")
         write(repo, "scratch/notes.md", "# Ignored\n")
         assert mod.markdown_files(repo) == []
+
+    def test_includes_untracked_files(self, tmp_path):
+        # a chapter written and not yet staged is the file most likely to
+        # need a wrapping fix — skipping it would report OK on exactly the
+        # wrong run
+        repo = git_repo(tmp_path)
+        write(repo, "untracked.md", "# Not staged yet\n")
+        assert [f.name for f in mod.markdown_files(repo)] == ["untracked.md"]
+
+    def test_excludes_a_frozen_spec(self, tmp_path):
+        # a design spec records a decision at a point in time; reformatting
+        # one rewrites history for no reader's benefit
+        repo = git_repo(tmp_path)
+        write(repo, "docs/specs/plan.md", "# T\n\n" + "word " * 40 + "\nend.\n")
+        git(repo, "add", "docs/specs/plan.md")
+        assert mod.markdown_files(repo) == []
+
+    def test_a_prefix_adjacent_directory_is_not_frozen(self, tmp_path):
+        # FROZEN checks startswith("docs/specs/") with the trailing slash —
+        # a naive prefix match without it would also catch this sibling
+        # directory, whose name merely starts with the same letters
+        repo = git_repo(tmp_path)
+        write(repo, "docs/specification/plan.md", "# T\n\n" + "word " * 40 + "\nend.\n")
+        git(repo, "add", "docs/specification/plan.md")
+        assert [f.name for f in mod.markdown_files(repo)] == ["plan.md"]
+
+    def test_a_tracked_but_deleted_file_is_silently_dropped(self, tmp_path):
+        # deliberate, unlike the sibling: check_docs_links surfaces this as
+        # "tracked but not on disk" because a dead link target is itself the
+        # defect it checks for. This script only has wrapping to check, and
+        # a deleted file has no content left to mis-wrap — pinning the
+        # current (silent) behaviour, not asserting it is the only sound
+        # choice
+        repo = git_repo(tmp_path)
+        write(repo, "kept.md", "# Kept\n")
+        write(repo, "gone.md", "# Gone\n")
+        git(repo, "add", "kept.md", "gone.md")
+        (repo / "gone.md").unlink()
+        assert [f.name for f in mod.markdown_files(repo)] == ["kept.md"]
 
 
 class TestMain:
