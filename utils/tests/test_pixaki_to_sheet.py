@@ -1,5 +1,6 @@
 """Unit tests for pixaki_to_sheet (Iter-12 sprite-sheet generator)."""
 
+import hashlib
 import os
 
 from PIL import Image
@@ -301,7 +302,10 @@ def test_build_sheet_reads_a_directory_package_exactly_like_a_zip(tmp_path):
     assert mapping_dir == mapping_zip
     assert guid_dir == guid_zip
     assert meta_dir == meta_zip
-    assert png_dir == png_zip  # last: a mismatch here prints two PNG blobs
+    # Digests, not the bytes: exactly as strong (equal digests iff equal files)
+    # but a mismatch prints two hex strings instead of two twelve-sprite PNG
+    # blobs -- so this no longer has to be kept last to keep the output usable.
+    assert hashlib.sha256(png_dir).hexdigest() == hashlib.sha256(png_zip).hexdigest()
 
 
 def test_build_sheet_accepts_a_directory_package_with_a_trailing_slash(tmp_path):

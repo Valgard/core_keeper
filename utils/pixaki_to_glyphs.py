@@ -61,10 +61,13 @@ def layer_full(container, sprite, cels, name):
     (fx, fy), _ = cel["frame"]
     full = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     # `with`, because neither Image.open nor json.load below closes a stream it
-    # was handed: a directory member is a real OS handle and would be left to
-    # the garbage collector, while a ZIP member shares the archive's own file
-    # object and never was. convert() forces the read, so the composite is done
-    # before the handle goes.
+    # was handed. Both packagings held a descriptor past the block, but only the
+    # directory one said so: its member is a real OS file and warns when
+    # collected, while a ZIP member shares the archive's own file object, which
+    # kept that one open silently. Measured after this: zero either way.
+    #
+    # Image.open is lazy, so the read has to happen inside the block too --
+    # opening here and converting after it gives "seek of closed file".
     with container.open(f"images/drawings/{cel['identifier']}.png") as handle:
         full.alpha_composite(Image.open(handle).convert("RGBA"), (fx, fy))
     return full
