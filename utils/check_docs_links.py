@@ -150,13 +150,16 @@ def check_handbook_complete(files, root):
     index = docs / "index.md"
     if not index.exists():
         return []
-    text = index.read_text()
+    # mask_fences so a filename merely shown in a code block (a directory
+    # listing, say) does not count as a link to it
+    text, _ = mask_fences(index.read_text())
+    linked = {match.group(1).partition("#")[0] for match in LINK.finditer(text)}
     return [
         f"docs/ck/index.md  does not link chapter {f.name}"
         for f in files
         if f.parent == docs
         and f.name not in ("README.md", "index.md")
-        and f.name not in text
+        and f.name not in linked
     ]
 
 
