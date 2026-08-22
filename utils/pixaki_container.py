@@ -68,8 +68,13 @@ class _DirectoryContainer:
         return open(os.path.join(self._root, *name.split("/")), "rb")
 
     def close(self):
-        """Nothing stays open between calls; here so callers can treat both
-        forms alike."""
+        """A no-op: the container itself holds nothing open.
+
+        A handle from `open()` belongs to whoever asked for it, and closing the
+        container does not reach it -- true of `ZipFile` as well, whose members
+        stay readable after `close()` because they hold a reference to the
+        archive's file object. So callers close what they open; here so both
+        forms can be used alike."""
 
     def __enter__(self):
         return self

@@ -1,7 +1,9 @@
 """Unit tests for pixaki_to_glyphs (the thinTiny full-build extractor)."""
 
+import gc
 import io
 import json
+import warnings
 
 import pixaki_to_glyphs as g
 import pytest
@@ -106,6 +108,27 @@ def test_load_layers_reads_a_directory_package_exactly_like_a_zip(tmp_path):
     assert (rects_dir.size, atlas_dir.size) == (rects_zip.size, atlas_zip.size)
     assert rects_dir.tobytes() == rects_zip.tobytes()
     assert atlas_dir.tobytes() == atlas_zip.tobytes()
+
+
+def test_load_layers_closes_every_handle_it_opens_on_a_directory_package(tmp_path):
+    """A ZIP member is not its own OS handle -- it shares the archive's single
+    file object -- so the ZIP branch never leaked and this went unnoticed. A
+    directory member IS one, and neither `json.load` nor `Image.open` closes a
+    stream it was handed, so three per run were left to the garbage collector.
+
+    Invisible today only because the repo sets no `filterwarnings`; the day
+    someone adds `= error` it would break exactly one packaging."""
+    layers = {
+        "Rects": Image.new("RGBA", (1, 1), MAGENTA),
+        "Atlas": Image.new("RGBA", (1, 1), WHITE),
+    }
+    master = _pixaki(tmp_path / "m.pixaki", layers, form="directory")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        g.load_layers(master)
+        gc.collect()
+    unclosed = [w for w in caught if issubclass(w.category, ResourceWarning)]
+    assert [str(w.message) for w in unclosed] == []
 
 
 def test_load_layers_names_the_layer_a_renamed_master_lacks(tmp_path):

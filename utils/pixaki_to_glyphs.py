@@ -60,8 +60,13 @@ def layer_full(container, sprite, cels, name):
     cel = cels[layer["clips"][0]["itemIdentifier"]]
     (fx, fy), _ = cel["frame"]
     full = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    drawing = Image.open(container.open(f"images/drawings/{cel['identifier']}.png"))
-    full.alpha_composite(drawing.convert("RGBA"), (fx, fy))
+    # `with`, because neither Image.open nor json.load below closes a stream it
+    # was handed: a directory member is a real OS handle and would be left to
+    # the garbage collector, while a ZIP member shares the archive's own file
+    # object and never was. convert() forces the read, so the composite is done
+    # before the handle goes.
+    with container.open(f"images/drawings/{cel['identifier']}.png") as handle:
+        full.alpha_composite(Image.open(handle).convert("RGBA"), (fx, fy))
     return full
 
 
@@ -73,7 +78,8 @@ def load_layers(pixaki_path):
     so the returned images own their pixels and never read it again.
     """
     with open_pixaki(pixaki_path) as container:
-        doc = json.load(container.open("document.json"))
+        with container.open("document.json") as handle:
+            doc = json.load(handle)
         sprite = doc["sprites"][0]
         cels = {c["identifier"]: c for c in sprite["cels"]}
         rects = layer_full(container, sprite, cels, "Rects")
