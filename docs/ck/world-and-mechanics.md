@@ -903,10 +903,11 @@ The arithmetic, measured in game on Core Keeper 1.2.1.5:
 requires a Rare-rarity Flower among the ingredients or any Legendary
 ingredient. Without it, only base and rare are reachable — which is why
 2,145 of the 3,003 pairs have an epic `ObjectID`/variation baked into the
-database that no cooking roll can ever produce. Base and rare themselves stay
-unconditional draws from the cooking roll (`ChanceToGainExtraCookedFood` →
-`ChanceForExtraCookedFoodToBeRare`, `Pug.Other` ~`:324098`); only the epic
-roll additionally checks the gate.
+database that no cooking roll can ever produce. That same roll
+(`ChanceToGainExtraCookedFood` → `ChanceForExtraCookedFoodToBeRare`,
+`Pug.Other:324033-324034`) shifts by one tier when `flag` is set: a roll that
+would otherwise add base instead adds rare, and one that would otherwise add
+rare instead adds epic.
 
 **Trap: the widely cited wiki figure of 5,550 dishes is wrong.** It lists three
 rarity colours and then multiplies by two — self-contradicting. The code has
