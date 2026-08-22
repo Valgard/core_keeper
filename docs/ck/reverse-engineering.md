@@ -362,10 +362,11 @@ because a design gets built around them. Two corrections worth internalising:
   `AddComponent<T>()` at runtime lets several types share one prefab. The real
   cost of that route is different and smaller: you lose Editor-time wiring for
   that type's own serialised fields.
-- **Differently-typed row templates can and do live in one prefab file.** In
-  this repo's own settings-menu prefab, `SettingTemplate`, `ListTemplate` and
-  `SectionTemplate` are siblings in the *same* `.prefab`, each with its own
-  baked-in, Editor-wired component set. A single
+- **Differently-typed row templates can and do live in one prefab file.** The
+  [example repository](https://github.com/Valgard/core_keeper) has a settings-menu
+  prefab where `SettingTemplate`, `ListTemplate` and `SectionTemplate` are
+  siblings in the *same* `.prefab`, each with its own baked-in, Editor-wired
+  component set. A single
   `grep -n "m_Name: .*[Tt]emplate"` settles the question.
 
 The rule: grep the authored `.prefab` YAML first, state the constraint second.
@@ -459,8 +460,8 @@ not a result.
 Third-party Core Keeper documentation exists, but it is **generic and shallow
 compared to what a decompile answers**. The loader's real behaviour, the Roslyn
 sandbox's actual ban list, Burst interaction with Harmony, publishing mechanics
-— none of it is written down outside this repo. Treat these as gap-fillers,
-consulted after the repo and the decompile, and ahead of a general web search.
+— none of it is written down outside this handbook. Treat these as gap-fillers,
+consulted after this handbook and the decompile, and ahead of a general web search.
 
 | Source | URL | Use for |
 |---|---|---|

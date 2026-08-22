@@ -181,8 +181,8 @@ detail has to fit inside the border. Edges stretch along one axis and must there
 constant/tileable along it. The centre stretches both ways and has to stay flat. Sprites
 packed into one sheet need a gutter between them, or 9-slice tiling can sample a
 neighbour's pixels — that is padding in the sheet layout, not bleed painted into the
-sprite by hand. How wide is the packer's call, not the game's: the sheet generator used in
-this repository leaves **2 px**.
+sprite by hand. How wide is the packer's call, not the game's: one generator in
+use here leaves **2 px**.
 
 **Why the defaults are wrong:** Unity's first import of a PNG in a folder writes
 `textureType: 0` / `spriteMode: 2`. In the Editor everything still *looks* right — the

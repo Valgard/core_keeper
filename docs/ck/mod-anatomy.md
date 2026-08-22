@@ -48,7 +48,7 @@ shipped `Scripts/` and editor-only DLLs out of the shipped assemblies. That is w
 mod's `Editor/logo.png` and its `Editor/<Mod>_modio.asset` sit inside the mod folder and
 still do not ship.
 
-In the repo, a mod is authored as:
+In the SDK project, a mod is authored as:
 
 ```text
 Assets/<Mod>.asset          the ModBuilderSettings asset — the configuration surface
