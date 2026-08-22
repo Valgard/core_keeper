@@ -11,8 +11,31 @@ import check_docs_wrapping as mod
 
 def write(tmp_path, name, text):
     p = tmp_path / name
+    p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(text)
     return p
+
+
+def git(repo, *args):
+    """Run git with GIT_* stripped, for the same reason the script does.
+
+    A hook runs with GIT_DIR and GIT_INDEX_FILE set, and those outrank `-C`,
+    so without this the test repo's commands reach the real repository
+    instead. The suite passed outside the hook and failed inside it.
+    """
+    import os
+    import subprocess
+
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    subprocess.run(["git", "-C", str(repo), *args], check=True, env=env)
+
+
+def git_repo(tmp_path):
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    git(tmp_path, "init", "-q")
+    git(tmp_path, "config", "user.email", "t@t")
+    git(tmp_path, "config", "user.name", "t")
+    return tmp_path
 
 
 class TestTargetWidth:
@@ -135,6 +158,22 @@ class TestProcess:
         p = write(
             tmp_path, "a.md", "# T\n\nA short tidy paragraph that needs no help.\n"
         )
+        problems, rewrapped = mod.process(p, fix=False)
+        assert problems == [] and rewrapped == 0
+
+    def test_fix_then_check_reports_clean(self, tmp_path):
+        # fix mode always exits 0, and nothing else checks that what it
+        # flagged actually got fixed — a round trip is the only thing that
+        # would notice a fixer and a checker that had drifted apart
+        original = (
+            "# T\n\n"
+            + "word " * 40
+            + "\n- "
+            + "word " * 30
+            + "end of a genuinely long list item.\n"
+        )
+        p = write(tmp_path, "a.md", original)
+        mod.process(p, fix=True)
         problems, rewrapped = mod.process(p, fix=False)
         assert problems == [] and rewrapped == 0
 
@@ -320,3 +359,57 @@ class TestFixpoint:
             once = mod.wrap_tokens(text, 80)
             twice = mod.wrap_tokens(" ".join(l.strip() for l in once), 80)
             assert once == twice
+
+
+class TestMarkdownFiles:
+    """No test at all until now, unlike its sibling in check_docs_links —
+    mirror the coverage that matters: the GIT_ strip and that ignored files
+    stay out."""
+
+    def test_strips_inherited_git_env_so_dash_c_is_honoured(
+        self, tmp_path, monkeypatch
+    ):
+        # a hook runs with GIT_DIR/GIT_INDEX_FILE set, and those outrank -C;
+        # inherited, listing "real" while GIT_DIR still points at "decoy"
+        # mixes the two repositories' files together
+        decoy = git_repo(tmp_path / "decoy")
+        write(decoy, "decoy.md", "# Decoy\n")
+        git(decoy, "add", "decoy.md")
+
+        real = git_repo(tmp_path / "real")
+        write(real, "real.md", "# Real\n")
+        git(real, "add", "real.md")
+
+        monkeypatch.setenv("GIT_DIR", str(decoy / ".git"))
+        monkeypatch.setenv("GIT_INDEX_FILE", str(decoy / ".git" / "index"))
+        assert [f.name for f in mod.markdown_files(real)] == ["real.md"]
+
+    def test_ignores_files_git_is_told_to_ignore(self, tmp_path):
+        repo = git_repo(tmp_path)
+        write(repo, ".gitignore", "scratch/\n")
+        write(repo, "scratch/notes.md", "# Ignored\n")
+        assert mod.markdown_files(repo) == []
+
+
+class TestMain:
+    """main() and its exit code are what the pre-commit hook actually reads
+    — a gate that finds a defect and exits 0 does not block anything."""
+
+    def test_exits_zero_on_a_clean_file(self, tmp_path, capsys):
+        p = write(
+            tmp_path, "a.md", "# T\n\nA short tidy paragraph that needs no help.\n"
+        )
+        assert mod.main(["prog", str(p)]) == 0
+        assert "OK" in capsys.readouterr().out
+
+    def test_exits_nonzero_on_a_mis_wrapped_file(self, tmp_path, capsys):
+        original = "# T\n\n" + "word " * 40 + "\nend.\n"
+        p = write(tmp_path, "a.md", original)
+        assert mod.main(["prog", str(p)]) == 1
+        assert "mis-wrapped" in capsys.readouterr().out
+
+    def test_fix_mode_exits_zero_and_rewrites(self, tmp_path, capsys):
+        original = "# T\n\n" + "word " * 40 + "\nend.\n"
+        p = write(tmp_path, "a.md", original)
+        assert mod.main(["prog", "--fix", str(p)]) == 0
+        assert p.read_text() != original

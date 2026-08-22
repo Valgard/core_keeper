@@ -16,6 +16,27 @@ def write(tmp_path, name, text):
     return path
 
 
+def git(repo, *args):
+    """Run git with GIT_* stripped, for the same reason the script does.
+
+    A hook runs with GIT_DIR and GIT_INDEX_FILE set, and those outrank `-C`,
+    so without this the test repo's commands reach the real repository
+    instead. The suite passed outside the hook and failed inside it.
+    """
+    import os
+    import subprocess
+
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    subprocess.run(["git", "-C", str(repo), *args], check=True, env=env)
+
+
+def git_repo(tmp_path):
+    git(tmp_path, "init", "-q")
+    git(tmp_path, "config", "user.email", "t@t")
+    git(tmp_path, "config", "user.name", "t")
+    return tmp_path
+
+
 class TestAnchor:
     def test_lowercases_and_hyphenates(self):
         assert mod.anchor("The Editor locks the project") == (
@@ -180,32 +201,11 @@ class TestMarkdownFiles:
     FileNotFoundError — which is the state of every deleted .md at the moment
     the commit hook runs."""
 
-    @staticmethod
-    def _git(repo, *args):
-        """Run git with GIT_* stripped, for the same reason the script does.
-
-        A hook runs with GIT_DIR and GIT_INDEX_FILE set, and those outrank
-        `-C`, so without this the test repo's commands reach the real
-        repository instead. The suite passed outside the hook and failed
-        inside it.
-        """
-        import os
-        import subprocess
-
-        env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
-        subprocess.run(["git", "-C", str(repo), *args], check=True, env=env)
-
-    def _repo(self, tmp_path):
-        self._git(tmp_path, "init", "-q")
-        self._git(tmp_path, "config", "user.email", "t@t")
-        self._git(tmp_path, "config", "user.name", "t")
-        return tmp_path
-
     def test_separates_present_from_missing(self, tmp_path):
-        repo = self._repo(tmp_path)
+        repo = git_repo(tmp_path)
         write(repo, "kept.md", "# Kept\n")
         write(repo, "gone.md", "# Gone\n")
-        self._git(repo, "add", "kept.md", "gone.md")
+        git(repo, "add", "kept.md", "gone.md")
         (repo / "gone.md").unlink()
 
         present, missing = mod.markdown_files(repo)
@@ -215,15 +215,33 @@ class TestMarkdownFiles:
     def test_includes_untracked_files(self, tmp_path):
         # A chapter written and not yet staged is the file most likely to carry
         # a broken link; skipping it reported OK on exactly the wrong run.
-        repo = self._repo(tmp_path)
+        repo = git_repo(tmp_path)
         write(repo, "untracked.md", "# Not staged yet\n")
         present, missing = mod.markdown_files(repo)
         assert [p.name for p in present] == ["untracked.md"]
         assert missing == []
 
     def test_ignores_files_git_is_told_to_ignore(self, tmp_path):
-        repo = self._repo(tmp_path)
+        repo = git_repo(tmp_path)
         write(repo, ".gitignore", "scratch/\n")
         write(repo, "scratch/notes.md", "# Ignored\n")
         present, missing = mod.markdown_files(repo)
         assert [p.name for p in present] == [] and missing == []
+
+
+class TestMain:
+    """main() and its exit code are what the pre-commit hook actually reads
+    — a gate that finds a defect and exits 0 does not block anything."""
+
+    def test_exits_zero_on_a_clean_repo(self, tmp_path, capsys):
+        repo = git_repo(tmp_path)
+        write(repo, "a.md", "# Fine\n\nSee [it](b.md).\n")
+        write(repo, "b.md", "# Fine\n")
+        assert mod.main(["prog", str(repo)]) == 0
+        assert "OK" in capsys.readouterr().out
+
+    def test_exits_nonzero_on_a_broken_link(self, tmp_path, capsys):
+        repo = git_repo(tmp_path)
+        write(repo, "a.md", "See [it](gone.md).\n")
+        assert mod.main(["prog", str(repo)]) == 1
+        assert "no such file" in capsys.readouterr().out
