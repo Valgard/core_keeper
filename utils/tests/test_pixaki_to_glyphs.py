@@ -3,12 +3,13 @@
 import gc
 import io
 import json
+import os
 import warnings
 
 import pixaki_to_glyphs as g
 import pytest
 from PIL import Image
-from conftest import PIXAKI_FORMS, write_pixaki
+from conftest import PIXAKI_DIRECTORIES, PIXAKI_FORMS, write_pixaki
 
 MAGENTA = (229, 59, 223, 255)
 WHITE = (255, 255, 255, 255)
@@ -35,9 +36,10 @@ def _pixaki(path, layers, size=(257, 144), offset=(0, 0), form="zip"):
     placed at `offset` on a `size` canvas. Lets the loader be tested without
     the mod repo's real master, which is only present in a full checkout.
 
-    `form` selects the packaging (conftest.write_pixaki); the ZIP default is
-    what Pixaki's Export produces and what every caller but the equivalence
-    test below wants.
+    `form` selects the packaging (conftest.write_pixaki) and defaults to the ZIP
+    that Pixaki's Export produces. Deliberately not a note about which callers
+    pass it: conftest's own docstring records what such a list costs once the
+    next caller arrives without it.
     """
     doc = {
         "sprites": [
@@ -59,7 +61,7 @@ def _pixaki(path, layers, size=(257, 144), offset=(0, 0), form="zip"):
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         members[f"images/drawings/cel-{name}.png"] = buf.getvalue()
-    return write_pixaki(path, members, form)
+    return write_pixaki(path, members, form, directories=PIXAKI_DIRECTORIES)
 
 
 def test_load_layers_composites_each_layer_at_its_cel_offset(tmp_path):
@@ -97,6 +99,9 @@ def test_load_layers_reads_a_directory_package_exactly_like_a_zip(tmp_path):
         master = _pixaki(
             tmp_path / f"m-{form}.pixaki", layers, offset=(16, 12), form=form
         )
+        # Without this the "directory" run could quietly be an archive, and the
+        # comparison would pass over two runs of the same backend.
+        assert os.path.isdir(master) == (form == "directory")
         loaded[form] = g.load_layers(master)
 
     rects_zip, atlas_zip = loaded["zip"]
@@ -131,12 +136,21 @@ def test_load_layers_closes_every_handle_it_opens_on_a_directory_package(tmp_pat
     assert [str(w.message) for w in unclosed] == []
 
 
-def test_load_layers_names_the_layer_a_renamed_master_lacks(tmp_path):
+@pytest.mark.parametrize("form", PIXAKI_FORMS)
+def test_load_layers_names_the_layer_a_renamed_master_lacks(tmp_path, form):
     # Renaming a layer in Pixaki is the likeliest way to break the tool; the
     # message has to say which name it wanted and what the master has.
+    #
+    # Parametrised over both forms because this is the ONLY test that raises
+    # inside a `with open_pixaki(...)`. While it ran on the archive alone, the
+    # __exit__ under test was zipfile's, and _DirectoryContainer.__exit__ could
+    # have returned True -- swallowing this sys.exit, running on past the with,
+    # and turning a precise message into UnboundLocalError on the next line.
+    # The whole suite passed with that mutation in place.
     master = _pixaki(
         tmp_path / "m.pixaki",
         {"Boxes": _blank(1, 1), "Atlas": _blank(1, 1)},  # 'Rects' renamed
+        form=form,
     )
     with pytest.raises(SystemExit) as exc:
         g.load_layers(master)

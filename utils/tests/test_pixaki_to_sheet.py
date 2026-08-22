@@ -1,7 +1,9 @@
 """Unit tests for pixaki_to_sheet (Iter-12 sprite-sheet generator)."""
 
+import os
+
 from PIL import Image
-from conftest import PIXAKI_FORMS, write_pixaki
+from conftest import PIXAKI_DIRECTORIES, PIXAKI_FORMS, write_pixaki
 import pixaki_to_sheet as p
 
 EXCLUDE_TOP = {"Outsorted", "Background", "Search Field Complete", "Dropdown Complete"}
@@ -219,46 +221,61 @@ def test_build_sheet_in_place_template_not_truncated(tmp_path):
     )  # the template tail survived (not truncated)
 
 
-def _write_two_sprite_pixaki(tmp_path, cfg_json, form="zip"):
-    """A .pixaki with two DISTINCT sprites named 'Icon' and 'Icon2', plus a
+# Distinct pixels per sprite -- dedup() collapses identical ones, so a repeated
+# colour would silently shrink the sheet the tests reason about.
+_SPRITE_COLOURS = [
+    (255, 0, 0, 255),
+    (0, 255, 0, 255),
+    (0, 0, 255, 255),
+    (255, 255, 0, 255),
+    (255, 0, 255, 255),
+    (0, 255, 255, 255),
+    (128, 64, 32, 255),
+    (32, 64, 128, 255),
+    (200, 200, 200, 255),
+    (10, 20, 30, 255),
+    (90, 10, 200, 255),
+    (5, 250, 90, 255),
+]
+
+
+def _write_sprite_pixaki(tmp_path, cfg_json, form="zip", count=2):
+    """A .pixaki with `count` DISTINCT sprites named 'Icon', 'Icon2', … plus a
     sibling s.json holding cfg_json. Returns the .pixaki path.
 
-    `form` selects the packaging (see conftest.write_pixaki); it defaults to
-    the ZIP that Pixaki's Export produces, which is what every caller but the
-    equivalence test wants."""
+    `form` selects the packaging (see conftest.write_pixaki) and defaults to the
+    ZIP that Pixaki's Export produces. It also carries the directory members a
+    real export stores, so the archive hands load_pixaki the one member shape
+    only an archive has and its '.png' filter is actually exercised."""
     import json, io
 
+    names = [f"Icon{i + 1}" if i else "Icon" for i in range(count)]
     doc = {
         "sprites": [
             {
                 "cels": [
-                    {"identifier": "D1", "frame": [[0, 0], [4, 4]]},
-                    {"identifier": "D2", "frame": [[0, 0], [4, 4]]},
+                    {"identifier": f"D{i + 1}", "frame": [[0, 0], [4, 4]]}
+                    for i in range(count)
                 ],
                 "layers": [
                     {
-                        "name": "Icon",
-                        "clips": [{"itemIdentifier": "D1"}],
+                        "name": name,
+                        "clips": [{"itemIdentifier": f"D{i + 1}"}],
                         "isVisible": True,
-                    },
-                    {
-                        "name": "Icon2",
-                        "clips": [{"itemIdentifier": "D2"}],
-                        "isVisible": True,
-                    },
+                    }
+                    for i, name in enumerate(names)
                 ],
             }
         ]
     }
     members = {"document.json": json.dumps(doc).encode()}
-    for did, color in (
-        ("D1", (255, 0, 0, 255)),
-        ("D2", (0, 255, 0, 255)),
-    ):  # distinct pixels
+    for i in range(count):
         bio = io.BytesIO()
-        Image.new("RGBA", (4, 4), color).save(bio, "PNG")
-        members[f"images/drawings/{did}.png"] = bio.getvalue()
-    pixaki = write_pixaki(tmp_path / "s.pixaki", members, form)
+        Image.new("RGBA", (4, 4), _SPRITE_COLOURS[i]).save(bio, "PNG")
+        members[f"images/drawings/D{i + 1}.png"] = bio.getvalue()
+    pixaki = write_pixaki(
+        tmp_path / "s.pixaki", members, form, directories=PIXAKI_DIRECTORIES
+    )
     (tmp_path / "s.json").write_text(cfg_json)
     return pixaki
 
@@ -268,7 +285,7 @@ def test_validate_pins_rejects_collision(tmp_path):
     fileID; the build must fail loud (before writing) rather than ship it."""
     import pytest
 
-    pixaki = _write_two_sprite_pixaki(tmp_path, '{"internalIds":{"Icon":5,"Icon2":5}}')
+    pixaki = _write_sprite_pixaki(tmp_path, '{"internalIds":{"Icon":5,"Icon2":5}}')
     with pytest.raises(ValueError, match="duplicate internalID"):
         p.build_sheet(str(pixaki), str(tmp_path / "s.png"))
     assert not (tmp_path / "s.png").exists()  # nothing written on failure
@@ -286,7 +303,11 @@ def test_build_sheet_reads_a_directory_package_exactly_like_a_zip(tmp_path):
     for form in PIXAKI_FORMS:
         home = tmp_path / form
         home.mkdir()
-        pixaki = _write_two_sprite_pixaki(home, "{}", form=form)
+        pixaki = _write_sprite_pixaki(home, "{}", form=form, count=len(_SPRITE_COLOURS))
+        # Without this the "directory" run could quietly be an archive -- if
+        # write_pixaki's branch or open_pixaki's dispatch broke, the comparison
+        # would still pass, on two identical runs of the same backend.
+        assert os.path.isdir(pixaki) == (form == "directory")
         (home / "s.png.meta").write_text(_TEMPLATE_META)
         # Pin the guid: unpinned it is derived from the out path, which differs
         # per run, and the packaging must be the only variable left.
@@ -300,7 +321,10 @@ def test_build_sheet_reads_a_directory_package_exactly_like_a_zip(tmp_path):
 
     mapping_zip, guid_zip, png_zip, meta_zip = built["zip"]
     mapping_dir, guid_dir, png_dir, meta_dir = built["directory"]
-    assert len(mapping_zip) == 2  # the ZIP run really did build a two-sprite sheet
+    # A big enough sheet that the two listings can actually differ in order:
+    # at two or three members, archive order and os.walk order coincide by
+    # chance and the comparison is blind on that axis.
+    assert len(mapping_zip) == len(_SPRITE_COLOURS)
     assert mapping_dir == mapping_zip
     assert guid_dir == guid_zip
     assert meta_dir == meta_zip
@@ -316,7 +340,7 @@ def test_build_sheet_accepts_a_directory_package_with_a_trailing_slash(tmp_path)
     error said "next to the .pixaki". The line is untouched by the adapter and
     was correct as long as it was unreachable: a directory path used to die one
     level earlier on IsADirectoryError."""
-    pixaki = _write_two_sprite_pixaki(tmp_path, "{}", form="directory")
+    pixaki = _write_sprite_pixaki(tmp_path, "{}", form="directory")
     (tmp_path / "s.png.meta").write_text(_TEMPLATE_META)
     mapping, _ = p.build_sheet(f"{pixaki}/", str(tmp_path / "s.png"))
     assert len(mapping) == 2
@@ -327,6 +351,6 @@ def test_validate_pins_rejects_unused_pin(tmp_path):
     pin; the build must fail loud so the typo can't ship a hash-id sprite."""
     import pytest
 
-    pixaki = _write_two_sprite_pixaki(tmp_path, '{"internalIds":{"Iconnn":5}}')
+    pixaki = _write_sprite_pixaki(tmp_path, '{"internalIds":{"Iconnn":5}}')
     with pytest.raises(ValueError, match="match no produced sprite"):
         p.build_sheet(str(pixaki), str(tmp_path / "s.png"))
