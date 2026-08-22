@@ -23,6 +23,7 @@ Usage:
     uv run utils/check_docs_wrapping.py [--fix] [path ...]
 """
 
+import os
 import re
 import subprocess
 import textwrap
@@ -44,7 +45,6 @@ PAD = "\x01"  # filler that gives a placeholder the link's *visible* length
 LINK_TOKEN = re.compile(r"\[[^\]]*\]\([^)\s]+\)[.,;:!?)\]]*$", re.S)
 # the same shape anchored at the start, for a line that begins with a link
 LINK_TOKEN_START = re.compile(r"\[[^\]]*\]\([^)\s]+\)[.,;:!?)\]]*", re.S)
-SPECIAL = ("#", "|", ">", "-", "*", "+", " ", "\t")
 WIDE_WIDTH, NARROW_WIDTH = 88, 80
 MIN_SAMPLE = 10  # prose lines needed before a file's own width is believed
 OVERSHOOT = 12  # columns past target before a long line counts as a defect
@@ -169,7 +169,7 @@ def is_prose(line):
 
 
 def list_items(lines):
-    """Yield (first, end, indent, prefix) per list item plus its continuations.
+    """Yield (first, end, cont, prefix) per list item plus its continuations.
 
     Links live in list items too, so leaving lists alone would make the gate
     block on something --fix cannot reach.
@@ -252,8 +252,6 @@ def defects(para, width):
         found.append((0, f"link split across lines: {' '.join(link.split())[:60]}"))
     for offset, line in enumerate(para):
         # long only counts when a break was actually available before the target
-        # a line that overshoots because it ends on a link is correct by
-        # construction — wrap_tokens put it there on purpose
         # a line that overshoots because it ends on a link is correct by
         # construction — wrap_tokens put it there on purpose
         if visible_len(line) > width + OVERSHOOT and not LINK_TOKEN.search(line):
@@ -365,8 +363,10 @@ def display(path):
 
 
 def markdown_files(root):
-    env_keys = [k for k in __import__("os").environ if not k.startswith("GIT_")]
-    env = {k: __import__("os").environ[k] for k in env_keys}
+    # GIT_DIR and GIT_INDEX_FILE outrank -C, and a hook runs with both set:
+    # inherited, this would list the hook's repository no matter which root
+    # was asked for. Strip them so -C means what it says.
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     result = subprocess.run(
         [
             "git",
