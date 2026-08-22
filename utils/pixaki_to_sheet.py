@@ -123,9 +123,29 @@ def load_pixaki(path):
         doc = json.loads(z.read("document.json"))
         drawings = {}
         for n in z.namelist():
-            if n.startswith("images/drawings/") and n.endswith(".png"):
-                uid = os.path.basename(n)[:-4]
-                drawings[uid] = Image.open(io.BytesIO(z.read(n))).convert("RGBA")
+            if not n.startswith("images/drawings/"):
+                continue
+            base = os.path.basename(n)
+            if base.startswith(".") and base.endswith(".icloud"):
+                # The drawing is not here: iCloud evicted the contents and left
+                # a placeholder. Saying so beats the KeyError on a bare cel UUID
+                # that a silently short dict produces three calls later, since
+                # the remedy is in the Finder and not in this repo.
+                raise FileNotFoundError(
+                    f"{n} is an iCloud placeholder, not a drawing -- this "
+                    "package's contents are not downloaded. Download it in the "
+                    "Finder, then run again."
+                )
+            if base.startswith("._") or not n.endswith(".png"):
+                continue  # AppleDouble metadata, .DS_Store and friends
+            try:
+                drawings[base[:-4]] = Image.open(io.BytesIO(z.read(n))).convert("RGBA")
+            except OSError as exc:
+                # PIL only ever saw a BytesIO, so its own message cannot name
+                # the file. Every drawing is decoded eagerly -- referenced by
+                # document.json or not -- so one unreadable leftover in a
+                # package, whose listing is whatever is on disk, ends the run.
+                raise OSError(f"cannot decode {n} as a PNG: {exc}") from exc
     return doc, drawings
 
 

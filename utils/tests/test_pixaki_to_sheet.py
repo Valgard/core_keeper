@@ -346,6 +346,46 @@ def test_build_sheet_accepts_a_directory_package_with_a_trailing_slash(tmp_path)
     assert len(mapping) == 2
 
 
+def test_load_pixaki_names_an_icloud_placeholder_instead_of_dying_on_a_uuid(tmp_path):
+    """A package whose contents iCloud has evicted carries '.D1.png.icloud'
+    stubs where the drawings were. The stub misses the '.png' filter, so the
+    drawing dropped out of the dict without a word and the run died later on
+    `KeyError: '<cel uuid>'` -- no filename, no cause, and the actual remedy is
+    one click in the Finder. Exactly the route docs/pixaki-format.md names as
+    where directory packages come from."""
+    import pytest
+
+    pixaki = _write_sprite_pixaki(tmp_path, "{}", form="directory")
+    drawing = pixaki / "images" / "drawings" / "D1.png"
+    drawing.rename(drawing.with_name(".D1.png.icloud"))
+    with pytest.raises(FileNotFoundError, match="iCloud placeholder"):
+        p.load_pixaki(str(pixaki))
+
+
+def test_load_pixaki_ignores_an_appledouble_sidecar(tmp_path):
+    """'._D1.png' is macOS metadata, not a drawing, and it slips through the
+    '.png' filter. Newly reachable because a package's listing is whatever sits
+    on disk rather than whatever Pixaki wrote -- complete-tiny-font/sources
+    already carries a .DS_Store."""
+    pixaki = _write_sprite_pixaki(tmp_path, "{}", form="directory")
+    (pixaki / "images" / "drawings" / "._D1.png").write_bytes(b"\x00\x05\x16\x07junk")
+    _, drawings = p.load_pixaki(str(pixaki))
+    assert sorted(drawings) == ["D1", "D2"]
+
+
+def test_load_pixaki_names_the_member_it_cannot_decode(tmp_path):
+    """PIL reports 'cannot identify image file <_io.BytesIO object at 0x...>'
+    -- the bytes went through BytesIO, so nothing in the message says which
+    member. Every drawing is decoded eagerly, referenced by document.json or
+    not, so one unreadable leftover takes the whole run down."""
+    import pytest
+
+    pixaki = _write_sprite_pixaki(tmp_path, "{}", form="directory")
+    (pixaki / "images" / "drawings" / "D9.png").write_bytes(b"not a png at all")
+    with pytest.raises(OSError, match="images/drawings/D9.png"):
+        p.load_pixaki(str(pixaki))
+
+
 def test_validate_pins_rejects_unused_pin(tmp_path):
     """A pin key that matches no produced sprite (a typo) silently no-ops the
     pin; the build must fail loud so the typo can't ship a hash-id sprite."""
