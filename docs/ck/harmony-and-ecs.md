@@ -362,8 +362,8 @@ wholesale. PlacementPlus (mod.io `3400322`) prefixes
 `PlaceObjectSlot.UpdateEquipment` and conditionally returns `false`, so vanilla's method and
 everything it calls — `PlaceItem` included — may be skipped for its users. It then
 drives its own placement logic, calls `EntityUtility.AddTile` itself to queue
-tiles, and consumes the item through a separate call that is displaced from
-the point of placement commitment.
+tiles, and consumes the item through a separate, batched call — not at the
+point that looks like the consume.
 
 **"Works on its own" is not a definition of "works".** Design against the mod
 population your mod actually runs beside, and *measure* the interaction rather
