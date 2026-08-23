@@ -24,7 +24,7 @@ machinery those arrangements sit on.
 | [Storing configuration and state](persistence.md) | The three routes a sandboxed mod has to a file, what the rest of the catalogue actually uses, and writing state in lockstep with the game's own save |
 | [Harmony and ECS](harmony-and-ecs.md) | Why Burst-compiled systems swallow patches, `BurstDisabler` and its silent failure on dedicated servers, patch binding, instrumenting generated DOTS code, live ECS access |
 | [Database and baking](database-and-baking.md) | Editing baked object data through the converter hook, the `(objectID, variation)` key, variations and paint, item level and sell value, adding a craftable item, fileIDs |
-| [UI framework](ui-framework.md) | Sprite UI instead of uGUI, mounting windows, options-menu entries, rebindable keybinds, the hint bar, text input, scrolling, and disabled-but-visible options |
+| [UI framework](ui-framework.md) | Sprite UI instead of uGUI, mounting windows, options-menu entries, rebindable keybinds, the hint bar, text input, redirecting menu input, scrolling, and disabled-but-visible options |
 | [Prefabs and rendering](prefabs-and-rendering.md) | When a prefab may be edited by script, nested prefabs and variants, sprite import, masking, Z-sorting, PugText and the font system, HUD versus world space |
 | [World and mechanics](world-and-mechanics.md) | World geometry and the origin, tile layers and the `AddTile` queue, the placement permission model, map markers, entity radii, ore boulders, livestock and pets, cooked food |
 | [Multiplayer and server](multiplayer-and-server.md) | The NetCode/ghost protocol and what changes its hashes, the mod set as a second compatibility layer, how the dedicated server build differs |
@@ -112,6 +112,7 @@ symptom, not the topic.
 | Patch a DOTS system, or read the live ECS world | [Harmony and ECS](harmony-and-ecs.md) |
 | Change a recipe, an item stat, or any baked object data | [Database and baking](database-and-baking.md) |
 | Add an options-menu entry or a rebindable keybind | [UI framework](ui-framework.md) |
+| Make directional input mean something else for a while (a "mode") | [UI framework](ui-framework.md) |
 | Build a HUD element or a menu window | [UI framework](ui-framework.md), [Prefabs and rendering](prefabs-and-rendering.md) |
 | Work with prefabs, sprites or fonts | [Prefabs and rendering](prefabs-and-rendering.md) |
 | Place tiles, or understand where things may be built | [World and mechanics](world-and-mechanics.md) |

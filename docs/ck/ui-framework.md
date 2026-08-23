@@ -1090,6 +1090,72 @@ is invisible, non-rebindable, global and of uncertain persistence.
 **The clean keyboard path is therefore a CoreLib action** (see above): a new
 action in a mod-owned `player` category, visible and rebindable in Controls.
 
+## Redirecting menu input — how a "mode" is possible
+
+A mod screen sometimes needs directional input to mean something other than
+"move the selection" for a while: grab a row and move it, nudge a value, aim
+something. That is a **mode**, and it is reachable without a Harmony patch —
+but only on the keyboard/controller path, and only because of how CK routes
+input.
+
+**`MenuManager.UpdateInputAndApplyToCurrentMenu` (`Pug.Other:269869`) decides
+nothing itself.** It reads the input, then hands every case to a method on the
+top menu — `SelectNextIndex()`, `SelectPrevIndex()`, `SkimLeft()`,
+`SkimRight()`, `OnCloseMenuRequest()`, `CanActivateCurrentOption()`. Whoever
+owns the menu therefore owns the input, and a `RadicalMenu` subclass can
+reinterpret it by overriding what the dispatcher calls. What is reachable:
+
+| Lever | Line | Reachable from a mod |
+|---|---|---|
+| `RadicalMenu.SelectNextIndex` / `SelectPrevIndex` | 342769 / 342791 | **`public virtual`** — override to reinterpret ↑/↓ |
+| `RadicalMenu.OnCloseMenuRequest` | 342869 | **`public virtual`** — return `false` to swallow Escape/B without popping |
+| `RadicalMenuOption.CanBeDeselected` | 343096 | **`public virtual`**, default `true`, **no override anywhere in Pug.Other** |
+| `RadicalMenu.SkimLeft` / `SkimRight` | 342995 / 342977 | `internal`, not virtual — **unreachable**; they forward to the *option*'s `OnSkimLeft/Right`, which is the way in |
+| `RadicalMenu.CanChangeIndex` | 342949 | `protected`, not virtual — callable, not overridable |
+
+**Vanilla does this itself.** `RadicalCreditsMenu` overrides
+`SelectNextIndex`/`SelectPrevIndex` (`:336687`, `:336692`) and returns `false`
+from both, so the credits scroll on their own and directional input does
+nothing. The pattern is CK's, not an exploit of it.
+
+**CK's own two modes are built differently, and you cannot join them.**
+`InputManager.activeInputField` (`:267047`) and `activeDropdown` (`:267055`) are
+`{ get; private set; }` fields that `UpdateInputAndApplyToCurrentMenu` consults
+*before* the menu — which is why an open dropdown eats the back button and a
+focused text field eats everything. A mod cannot add a third such channel; the
+override route above is its replacement, and it lands one step later in the same
+dispatcher.
+
+**`CanBeDeselected` is the one lever nothing in the game uses.** It gates
+`CanChangeIndex()`, which all four navigation methods call first, so a row
+returning `false` freezes the selection on itself. Note what that does *not*
+do: it makes `SelectNextIndex` return early, so the mode gets no input from it
+either — useful as a second lock, not as the mechanism.
+
+**The hint bar follows a mode for free.** `MenuManager.UpdateHelperButtons`
+(`:269460`) runs from `LateUpdate` **every frame** and calls
+`topMenu.GetHelpButtonsToShow()` unconditionally, so a screen that reports
+different hints while a mode is active sees them appear immediately, with
+nothing to notify. (The `SELECT` hint's own caption is not free: its
+`SelectButtonVariation` is derived from `selectedMenuOption.isOnOffToggle` and
+`IsOn()`, not settable by the menu.)
+
+**Hold-to-act is an established menu gesture — for both input kinds.**
+`PopUpOption` (`:341669`) keeps a `_isHoldingToConfirm` flag, shows an
+`_exitContainer` while it is set, and polls `IsMenuInteractButtonPressed() ||
+IsMenuMouseInteractButtonPressed()` (`:341808`) — controller and mouse in the
+same branch. `IsMenuMouseInteractButtonPressed` (`:267246`) is the held state,
+`…ButtonDown` (`:267237`) the edge.
+
+**The mouse does not travel this path at all.** It runs through `UIMouse`
+(`:355288`), which drives `Manager.ui.currentSelectedUIElement` from hover
+(§ "How `UIMouse` picks and selects an element") and re-selects whenever the
+pointer moves. So a mode built out of the levers above is controller/keyboard
+only; giving it a mouse equivalent means a **second, separate path** — read the
+held state, read CK's hover selection as the target, act on release — that
+meets the first one at the operation, not at the input. Budget for two paths,
+not one.
+
 ## Scrolling
 
 ### Wiring a scroll window
