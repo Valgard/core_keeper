@@ -149,8 +149,12 @@ def load_pixaki(path):
     return doc, drawings
 
 
-def _normalize(layer, drawings):
-    """Return an RGBA image of exactly (layer.w, layer.h), top-left anchored."""
+def normalize(layer, drawings):
+    """Return an RGBA image of exactly (layer.w, layer.h), top-left anchored.
+
+    Public because `pixaki_inspect` reports on the same images this packs, and
+    a second implementation of the anchoring is exactly the kind of duplicate
+    that drifts without anyone noticing."""
     src = drawings[layer.drawing_id]
     if src.size == (layer.w, layer.h):
         return src
@@ -168,7 +172,7 @@ def dedup(layers, drawings):
     distinct = {}
     name_to_key = {}
     for layer in layers:
-        img = _normalize(layer, drawings)
+        img = normalize(layer, drawings)
         key = pixel_key(img)
         distinct.setdefault(key, (key, img, layer.w, layer.h))
         name_to_key[layer.name] = key
@@ -355,7 +359,7 @@ def build_sheet(pixaki_path, out_png, template_meta=None, guid=None):
     # e.g. the 8x8/6x6 sort-icon size pairs)
     key_base = {}
     for layer in layers:
-        key = pixel_key(_normalize(layer, drawings))
+        key = pixel_key(normalize(layer, drawings))
         key_base.setdefault(key, layer.name)
     items = [(k, img, w, h, key_base[k]) for (k, img, w, h) in distinct]
     names = assign_names(items)  # {key: disambiguated name}
