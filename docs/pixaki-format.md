@@ -8,7 +8,7 @@ ready-to-edit document) rather than import PNGs manually.
 
 ## Container
 
-A `.pixaki` is a plain **ZIP archive** (compression `store`, i.e. uncompressed):
+Whichever form a `.pixaki` arrives in, it holds the same payload:
 
 ```
 metadata.json                         # tiny: canvas size + duration
@@ -19,7 +19,55 @@ images/selections/  images/references/   # (empty in this file)
 cache/keyframes/<long-hash>.png       # rendered keyframe cache (regenerable)
 ```
 
-`file` reports `Zip archive data, at least v2.0 to extract, compression method=store`.
+### Two packagings, one payload
+
+**How a document leaves the iPad decides its form** — and the payload is
+identical either way. Verified 2026-08-22 on two levels: the same four
+documents were fetched over *both* routes and every drawing came back
+pixel-identical, down to the trimmed bounding boxes and layer visibility; and
+across seven documents both forms carry the same directories and the same kinds
+of file. The export adds nothing and drops nothing.
+
+| Route off the iPad | Form on disk | `file -b` reports |
+|---|---|---|
+| Pixaki **Export**, then AirDrop | **ZIP archive**, compression `store` (uncompressed) | `Zip archive data, at least v2.0 to extract, compression method=store` |
+| Pulled straight out of **iCloud** | **directory** — the native document package | `directory` |
+
+So the ZIP is not the format; it is what Pixaki's export step wraps around the
+package. Both open in Pixaki, and a document can be moved between the forms by
+zipping/unzipping without losing anything.
+
+**The Finder shows both as a single file**, so the difference is invisible
+exactly where you would normally look. That presentation comes from the Finder
+bundle bit in the package's `com.apple.FinderInfo`, *not* from a registered
+document type — macOS does not know the extension at all (`mdls -name
+kMDItemContentType` returns a dynamic `dyn.…` UTI, since Pixaki runs on the
+iPad and nothing here claims `.pixaki`). Tell the two apart from a shell:
+
+```bash
+file -b "<path>"           # "directory" vs "Zip archive data…"
+GetFileInfo -aB "<path>"   # 1 = bundle bit set, i.e. a package
+ls -ld "<path>"            # leading "d" = directory; trailing "@" = has xattrs
+```
+
+A package that came through iCloud also carries a `com.apple.fileprovider.fpfs#P`
+xattr — a dependable fingerprint of that route.
+
+**Two consequences, both real:**
+
+- **`utils/pixaki_to_sheet.py` and `utils/pixaki_to_glyphs.py` read ZIP only** —
+  `zipfile.ZipFile` in `load_pixaki()` and `load_layers()` respectively. Aimed
+  at a package they raise `IsADirectoryError`, which at least fails loudly. A
+  small adapter dispatching on `os.path.isdir()` would make both formats work:
+  between them the two call sites need only `namelist()`, `read()` and `open()`
+  — the glyph tool passes the archive handle on to `layer_full()`, so the
+  adapter has to satisfy that one too, not just the loader.
+- **Committing a package loses the empty directories.** A ZIP stores directory
+  entries, empty `images/references/` and `images/selections/` included; git
+  stores blobs at paths and cannot represent an empty directory. What it buys
+  is a diffable history — `document.json` reads as JSON in a diff, and an
+  edited drawing appears as one changed PNG rather than a wholly rewritten
+  binary blob.
 
 ## `metadata.json`
 
