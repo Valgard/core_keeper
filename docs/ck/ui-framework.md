@@ -523,6 +523,19 @@ glyphs belong to no live `PugText`, so `FindObjectsByType<PugText>` and
 Set your row's resting colour to the `UNSELECTED_TEXT_COLOR` constant (reading
 the static is sandbox-legal) and let the effect drive hover.
 
+**The effect is wired by GameObject, not by `labelText`.** `PugTextEffect.Awake`
+binds `_text = GetComponent<PugText>()` (`Pug.Other:348885`) — the text on its
+*own* GameObject — and `RadicalMenuOption.Awake` collects the effects with
+`GetComponentsInChildren<PugTextEffectMenuOption>(includeInactive: true)`
+(`:343152`). Where the option's `labelText` / `valueText` fields point therefore
+has no bearing on what is tinted: any text under the row that carries an effect
+component is driven, and one that does not carry it is not, however the fields
+are wired. The natural assumption — that `labelText` is the field the effect
+follows — is wrong in both directions, and it matters when you build a custom
+row that keeps its caption somewhere other than `labelText`. (Those fields do
+decide something else: whether `InitClickCollider` builds a click collider at
+all — see [the text-row section](#a-text-row-in-a-menu-radicalmenuoptiontextinput).)
+
 **The prefab's filename drives the root GameObject's name.** Unity's
 `PrefabImporter` syncs the root `m_Name` to the file name on import, so editing
 `m_Name` in the YAML is reverted at build time. Rename the *file* (and its
