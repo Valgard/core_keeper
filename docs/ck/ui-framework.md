@@ -697,6 +697,30 @@ mouse and CK's hover system reacts as though the pointer had left the row. Size
 the collider to the maximum row width instead. This second half applies to every
 `RadicalMenuOption` whose text changes, not only to text-input rows.
 
+**On a controller, ALL text entry goes through the on-screen keyboard — and its
+result arrives without a frame boundary.** `HandleTypingInput` takes the OSK branch
+whenever `!SystemPrefersKeyboardAndMouse()`, so `AppendString` is never reached
+there. The result handler, `UIManager.TrySetInputText`, then does both of these in
+**one synchronous callback**:
+
+```csharp
+Manager.input.activeInputField.SetInputText(input);
+Manager.input.activeInputField.Deactivate(success);
+```
+
+Any logic that watches for "the text changed *while* this field was active" will
+therefore never fire on a controller: while the keyboard is open the text does not
+move, and in the frame it does, `activeInputField` is already null. Watch the
+previous frame's ownership as well, or the field silently behaves as read-only for
+every controller player while looking editable.
+
+Two details that make this hard to notice: **cancelling** the keyboard is a
+different path (no `SetInputText` runs at all, so cancel-shaped tests pass), and
+`SetInputText`/`Deactivate` are interface members of
+`InputManager.TextInputInterface` implemented **non-virtually** on
+`RadicalMenuOptionTextInput` — CK calls them through the interface, so a shadowing
+member on your subclass is never dispatched and cannot be used to intercept them.
+
 **A collider you put in the prefab is NOT the one the option uses.**
 `RadicalMenuOption.InitClickCollider()` only ever *creates* one:
 
