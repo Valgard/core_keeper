@@ -697,6 +697,40 @@ mouse and CK's hover system reacts as though the pointer had left the row. Size
 the collider to the maximum row width instead. This second half applies to every
 `RadicalMenuOption` whose text changes, not only to text-input rows.
 
+**A collider you put in the prefab is NOT the one the option uses.**
+`RadicalMenuOption.InitClickCollider()` only ever *creates* one:
+
+```csharp
+if (clickCollider == null && (labelText != null || valueText != null))
+{
+    clickCollider = gameObject.AddComponent<BoxCollider>();
+    clickCollider.isTrigger = true;
+}
+```
+
+There is no `GetComponent` anywhere in the chain, and `clickCollider` is
+`protected` with no `[SerializeField]`, so the Inspector cannot fill it either. An
+authored collider therefore leaves the field null, a second one gets added beside
+it, and `UpdateClickCollider` sizes only the runtime one. Two consequences worth
+knowing before copying what the vanilla prefabs appear to do:
+
+- **The vanilla prefabs are not the counter-example they look like.** Every
+  interactive option in `Join Game Menu.prefab` ships a collider — and every one of
+  those classes (`RadicalMenuOptionTextInput`, `RadicalEnterTextMenu_EnterButtonOption`)
+  takes the automatic path, so each of them runs with two. Leftovers, not a
+  convention.
+- **The real opt-out is overriding both methods empty**, which is what
+  `SaveSlotPlayOption` and the `WorldSlot*Option`s do: they carry a hand-sized
+  collider for a large tile whose hit area has nothing to do with text metrics, and
+  they stop CK from adding or resizing anything. That is the only shape in which an
+  authored collider is actually the one in use.
+
+**The automatic path is gated on `labelText`/`valueText` being set.** An option
+whose caption lives anywhere else gets **no collider at all** and is silently
+unreachable by mouse while keyboard and controller still work. `InitClickCollider`
+tries `GetComponent<PugText>()` on the option's own GameObject as a fallback, which
+does not help when the text sits on a child.
+
 **Trap: the row's `maxWidth` is a capacity, and a prefab `PugText.maxWidth`
 silently disables it.** The two fields share a name and do opposite things:
 
