@@ -708,12 +708,33 @@ the UI Camera, whose ortho size, by contrast, genuinely is fixed — see below.
 **The uiCamera shows a constant world area, so a fixed-size prefab is
 resolution-independent.** `Manager.camera.uiCamera.orthographicSize` is exactly
 **8.4375** — the 8.44 in the table rounded — so the visible height is `2 × orthoSize =
-16.875` world units and the width is `height × aspect` — a **30 × 16.875** viewport at
-16:9. That area does not change with resolution (confirmed empirically across several),
-and CK exposes no UI-scale option at all. A prefab authored at a fixed size is therefore
-"fullscreen with a border" at every resolution, and a mod window needs **no runtime
-sizing logic**. For matching the vanilla look, CK's own inventory margin is 0.25 world
-units.
+16.875` world units. That area does not change with resolution (confirmed empirically
+across several), and CK exposes no UI-scale option at all. A prefab authored at a fixed
+size is therefore "fullscreen with a border" at every resolution, and a mod window needs
+**no runtime sizing logic**. For matching the vanilla look, CK's own inventory margin is
+0.25 world units.
+
+**The width is constant too — do not compute it from the screen.** The obvious reading
+of "orthographic camera" is that the visible width follows `height × aspect` and
+therefore the window, which would make any fixed x wrong on a non-16:9 display. It does
+not: the `PugCamera` on the same GameObject runs `m_outputMode: 2` = `OutputMode.Fixed`
+at `480 × 270`, and PugRP forces the camera's aspect from those numbers rather than from
+the screen —
+
+```csharp
+// PugRP
+camera.aspect = pugCamera.GetPixelWidth(camera) / pugCamera.GetPixelHeight(camera);
+```
+
+— where `Fixed` makes those two return `m_outputWidth` and `m_outputHeight` verbatim. The
+aspect-adapting branch is a different mode (`MatchAspect`) and is not taken, and nothing
+in the game ever assigns `uiCamera.orthographicSize`. **The visible area is always exactly
+±15 × ±8.4375 world units**, on every display, which is the 480 × 270 design grid at 16
+pixels per unit.
+
+That is what makes CK's own hardcoded HUD positions legitimate, and a mod's equally so:
+there is nothing to compute. A mod that reads `uiCamera.aspect` at runtime to place a
+corner element gets the same 16:9 back and has merely added a failure mode.
 
 **A fiddlier way to project world → HUD:** `gameCamera.WorldToScreenPoint(...)` →
 `uiCamera.ScreenToWorldPoint(...)` (or the viewport variants). Fed a raw absolute ECS
@@ -785,6 +806,84 @@ loop still sees no instance and instantiates the HUD a second time. Another guar
 plain `static GameObject` field instead, checked at the point of use, with its own reason
 documented in a comment there. Either avoids the double-instantiate; this is not a single
 rule with one correct form.
+
+## Placing a HUD element against CK's own UI
+
+Since the visible area is a fixed ±15 × ±8.4375 (above), a corner element is a
+constant, not a calculation. What that constant should be is the awkward part: the
+useful reference is not the screen edge but whatever vanilla element already sits
+there, and those coordinates are not written down anywhere in the game.
+
+These are read off `Global Objects (Main Manager).prefab` in an AssetRipper export,
+with the parent chain resolved. Everything below hangs under `IngameUI`, which sits
+at the origin with scale 1 — the same parent `Manager.ui.chestInventoryUI.transform.parent`
+gives a mod HUD, so the numbers can be used as local positions directly.
+
+| Element | Position | Size | Edge |
+|---|---|---|---|
+| `miniMapBorder` | `(12.5, 6.0625)` | `4 × 2.25` | right **14.5**, bottom **4.9375** |
+| `HealthBarBackground` | `(−10.9375, 6.8125)` | `6.375 × 0.46875` | left **−14.125** |
+| `PvPEnabledUI` | `(14.4375, 4.875)` | — | see below |
+| button hints, row 1 | `y = −7.0625` | icons `1.5 × 1.5` | drawn band `−7.8125 … −6.3125` |
+| button hints, row 0 | `y = −5.4375` | — | drawn band `−6.1875 … −4.6875` |
+
+**`PvPEnabledUI` is the most useful of these**, because it is CK placing its own text
+against its own frame: it sits exactly **one pixel** (0.0625) below the minimap's bottom
+edge and one pixel inside its right edge. That is the clearance vanilla uses, so a mod
+element that wants to look native should use the same, not a rounder-looking 0.25.
+
+**Beware two traps in that table.** The health bar's `y` of 6.8125 is *not* where it
+appears in game — something moves it at runtime, so treat only the `x` as load-bearing
+and verify anything vertical by looking. And the button hints' `container` has **no
+renderer of its own** and sits at the origin, so its transform is useless as an anchor;
+the serialized `m_Size` on the icon renderers is stale too (`m_DrawMode: 0` is Simple,
+which ignores it). Measure the drawn children instead.
+
+### The button hints are not a fixed block
+
+`InGameButtonHintsUI.LateUpdate` lays out only the buttons that apply right now,
+right-to-left from the first one's position (`localPosition -= new Vector3(1.5f, 0, 0)`
+per active button), across two rows — and the whole container follows the player's own
+setting:
+
+```csharp
+container.SetActive(Manager.prefs.showKeyHints);
+```
+
+So the occupied area changes while the player plays. An element that wants to sit above
+it has to measure what is actually drawn each frame rather than assume a block. Note the
+ordering caveat: two `LateUpdate`s have no defined order without a script execution order
+entry, so a measurement can lag CK's layout by one frame. That shows as the element
+settling one frame late, never as a wrong resting position.
+
+### Vertical placement: CK's own formula
+
+`PvPTextUI`, the vanilla element below the minimap, converts a target edge into a text
+position like this:
+
+```csharp
+float y = text.dimensions.height / 2f - text.dimensions.height % 0.0625f;
+text.transform.localPosition = defaultPosition - new Vector3(0f, y, 0f);
+```
+
+Two things are worth copying and one is worth not misreading.
+
+Copy that the anchor names the text's **top edge** and the half-height is subtracted
+separately: that keeps the clearance a clearance instead of a number that silently
+carries the font size around with it. Copy also that the height is *measured*
+(`PugText.dimensions`, in world units, filled after the first render) rather than
+assumed — see the faces section for why a guessed 8 px is wrong for `thinTiny`.
+
+Do **not** read the modulo as a pixel-grid snap. `dimensions.height` is an integer
+`charDims.y` over `pixelsPerUnit = 16`, hence always a multiple of 0.0625, so the term
+is **always zero** for every CK font. Nor would it snap anything if it could: `h/2 −
+(h mod 1/16)` is not a rounding of `h/2`. It is worth keeping only as evidence the
+formula is Pugstorm's.
+
+**One asymmetry to plan for:** if the text hangs at a fixed offset below its root — the
+usual prefab shape, `root` → `hudRoot` → text — then a mirrored anchor does *not* give
+mirrored margins. The offset adds to the bottom gap and subtracts from the top one, so
+top and bottom anchors have to be chosen separately if the margins should match.
 
 ## Why a mod HUD stays invisible
 
@@ -879,6 +978,20 @@ playability gate described above, while an element that merely has to stay out
 of the way of open interfaces can gate on `!Manager.ui.isAnyInventoryShowing &&
 !Manager.menu.IsAnyMenuActive()` in addition. Toggle with `SetActive`, and only
 when the value changes.
+
+**But keep one term from that vector: `!Manager.prefs.hideInGameUI`.** Rejecting
+`CalcGameplayUITargetScaleMultiplier` as a *scale* is right; dropping what it
+encodes is not. Hiding the interface is an ordinary thing for a player to do —
+it sits on the regular `PlayerInput.InputType.TOGGLE_UI` keybind as well as an
+options entry — and a mod HUD without this term becomes the only thing left on
+an otherwise empty screen. Two mods in this catalogue shipped that way
+independently, having each derived their gate from the same pattern, which is
+the reason it is spelled out here.
+
+It compounds for anything anchored to vanilla UI: CK deactivates its own
+elements along with the rest, so an element that measures the minimap or the
+button hints also loses its anchor at that moment and jumps to its fallback
+position while nothing else is on screen.
 
 **Trap: never put the component that drives visibility on the GameObject it
 switches off.** Deactivating that object stops the component's own `LateUpdate`
