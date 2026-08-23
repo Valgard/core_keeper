@@ -1132,6 +1132,46 @@ returning `false` freezes the selection on itself. Note what that does *not*
 do: it makes `SelectNextIndex` return early, so the mode gets no input from it
 either — useful as a second lock, not as the mechanism.
 
+### CK's own mode idiom: `handleNavigationInternally`
+
+The overrides above are one way in. **CK's own is a public flag on the option**
+— `RadicalMenuOption.handleNavigationInternally` (`:343046`). While it is set,
+`SelectIndexInDirection` (`:342744`) hands the direction to that option's
+`NavigateInternally(Direction.Id)` instead of moving the selection. The base
+implementation (`:343287`) returns `false`, so an option that sets the flag and
+overrides nothing simply **swallows** navigation — which is a usable mode all by
+itself.
+
+`RadicalOptionsMenuOption_Slider` (`:340626`) is the worked example, and it is a
+grab mode in everything but name: a serialized
+`_requiresActivationForAdjustment`, and `OnActivated` toggling `_isActive` →
+`handleNavigationInternally = true` (saving the previous value in
+`_originalInternalNavigation` and restoring it on the way out), plus a colour
+change for feedback. Activate to enter, activate again to leave; ←/→ keeps
+working because `SkimLeft/Right` fall through to the option after
+`NavigateInternally` declines.
+
+To move a *sub-element* rather than swallow input, copy the player list
+(`:331681`): ask `GetAdjacentUIElement` on the currently selected child and call
+`Select()` on the result.
+
+> ⚠️ **This path is only reachable when the menu has
+> `useUIElementsForNavigation: 1`.** `SelectNextIndex`/`SelectPrevIndex` consult
+> `SelectIndexInDirection` only then; on the index-based path the flag is never
+> read. Ten shipped menus set it — `Pause Menu`, `Join Game Menu`,
+> `CreateWorldMenu`, `WorldSettingsMenu`, `ControlMappingMenu`,
+> `ManagePlayersMenu`, `SelectSessionMenu`, `InvitePlayersMenu`,
+> `CharacterMagicMirrorUI`, `BiliBili Connect Menu` — and **`UISettings.prefab`
+> is not one of them**, nor does any of its options set
+> `handleNavigationInternally`. A screen cloned from the options menu therefore
+> starts on the index path and has to be switched over deliberately, which also
+> changes how every existing row is reached (see § "Options that exist but cannot
+> be changed right now" for the skip that stops working there).
+>
+> The slider's activation flag is likewise switched on in exactly one shipped
+> prefab, `ControlMappingMenu.prefab` — so the mode exists in the game, but not
+> in the options menu whose rows the class is named after.
+
 **The hint bar follows a mode for free.** `MenuManager.UpdateHelperButtons`
 (`:269460`) runs from `LateUpdate` **every frame** and calls
 `topMenu.GetHelpButtonsToShow()` unconditionally, so a screen that reports
