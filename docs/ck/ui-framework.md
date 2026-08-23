@@ -541,6 +541,28 @@ hierarchy and computes their heights as `0`. So an own menu screen builds its
 structure **before** `base.Activate()` and renders the layouts **after** it,
 innermost first. Do it in one pass and every box collapses to zero height.
 
+**Its three spacing fields are in PIXELS, including the two `float` ones.**
+`gapBetweenItems` (`int`), `paddingStart` and `paddingEnd` (both `float`) are each
+multiplied by `0.0625f` — one sixteenth, the units-per-pixel of CK's UI — before
+they reach a position. A `float` field invites reading it as world units, which
+would be sixteen times too much.
+
+**A child taller than its layout slot overhangs it, and only the ends of the
+list notice.** Slot heights usually come from measured content (a text height),
+while a decoration drawn in that slot — a frame, a background — has its own
+fixed size. If the decoration is the taller one it spills past the slot,
+symmetrically when `WrapperUIComponent.pivot` is `MiddleLeft`, downward only
+when it is `TopLeft`. Between children the spill lands in `gapBetweenItems` and
+is invisible. At the **first and last** child there is no gap but the edge of
+the scroll viewport's [`SpriteMask`](#clipping-with-a-spritemask), so with `paddingStart`/`paddingEnd` at their
+default `0` the outermost pixels are clipped away.
+
+The symptom is therefore *the first row's top and the last row's bottom look cut
+off, while every row between them is fine* — and the fix is padding, not a taller
+slot: the overhang is normal, the missing breathing room at the container's edge
+is not. Enlarging every slot to contain its decoration would stretch the whole
+list to solve a problem that exists at two rows.
+
 ### Reusing CK's "restart required" dialog
 
 CK's own confirm dialog, localised in every language and wired to a real
