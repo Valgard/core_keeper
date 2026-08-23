@@ -972,6 +972,52 @@ usual prefab shape, `root` → `hudRoot` → text — then a mirrored anchor doe
 mirrored margins. The offset adds to the bottom gap and subtracts from the top one, so
 top and bottom anchors have to be chosen separately if the margins should match.
 
+**The formula also settles what the transform means: it is the vertical *centre* of the
+line.** Subtracting half the height from a top edge lands there by construction. That
+matters as soon as something is placed beside a text row — a sprite with a centred pivot
+matches the text's own y rather than sitting at an offset below it, and reading the
+transform as the row's top edge puts it half a line too low.
+
+**Expect the optical centre to sit about a pixel above that box centre for digits.**
+Measured against a `thinTiny` row: a marker aligned to the box centre still read as one
+pixel low in game and needed `+1/16`. The 10 px line box is not filled symmetrically by
+glyphs without descenders, so a value derived from the metrics lands close but not
+exactly — this is one to finish by looking, not by arithmetic.
+
+### Horizontal placement: the drawn edge is a measured value
+
+`PugText.dimensions` is a `Rect`, not just the height the formula above uses, and
+`PugFont.Render` fills its horizontal bounds **per alignment** (`Pug.Other` ~350726 for
+left, ~350731 centre, ~350747 right). Where `xMin` ends up:
+
+| `horizontalAlignment` | `dimensions.xMin` lands |
+|---|---|
+| `left` | at the start of the text |
+| `center` | half the drawn width to the left |
+| `right` | a full drawn width to the left |
+
+The three expressions share a common offset term, so do not read those as absolute
+numbers. What holds in practice — and what makes this useful — is that
+
+```csharp
+float leftEdge = text.transform.localPosition.x + text.dimensions.xMin;
+```
+
+is the left edge of what is actually on screen, **for any alignment**, without knowing a
+single glyph width. CK positions its own text-field caret exactly this way
+(`Pug.Other:343386`). Verified in game for left- and right-aligned rows.
+
+**The consequence for anything placed beside a text row.** With right-aligned text the
+row grows leftwards, so that left edge moves whenever the string gains a character. An
+element anchored to it follows along — correct, and visible. An element that must hold
+still has to sit on the *anchor* side of the row instead, where nothing moves. Both are
+defensible; the question is whether the element leads the value or frames it, and only
+one of the two answers costs a moving part.
+
+The Rect is filled by drawing, so on the first frame after a row is shown it still reads
+as zero-width. When the row's own `Render` runs in `Update` and the placement in
+`LateUpdate`, that is at most one frame.
+
 ## Why a mod HUD stays invisible
 
 Four unrelated mistakes produce the same complaint — "my HUD element exists,
