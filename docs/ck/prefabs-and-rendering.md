@@ -446,6 +446,41 @@ later flip of the flag cannot resurrect a placeholder.
 and CK's own widgets render unconditionally every `LateUpdate`, so the combination never
 bites them. Any prefab lifted from the game needs this pair checked.
 
+### A change-gate is not enough: PugText has its own cache
+
+The gate described above — repaint only when the string changed — is necessary, because
+`Render` rebuilds every glyph SpriteRenderer. But it is **not** the only cache in the
+path, and the second one is easy to miss because it is invisible from the calling side:
+
+```csharp
+public void Render(string text, bool rewindEffectAnims = false, bool force = false, …)
+{
+    if (!HasCorrectGlyphs(text) || rewindEffectAnims || force) { SetText(text); Render(…); }
+}
+
+private bool HasCorrectGlyphs(string text)
+    => prevLanguage == Manager.prefs.language && textString == text
+       && !FormatFieldsAreDifferent() && prevOrderInLayer == style.orderInLayer
+       && Math.Abs(prevMaxWidth - maxWidth) < Mathf.Epsilon && glyphs.Count > 0;
+```
+
+Language, string, format fields, `orderInLayer`, `maxWidth`. **Anything else you change
+about how the text is drawn is not in that list** — alignment above all, which is baked
+into each glyph's local offset at draw time (the `right` branch adds to
+`preallocSR.transform.localPosition`).
+
+So changing `style.horizontalAlignment` at runtime and then calling `Render` with the
+same string does **nothing**. Clearing your own change-gate does not help either: that
+only opens the first cache, and PugText's still blocks behind it.
+
+**The symptom is what makes this expensive to diagnose:** the element is not broken, it
+is laid out for the *previous* setting, and it corrects itself the moment the string next
+changes. On a coordinate readout that means it looks wrong while you stand still and
+right as soon as you walk — which reads as a positioning bug, not a caching one.
+
+`Render(text, rewindEffectAnims: false, force: true)` is CK's own escape hatch, and the
+only correct fix. Call it once, at the point where you change the property.
+
 ### Tinting: set the colour after `Render()`
 
 `PugText.color`'s setter goes through `SetTempColor`, which writes the glyph
@@ -838,6 +873,50 @@ and verify anything vertical by looking. And the button hints' `container` has *
 renderer of its own** and sits at the origin, so its transform is useless as an anchor;
 the serialized `m_Size` on the icon renderers is stale too (`m_DrawMode: 0` is Simple,
 which ignores it). Measure the drawn children instead.
+
+### `miniMapBorder.activeInHierarchy` is one signal for three situations
+
+An element anchored below the minimap needs to know when the minimap is not there. One
+test covers every case:
+
+```csharp
+Manager.ui.mapUI.miniMapBorder.gameObject.activeInHierarchy
+```
+
+**It comes from two different methods, which is why reading only one makes it look
+wrong.** `MapUI.LateUpdate` deactivates the border's *parent* container when the player
+turned the minimap off (`Manager.prefs.showMinimap`, a real options entry backed by
+`RadicalOptionsMenuOption_ShowMinimap`) or has an inventory open; `MapUI.UpdateUIScaling`
+deactivates the *border itself* for the big map and when the gameplay UI scale collapses.
+`activeInHierarchy` sees both, because it walks the parent chain.
+
+Grepping `UpdateUIScaling` alone therefore suggests that no minimap option exists — it
+does, the switch just lives in the other method.
+
+CK's own `PvPTextUI` reads the same flag, but note what for: it chooses between two
+vertical offsets, **not** its own visibility (that is `pvpMode && !isShowingMap`).
+
+### PvP is a world flag, and it occupies the spot below the minimap
+
+```csharp
+public bool pvpMode
+    => querySystem.TryGetSingleton<WorldInfoCD>(out var v) && v.pvpEnabled;
+```
+
+`WorldInfoCD.pvpEnabled` is a property of the **world**, toggled from the pause menu
+("PvP aktivieren" / "PvP deaktivieren"). It has nothing to do with multiplayer: a solo
+world can have it on, a multiplayer world can have it off, and it can be switched
+mid-session.
+
+When it is on, CK draws its PvP label at `(14.4375, 4.875)` — exactly one pixel below the
+minimap and one inside its right edge, i.e. **precisely the spot** a mod element placed
+"just under the minimap, the way vanilla does it" will occupy. Verified in game: the two
+render on top of each other and both become unreadable.
+
+This is the awkward consequence of calibrating against `PvPEnabledUI`, which is otherwise
+the best reference available for that corner. An element that wants to survive PvP being
+switched on has to measure the label and step below it — and measure rather than hardcode,
+since the text is localised and the flag can change at any moment.
 
 ### The button hints are not a fixed block
 

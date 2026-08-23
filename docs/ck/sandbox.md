@@ -196,6 +196,18 @@ Verified by passing live loads:
   among Members they name only `UnityEngine.Application.Quit` and
   `System.Type.InvokeMember`. The loader itself serialises with it:
   `JsonUtility.ToJson` in `ModAPIConfig.Set` (`Pug.Other:279626`).
+- **`Object.FindFirstObjectByType<T>()`** and the `GetComponentsInChildren`
+  overloads — plain `UnityEngine.CoreModule` API, on none of the four lists.
+  Worth stating because the name suggests otherwise: the method resolves types
+  at runtime, but **the verification inspects the references your assembly
+  declares**, not what a trusted assembly does internally. That is the same
+  reason `Newtonsoft.Json` and `API.ConfigFilesystem` are fine despite using
+  `System.IO`.
+- **`System.Enum.GetValues` / `GetNames`** — same reasoning, and confirmed by a
+  live load: Mod Settings Menu calls `System.Enum.GetNames(t)` in its foreign-
+  config discovery and ships with `skipSafetyChecks: 0`, so it passes exactly
+  the check your mod does. Useful for deriving a settings dropdown's options
+  from the enum instead of a hand-maintained array.
 
 ## Harmony attributes are exempt — hook bodies are not
 
