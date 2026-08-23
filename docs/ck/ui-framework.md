@@ -675,6 +675,48 @@ mouse and CK's hover system reacts as though the pointer had left the row. Size
 the collider to the maximum row width instead. This second half applies to every
 `RadicalMenuOption` whose text changes, not only to text-input rows.
 
+**Trap: the row's `maxWidth` is a capacity, and a prefab `PugText.maxWidth`
+silently disables it.** The two fields share a name and do opposite things:
+
+| Field | Effect |
+|---|---|
+| `RadicalMenuOptionTextInput.maxWidth` | **capacity** — `AppendString` re-measures after inserting and restores the previous string if the text now exceeds it, and `Update` strips one trailing character per frame while it does |
+| `PugText.maxWidth` | **wrapping** — `Render` runs `AddNewLinesToLinesExceedingMaxWidth`, inserting line breaks |
+
+**Neither is a character count.** Both values are a **rendered width in world
+units**, and both checks measure `pugText.dimensions.width` — the width the text
+actually occupies on screen. `PugFont` carries a per-glyph `kerning` byte array
+and an `enableKerning` flag, so the advance depends on the character *and* on the
+one before it. How many characters fit is therefore a property of the string, not
+of the limit: a row of `1`s and a row of `W`s reach the same width at very
+different lengths, and a measurement taken with digits does not transfer to
+letters. Size a field by measuring the widest realistic value, never by counting
+characters.
+
+Both checks above test `pugText.dimensions.width`. So once the PugText wraps, the
+rendered width can never exceed the wrap limit, the capacity comparison never
+becomes true, and the row grows *downward* instead of refusing input — overflowing
+whatever frame or layout slot it sits in, with no error anywhere.
+
+**Unlike `TextInputField`, this class never propagates its `maxWidth` to the
+PugText.** The rule is therefore the exact inverse of the one in the table above:
+here the prefab is the only place the PugText's value comes from, and it must be
+`0`. CK does this consistently — in `Join Game Menu.prefab` every field's `text`
+and `hint` PugText carries `maxWidth: 0` while the capacity lives on the component
+(`sessionId` 14.5, `sessionIP` 22, `sessionPort` 2.1, `password` 16). A prefab
+adapted from a display-only row is the likely place to inherit a non-zero value by
+accident.
+
+Keeping it at `0` also avoids the [kerning crash](#a-non-zero-maxwidth-can-crash-on-a-character-its-face-does-not-map) above, which only exists on the
+wrapping path.
+
+**Consequence: an over-long value cannot be entered at all.** With wrapping off
+there is no viewport and no scrolling — `localCharacterEndPositions` exists only
+to place the caret, and no offset is ever applied. A value wider than the capacity
+is silently refused keystroke by keystroke; `Shake()` (inherited, with
+`shakeDuration` / `shakeMagnitude` / `shakesPerSecond` already serialized) is the
+feedback CK provides for exactly that.
+
 ## Rebindable keybinds
 
 CoreLib's `ControlMappingModule` (a submodule, loaded in `EarlyInit`) puts a
