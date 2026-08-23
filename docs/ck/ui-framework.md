@@ -710,6 +710,16 @@ mouse and CK's hover system reacts as though the pointer had left the row. Size
 the collider to the maximum row width instead. This second half applies to every
 `RadicalMenuOption` whose text changes, not only to text-input rows.
 
+**And beware the empty string, which measures as nothing.** `PugText.Render`
+returns early on `string.IsNullOrEmpty(textString)` after setting
+`dimensions = Rect.zero` (`Pug.Other:351862`), so anything derived from text
+metrics collapses for a blank row: a text-sized collider becomes unhittable by
+`UIMouse`'s raycast, and a `renderHeightPixels` computed from
+`dimensions.height` makes a `LinearLayout` swallow the row entirely. Keyboard and
+controller still reach it, so an in-game check that does not deliberately click
+the blank row will not find this. If blank rows are a legitimate state in your
+UI, size from a frame sprite or a constant rather than from the text.
+
 **On a controller, ALL text entry goes through the on-screen keyboard — and its
 result arrives without a frame boundary.** `HandleTypingInput` takes the OSK branch
 whenever `!SystemPrefersKeyboardAndMouse()`, so `AppendString` is never reached
@@ -733,6 +743,60 @@ different path (no `SetInputText` runs at all, so cancel-shaped tests pass), and
 `InputManager.TextInputInterface` implemented **non-virtually** on
 `RadicalMenuOptionTextInput` — CK calls them through the interface, so a shadowing
 member on your subclass is never dispatched and cannot be used to intercept them.
+
+**`Deactivate(bool commit)` throws its own parameter away.** The implementation is
+two lines and never reads it (`Pug.Other:343542`):
+
+```csharp
+public void Deactivate(bool commit)
+{
+    Manager.input.SetActiveInputField(null);
+    characterMarkBlinker.gameObject.SetActive(value: false);
+}
+```
+
+CK's own callers do pass an intent — Escape arrives as
+`Deactivate(!IsMenuBackButtonDown())` — and it is discarded on the way in. Two
+consequences follow, and neither has a workaround inside your subclass, because
+`Deactivate` is a non-virtual interface member (above):
+
+- **Escape is not a cancel.** For every mod built on this base class, backing out
+  of a field commits whatever is typed, exactly like Enter. If you need a cancel,
+  it has to come from a patch, not from an override.
+- **A transition-based commit cannot see intent.** Since the only usable "the user
+  is done" signal is `activeInputField` moving away from your row, and the flag
+  saying *why* is gone by then, every ending looks the same from inside the row.
+
+**`UIManager.HideAllInventoryAndCraftingUI` ends an edit by blanking it**
+(`Pug.Other:273386`):
+
+```csharp
+if (Manager.input.textInputIsActive)
+{
+    Manager.input.activeInputField.SetInputText("");
+    Manager.input.activeInputField.Deactivate(commit: false);
+}
+```
+
+That is the same shape as the on-screen keyboard's result handler above — text set,
+then deactivated, in one callback with no frame between — but it means the
+opposite, so no timing rule can separate them; only the source of the call can.
+This matters because the method has a dozen call sites and most are **world
+objects**, not menu actions: `Chest`, `Cattle`, `VendingMachine`, `CraftingBuilding`,
+`SignText`, `InstrumentUI`, plus `PlayerController.FadeOutAndLockPlayer` and
+`CloseAnyOpenInventory`. In multiplayer the simulation keeps running while a player
+sits in a menu, so **another player or a mob can wipe a field mid-edit**. If a
+blanked field would cost data, prefix that method and commit first — committing
+also clears `activeInputField`, so CK's own `textInputIsActive` guard then finds
+nothing and the blanking never runs.
+
+**While a field is active, the menu is deaf.** `HandleTypingInput` returns `true`
+on every path (`Pug.Other:269675`), and its caller returns immediately when it does
+(`:269555`) — so all menu navigation and activation input is swallowed for as long
+as `Manager.input.activeInputField` is set. Useful in both directions: no other row
+can be selected or activated by keyboard or controller during an edit (the mouse is
+a separate path and is *not* covered), so a rebuild triggered from a menu option
+cannot destroy the row that currently holds the field.
 
 **A collider you put in the prefab is NOT the one the option uses.**
 `RadicalMenuOption.InitClickCollider()` only ever *creates* one:
