@@ -55,13 +55,23 @@ xattr — a dependable fingerprint of that route.
 
 **Two consequences, both real:**
 
-- **`utils/pixaki_to_sheet.py` and `utils/pixaki_to_glyphs.py` read ZIP only** —
-  `zipfile.ZipFile` in `load_pixaki()` and `load_layers()` respectively. Aimed
-  at a package they raise `IsADirectoryError`, which at least fails loudly. A
-  small adapter dispatching on `os.path.isdir()` would make both formats work:
-  between them the two call sites need only `namelist()`, `read()` and `open()`
-  — the glyph tool passes the archive handle on to `layer_full()`, so the
-  adapter has to satisfy that one too, not just the loader.
+- **`utils/pixaki_to_sheet.py` and `utils/pixaki_to_glyphs.py` read either
+  form**, through `utils/pixaki_container.py`. It dispatches on
+  `os.path.isdir()` and hands back `zipfile.ZipFile` itself for an archive, or
+  a directory backend carrying the three members the two readers use:
+  `namelist()`, `read()` and `open()`. The third is not optional — the glyph
+  tool passes its container on to `layer_full()`, so the adapter has to satisfy
+  that call site too, not just the loader. The backend lists files only, so the
+  six directory entries an export stores (`cache/`, `cache/keyframes/`,
+  `images/`, `images/drawings/`, `images/references/`, `images/selections/`)
+  have no counterpart in a package's listing. That reaches neither reader,
+  though for *different* reasons: `pixaki_to_sheet` scans `namelist()` and
+  keeps only `images/drawings/*.png`, while `pixaki_to_glyphs` never enumerates
+  at all and opens each member by the name `document.json` gives it. Both
+  suites build one payload in both packagings and compare the tool's own
+  output, so the equality is checked rather than assumed. A package whose
+  contents iCloud has evicted — `.<name>.png.icloud` placeholders where the
+  drawings were — is refused by name, not by a later `KeyError` on a cel UUID.
 - **Committing a package loses the empty directories.** A ZIP stores directory
   entries, empty `images/references/` and `images/selections/` included; git
   stores blobs at paths and cannot represent an empty directory. What it buys
