@@ -929,8 +929,16 @@ setting:
 container.SetActive(Manager.prefs.showKeyHints);
 ```
 
-So the occupied area changes while the player plays. An element that wants to sit above
-it has to measure what is actually drawn each frame rather than assume a block. Note the
+**Two behaviours coexist here, and confusing them leads to the wrong test.** The same
+`LateUpdate` calls `UpdateVisuals()` on *every* button but repositions only the active
+ones, so whether a button vanishes or merely greys out is up to its own implementation.
+Observed in game: some hints genuinely come and go with the context, while the interact
+hand stays put and only switches between an active and an inactive look. Walking up to a
+chest is therefore a **bad** test — it changes a colour and adds a key label below the
+icon, and moves the block's top edge not at all.
+
+The occupied area does change, just not on every context switch. An element that wants to
+sit above it has to measure what is actually drawn each frame rather than assume a block. Note the
 ordering caveat: two `LateUpdate`s have no defined order without a script execution order
 entry, so a measurement can lag CK's layout by one frame. That shows as the element
 settling one frame late, never as a wrong resting position.
