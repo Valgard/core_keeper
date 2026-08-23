@@ -264,6 +264,18 @@ are documented in `README.md` (§ Build & install) — script names, variables, 
 exact commands. `docs/ck/toolchain.md` carries the same arrangement's *reasoning*,
 framed as one setup among possible ones.
 
+**When a build misbehaves rather than merely fails, read [`docs/build-environment.md`](docs/build-environment.md)
+before investigating.** It covers what goes wrong with this arrangement on this
+machine: a build that **hangs** is almost always Unity waiting on an IL Post
+Processor runner that never started — diagnosable in three numbers (≈0 % CPU, an
+`ilpp.sock-*` that exists, and no runner process alive), and fixed by clearing
+`Temp` + `Library/Bee` **and restarting Unity Hub**, which is the step that
+actually does it (24-minute hang → 75 seconds, measured). It also records that
+`Access token is unavailable` appears in *successful* builds and is therefore no
+diagnosis, why the log needs `tee` to survive at all, and where the Unity Hub
+CLI does and does not help — it wraps batchmode rather than replacing it, so it
+would not have prevented any of this.
+
 - **Concurrent build/publish locks the shared SDK project for every session.**
   All mods share one `CoreKeeperModSDK` clone, so any session's batchmode
   build/publish takes the SDK project lock (`UnityLockfile`). If a build aborts

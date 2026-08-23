@@ -21,6 +21,7 @@ __pycache__
 !/uv.lock
 !/docs/
 /docs/*
+!/docs/build-environment.md
 !/docs/dedicated-server.md
 !/docs/macos-crossover-loader.md
 !/docs/publishing.md
