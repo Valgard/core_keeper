@@ -52,6 +52,15 @@ for arg in "$@"; do
     esac
 done
 
+# Absolutise it, because the value is handed to Unity through MOD_REPO_ROOT and Unity's working
+# directory is the SDK project, not this one — so a relative path resolves somewhere else entirely
+# and the run dies much later with "No CHANGELOG.md at ./CHANGELOG.md", naming a path that exists.
+if [ ! -d "$REPO_ROOT" ]; then
+    echo "ERROR: '$REPO_ROOT' is not a directory." >&2
+    exit 1
+fi
+REPO_ROOT="$(cd "$REPO_ROOT" && pwd -P)"
+
 if [ "$PROFILE_ONLY" = "1" ] && [ "$CHANGELOG_ONLY" = "1" ]; then
     echo "ERROR: --profile-only and --changelog-only are separate modes; pick one." >&2
     exit 1
