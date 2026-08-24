@@ -232,6 +232,16 @@ iterates `SystemTypesToDisableBurstFor` as it stands at the moment it runs —
 call `DisableBurstForSystem*` for everything you want it to see *before* the
 `World.All` pass, or the pass walks a set that is still empty and arms nothing.
 
+**What the pass repairs is the *first* `StartEcs` of the process, not a
+permanent defect.** Unloading the worlds calls `BurstDisabler.ResetWorlds`
+(`PugMod.SDK.Runtime:841`) from `ECSManager.UnloadWorldsInternal`
+(`Pug.Other:2938`, server `:2914`), which clears the handle set; the next
+`StartEcs` then runs its own `AddWorld` pass with the registration already in
+place, so a world reload arms correctly on its own. That is why the bug reads as
+"dead from launch" rather than intermittent — and why a dedicated server, which
+loads its world once at startup and keeps it, never gets the second chance a
+world switch would hand it.
+
 **`EarlyInit` is not the fix.** Moving the registration there fails on client
 *and* server: `TypeManager` is not initialised that early, so
 `TypeManager.IsSystemType` throws `NullReferenceException` out of
