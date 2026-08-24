@@ -459,6 +459,31 @@ lowercase `logo`, a space before the index, `.jpeg` for the candidates):
 
 Background / history: the `project_corekeeper_mod_logo_pipeline` memory.
 
+## Sprite sheets
+
+A mod's in-game sprites come from a `.pixaki` master in its `sources/`, cut by
+`utils/pixaki_to_sheet.py` against a sibling `<name>.json` sprite definition
+into `unity/<Mod>/Art/UI/<name>.png` plus its `.meta`. The `.png` is generated —
+never hand-edit it, re-cut instead. `utils/pixaki_inspect.py` prints any layer
+of a master as a character grid with its palette, which is how a stray pixel or
+a forgotten working-background layer is caught before it ships; the format
+itself is @docs/pixaki-format.md.
+
+**Pin both halves of a prefab's sprite reference in the sprite definition.**
+A prefab points at a sprite with `{fileID, guid}`, and the generator derives
+each from something that changes without anyone meaning to: the sheet **`guid`**
+from the output path, and each sprite's **`internalID`** from its layer name. So
+cutting the same master from a worktree, or renaming a layer, silently orphans
+the reference — and a dead reference shows up as an empty patch of UI, not as an
+error. `"guid"` and `"internalIds"` in the `.json` remove both hazards; the
+generator validates the pins before writing anything.
+
+**Exclude the layers that must not ship** — extracted vanilla art kept as visual
+reference, alternative drafts, and the opaque backdrop layer that makes pale
+pixels visible while drawing. Exclusion is by name in the `.json` rather than by
+hiding the layer in Pixaki, because a working background gets toggled constantly
+while drawing and *will* eventually be saved visible.
+
 ## Conventions
 
 - **Personal-use, non-commercial only** (Pugstorm EULA).
