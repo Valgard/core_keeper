@@ -41,6 +41,18 @@ are **directional keyboard and controller navigation**. An element left out of
 the chain still works with the mouse but cannot be reached with a D-pad or the
 arrow keys. Mouse reachability is a separate mechanism entirely — see below.
 
+**Wrap-around is a property of the chain, not of the navigation code.** The
+index-based path wraps for free (`(selectedIndex + 1) % Count`); the
+`useUIElementsForNavigation` path wraps only if the last element names the first
+as its neighbour. Vanilla does exactly that where the screen is a real vertical
+pick-list — `CreateWorldMenu` and `WorldSettingsMenu` are cyclic in **both**
+directions in their prefabs — and leaves the chain open on forms (`Join Game
+Menu`) and short button rows (`Pause Menu`). Don't read the code-side examples
+as evidence against it: `ChooseCharacterMenu` and `SelectWorldMenu` chain
+linearly because they are wiring rows that do not exist until the screen opens,
+which is a limit of when they run, not a decision about wrapping. A mod with a
+dynamic list closes the ring in the same loop that builds the chain.
+
 **Trap: there is no `"UI"` sorting layer, and "layer" means two unrelated
 things here.** `TagManager.asset` defines no sorting layer named `"UI"` — CK UI
 sprites sort on **`"GUI"`** (uniqueID `1241602095`). Unity's *layer 5* is also
