@@ -263,6 +263,16 @@ reliably on prefab children authored in the Editor.
 Duplicating an existing, working element inherits both correctly, which is the cheapest
 way to avoid the pair altogether.
 
+**Not a third trap, though it looks like one: the lighting flags.** A hand-added
+SpriteRenderer arrives with `m_CastShadows`, `m_ReceiveShadows`, `m_LightProbeUsage` and
+`m_ReflectionProbeUsage` all at `1`; renderers that came from a CK prefab carry
+Pugstorm's `0`. Put the two side by side in a diff and it reads as a missed setting. It
+is provenance: `1` is simply Unity's default for a new renderer, and the values are inert
+for UI, because Sprites-Default is unlit and gives probes and shadows nothing to act on.
+Mod UI has shipped both ways for a long time with no observed difference. Chasing the
+mismatch costs more than it buys — unlike the two traps above, which really do stop a
+sprite from drawing.
+
 **A copied custom-shader material ignores `SpriteRenderer.m_Color` in the bundle.** If the
 sprite has to be tinted at all, put built-in Sprites-Default (`fileID: 10754`) on it.
 
