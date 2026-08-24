@@ -1014,9 +1014,45 @@ still has to sit on the *anchor* side of the row instead, where nothing moves. B
 defensible; the question is whether the element leads the value or frames it, and only
 one of the two answers costs a moving part.
 
-The Rect is filled by drawing, so on the first frame after a row is shown it still reads
-as zero-width. When the row's own `Render` runs in `Update` and the placement in
-`LateUpdate`, that is at most one frame.
+### When `dimensions` can be trusted
+
+Three properties decide whether what you read out of it is a measurement or a leftover.
+
+**The draw writes it synchronously.** `PugText.Render` reaches `PugFont.Render` within
+the same call, and that assigns `pooledObj.dimensions` before returning
+(`Pug.Other:350767`). There is no deferred layout pass to wait for, which is what makes
+the usual ordering sound: a mod's `IMod.Update` renders the string, the element's
+`LateUpdate` places against it, and the value read there belongs to this frame.
+
+**It survives hide and show.** `OnDisable` releases the glyphs only when
+`freeResourcesOnDisable` is set (`Pug.Other:351466`), and `OnEnable`'s repaint is gated
+on `renderOnStart`. With the flags an always-on HUD wants anyway — `renderOnStart: 0`,
+`keepEnabledOnStart: 1`, `freeResourcesOnDisable: 0` — both the glyphs and the Rect
+outlive every toggle. So the empty-Rect window opens exactly **once per session**, on the
+first frame the element is drawn, and not on any later re-show.
+
+**Online, it may be measuring three dots.** This one is invisible in singleplayer:
+
+```csharp
+if (checkForProfanity && _needsProfanityCheck && !Manager.networking.OfflineSession)
+{
+    parentalControlManager.RestrictInput(displayedTextString, delegate(string result) { … });
+    if (!gotResult)                       // the callback did not answer synchronously
+    {
+        displayedTextString = "...";      // Pug.Other:351884
+        OnProfanityChecked(rewindEffectAnims, activate);
+    }
+    return;
+}
+```
+
+A `PugText` with `checkForProfanity: 1` hands its string to the platform's parental
+control on every *changed* string, and when that does not answer on the spot, CK draws
+`"..."` and lays the Rect out for three dots. Anything positioned against that width
+lands wrong for as long as the check takes — in an online session only, so a
+singleplayer pass over the same UI will never show it. **Leave `checkForProfanity: 0` on
+anything a mod generates itself**; the flag exists for text a player typed, and it is
+already `0` on the vanilla prefabs a HUD is usually cloned from.
 
 ## Why a mod HUD stays invisible
 
