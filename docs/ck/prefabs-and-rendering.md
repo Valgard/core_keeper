@@ -1092,10 +1092,32 @@ for (int i = 0; i < parent.childCount; i++)
 }
 ```
 
-Cache the hit, and **latch only on a hit** — the same rule as for CK's own lookups. A miss
-can simply mean the other mod has not instantiated its HUD yet. It can equally mean that
-mod is not installed at all, which is why the search has to stay cheap enough to repeat
-every frame; over a handful of siblings it is.
+Cache the hit, and **never latch a miss** — the same rule as for CK's own lookups: a miss
+can simply mean the other mod has not instantiated its HUD yet, and latching it would park
+your element on top of a HUD that appears one frame later. Caching the Transform is enough
+on its own; a companion "already searched" flag is worse than nothing here, because Unity's
+`==` overload reports a *destroyed* object as null and the flag would then hold a dead
+reference for the session.
+
+**But do not let that search run every frame — ask the loader first.** The parent is CK's
+whole `IngameUI` root: **41 vanilla children** plus every other mod's HUD. And
+`Object.name` is not a field but a marshalling getter that builds a fresh managed string on
+every access, so a per-frame walk is ~41 string allocations per frame — permanently, for
+every player who does *not* run the neighbour, which is the majority.
+
+```csharp
+foreach (var mod in PugMod.API.ModLoader.LoadedMods)
+    if (mod != null && mod.Metadata.name == "TheOtherMod")   // Metadata is a STRUCT — never null-check it
+        return true;
+```
+
+Ask once and remember: the loaded set cannot change while the game runs. **This is not an
+optimisation, it is the missing distinction.** A failed sibling search alone cannot tell
+*"that mod is not here"* from *"that mod is here and something about it moved"* — a renamed
+root, a different parent — and only the second is a defect, whose sole symptom is the two
+elements overlapping again exactly as they did before you wrote any of this. The first
+belongs in silence; the second deserves one warning, once the delay has ruled out "not
+instantiated yet".
 
 **Then measure what it draws, and read nothing else.** Combined `Renderer.bounds` over its
 active children is the whole interface, and it needs no assembly reference — which is what
@@ -1109,6 +1131,17 @@ signal to fall back to the plain corner.
 its **left** edge is the one that holds still while its numbers change; anchoring to the
 moving end makes your own element jitter as the other mod updates. Which edge is stable
 follows from the neighbour's alignment, not from its content.
+
+**Bound what you borrow — twice.** The measurement is only as good as the name that found
+it, and that name belongs to someone else. Clamp the result so the step can only move your
+element *along* the row and *away* from the neighbour, never past where it would have sat
+on its own; and require the measured bounds to actually **overlap your row vertically**
+before giving way at all. Without the second test a prefix that later matches a different
+object — a mod's other HUD, a tracker, an overlay that follows the player — drags your
+element to that object's x while leaving it at your row's y: a position the player never
+chose, moving every frame, with nothing in the log. Both tests are one comparison each, and
+they turn "step aside for that mod" into the statement you actually meant, which is "step
+aside for whatever of it is standing in this row".
 
 Two properties carry over from measuring vanilla UI. The result inherits the neighbour's
 **sub-pixel offset**, so snap it back onto the 1/16 grid — away from the neighbour, so the
