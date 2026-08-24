@@ -58,9 +58,14 @@ namespace CoreKeeperModUtils
                     Fail("--profile-only and --changelog-only are separate modes; pick one.");
                     return;
                 }
-                _depsMapPath = Environment.GetEnvironmentVariable("MODIO_DEPS_MAP");
+                // Both resolved rather than read raw, because Unity's working directory is not
+                // the one upload.sh was called from: a relative MOD_REPO_ROOT would look for
+                // CHANGELOG.md somewhere else and fail naming a file that is plainly there,
+                // and a relative MODIO_DEPS_MAP would read — and rewrite — the dependency
+                // cache in the wrong place. Anchor: EnvPaths, bottom of CLIBuildHelper.cs.
+                _depsMapPath = EnvPaths.Get("MODIO_DEPS_MAP");
 
-                var repoRoot = Environment.GetEnvironmentVariable("MOD_REPO_ROOT");
+                var repoRoot = EnvPaths.Get("MOD_REPO_ROOT");
                 if (string.IsNullOrEmpty(repoRoot))
                 {
                     Fail("MOD_REPO_ROOT not set");

@@ -65,6 +65,28 @@ run above. It is tempting to read it as the cause when a build then fails or
 hangs, and that reading sends you after the licensing system instead of the
 ILPP runner. Treat it as background noise unless something else corroborates.
 
+## A batchmode Editor's working directory is the project, not your shell
+
+A `-batchmode` Unity runs with its working directory set to `-projectPath`, the
+SDK clone — measured with `lsof -d cwd` on a running publish, 2026-08-24. Every
+raw `File`/`Directory` call in an Editor helper therefore resolves against the
+SDK rather than against the directory the build was started from, and an Editor
+menu item is a third case again.
+
+The symptom is a plainly correct path being reported as missing: `upload.sh .`
+died two minutes into a publish with `No CHANGELOG.md at ./CHANGELOG.md`, while
+standing in the very directory that holds it. Nothing in the message hints at a
+working directory, which is what makes it cost a whole Editor start to learn.
+
+Two ways out, and the code uses both. For anything under the project's own
+`Assets/`, `Application.dataPath` — Unity's own absolute path, used by
+`CLIBuildHelper.GenerateDevFlags` and by the localisation generator's "packed"
+lookup. For anything that arrives from the caller, `EnvPaths` (bottom of
+`utils/CLIBuildHelper.cs`), which resolves relative values against
+`MOD_CALLER_CWD`, the shell's directory as exported by `build.sh`/`upload.sh`.
+What must never happen is a relative path from the shell reaching `System.IO`
+unresolved.
+
 ## Keep the full log, or you will have nothing to read
 
 `build.sh` streams a very long log. Piping it straight into `grep` **buffers**,

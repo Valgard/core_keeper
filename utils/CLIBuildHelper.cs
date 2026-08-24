@@ -1,7 +1,8 @@
 // core_keeper/utils/CLIBuildHelper.cs — shared by every mod via a link.sh
 // symlink into <Mod>/Editor/. Mod identity comes from MOD_NAME (set in the
 // mod's .envrc), so this one file serves every mod. Runs the localisation
-// generator before the bundle build.
+// generator before the bundle build. Also holds EnvPaths (bottom of this file),
+// the resolver all three shared helpers use for path-valued env vars.
 using System;
 using System.IO;
 using System.Linq;
@@ -40,7 +41,11 @@ namespace CoreKeeperModUtils
                     return;
                 }
 
-                var exportPath = Environment.GetEnvironmentVariable("MOD_INSTALL_PATH");
+                // Resolved, not read raw: a relative MOD_INSTALL_PATH would otherwise
+                // create the staging dir under Unity's working directory while build.sh
+                // and install-macos.sh use the caller's — two different places, and the
+                // install step would report an empty build (see EnvPaths).
+                var exportPath = EnvPaths.Get("MOD_INSTALL_PATH");
                 if (string.IsNullOrEmpty(exportPath))
                 {
                     Fail("MOD_INSTALL_PATH not set");
@@ -104,10 +109,12 @@ namespace CoreKeeperModUtils
         {
             // Application.dataPath, not a bare "Assets/..." string passed to System.IO —
             // raw File/Directory calls resolve against the OS process's current working
-            // directory, which for a -batchmode Editor launched via build.sh is the invoking
-            // shell's cwd (the mod repo), NOT -projectPath. Application.dataPath is Unity's own
-            // absolute path to <project>/Assets and is what LocalizationGenerator already uses
-            // for the identical reason (see its own "packed" path resolution).
+            // directory, and that is Unity's own, never the invoking shell's: a -batchmode
+            // Editor sits in -projectPath, i.e. the SDK clone (measured on a running publish,
+            // 2026-08-24), and an Editor menu item sits somewhere else again. Application.dataPath
+            // is Unity's own absolute path to <project>/Assets and is what LocalizationGenerator
+            // uses for the identical reason (see its own "packed" path resolution). Paths that
+            // arrive from the caller take the other route — EnvPaths, below.
             var generatedPath = Path.Combine(Application.dataPath, modName, "Generated", "DevFlags.generated.cs");
             var envValue = Environment.GetEnvironmentVariable("MOD_DEV_FLAGS");
             if (string.IsNullOrEmpty(envValue) && !File.Exists(generatedPath))
@@ -139,6 +146,84 @@ namespace CoreKeeperModUtils
                     ? "[CLIBuildHelper] DevFlags regenerated: none enabled."
                     : $"[CLIBuildHelper] DevFlags regenerated: {string.Join(", ", flags)}"
             );
+        }
+    }
+
+    // Resolves the path-valued environment variables the CLI helpers read:
+    // MOD_REPO_ROOT, MOD_INSTALL_PATH, MODIO_DEPS_MAP, LOC_YAML/LOC_OUT/LOC_TABLE.
+    //
+    // An environment variable survives the jump from the shell into Unity; the working
+    // directory does not. A relative value therefore arrives stripped of the one thing
+    // that gave it meaning and resolves against whatever directory Unity's process
+    // happens to sit in — which is not the caller's, and not the same for a batchmode
+    // run and an Editor menu item. build.sh and upload.sh export MOD_CALLER_CWD="$PWD"
+    // for exactly this, so a relative path keeps meaning what it meant where it was
+    // typed. Passing `.` for the mod repo used to die two minutes into a publish with
+    // "No CHANGELOG.md at ./CHANGELOG.md", naming a file that is plainly there.
+    //
+    // For real filesystem paths only. AssetDatabase paths ("Assets/<Mod>/…") are
+    // project-relative by contract and must stay exactly as they are.
+    //
+    // Lives in this file rather than one of its own on purpose: link.sh symlinks each
+    // shared helper into every mod, and each one costs two .gitignore lines in every
+    // mod repo plus a matching entry in new_mod.py. This file is the one that is always
+    // linked, carries no #if, and already calls into the other helpers.
+    public static class EnvPaths
+    {
+        public const string AnchorVariable = "MOD_CALLER_CWD";
+
+        private static string _anchor;
+
+        /// Reads a path-valued environment variable and resolves it. An unset variable
+        /// passes through as null, so a caller's own "not set" check still reads plainly.
+        public static string Get(string variableName) => Resolve(Environment.GetEnvironmentVariable(variableName));
+
+        /// Absolute in, normalised absolute out; relative in, resolved against the caller's
+        /// directory. Idempotent, so resolving a value twice costs nothing and is safe.
+        public static string Resolve(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return value;
+
+            // A "~/…" value is not rooted, so combining it with the anchor would produce
+            // <anchor>/~/… — nonsense that surfaces much later, in a message naming a path
+            // nobody recognises. A shell expands ~ long before a variable carries one, so
+            // this only ever fires for a value the shell never looked at.
+            if (value == "~" || value.StartsWith("~/", StringComparison.Ordinal))
+            {
+                var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                if (!string.IsNullOrEmpty(home))
+                    value = value.Length == 1 ? home : Path.Combine(home, value.Substring(2));
+            }
+
+            return Path.IsPathRooted(value) ? Path.GetFullPath(value) : Path.GetFullPath(Path.Combine(Anchor(), value));
+        }
+
+        // Resolved once per Unity run, and only when a relative value actually needs it —
+        // a setup that hands over absolute paths never sees a line of this.
+        private static string Anchor()
+        {
+            if (_anchor != null)
+                return _anchor;
+
+            var caller = Environment.GetEnvironmentVariable(AnchorVariable);
+            var processCwd = Directory.GetCurrentDirectory();
+            if (!string.IsNullOrEmpty(caller) && Path.IsPathRooted(caller))
+            {
+                _anchor = Path.GetFullPath(caller);
+                Debug.Log($"[EnvPaths] relative paths resolve against {AnchorVariable}={_anchor} (Unity's own working directory is {processCwd})");
+            }
+            else
+            {
+                _anchor = processCwd;
+                Debug.LogWarning(
+                    $"[EnvPaths] {AnchorVariable} "
+                        + (string.IsNullOrEmpty(caller) ? "is not set" : $"is not absolute ('{caller}')")
+                        + $" — falling back to Unity's own working directory {processCwd}, which is NOT the one you "
+                        + "called from. Invoke through build.sh/upload.sh, or configure absolute paths."
+                );
+            }
+            return _anchor;
         }
     }
 }

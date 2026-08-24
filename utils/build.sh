@@ -6,7 +6,9 @@
 # Usage:
 #   utils/build.sh [mod-repo-path]
 # The mod repo path defaults to $PWD — run this from the mod repo root, or
-# pass the path explicitly.
+# pass the path explicitly. A relative path is fine, here and in the env vars
+# below: MOD_CALLER_CWD carries this shell's directory into Unity as the anchor
+# they resolve against.
 #
 # Required env vars (set in the mod's .envrc):
 #   UNITY_BIN          Path to the Unity Editor binary (Unity 6000.0.59f2)
@@ -52,6 +54,12 @@ mkdir -p "$MOD_INSTALL_PATH"
 "$UTILS_DIR/link.sh" "$REPO_ROOT" >/dev/null
 
 # 4. Invoke Unity.
+# The anchor for every relative path that reaches the Editor helpers — a variable
+# survives the jump into Unity, the working directory does not, and Unity's own is
+# not this one. Without it a relative MOD_INSTALL_PATH or LOC_YAML would resolve
+# somewhere nobody named. See EnvPaths at the bottom of utils/CLIBuildHelper.cs.
+export MOD_CALLER_CWD="$PWD"
+
 echo "Building $MOD_NAME mod..."
 echo "  SDK:     $SDK_PATH"
 echo "  Install: $MOD_INSTALL_PATH"

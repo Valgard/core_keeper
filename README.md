@@ -85,6 +85,18 @@ macOS auto-runs `install-macos.sh` to place the fresh build into the
 fake-ID locations so the loader picks it up on next launch. Each script
 resolves the mod repo from its first argument, defaulting to `$PWD`.
 
+Relative paths are fine — as that argument and as `.envrc` values alike.
+`build.sh` and `upload.sh` export `MOD_CALLER_CWD="$PWD"`, and the Editor
+helpers resolve every path-valued variable (`MOD_REPO_ROOT`,
+`MOD_INSTALL_PATH`, `MODIO_DEPS_MAP`, `LOC_YAML`/`LOC_OUT`/`LOC_TABLE`)
+against it — `EnvPaths`, at the bottom of `utils/CLIBuildHelper.cs`. That
+anchor is needed because a variable survives the jump into Unity while the
+working directory does not, and Unity's own is the SDK project rather than
+the directory you called from: `upload.sh .` used to fail two minutes in
+with `No CHANGELOG.md at ./CHANGELOG.md`, naming a file that is plainly
+there. `link.sh` resolves its argument itself instead, because a symlink's
+target is read relative to the link and must therefore be absolute.
+
 To publish a mod to mod.io, `source` its `.envrc` and run `../utils/upload.sh`
 from the mod repo root. The script refreshes the SDK symlinks and runs a Unity
 batchmode build via `<MOD_NAME>.Editor.CLIPublishHelper.Publish`, which builds

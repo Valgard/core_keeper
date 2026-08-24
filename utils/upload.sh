@@ -9,6 +9,10 @@
 # Usage:
 #   utils/upload.sh [mod-repo-path] [--dry-run] [--profile-only|--changelog-only]
 #
+# The mod repo path defaults to $PWD. A relative path is fine, here and in the env
+# vars below: MOD_CALLER_CWD carries this shell's directory into Unity as the anchor
+# they resolve against.
+#
 # --profile-only updates just the mod.io profile (description, name, summary,
 # logo) via EditModProfile — no build, no version tags, no dependency sync, no
 # modfile upload. Use it to push an edited modio-description.md without cutting
@@ -52,14 +56,14 @@ for arg in "$@"; do
     esac
 done
 
-# Absolutise it, because the value is handed to Unity through MOD_REPO_ROOT and Unity's working
-# directory is the SDK project, not this one — so a relative path resolves somewhere else entirely
-# and the run dies much later with "No CHANGELOG.md at ./CHANGELOG.md", naming a path that exists.
+# Checked before Unity is launched at all, so a mistyped path costs a second instead of the
+# two minutes an Editor start takes. Deliberately NOT absolutised here: link.sh resolves its
+# own argument (it must — symlink targets), discord_post.py runs in this very directory, and
+# the value handed to Unity is resolved there against MOD_CALLER_CWD, exported below.
 if [ ! -d "$REPO_ROOT" ]; then
     echo "ERROR: '$REPO_ROOT' is not a directory." >&2
     exit 1
 fi
-REPO_ROOT="$(cd "$REPO_ROOT" && pwd -P)"
 
 if [ "$PROFILE_ONLY" = "1" ] && [ "$CHANGELOG_ONLY" = "1" ]; then
     echo "ERROR: --profile-only and --changelog-only are separate modes; pick one." >&2
@@ -112,7 +116,12 @@ print(' '.join(json.load(open(sys.argv[1]))['versions']))
 " "$UTILS_DIR/ck-game-versions.json")"
 export CK_KNOWN_GAME_VERSIONS
 
-# The CLIPublishHelper reads these from the environment.
+# The CLIPublishHelper reads these from the environment. MOD_CALLER_CWD is the anchor every
+# relative one of them resolves against: a variable survives the jump into Unity, the working
+# directory does not, and Unity's own is not this one — so without it `upload.sh .` dies two
+# minutes in with "No CHANGELOG.md at ./CHANGELOG.md", naming a file that is plainly there.
+# See EnvPaths at the bottom of utils/CLIBuildHelper.cs.
+export MOD_CALLER_CWD="$PWD"
 export MOD_REPO_ROOT="$REPO_ROOT"
 [ "$DRY_RUN" = "1" ] && export PUBLISH_DRY_RUN=1
 [ "$PROFILE_ONLY" = "1" ] && export PUBLISH_PROFILE_ONLY=1

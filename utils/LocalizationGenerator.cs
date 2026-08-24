@@ -44,6 +44,15 @@ namespace CoreKeeperModUtils
 
         public static void Generate(string yamlPath, string outDir, string tablePath)
         {
+            // Resolved here rather than at the env-var read, because this is where the
+            // paths are used and outDir is deleted RECURSIVELY below. A relative value
+            // resolves against Unity's working directory, which is not the caller's, so
+            // that delete would otherwise run somewhere nobody named. EnvPaths.Resolve is
+            // idempotent, so an already-absolute path just gets normalised.
+            yamlPath = EnvPaths.Resolve(yamlPath);
+            outDir = EnvPaths.Resolve(outDir);
+            tablePath = EnvPaths.Resolve(tablePath);
+
             // Still fatal, deliberately: LOC_YAML pointing at nothing is a
             // contradiction — localisation configured, source absent — and the likely
             // cause is a moved or renamed file, where a silent skip would ship a mod
