@@ -20,7 +20,7 @@ except that your code does not run.
 |---|---|---|
 | `ArgumentException: Undefined target method for patch method …` at load | Harmony cannot resolve the target signature — typically an `in`/`ref` parameter | `argumentVariations` (below) |
 | Mod loads, `safetyCheck=True`, patch binds, prefix never fires | The target is Burst-compiled; the managed IL you patched is never executed | `BurstDisabler` (below) |
-| Works in single-player, does nothing in multiplayer | `BurstDisabler` registered too late on the dedicated server | manual `AddWorld` pass (below) |
+| Works when a player hosts, dead on a dedicated server | `BurstDisabler` registered too late on the dedicated server | manual `AddWorld` pass (below) |
 | Mod does not compile at all (`CompileFailed`) | Sandbox rejection, not a patching problem | [sandbox rules](sandbox.md) |
 
 ## Why a Burst-compiled `OnUpdate` cannot be intercepted
@@ -180,8 +180,17 @@ would otherwise make.
 ## The dedicated-server trap
 
 **`DisableBurstForSystem<T>()` in `IMod.Init()` is a silent no-op on a dedicated
-server.** No error, no log line; the prefix simply never fires. The mod works in
-single-player and does nothing in multiplayer.
+server.** No error, no log line; the prefix simply never fires. The mod works
+whenever a player hosts and does nothing on a dedicated server.
+
+**"Does nothing in multiplayer" is the wrong scope, and this file said it until
+2026-08-24.** A hosting client is not affected: `StartEcs` creates the
+ServerWorld in that same process (`Pug.Other:2654`, taken whenever the process
+is not a pure client), adds it to `_allWorlds`, and arms both worlds at
+`:2673-2675` — all of it after `Init()` on the client ordering. So host-based
+multiplayer works, and the defect belongs to the dedicated-server binary alone.
+The distinction matters when reading a bug report: "works for me in
+multiplayer" from a host neither reproduces nor refutes it.
 
 The cause is an inverted lifecycle. `BurstDisabler.AddWorld` is called from
 exactly one place, `ECSManager.StartEcs` (`Pug.Other:2675` in the client build,
