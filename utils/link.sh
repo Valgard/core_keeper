@@ -18,7 +18,7 @@
 # Usage:
 #   utils/link.sh [mod-repo-path]
 # The mod repo path defaults to $PWD — run this from the mod repo root, or
-# pass the path explicitly.
+# pass the path explicitly. A relative path is fine; it is resolved here.
 #
 # Required env vars (set in the mod's .envrc):
 #   SDK_PATH   Path to the cloned Pugstorm CoreKeeperModSDK
@@ -33,6 +33,16 @@ set -euo pipefail
 : "${MOD_NAME:?must be set in the mod's .envrc}"
 
 REPO_ROOT="${1:-$PWD}"
+if [ ! -d "$REPO_ROOT" ]; then
+    echo "ERROR: mod repo path is not a directory: $REPO_ROOT" >&2
+    exit 1
+fi
+# Absolutised here, unlike everywhere else, because a symlink's target is resolved
+# against the LINK's own directory — inside the SDK's Assets/ — and never against
+# this shell. A relative argument would otherwise produce Assets/<Mod> -> ./unity/<Mod>:
+# links that dangle without a word, and a build that mysteriously sees no mod.
+REPO_ROOT="$(cd "$REPO_ROOT" && pwd -P)"
+
 UTILS_DIR_ABS="$(cd "$(dirname "$0")" && pwd)"
 ASSETS="$SDK_PATH/Assets"
 MIRROR="$REPO_ROOT/unity"
