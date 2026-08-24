@@ -866,7 +866,7 @@ gives a mod HUD, so the numbers can be used as local positions directly.
 
 | Element | Position | Size | Edge |
 |---|---|---|---|
-| `miniMapBorder` | `(12.5, 6.0625)` | `4 × 2.25` | right **14.5**, bottom **4.9375** |
+| `miniMapBorder` | `(12.5, 6.0625)` | `4 × 2.25` | right **14.5**, bottom **4.9375**, top **7.1875** |
 | `HealthBarBackground` | `(−10.9375, 6.8125)` | `6.375 × 0.46875` | left **−14.125** |
 | `PvPEnabledUI` | `(14.4375, 4.875)` | — | see below |
 | button hints, row 1 | `y = −7.0625` | icons `1.5 × 1.5` | drawn band `−7.8125 … −6.3125` |
@@ -1063,6 +1063,66 @@ lands wrong for as long as the check takes — in an online session only, so a
 singleplayer pass over the same UI will never show it. **Leave `checkForProfanity: 0` on
 anything a mod generates itself**; the flag exists for text a player typed, and it is
 already `0` on the vanilla prefabs a HUD is usually cloned from.
+
+## Sharing a corner with another mod's HUD
+
+The top-right corner is where always-on mod HUDs collect, because it is the one edge
+vanilla leaves free — and the space there is smaller than it looks. **The band between
+the minimap's top edge (7.1875) and the screen top (8.4375) is 20 pixels**, and a
+`thinTiny` line box is 10 of them, so it holds exactly one row of text with a margin.
+Two mods that both want that corner cannot stack; they have to stand side by side, or
+one of them lands on the minimap.
+
+That makes a mod HUD a thing to place against, the same way the minimap and the button
+hints are — with two differences that both work in your favour.
+
+**Find it as a sibling, not with `GameObject.Find`.** Every always-on mod HUD mounts
+under `Manager.ui.chestInventoryUI.transform.parent` ([above](#mounting-an-always-on-hud)), so a mod HUD looking for
+another one is looking at its own siblings: a walk over `transform.parent`'s children
+comparing names, not a scene scan. Match on a **prefix** — `Object.Instantiate` appends
+`(Clone)` and a mod may or may not rename the instance afterwards — and skip your own
+transform so a prefix that also matches you cannot shadow the real one.
+
+```csharp
+for (int i = 0; i < parent.childCount; i++)
+{
+    var child = parent.GetChild(i);
+    if (child != transform && child.name.StartsWith(prefix, System.StringComparison.Ordinal))
+        return child;
+}
+```
+
+Cache the hit, and **latch only on a hit** — the same rule as for CK's own lookups. A miss
+can simply mean the other mod has not instantiated its HUD yet. It can equally mean that
+mod is not installed at all, which is why the search has to stay cheap enough to repeat
+every frame; over a handful of siblings it is.
+
+**Then measure what it draws, and read nothing else.** Combined `Renderer.bounds` over its
+active children is the whole interface, and it needs no assembly reference — which is what
+keeps the dependency optional, the only workable arrangement when the neighbour is a
+separate mod a player may not have. The measurement also collapses three states that would
+otherwise each need their own test: *not installed*, *switched off in its own settings*,
+and *hidden right now* all produce zero active renderers, and "no bounds" is already the
+signal to fall back to the plain corner.
+
+**Prefer the neighbour's fixed edge.** A left-aligned readout grows at its right end, so
+its **left** edge is the one that holds still while its numbers change; anchoring to the
+moving end makes your own element jitter as the other mod updates. Which edge is stable
+follows from the neighbour's alignment, not from its content.
+
+Two properties carry over from measuring vanilla UI. The result inherits the neighbour's
+**sub-pixel offset**, so snap it back onto the 1/16 grid — away from the neighbour, so the
+correction can never eat the gap. And the usual **one-frame lag** applies: the other mod
+toggles its container from its own `LateUpdate`, and two `LateUpdate`s have no defined
+order without a script execution order entry, so the frame its HUD appears or vanishes may
+still measure the previous state.
+
+**The gap between two readouts is not the vanilla clearance.** CK's one pixel is the
+distance from a *frame* — what `PvPEnabledUI` leaves under the minimap. Two text readouts
+standing side by side need more than that: the separator has to beat the widest gap
+*inside* either of them, or the eye groups the wrong halves together. Both mods in this
+catalogue put an icon in front of their text, at 6.6 px and 2 px respectively, and 8 px
+between the two reads as two groups rather than one run-on line.
 
 ## Why a mod HUD stays invisible
 
