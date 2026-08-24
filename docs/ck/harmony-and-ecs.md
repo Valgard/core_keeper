@@ -195,7 +195,9 @@ multiplayer" from a host neither reproduces nor refutes it.
 The cause is an inverted lifecycle. `BurstDisabler.AddWorld` is called from
 exactly one place, `ECSManager.StartEcs` (`Pug.Other:2675` in the client build,
 `:2656` in the server build), and it **snapshots** the types registered up to
-that moment. Nothing ever back-fills it.
+that moment. Nothing back-fills that snapshot for a world already passed to
+`AddWorld` — but the set itself is not permanent, and a later world load rebuilds
+it correctly; see the bound on this below.
 
 Note what this does *not* mean: the call is present and runs on both builds, at
 the end of `ECSManager.StartEcs` once the worlds have been created. The server
