@@ -283,6 +283,16 @@ Two variants worth recognising, both of which hide the problem further:
 - The system is declared `WorldSystemFilterFlags.ServerSimulation` only — so
   there is no client-side copy at all and the effect is completely dead.
 
+**The SDK's own documented example is the second variant.** Pugstorm's
+`BurstDisabler Example` page patches `SpawnEnvironmentObjectsInNewAreaSystem`,
+which is a `struct : ISystem` carrying
+`[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation, …)]`
+(`WorldGen:2836-2839`) — so it is on the trap's `ISystem` path *and* has no
+client-side copy. That example works when the player hosts (the hosting process
+runs a server world of its own) and does nothing on a dedicated server. Useful
+as the canonical instance, and as a reminder that the official docs are not a
+counter-argument to any of this: they simply do not cover the case.
+
 Anything server-authoritative is in the blast radius: XP and skill grants,
 durability, pet levelling, world simulation.
 
