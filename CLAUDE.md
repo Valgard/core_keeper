@@ -203,13 +203,16 @@ producer — Burst callers bypass the IL patch — but Burst-disable the
 prefix (see the `reference_ck_xp_grant_architecture` memory).
 
 **On a dedicated server that call alone is a silent no-op** — no error, no log
-line, the prefix simply never fires, so the mod works in singleplayer and not in
-multiplayer. `DisableBurstForSystem` only *registers* the type; the bypass is
-armed per world by `BurstDisabler.AddWorld`, whose sole caller is
-`ECSManager.StartEcs` and which **snapshots** the types registered so far. A
-dedicated server runs `IMod.Init()` *after* `StartEcs` (the client runs it
-before), so the snapshot is taken while the registration is still missing.
-Follow every `DisableBurstForSystem*` call with:
+line, the prefix simply never fires, so the mod works whenever a player hosts —
+singleplayer *and* host-based multiplayer, since that process creates its own
+ServerWorld after `Init()` — and does nothing on a dedicated server. ("Not in
+multiplayer" is the wrong scope and stood here until 2026-08-24;
+`docs/ck/harmony-and-ecs.md` has the evidence.) `DisableBurstForSystem` only
+*registers* the type; the bypass is armed per world by `BurstDisabler.AddWorld`,
+whose sole caller is `ECSManager.StartEcs` and which **snapshots** the types
+registered so far. A dedicated server runs `IMod.Init()` *after* `StartEcs` (the
+client runs it before), so the snapshot is taken while the registration is still
+missing. Follow every `DisableBurstForSystem*` call with:
 
 ```csharp
 foreach (var world in World.All)   // using Unity.Entities;
