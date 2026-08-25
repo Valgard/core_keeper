@@ -1312,6 +1312,44 @@ domain is.
 still hover-selects from the surrounding chrome if its collider reaches past the
 visible area, so a viewport bounds check has to be explicit.
 
+### Two masks over one renderer combine as OR, not AND
+
+Overlapping masks do not intersect. A renderer carrying `VisibleInsideMask` is
+drawn wherever **either** mask covers it, so adding a second mask never narrows
+what the first one shows — it widens it. Measured against game 1.2.1.5 on
+2026-08-25: a wide screen mask and a narrow per-row mask over the same glyphs
+produced full-width text *inside* the screen mask and text cut to the narrow
+mask only *outside* it — both halves visible in one frame.
+
+The consequence is that clipping on two axes independently — a list vertically,
+a field inside it horizontally — cannot be done by nesting masks. The two need
+**disjoint custom ranges**, so that each governs a different set of renderers and
+the one to be narrowed falls in the inner mask's range alone. Core Keeper uses
+this itself: `WorldSlot.prefab` carries masks with `[-1, 1]` and `[22, 24]`.
+
+Three traps sit in that arrangement, and all three fail the same silent way —
+the renderer drops out of *both* masks, and `VisibleInsideMask` with nothing
+covering it renders nothing. The symptom is indistinguishable from a mask that
+was never built.
+
+- **The lower bound is exclusive.** A range starting exactly on the target's
+  `sortingOrder` excludes it. Leave headroom below.
+- **A custom range is an interval over (SortingLayer, Order) pairs**, so three
+  fields matter, not one: `frontSortingLayerID`, `backSortingLayerID`, and the
+  mask's own `sortingLayerID`. Set only the orders and the range addresses layer
+  0 while the UI sits on `"GUI"`, excluding everything.
+- **Read the target's layer and order off a live glyph, not the prefab.**
+  `PugText.Render` copies `style.orderInLayer` onto every glyph renderer at
+  render time (`Pug.Other:350652`, with `maskInteraction` on the next line), and
+  a style asset shared between prefabs makes the serialized value a poor witness.
+
+**A mask parented to a scrolling row scrolls with it**, and keeps clipping after
+the row has left the viewport. That shows up as text standing outside the list
+with no frame around it — the frame is still governed by the outer mask, the
+text no longer is. Re-fit such a mask every frame to the intersection of its own
+rectangle with the viewport bounds. An empty intersection may simply disable it:
+with no mask left, the renderer disappears on its own.
+
 ### Mouse-wheel ownership
 
 `UIScrollWindow.UpdateScroll` — called from its own `LateUpdate` — reads the
