@@ -217,17 +217,27 @@ same on the two sides.
 | Client | `Init()` first, worlds built afterwards | registration precedes the snapshot → works |
 | Dedicated server | worlds built first (`adding worlds to the update loop`), `Init()` afterwards | snapshot empty → patch dead |
 
-**The server half of that ordering has a mechanism, not just a measurement.**
-`StartEcs` is reached from `SceneHandler.Awake` (`Pug.Other:361075`, calls at
-`:361114`/`:361119` in the server build), while `IMod.Init()` is driven from
-`Loader.Update` (`PugMod.Loader:1157`, `:1159`) — and Unity runs every `Awake`
-before any `Update`. So on a server that boots straight into its game scene the
-order is not a race that happened to fall one way; it is fixed by the engine's
-own lifecycle. What the decompile does *not* settle is which scene the server
-boots into, since that is build configuration rather than C# — which is why the
-log measurement above still earns its place. Three independent reviews flagged
-the flat "the order is reversed" phrasing as unsupported before this mechanism
-was written down; naming it is what makes the claim checkable.
+**That table is a measurement, and no derivation has replaced it — one was
+tried and was wrong.** The tempting mechanism is: `StartEcs` is reached from
+`SceneHandler.Awake` (`Pug.Other:361075`, calls at `:361114`/`:361119` in the
+server build) while `IMod.Init()` comes from `Loader.Update`
+(`PugMod.Loader:1157`, `:1159`), so Unity's rule that every `Awake` precedes
+every `Update` fixes the order. **It does not.** `Loader.Update` has a second
+caller: `Manager.EarlyInit` (`Pug.Other:263334`), which is a
+`[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]`
+(`:263245`) and therefore runs *before* any scene `Awake`. The lifecycle rule
+never applies to that path, so it cannot settle the ordering. Nor is the hosting
+side "menu-triggered" as a contrast: the client's own world-creating `StartEcs`
+(`Pug.Other:365349`) sits in `SceneHandler` too, and the menu path
+(`RadicalJoinGameMenu.Join`, `:337913`) passes `worldId: -1` and creates no
+ServerWorld at all.
+
+Written down because the wrong derivation was published into a pull request
+before a review caught it: three earlier passes had flagged the flat "the order
+is reversed" phrasing as unsupported, and the response was to invent a mechanism
+rather than to mark the claim as observed. A false mechanism is worse than an
+honest measurement — the measurement invites verification, the mechanism invites
+trust. State the ordering as measured; it is.
 
 ### The fix
 
