@@ -257,8 +257,16 @@ public void Init()
 
 `World.All` is sandbox-legal (`safetyCheck=True` on both client and server), and
 the registry behind `AddWorld` is a `HashSet`, so the pass is a harmless no-op in
-the client ordering. Write it unconditionally rather than branching on
-client/server.
+the client ordering.
+
+**Write it unconditionally, and note that the reason is stronger than "the extra
+pass is harmless".** Nothing in the SDK pins the ordering down: `AddWorld` and
+`DisableBurstForSystem*` carry no doc comment, attribute or contract of any kind
+about call order, and the client/server split above is a log measurement, not an
+API guarantee. Branching on the build would therefore rest on an ordering the
+SDK never promised — the unconditional pass holds even if a future build changes
+which one runs first. Prefer that argument over the no-op one; it survives the
+thing the other depends on.
 
 **The order in that snippet is mandatory, not stylistic.** `AddWorld` only
 iterates `SystemTypesToDisableBurstFor` as it stands at the moment it runs —
