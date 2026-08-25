@@ -217,6 +217,15 @@ same on the two sides.
 | Client | `Init()` first, worlds built afterwards | registration precedes the snapshot → works |
 | Dedicated server | worlds built first (`adding worlds to the update loop`), `Init()` afterwards | snapshot empty → patch dead |
 
+**The decisive file is not in the decompile at all, which is why measurement is
+the only route.** The server build's own guard names its real entry point —
+`UnityEngine.Debug.LogError("Server should start from ServerMain!")`
+(`Pug.Other:361103`, server build) — and `ServerMain` exists nowhere as a type:
+that string is its single occurrence in either checkout, with zero `class`/`struct`
+declarations. Anyone tracing the boot order follows the guard to a file that was
+never decompiled. Check this before attempting a derivation; it is cheap and it
+settles the question.
+
 **That table is a measurement, and no derivation has replaced it — one was
 tried and was wrong.** The tempting mechanism is: `StartEcs` is reached from
 `SceneHandler.Awake` (`Pug.Other:361075`, calls at `:361114`/`:361119` in the
