@@ -10,7 +10,9 @@ rather than a form is that mod.io already publishes from these same sources — 
 value typed twice is a value that will eventually differ.
 """
 
+import json
 import re
+import sys
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -82,26 +84,37 @@ def resolve_dependencies(
     if not declared:
         return []
 
-    cache: dict[str, int] = {}
+    cache: dict[str, object] = {}
     if cache_path and cache_path.is_file():
-        import json
-
-        cache = json.loads(cache_path.read_text())
+        try:
+            cache = json.loads(cache_path.read_text())
+        except json.JSONDecodeError as err:
+            raise ValueError(f"{cache_path} is not valid JSON: {err}") from err
 
     resolved = []
     for name, required in declared:
         file_id = cache.get(name)
         if file_id:
-            resolved.append(
-                {"name": name, "fileId": int(file_id), "required": required}
-            )
+            try:
+                file_id = int(file_id)
+            except (TypeError, ValueError) as err:
+                raise ValueError(
+                    f"{cache_path} has a non-numeric Workshop id for {name!r}: {file_id!r}"
+                ) from err
+            resolved.append({"name": name, "fileId": file_id, "required": required})
             continue
         if required:
             raise ValueError(
                 f"required dependency {name!r} has no Workshop id. Add it to "
                 f"{cache_path} once — see the spec on why this is not searched automatically."
             )
-        print(f"  ! optional dependency {name!r} has no Workshop id — skipped")
+        # stderr, not stdout: Task 7 captures this function's caller's stdout
+        # whole as the JSON bundle for the .NET tool, and a warning line ahead
+        # of the JSON would make that capture fail to parse.
+        print(
+            f"  ! optional dependency {name!r} has no Workshop id — skipped",
+            file=sys.stderr,
+        )
     return resolved
 
 

@@ -229,6 +229,61 @@ def test_an_unresolvable_optional_dependency_is_skipped(tmp_path):
     assert bundle["dependencies"] == []
 
 
+def test_the_optional_skip_warning_goes_to_stderr_not_stdout(tmp_path, capsys):
+    # Task 7 captures the caller's whole stdout as the JSON bundle for the .NET
+    # tool. A warning line printed to stdout ahead of that JSON would corrupt
+    # the capture and fail the entire publish over a merely-skipped dependency.
+    repo = _repo(
+        tmp_path,
+        asset=ASSET.replace(
+            "    dependencies: []",
+            "    dependencies:\n    - modName: SomeOptional\n      required: 0",
+        ),
+    )
+    cache = tmp_path / "deps.json"
+    cache.write_text("{}")
+    env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
+
+    steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
+
+    out, err = capsys.readouterr()
+    assert out == ""
+    assert "SomeOptional" in err
+
+
+def test_a_malformed_dependency_cache_is_reported_by_name(tmp_path):
+    repo = _repo(
+        tmp_path,
+        asset=ASSET.replace(
+            "    dependencies: []",
+            "    dependencies:\n    - modName: CoreLib\n      required: 1",
+        ),
+    )
+    cache = tmp_path / "deps.json"
+    cache.write_text("not json")
+    env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
+
+    with pytest.raises(ValueError, match=r"deps\.json"):
+        steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
+
+
+def test_a_non_numeric_cached_id_is_reported_by_mod_and_file(tmp_path):
+    repo = _repo(
+        tmp_path,
+        asset=ASSET.replace(
+            "    dependencies: []",
+            "    dependencies:\n    - modName: CoreLib\n      required: 1",
+        ),
+    )
+    cache = tmp_path / "deps.json"
+    cache.write_text('{"CoreLib": "not-a-number"}')
+    env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
+
+    with pytest.raises(ValueError, match=r"CoreLib") as excinfo:
+        steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
+    assert "deps.json" in str(excinfo.value)
+
+
 def test_declared_dependencies_are_parsed_with_their_required_flag():
     deps = steam_bundle.parse_dependencies(
         "    dependencies:\n    - modName: CoreLib\n      required: 1\n"

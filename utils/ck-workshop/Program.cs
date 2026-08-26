@@ -203,7 +203,18 @@ internal static class Program
                                 }
                             }
                         }
+                        else
+                        {
+                            // Silent here would contradict "full sync, not additive": the
+                            // publish still reports success while no dependency was
+                            // added or removed at all.
+                            Console.Error.WriteLine($"  dependency sync skipped — Workshop item {published} not found (0 results)");
+                        }
                     }
+                }
+                else
+                {
+                    Console.Error.WriteLine($"  dependency sync skipped — could not query Workshop item {published}");
                 }
             }
 
