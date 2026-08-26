@@ -266,7 +266,7 @@ PY
         printf '%s' "$bundle" | dotnet run --project "$UTILS_DIR/ck-workshop" -- ${PUBLISH_DRY_RUN:+--dry-run} \
             >"$STEAM_RESULT" 2>&1 || steam_rc=$?
         cat "$STEAM_RESULT" >&2
-        if [ "$steam_rc" = "0" ] && [ "$PUBLISH_DRY_RUN" != "1" ]; then
+        if [ "$steam_rc" = "0" ] && [ "${PUBLISH_DRY_RUN:-}" != "1" ]; then
             # The result is the last '{...}' line: dotnet's own build/restore
             # chatter and ck-workshop's progress lines (Program.cs) precede it
             # in the same file. write_file_id raises on an asset it does not
