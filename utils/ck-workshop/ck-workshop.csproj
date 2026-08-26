@@ -20,7 +20,12 @@
     </Reference>
   </ItemGroup>
 
-  <Target Name="CheckSdkPath" BeforeTargets="Build">
+  <!-- BeforeTargets="Build" fires too late to help: Build's own dependency chain
+       (ResolveAssemblyReferences, then CoreCompile) already runs and fails first,
+       so the operator saw a bare CS0246 with no mention of SDK_PATH. Hooking
+       ResolveAssemblyReferences instead runs before that target does its own
+       work, so our message appears before MSB3245 even has a chance to. -->
+  <Target Name="CheckSdkPath" BeforeTargets="ResolveAssemblyReferences">
     <Error Condition="'$(SDK_PATH)' == ''" Text="SDK_PATH is not set — run through utils/upload.sh or an .envrc." />
     <Error
       Condition="!Exists('$(SDK_PATH)/Assets/Plugins/CoreKeeperModSDK/Facepunch.Steamworks.Posix.dll')"

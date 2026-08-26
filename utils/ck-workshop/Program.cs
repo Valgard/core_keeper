@@ -76,7 +76,10 @@ internal static class Program
         Console.Error.WriteLine($"  Version: {bundle.Version}");
         Console.Error.WriteLine($"  Tags:    {string.Join(", ", bundle.Tags ?? Array.Empty<string>())}");
         Console.Error.WriteLine($"  Content: {bundle.ContentPath}");
-        Console.Error.WriteLine(bundle.FileId == 0 ? "  Item:    new (hidden)" : $"  Item:    {bundle.FileId}");
+        // Worded from Visibility, not from FileId == 0: that's the field the
+        // gating logic below actually reads, so the log can't go stale if the
+        // two ever decouple.
+        Console.Error.WriteLine(bundle.Visibility == "hidden" ? "  Item:    new (hidden)" : $"  Item:    {bundle.FileId}");
 
         if (dryRun)
         {
