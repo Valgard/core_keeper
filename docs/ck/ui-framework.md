@@ -735,8 +735,8 @@ UI, size from a frame sprite or a constant rather than from the text.
 **On a controller, ALL text entry goes through the on-screen keyboard — and its
 result arrives without a frame boundary.** `HandleTypingInput` takes the OSK branch
 whenever `!SystemPrefersKeyboardAndMouse()`, so `AppendString` is never reached
-there. The result handler, `UIManager.TrySetInputText`, then does both of these in
-**one synchronous callback**:
+there. The result handler, `MenuManager.TrySetInputText` (`Pug.Other:269678`),
+then does both of these in **one synchronous callback**:
 
 ```csharp
 Manager.input.activeInputField.SetInputText(input);
