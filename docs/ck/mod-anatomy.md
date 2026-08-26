@@ -347,10 +347,37 @@ itself. Two metadata fields govern the pass:
 - `skipSafetyChecks` selects whether the patch pass runs verified or unverified — the same
   switch that controls the [Roslyn sandbox](sandbox.md).
 
-Failures are logged as `mod <name>: patching failed` and do **not** abort the load, so a
-mod whose patches never bound still reports as loaded. On reload the loader undoes your
-patches (unless `disableHarmonyPatching` is set) as part of the same reset that calls
-`Shutdown`.
+Failures are logged and do **not** abort the load, so a mod whose patches never bound
+still reports as loaded. Two lines, two different causes: `mod <name>: patching failed`
+is the safety check rejecting the assembly, while `failed to patch mod <name>, got
+exception` — followed by the exception itself — is Harmony throwing (`PugMod.Loader:1418-1427`).
+On reload the loader undoes your patches (unless `disableHarmonyPatching` is set) as part
+of the same reset that calls `Shutdown`.
+
+**A throw does not cost you one patch, it costs the rest of the pass.** The loader hands
+the whole assembly to `Harmony.PatchAll` (`PugMod.Loader:462`), which walks
+`assembly.GetTypes()` and calls `PatchClassProcessor.Patch()` on each type with nothing
+catching in between (`0Harmony:2148-2154`, `:9074-9084`). A target that cannot be resolved
+makes `PatchWithAttributes` throw `ArgumentException: Undefined target method for patch
+method …` (`:3240-3243`), and `Patch()` catches it only to run `[HarmonyCleanup]` before
+rethrowing it wrapped as a `HarmonyException` (`:3170-3175`, `:3367-3371`). The
+enumeration ends there: classes already processed stay patched, the rest are never
+reached — and `GetTypes()` guarantees no order, so *which* ones made it is not something
+the source tells you. The symptom is a half-patched game, not one missing feature.
+
+**That is what makes a string-named private target a bet on the whole mod.**
+`[HarmonyPatch(typeof(X), nameof(X.Y))]` cannot go stale quietly — a renamed public member
+fails to compile. A private member named by string resolves to nothing after a rename in a
+game update, which is precisely the throw above.
+
+**The guard is a `[HarmonyPrepare]` that probes for the member and returns `false`**,
+skipping that one class cleanly: Harmony runs it before resolving any target
+(`0Harmony:3145-3157`), so a class that opts out never reaches the throw. The usual probe
+is unavailable in a sandboxed mod — `AccessTools.Method` and `System.Reflection` are both
+denied ([what is banned](sandbox.md#what-is-banned)) — but the SDK's checked lookup answers the same question and is
+legal: `GetMembersChecked()` plus `GetNameChecked()`, [as under resolving a private member](sandbox.md#reaching-a-private-member-resolving-it-is-only-half-the-job).
+Opting out costs that one feature; not opting out costs everything else the assembly
+patches.
 
 Whether a given patch actually *binds* — generated DOTS code, Burst, method signature
 matching — is a separate problem, covered in [Harmony and ECS](harmony-and-ecs.md).

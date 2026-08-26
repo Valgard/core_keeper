@@ -403,6 +403,10 @@ patch method …`. The mod itself loads and sandbox-compiles fine
 (`safetyCheck=True`); only the bind fails. That distinguishes it cleanly from
 the Burst case, which binds and stays silent.
 
+The bind is not the only casualty, though. That exception propagates out of the
+loader's `PatchAll`, so the patch classes it had not reached yet are abandoned
+with it — see [what a throw costs](mod-anatomy.md#harmony-patches-are-auto-discovered).
+
 Add the variations array, `ArgumentType.Ref` for each `in`/`ref`/`out` parameter
 and `ArgumentType.Normal` for each by-value one:
 
