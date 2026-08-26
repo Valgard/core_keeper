@@ -455,14 +455,34 @@ Then close Unity and delete `CoreKeeperModSDK/Library/` to force a clean
 re-import.
 
 **Enabling the managed DLL is safe although `libsteam_api.dylib` is absent on
-macOS.** The runtime mod contains no Steamworks references, so nothing that ships
-reaches the missing native library at play time. The edit makes the SDK compile;
-it does not make Steam Workshop upload work — the Editor's upload tab would still
-fail on macOS for want of that native library.
+macOS.** The runtime mod contains no Steamworks references, so nothing that
+ships reaches the missing native library at play time. The edit makes the SDK
+compile; it does not by itself make Steam Workshop upload work — that needs the
+native library too, which the SDK ships for Windows only. Supplying it is a
+separate one-time step with a version trap of its own, written up in [the Steam Workshop chapter](steam-workshop.md#macos-needs-a-native-library-the-sdk-does-not-ship).
 
 This is an SDK-level, Editor-only issue: it is inert on Windows and Linux Editor
 hosts, unrelated to the Wine/CrossOver game host, and it costs one fix per SDK
 clone — a fresh clone reproduces it.
+
+## The Steam Workshop tab's "Initialize Steam" button does nothing
+
+The button appears dead: no dialogue, no visible change, the upload fields stay
+hidden. The console holds the reason, because `SteamClient.Init` throws and the UI
+refresh one line below it never runs:
+
+```
+Failed to initialize Steam for Mod SDK: libsteam_api
+```
+
+That is Mono's rendering of a missing native library. The SDK ships the managed
+Facepunch assemblies and a Windows `steam_api64.dll`, but no
+`libsteam_api.dylib`, so on macOS the P/Invoke target does not exist.
+
+Supplying one fixes it, but not with the newest release — the error then merely
+changes to `SteamAPI_Init`, and the version that does work has to be read off
+the SDK rather than guessed. The whole procedure, and why the version matters,
+is in [the Steam Workshop chapter](steam-workshop.md#macos-needs-a-native-library-the-sdk-does-not-ship).
 
 ## The Unity Editor hangs at "Initial Asset Database Refresh"
 

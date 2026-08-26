@@ -8,6 +8,10 @@ a mod's listing can and cannot say later.
 How you drive a publish is a separate question with many valid answers: the SDK
 window, a scripted batchmode run, the website. Nothing here assumes one.
 
+Since 1.2 it is also no longer the only destination: the [Steam Workshop](steam-workshop.md) has its
+own data model, its own tag handling and its own limits, and almost nothing
+below carries over to it.
+
 ## Profile and modfile are different things
 
 A published mod is two layers, and almost every surprise below follows from
