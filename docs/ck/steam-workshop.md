@@ -122,8 +122,13 @@ are the SteamID64 in `modOwner` and the author's absolute `selectedPath`. What
 leaks is the project path in the manifest — the mod's own name, which the
 listing carries anyway.
 
-A `description.txt` left in the same folder is a different case: a `TextAsset`
-exists at runtime, so it is written into the bundle like any other asset.
+A `description.txt` left in the same folder is the opposite case, and the tab
+asks for it there — `GetDescriptionFromFile` reads the description from
+`modBuilderSettings.modPath` when the description field is empty. A `TextAsset`
+does exist at runtime, so it is written into the bundle like any other asset:
+measured with a marked file, it comes back out of both the Windows and the
+Linux bundle as a `TextAsset` named `description`, contents intact. The type
+decides, not the folder.
 
 Reading the bundle to check any of this needs a deserialiser (UnityPy or
 similar) — searching it proves nothing either way, because it is compressed.
