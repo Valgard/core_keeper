@@ -30,14 +30,23 @@
 #
 # --no-steam publishes to mod.io only. --steam-only skips mod.io and publishes
 # to Steam only (the two contradict each other). Before mod.io even starts, a
-# preflight checks everything the Steam stage will need (steam-description.txt,
-# a resolvable dependency, ...); on failure it SKIPS Steam and lets the mod.io
-# release proceed rather than aborting the run, since that release is what the
-# invocation is actually for. (--steam-only has no mod.io release to protect,
-# so there a failed preflight is a hard error instead.) Once Steam does run, it
-# always runs after mod.io and never aborts it either: by then the mod.io
-# release has already happened and cannot be taken back, so a Steam failure is
-# reported and reflected in the exit code instead of being treated as fatal.
+# preflight checks everything the Steam stage needs that does not depend on a
+# finished build: MOD_NAME, the ModBuilderSettings .asset, steam-description.txt,
+# a CHANGELOG.md whose topmost "## [x.y.z]" entry parses, Editor/logo.png, a
+# recognizable <Mod>_Steam.asset, and a Workshop id for every declared
+# dependency. On failure it SKIPS Steam and lets the mod.io release proceed
+# rather than aborting the run, since that release is what the invocation is
+# actually for -- but the run then ends in exit 8, so a caller reading only the
+# status still learns that Steam did not go out. (--steam-only has no mod.io
+# release to protect, so there a failed preflight is a hard error instead.)
+# Once Steam does run, it always runs after mod.io and never aborts it either:
+# by then the mod.io release has already happened and cannot be taken back, so
+# a Steam failure is reported and reflected in the exit code instead of being
+# treated as fatal.
+#
+# Exit codes past the usual 0 and 1:
+#   7  published everywhere, but the Steam dependency sync had failures
+#   8  the mod.io release is done; Steam was skipped because its preflight failed
 #
 # Required env vars (set in the mod's .envrc):
 #   UNITY_BIN, SDK_PATH, MOD_NAME, CK_GAME_VERSION, MOD_SUMMARY
@@ -313,6 +322,15 @@ elif [ "$STEAM_WILL_RUN" != "1" ]; then
     # three flag-driven skips above fired, so STEAM_WILL_RUN started at 1 and
     # was flipped afterward. The detailed reason already went to stderr there.
     echo "Skipping Steam (preflight failed — see above)."
+    # Non-zero, unlike the three skips above, because those are what the
+    # operator asked for and this is not: the invocation wanted Steam and did
+    # not get it. Exiting 0 here would report the same outcome the Steam stage
+    # reports as a failure -- Steam did not go out -- as a clean run, and a
+    # caller that only reads the status (a wrapper, a loop over several mods)
+    # would never learn the difference. The mod.io release above is already
+    # published and is not retracted by this; that is what a distinct code
+    # rather than 1 is for.
+    exit 8
 else
     echo
     echo "Publishing $MOD_NAME to the Steam Workshop${PUBLISH_DRY_RUN:+ (dry run)}..."

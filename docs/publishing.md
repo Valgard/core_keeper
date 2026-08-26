@@ -86,27 +86,34 @@ publishes to Steam alone. `upload.sh` refuses to run with both set.
 
 **A Steam preflight runs before mod.io, and a failure there skips Steam
 instead of aborting the run.** `steam_bundle.check_prerequisites` validates
-everything the Steam stage will need — `steam-description.txt`, the identity
-asset, every declared dependency's Workshop id — before Unity is even
-started. It runs first, not merely early, for the same reason the modfile
-upload itself cannot: once that release goes out it cannot be undone, so a
-missing file or an unresolved dependency has to surface while skipping still
-costs nothing. On failure it prints why and continues into the mod.io release
-with the Steam stage turned off, the same as if `--no-steam` had been passed.
-`--steam-only` is the one case with no mod.io release for that skip to
-protect, so there a failed preflight aborts the run instead — publishing
-nothing while reporting success would be worse than the previous behaviour.
+everything the Steam stage needs that does not depend on a finished build:
+`MOD_NAME`, the ModBuilderSettings `.asset`, `steam-description.txt`, a
+`CHANGELOG.md` whose topmost `## [x.y.z]` entry parses, `Editor/logo.png`, a
+recognizable `<Mod>_Steam.asset`, and a Workshop id for every declared
+dependency. The built content folder is the one thing it leaves out, because
+that cannot exist yet. It runs first, not merely early, for the same reason
+the modfile upload itself cannot: once that release goes out it cannot be
+undone, so a missing file or an unresolved dependency has to surface while
+skipping still costs nothing. On failure it prints why and continues into the
+mod.io release with the Steam stage turned off — then ends the run with **exit
+8**, so a caller reading only the status still learns that Steam did not go
+out. That release is published and is not retracted by the non-zero code; a
+code of its own rather than 1 is what says so. `--steam-only` is the one case
+with no mod.io release for that skip to protect, so there a failed preflight
+aborts the run instead — publishing nothing while reporting success would be
+worse than the previous behaviour.
 
 **Steam runs second and can never fail the mod.io publish.** By the time it
-starts, the mod.io release has already happened and cannot be undone, so a
-Steam failure is reported — and reflected in the exit code — rather than
-treated as fatal: aborting at that point would reverse nothing and only hide
-what had already succeeded. This is the same invariant the preflight above
-upholds at its own, earlier point in the run. `--changelog-only` and
-`--profile-only` skip Steam outright rather than attempting an equivalent:
-the former edits a mod.io modfile's changelog text, which the Workshop's
-single-item model has no counterpart for, and the latter has no
-metadata-only publish path on the Steam side yet — running it there would
+starts, the mod.io release has already happened and cannot be undone, so a Steam
+failure is reported — and reflected in the exit code — rather than treated as
+fatal: aborting at that point would reverse nothing and only hide what had
+already succeeded. The preflight above upholds that same invariant at its own,
+earlier point in the run, exit code included; it uses a distinct one because
+"Steam never started" and "Steam started and failed" are worth telling apart.
+`--changelog-only` and `--profile-only` skip Steam outright rather than
+attempting an equivalent: the former edits a mod.io modfile's changelog text,
+which the Workshop's single-item model has no counterpart for, and the latter
+has no metadata-only publish path on the Steam side yet — running it there would
 ship a full Workshop update for what was asked to be a text-only mod.io edit.
 
 **The description comes from `steam-description.txt`, and it is BBCode.**
