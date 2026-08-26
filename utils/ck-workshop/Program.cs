@@ -10,11 +10,14 @@
 // finds its content through a five-entry UI ring buffer.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Steamworks;
+using Steamworks.Data;
 using Steamworks.Ugc;
 
 internal sealed class Bundle
@@ -45,6 +48,21 @@ internal sealed class Bundle
 
     [JsonPropertyName("visibility")]
     public string Visibility { get; set; }
+
+    [JsonPropertyName("dependencies")]
+    public Dependency[] Dependencies { get; set; }
+
+    internal sealed class Dependency
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; }
+
+        [JsonPropertyName("fileId")]
+        public ulong FileId { get; set; }
+
+        [JsonPropertyName("required")]
+        public bool Required { get; set; }
+    }
 }
 
 internal static class Program
@@ -148,6 +166,45 @@ internal static class Program
             {
                 Console.Error.WriteLine($"Workshop submit failed: {result.Result}");
                 return 5;
+            }
+
+            // Full sync rather than additive, so the Workshop list mirrors the
+            // .asset: what is declared is added, what is not is removed.
+            if (bundle.Dependencies != null)
+            {
+                var published = (ulong)result.FileId;
+
+                // Item.GetAsync (see its use above) only asks for
+                // WithLongDescription, never WithChildren, so it always comes
+                // back with Children == null. Querying directly with
+                // WithChildren(true) is the only way to see what the item
+                // already carries, which the removal side needs to know.
+                var page = await Query.All.WithFileId(published).WithChildren(true).GetPageAsync(1);
+                if (page.HasValue)
+                {
+                    using (page.Value)
+                    {
+                        if (page.Value.ResultCount > 0)
+                        {
+                            var item = page.Value.Entries.First();
+                            var wanted = new HashSet<ulong>();
+                            foreach (var dep in bundle.Dependencies)
+                            {
+                                wanted.Add(dep.FileId);
+                                await item.AddDependency(dep.FileId);
+                                Console.Error.WriteLine($"  dependency + {dep.Name} ({dep.FileId})");
+                            }
+                            foreach (var child in item.Children ?? Array.Empty<PublishedFileId>())
+                            {
+                                if (!wanted.Contains(child.Value))
+                                {
+                                    await item.RemoveDependency(child.Value);
+                                    Console.Error.WriteLine($"  dependency - {child.Value}");
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             Console.WriteLine(JsonSerializer.Serialize(new { fileId = (ulong)result.FileId, created = creating }));

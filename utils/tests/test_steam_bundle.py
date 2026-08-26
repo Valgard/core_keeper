@@ -160,8 +160,8 @@ def test_a_missing_content_folder_is_reported(tmp_path):
         steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
 
 
-def test_dependencies_come_from_the_asset_not_hardcoded_empty(tmp_path):
-    # The interface promises "list[str] of mod names" — a fixture whose asset
+def test_dependencies_come_from_the_asset_not_hardcoded_empty():
+    # The interface promises "list[tuple[str, bool]]" — a fixture whose asset
     # always declares zero dependencies (as ASSET does above) cannot tell an
     # implementation that reads metadata.dependencies apart from one that just
     # returns []. disable-durability itself already depends on CoreLib and
@@ -171,8 +171,68 @@ def test_dependencies_come_from_the_asset_not_hardcoded_empty(tmp_path):
         "    dependencies:\n    - modName: CoreLib\n      required: 1\n    - modName: ModSettingsMenu\n      required: 0\n",
     )
 
-    bundle = steam_bundle.build_bundle(
-        _repo(tmp_path, asset=asset), _env(tmp_path), tmp_path / "p.png"
+    assert steam_bundle.parse_dependencies(asset) == [
+        ("CoreLib", True),
+        ("ModSettingsMenu", False),
+    ]
+
+
+def test_a_declared_dependency_is_resolved_from_the_cache(tmp_path):
+    repo = _repo(
+        tmp_path,
+        asset=ASSET.replace(
+            "    dependencies: []",
+            "    dependencies:\n    - modName: CoreLib\n      required: 1",
+        ),
+    )
+    cache = tmp_path / "deps.json"
+    cache.write_text('{"CoreLib": 3000000001}')
+    env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
+
+    bundle = steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
+
+    assert bundle["dependencies"] == [
+        {"name": "CoreLib", "fileId": 3000000001, "required": True}
+    ]
+
+
+def test_an_unresolvable_required_dependency_aborts(tmp_path):
+    repo = _repo(
+        tmp_path,
+        asset=ASSET.replace(
+            "    dependencies: []",
+            "    dependencies:\n    - modName: CoreLib\n      required: 1",
+        ),
+    )
+    cache = tmp_path / "deps.json"
+    cache.write_text("{}")
+    env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
+
+    with pytest.raises(ValueError, match="CoreLib"):
+        steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
+
+
+def test_an_unresolvable_optional_dependency_is_skipped(tmp_path):
+    repo = _repo(
+        tmp_path,
+        asset=ASSET.replace(
+            "    dependencies: []",
+            "    dependencies:\n    - modName: SomeOptional\n      required: 0",
+        ),
+    )
+    cache = tmp_path / "deps.json"
+    cache.write_text("{}")
+    env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
+
+    bundle = steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
+
+    assert bundle["dependencies"] == []
+
+
+def test_declared_dependencies_are_parsed_with_their_required_flag():
+    deps = steam_bundle.parse_dependencies(
+        "    dependencies:\n    - modName: CoreLib\n      required: 1\n"
+        "    - modName: Other\n      required: 0\n  modPath: x\n"
     )
 
-    assert bundle["dependencies"] == ["CoreLib", "ModSettingsMenu"]
+    assert deps == [("CoreLib", True), ("Other", False)]

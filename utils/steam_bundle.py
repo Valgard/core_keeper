@@ -18,7 +18,9 @@ import steam_identity
 import steam_preview
 
 CHANGELOG_ENTRY = re.compile(r"^##\s*\[([^\]]+)\]", re.MULTILINE)
-DEPENDENCY = re.compile(r"^\s*-\s*modName:\s*(\S+)\s*$", re.MULTILINE)
+DEPENDENCY = re.compile(
+    r"^\s*-\s*modName:\s*(\S+)\s*\n\s*required:\s*(\d+)", re.MULTILINE
+)
 
 # requiredOn is a [Flags] enum: None=0, Client=1, Server=2, ClientAndServer=3.
 # 0 is valid and means "gates nothing", so it produces no Application Type tag.
@@ -49,8 +51,8 @@ def _read_metadata(asset_text: str) -> dict:
     return out
 
 
-def _read_dependencies(asset_text: str) -> list[str]:
-    """Every `modName` under `metadata.dependencies`, in .asset order.
+def parse_dependencies(asset_text: str) -> list[tuple[str, bool]]:
+    """Every `modName`/`required` pair under `metadata.dependencies`, in .asset order.
 
     All declared names are reported, required or not — CLIPublishHelper's own
     mod.io sync (EnsureDependenciesThenTag) resolves every entry the same way
@@ -60,7 +62,47 @@ def _read_dependencies(asset_text: str) -> list[str]:
     so a plain search needs no help finding the surrounding `dependencies:`
     key first.
     """
-    return DEPENDENCY.findall(asset_text)
+    return [(name, flag != "0") for name, flag in DEPENDENCY.findall(asset_text)]
+
+
+def resolve_dependencies(
+    declared: list[tuple[str, bool]], cache_path: Path | None
+) -> list[dict]:
+    """Map declared dependencies onto Workshop file ids via the cache.
+
+    Resolution is never guessed. A Steam title is a display name rather than an
+    identity — several items may share one, and a mod may be published under a
+    title that differs from its loader name — so a miss is reported for a human
+    to settle once, not decided by picking the most popular candidate. A wrong
+    id would make subscribers install an unrelated mod, and nothing about that
+    failure points back at the publish.
+
+    Severity follows the `.asset`'s own `required` flag, as the mod.io path does.
+    """
+    if not declared:
+        return []
+
+    cache: dict[str, int] = {}
+    if cache_path and cache_path.is_file():
+        import json
+
+        cache = json.loads(cache_path.read_text())
+
+    resolved = []
+    for name, required in declared:
+        file_id = cache.get(name)
+        if file_id:
+            resolved.append(
+                {"name": name, "fileId": int(file_id), "required": required}
+            )
+            continue
+        if required:
+            raise ValueError(
+                f"required dependency {name!r} has no Workshop id. Add it to "
+                f"{cache_path} once — see the spec on why this is not searched automatically."
+            )
+        print(f"  ! optional dependency {name!r} has no Workshop id — skipped")
+    return resolved
 
 
 def derive_tags(metadata: Mapping[str, object], modio_type: str) -> list[str]:
@@ -130,5 +172,8 @@ def build_bundle(repo_root: Path, env: Mapping[str, str], preview_dest: Path) ->
         # A new item must never appear half-configured in the catalogue; an
         # existing one's visibility was set by a human and is not ours to change.
         "visibility": "unchanged" if file_id else "hidden",
-        "dependencies": _read_dependencies(asset_text),
+        "dependencies": resolve_dependencies(
+            parse_dependencies(asset_text),
+            Path(env["STEAM_DEPS_MAP"]) if env.get("STEAM_DEPS_MAP") else None,
+        ),
     }
