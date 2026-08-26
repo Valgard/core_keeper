@@ -106,8 +106,9 @@ attachments upload with the post, URLs follow one message at a time. A
 separate variable would only force the reader to know in advance which of
 two lists a given file belongs in, when the value already says it.
 
-One new data file, `utils/ck-discord-tags.json`, holds the twenty forum
-tags that are currently hardcoded as `FORUM_TAGS` in `discord_post.py`.
+One data file, `utils/ck-discord-tags.json`, holds the twenty forum tags
+that were previously hardcoded as `FORUM_TAGS` in `discord_post.py` and are
+now read via `forum_tags()`.
 
 `sources/` cannot be scanned to derive any of this. It is a working
 directory holding raw material, derived artefacts, published gallery

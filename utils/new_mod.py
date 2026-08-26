@@ -518,10 +518,11 @@ export CK_MODIO_TYPE="{modio_type}"
 # Forum tags for the mod's #available-mods thread on the Core Keeper Discord —
 # PIPE-separated, because "Misc / Other" contains spaces. Deliberately blank: a
 # mod this new has no thread, and the tags belong to one. The channel's current
-# tag set and the per-post limit live in FORUM_TAGS in utils/discord_post.py,
-# which refuses anything else — deliberately not copied here, because a copy
-# written into a generated repo can never be corrected and the set belongs to a
-# channel somebody else administers. Filling this in is part of writing the post.
+# tag set lives in utils/ck-discord-tags.json and is read via forum_tags() in
+# utils/discord_post.py, which refuses anything else — deliberately not copied
+# here, because a copy written into a generated repo can never be corrected and
+# the set belongs to a channel somebody else administers. Filling this in is part
+# of writing the post.
 export CK_DISCORD_TAGS=""
 
 # --- Localisation (read by utils/CLIBuildHelper.cs -> LocalizationGenerator.GenerateFromEnv) ---
