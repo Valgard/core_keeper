@@ -69,6 +69,17 @@ Workshop itself behaves as a platform (one item rather than a profile/modfile
 split, its tag groups, the preview size limit, the macOS native-library gap) is [`docs/ck/steam-workshop.md`](ck/steam-workshop.md);
 this section covers only what this repository's pipeline does with it.
 
+**The Workshop item's id lives in `unity/<MOD_NAME>/<MOD_NAME>_Steam.asset`,
+and it must be committed.** `utils/steam_identity.py` reads and writes it by
+path, the same way `CLIPublishHelper` reads the mod.io id from
+`<MOD_NAME>_modio.asset` — but unlike that file, nothing scaffolds this one,
+so it is easy to leave untracked after a publish creates it. Left untracked,
+a `git clean` or a fresh checkout drops the id silently; the next publish
+then sees no id, treats the mod as never published, and creates a **second**
+Workshop item with no way to tell it apart from the first. Commit it once,
+right after the first Steam publish, the same way the mod.io asset already
+is.
+
 **Two flags select which destinations run, and they contradict each other.**
 `--no-steam` publishes to mod.io only; `--steam-only` skips mod.io and
 publishes to Steam alone. `upload.sh` refuses to run with both set.
