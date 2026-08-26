@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# utils/upload.sh — Publish a Core Keeper mod to mod.io via Unity batchmode.
+# utils/upload.sh — Publish a Core Keeper mod to mod.io and the Steam Workshop.
 #
 # Shared by every Core Keeper mod under this directory. Refreshes the SDK
 # symlinks, then runs CoreKeeperModUtils.CLIPublishHelper.Publish (the shared
 # helper, identified by MOD_NAME), which builds the mod and uploads it through
-# the mod.io plugin.
+# the mod.io plugin. Steam Workshop publishing (utils/steam_bundle.py +
+# utils/ck-workshop) runs afterward, against that same build output.
 #
 # Usage:
-#   utils/upload.sh [mod-repo-path] [--dry-run] [--profile-only|--changelog-only]
+#   utils/upload.sh [mod-repo-path] [--dry-run] [--profile-only|--changelog-only] [--no-steam|--steam-only]
 #
 # The mod repo path defaults to $PWD. A relative path is fine, here and in the env
 # vars below: MOD_CALLER_CWD carries this shell's directory into Unity as the anchor
@@ -24,7 +25,14 @@
 # (no upload, no version change). It refuses unless the live modfile's version
 # equals CHANGELOG.md's topmost entry, so it can only correct the notes OF the
 # published release. Use it when a shipped changelog entry is wrong; use a real
-# release for anything that changes what the mod does.
+# release for anything that changes what the mod does. Steam has no equivalent
+# edit for a shipped change note, so this mode is mod.io-only — Steam is skipped.
+#
+# --no-steam publishes to mod.io only. --steam-only skips mod.io and publishes
+# to Steam only (the two contradict each other). Steam always runs after
+# mod.io and never aborts it: by the time Steam runs, the mod.io release has
+# already happened and cannot be taken back, so a Steam failure is reported
+# and reflected in the exit code instead of being treated as fatal to the run.
 #
 # Required env vars (set in the mod's .envrc):
 #   UNITY_BIN, SDK_PATH, MOD_NAME, CK_GAME_VERSION, MOD_SUMMARY
@@ -47,11 +55,15 @@ REPO_ROOT="$PWD"
 DRY_RUN=0
 PROFILE_ONLY=0
 CHANGELOG_ONLY=0
+NO_STEAM=0
+STEAM_ONLY=0
 for arg in "$@"; do
     case "$arg" in
         --dry-run) DRY_RUN=1 ;;
         --profile-only) PROFILE_ONLY=1 ;;
         --changelog-only) CHANGELOG_ONLY=1 ;;
+        --no-steam) NO_STEAM=1 ;;
+        --steam-only) STEAM_ONLY=1 ;;
         *) REPO_ROOT="$arg" ;;
     esac
 done
@@ -67,6 +79,11 @@ fi
 
 if [ "$PROFILE_ONLY" = "1" ] && [ "$CHANGELOG_ONLY" = "1" ]; then
     echo "ERROR: --profile-only and --changelog-only are separate modes; pick one." >&2
+    exit 1
+fi
+
+if [ "$NO_STEAM" = "1" ] && [ "$STEAM_ONLY" = "1" ]; then
+    echo "ERROR: --no-steam and --steam-only contradict each other." >&2
     exit 1
 fi
 
@@ -133,50 +150,166 @@ export CK_KNOWN_GAME_VERSIONS
 # See EnvPaths at the bottom of utils/CLIBuildHelper.cs.
 export MOD_CALLER_CWD="$PWD"
 export MOD_REPO_ROOT="$REPO_ROOT"
+# So the inline Python in the Steam stage below can import the sibling
+# steam_*.py modules without relying on $PWD, which Unity's own step already
+# does not preserve (see MOD_CALLER_CWD above).
+export CK_UTILS_DIR="$UTILS_DIR"
 [ "$DRY_RUN" = "1" ] && export PUBLISH_DRY_RUN=1
 [ "$PROFILE_ONLY" = "1" ] && export PUBLISH_PROFILE_ONLY=1
 [ "$CHANGELOG_ONLY" = "1" ] && export PUBLISH_CHANGELOG_ONLY=1
 
-echo "Publishing $MOD_NAME to mod.io${PUBLISH_PROFILE_ONLY:+ (profile only)}${PUBLISH_CHANGELOG_ONLY:+ (changelog only)}${PUBLISH_DRY_RUN:+ (dry run)}..."
+if [ "$STEAM_ONLY" != "1" ]; then
+    echo "Publishing $MOD_NAME to mod.io${PUBLISH_PROFILE_ONLY:+ (profile only)}${PUBLISH_CHANGELOG_ONLY:+ (changelog only)}${PUBLISH_DRY_RUN:+ (dry run)}..."
 
-# No -quit: CLIPublishHelper drives async mod.io calls and exits itself.
-# timeout guards against a hung network call.
-if timeout 600 "$UNITY_BIN" \
-        -batchmode \
-        -nographics \
-        -projectPath "$SDK_PATH" \
-        -executeMethod CoreKeeperModUtils.CLIPublishHelper.Publish \
-        -logFile -; then
-    echo "✓ Publish complete."
-    # A release is the moment the Discord thread goes stale, so hand the post
-    # over right here instead of making it a separate thing to remember. Only
-    # for a real release: --profile-only stops before the upload and
-    # --changelog-only edits an existing modfile, so neither leaves the thread
-    # out of date, and printing the post there is a false prompt to go post.
-    if [ "$DRY_RUN" != "1" ] && [ "$PROFILE_ONLY" != "1" ] && [ "$CHANGELOG_ONLY" != "1" ]; then
-        # A thread already exists -> render the version comment for it
-        # instead of the full original announcement (see DISCORD_MODE_FLAGS
-        # above) — the same duplicate-post reasoning, at the moment it
-        # actually gets printed.
-        if [ -n "${CK_DISCORD_THREAD:-}" ]; then
-            discord_banner="version comment for the existing thread"
-        else
-            discord_banner="#available-mods post"
+    # No -quit: CLIPublishHelper drives async mod.io calls and exits itself.
+    # timeout guards against a hung network call.
+    if timeout 600 "$UNITY_BIN" \
+            -batchmode \
+            -nographics \
+            -projectPath "$SDK_PATH" \
+            -executeMethod CoreKeeperModUtils.CLIPublishHelper.Publish \
+            -logFile -; then
+        echo "✓ Publish complete."
+        # A release is the moment the Discord thread goes stale, so hand the post
+        # over right here instead of making it a separate thing to remember. Only
+        # for a real release: --profile-only stops before the upload and
+        # --changelog-only edits an existing modfile, so neither leaves the thread
+        # out of date, and printing the post there is a false prompt to go post.
+        if [ "$DRY_RUN" != "1" ] && [ "$PROFILE_ONLY" != "1" ] && [ "$CHANGELOG_ONLY" != "1" ]; then
+            # A thread already exists -> render the version comment for it
+            # instead of the full original announcement (see DISCORD_MODE_FLAGS
+            # above) — the same duplicate-post reasoning, at the moment it
+            # actually gets printed.
+            if [ -n "${CK_DISCORD_THREAD:-}" ]; then
+                discord_banner="version comment for the existing thread"
+            else
+                discord_banner="#available-mods post"
+            fi
+            # Captured rather than streamed: on failure the banner would otherwise
+            # frame an empty post, which reads as "this mod has none".
+            if post="$(python3 "$UTILS_DIR/discord_post.py" "${DISCORD_MODE_FLAGS[@]}" "$REPO_ROOT")" && [ -n "$post" ]; then
+                printf '\n--- %s ---\n' "$discord_banner"
+                printf '%s\n' "$post"
+                printf -- '--------------------------------------------------------------\n'
+            elif [ -f "$REPO_ROOT/discord-post.md" ]; then
+                echo "! The Discord post did not render (see above). The mod.io release" >&2
+                echo "  is published; the forum thread is not updated." >&2
+            fi
         fi
-        # Captured rather than streamed: on failure the banner would otherwise
-        # frame an empty post, which reads as "this mod has none".
-        if post="$(python3 "$UTILS_DIR/discord_post.py" "${DISCORD_MODE_FLAGS[@]}" "$REPO_ROOT")" && [ -n "$post" ]; then
-            printf '\n--- %s ---\n' "$discord_banner"
-            printf '%s\n' "$post"
-            printf -- '--------------------------------------------------------------\n'
-        elif [ -f "$REPO_ROOT/discord-post.md" ]; then
-            echo "! The Discord post did not render (see above). The mod.io release" >&2
-            echo "  is published; the forum thread is not updated." >&2
-        fi
+    else
+        code=$?
+        [ "$code" = "124" ] && echo "✗ Publish timed out." >&2 \
+                            || echo "✗ Publish failed (exit $code). Check the log above." >&2
+        exit "$code"
     fi
 else
-    code=$?
-    [ "$code" = "124" ] && echo "✗ Publish timed out." >&2 \
-                        || echo "✗ Publish failed (exit $code). Check the log above." >&2
-    exit "$code"
+    echo "Skipping mod.io (--steam-only)."
+fi
+
+# --- Steam Workshop -----------------------------------------------------------
+# Runs after mod.io and never fails it: by this point the mod.io release has
+# happened and cannot be taken back, so aborting here would reverse nothing and
+# only obscure what succeeded. A Steam failure is reported and sets the exit code.
+#
+# --changelog-only is mod.io-only: Steam has no edit for an existing change
+# note, and faking one costs a second history entry to correct a first.
+#
+# --profile-only is also excluded, for a different reason: this stage has only
+# one mode, a full content+version+changelog publish — there is no Steam
+# equivalent of mod.io's metadata-only EditModProfile (yet). Running it here
+# would ship a full Workshop update for what the operator asked to be a
+# text-only mod.io profile edit.
+if [ "$NO_STEAM" = "1" ]; then
+    echo "Skipping Steam (--no-steam)."
+elif [ "$CHANGELOG_ONLY" = "1" ]; then
+    echo "Skipping Steam (--changelog-only: no changelog-only edit on Steam)."
+elif [ "$PROFILE_ONLY" = "1" ]; then
+    echo "Skipping Steam (--profile-only: no metadata-only path on Steam yet)."
+else
+    echo
+    echo "Publishing $MOD_NAME to the Steam Workshop${PUBLISH_DRY_RUN:+ (dry run)}..."
+
+    # A scratch directory rather than a bare mktemp file: build_bundle wants a
+    # .png path for the preview, and mktemp has no portable way to hand it one
+    # directly. Removing the directory at the end also covers the dotnet-run
+    # capture file below in one shot, so nothing from this stage outlives it.
+    STEAM_TMP="$(mktemp -d -t ck-workshop.XXXXXX)"
+    STEAM_PREVIEW="$STEAM_TMP/preview.png"
+    STEAM_RESULT="$STEAM_TMP/result.log"
+    steam_rc=0
+
+    # Everything a publish needs is derivable from files already in the repo
+    # (see steam_bundle.py) — this only serialises that derivation as JSON.
+    # Nothing but the JSON may reach stdout here: the assignment below captures
+    # it whole, and a stray line ahead of it would make the .NET tool's JSON
+    # parse fail along with the whole publish (steam_bundle.py's own warnings
+    # already go to stderr for exactly this reason).
+    bundle="$(
+        python3 - "$STEAM_PREVIEW" <<'PY'
+import json, os, sys
+from pathlib import Path
+
+sys.path.insert(0, os.environ["CK_UTILS_DIR"])
+import steam_bundle
+
+repo_root = Path(os.environ["MOD_REPO_ROOT"])
+print(json.dumps(steam_bundle.build_bundle(repo_root, os.environ, Path(sys.argv[1]))))
+PY
+    )" || steam_rc=$?
+
+    if [ "$steam_rc" != "0" ]; then
+        echo "✗ Steam bundle could not be assembled (exit $steam_rc)." >&2
+    else
+        # stdout+stderr share one file here on purpose: unlike the bundle build
+        # above, nothing downstream captures this stream directly — it is
+        # dumped to the operator's terminal and scanned for its last JSON line.
+        printf '%s' "$bundle" | dotnet run --project "$UTILS_DIR/ck-workshop" -- ${PUBLISH_DRY_RUN:+--dry-run} \
+            >"$STEAM_RESULT" 2>&1 || steam_rc=$?
+        cat "$STEAM_RESULT" >&2
+        if [ "$steam_rc" = "0" ] && [ "$PUBLISH_DRY_RUN" != "1" ]; then
+            # The result is the last '{...}' line: dotnet's own build/restore
+            # chatter and ck-workshop's progress lines (Program.cs) precede it
+            # in the same file. write_file_id raises on an asset it does not
+            # recognise (see steam_identity.py) — that must surface, not be
+            # swallowed, because a lost id makes the NEXT publish treat this
+            # item as new (steam_identity.read_file_id sees nothing) and risk
+            # creating a duplicate Workshop item. The Workshop upload itself
+            # already succeeded by this point, so this is reported as its own
+            # condition rather than folded into "publish failed".
+            write_rc=0
+            python3 - "$STEAM_RESULT" "$REPO_ROOT" <<'PY' || write_rc=$?
+import json, os, sys
+from pathlib import Path
+
+sys.path.insert(0, os.environ["CK_UTILS_DIR"])
+import steam_identity
+
+lines = [line for line in open(sys.argv[1]) if line.strip().startswith("{")]
+result = json.loads(lines[-1])
+file_id = result["fileId"]
+asset = Path(sys.argv[2]) / "unity" / os.environ["MOD_NAME"] / (os.environ["MOD_NAME"] + "_Steam.asset")
+
+try:
+    steam_identity.write_file_id(asset, file_id)
+except Exception as err:
+    print(f"  ! Workshop item {file_id} is live, but its id could not be saved to {asset}: {err}", file=sys.stderr)
+    print(f"    Fix {asset} by hand — it needs a 'fileId:' line set to {file_id} — then re-run.", file=sys.stderr)
+    sys.exit(1)
+
+status = "created, hidden" if result["created"] else "updated"
+print(f"  Workshop item {file_id} ({status})")
+PY
+            if [ "$write_rc" = "0" ]; then
+                echo "✓ Steam Workshop publish complete."
+            else
+                echo "! Steam Workshop publish succeeded, but the local file id was not saved (see above)." >&2
+                steam_rc=$write_rc
+            fi
+        elif [ "$steam_rc" != "0" ]; then
+            echo "✗ Steam Workshop publish failed (exit $steam_rc)." >&2
+        fi
+    fi
+
+    rm -rf "$STEAM_TMP"
+    exit "$steam_rc"
 fi

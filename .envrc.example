@@ -81,6 +81,11 @@ export CK_MODIO_VERSION_UNLISTED="1.2.1.2"
 # CLIPublishHelper when syncing platform dependencies.
 export MODIO_DEPS_MAP="/path/to/core_keeper/utils/modio-dependencies.json"
 
+# Workshop file ids for declared dependencies. Filled by hand on a miss,
+# because a Steam title is a display name rather than an identity: several
+# items may share one, so a search result is not a safe basis for an id.
+export STEAM_DEPS_MAP="/path/to/core_keeper/utils/steam-dependencies.json"
+
 # CK language address → ISO table used by the shared LocalizationGenerator.
 # Harmless for non-localised mods (their generator run is a no-op).
 export LOC_TABLE="/path/to/core_keeper/utils/ck-language-addresses.json"
