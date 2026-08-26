@@ -117,6 +117,29 @@ def test_requiredOn_0_produces_no_application_type_tag():
     assert "Client" not in tags and "Server" not in tags
 
 
+def test_an_empty_field_reads_as_absent_not_as_the_next_line():
+    # A key with no value must not swallow the newline and capture whatever
+    # follows. displayName is the one that matters most: the SDK's settings GUI
+    # cannot set it, so empty is the normal state of a freshly created mod —
+    # and build_bundle uses it as the Workshop item's TITLE. Reading the line
+    # below would publish an item titled "skipSafetyChecks: 0".
+    asset = (
+        "MonoBehaviour:\n"
+        "  metadata:\n"
+        "    name: NewMod\n"
+        "    displayName: \n"
+        "    skipSafetyChecks: 0\n"
+        "    requiredOn: 3\n"
+    )
+
+    metadata = steam_bundle._read_metadata(asset)
+
+    assert "displayName" not in metadata
+    assert metadata["name"] == "NewMod"
+    assert metadata["skipSafetyChecks"] == 0
+    assert metadata["requiredOn"] == 3
+
+
 def test_requiredOn_is_read_bitwise_not_looked_up():
     # The SDK's own settings GUI writes -1 ("Everything") when "Client and
     # Server" is picked, and the mod.io side reads the field bitwise, so it

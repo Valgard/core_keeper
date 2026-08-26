@@ -44,10 +44,18 @@ def parse_changelog(text: str) -> tuple[str, str]:
 
 
 def _read_metadata(asset_text: str) -> dict:
-    """The `metadata:` block of a ModBuilderSettings .asset, flat and shallow."""
+    """The `metadata:` block of a ModBuilderSettings .asset, flat and shallow.
+
+    Horizontal whitespace only around the value — `\\s` would match the newline
+    too, so a key with an empty value would swallow the line break and capture
+    the line below it. `displayName:` is empty on any mod the SDK's settings GUI
+    created, and it becomes the Workshop item's title.
+    """
     out: dict[str, object] = {}
     for key in ("name", "displayName", "skipSafetyChecks", "requiredOn"):
-        match = re.search(rf"^\s*{key}:\s*(.*?)\s*$", asset_text, re.MULTILINE)
+        match = re.search(
+            rf"^[^\S\n]*{key}:[^\S\n]*(.*?)[^\S\n]*$", asset_text, re.MULTILINE
+        )
         if match and match.group(1):
             value = match.group(1)
             out[key] = int(value) if value.lstrip("-").isdigit() else value
