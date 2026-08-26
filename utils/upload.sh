@@ -86,6 +86,16 @@ fi
 # than after a ten-minute build, and at the top of the output rather than buried
 # in the batchmode log. A repo without a discord-post.md prints nothing.
 #
+# CK_DISCORD_THREAD set means the mod already has a thread: both this
+# preflight and the post-publish banner below render with --update, the
+# version comment for that thread, instead of the full original
+# announcement -- posting the whole introduction again would land as a
+# duplicate in a thread that already exists.
+DISCORD_MODE_FLAGS=()
+if [ -n "${CK_DISCORD_THREAD:-}" ]; then
+    DISCORD_MODE_FLAGS=(--update)
+fi
+
 # Exit 3 means the post itself is wrong, and that is waved through: nothing
 # about a forum thread should hold back a mod.io release. Any other non-zero
 # code is the tooling being broken (no python3, a corrupt data file, a syntax
@@ -94,7 +104,7 @@ fi
 # csharpier only — utils/tests/test_discord_post_content.py sees them just when
 # somebody commits under utils/ here, so it is a backstop, not a gate.
 discord_rc=0
-python3 "$UTILS_DIR/discord_post.py" --check "$REPO_ROOT" || discord_rc=$?
+python3 "$UTILS_DIR/discord_post.py" --check "${DISCORD_MODE_FLAGS[@]}" "$REPO_ROOT" || discord_rc=$?
 case "$discord_rc" in
     0) ;;
     3) echo "  (continuing — the Discord post is not part of the mod.io release)" >&2 ;;
@@ -144,10 +154,19 @@ if timeout 600 "$UNITY_BIN" \
     # --changelog-only edits an existing modfile, so neither leaves the thread
     # out of date, and printing the post there is a false prompt to go post.
     if [ "$DRY_RUN" != "1" ] && [ "$PROFILE_ONLY" != "1" ] && [ "$CHANGELOG_ONLY" != "1" ]; then
+        # A thread already exists -> render the version comment for it
+        # instead of the full original announcement (see DISCORD_MODE_FLAGS
+        # above) — the same duplicate-post reasoning, at the moment it
+        # actually gets printed.
+        if [ -n "${CK_DISCORD_THREAD:-}" ]; then
+            discord_banner="version comment for the existing thread"
+        else
+            discord_banner="#available-mods post"
+        fi
         # Captured rather than streamed: on failure the banner would otherwise
         # frame an empty post, which reads as "this mod has none".
-        if post="$(python3 "$UTILS_DIR/discord_post.py" "$REPO_ROOT")" && [ -n "$post" ]; then
-            printf '\n--- #available-mods post -------------------------------------\n'
+        if post="$(python3 "$UTILS_DIR/discord_post.py" "${DISCORD_MODE_FLAGS[@]}" "$REPO_ROOT")" && [ -n "$post" ]; then
+            printf '\n--- %s ---\n' "$discord_banner"
             printf '%s\n' "$post"
             printf -- '--------------------------------------------------------------\n'
         elif [ -f "$REPO_ROOT/discord-post.md" ]; then
