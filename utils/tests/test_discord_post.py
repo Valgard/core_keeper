@@ -434,7 +434,7 @@ def test_more_attachments_than_discord_accepts_are_refused(tmp_path):
         tmp_path, media="|".join(names), extra_files=[(n, 10) for n in names]
     )
 
-    with pytest.raises(ValueError, match="attachments"):
+    with pytest.raises(ValueError, match="11 attachments"):
         dp.resolve_media(tmp_path, env, "ProbeMod")
 
 
