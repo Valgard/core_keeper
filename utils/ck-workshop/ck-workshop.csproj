@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <AssemblyName>ck-workshop</AssemblyName>
+    <RootNamespace>CoreKeeperModUtils</RootNamespace>
+    <!-- The SDK assembly is netstandard2.0 and is not annotated; its warnings
+         are not ours to fix and would drown our own. -->
+    <NoWarn>$(NoWarn);CS0618</NoWarn>
+  </PropertyGroup>
+
+  <!-- Bound from the SDK clone rather than NuGet, deliberately: the NuGet
+       package ships no Posix variant (macOS needs one) and targets an older
+       Steamworks generation than the native library this SDK expects. -->
+  <ItemGroup>
+    <Reference Include="Facepunch.Steamworks.Posix">
+      <HintPath>$(SDK_PATH)/Assets/Plugins/CoreKeeperModSDK/Facepunch.Steamworks.Posix.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="CheckSdkPath" BeforeTargets="Build">
+    <Error Condition="'$(SDK_PATH)' == ''" Text="SDK_PATH is not set — run through utils/upload.sh or an .envrc." />
+    <Error
+      Condition="!Exists('$(SDK_PATH)/Assets/Plugins/CoreKeeperModSDK/Facepunch.Steamworks.Posix.dll')"
+      Text="Facepunch.Steamworks.Posix.dll not found under SDK_PATH=$(SDK_PATH)."
+    />
+  </Target>
+</Project>
