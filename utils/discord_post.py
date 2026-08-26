@@ -32,8 +32,13 @@ MAX_TAGS = 5
 # Discord's own ceiling per message. The logo always holds slot one, so a mod
 # may configure nine more.
 MAX_ATTACHMENTS = 10
-# Discord's non-Nitro upload ceiling. It has moved repeatedly (25 -> 8 -> 10 MB),
-# which is why it is a constant here rather than a number in a message.
+# Discord's non-Nitro upload ceiling -- a conservative, UNVERIFIED bound. The
+# value has moved over time and may have moved again since this was last
+# checked, which is why it lives here as a constant rather than as a number
+# quoted in a message: only one place needs updating. To check the current
+# value, attach a file of the size in question in Discord's own message
+# composer -- it refuses before anything is sent, so nothing real is uploaded
+# in the process.
 SIZE_LIMIT = 10 * 1024 * 1024
 
 

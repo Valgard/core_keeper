@@ -45,7 +45,7 @@ self-DM on 2026-08-26, not derived from documentation.
 | Does a long paste survive? | Yes. 1358 characters landed as text; Discord only converts to `message.txt` past its own 2000-character ceiling, which the renderer already enforces. |
 | Are the tag chips clickable? | Only the first nine. The full picker is a dropdown with a search field, and **its list is not alphabetical** (`Work In Progress` sits between `Gardening` and `Mining`). Typing the name is the only reliable selection. |
 | Can images be attached? | Yes. There is a real `<input type="file">` behind the "add media" button, so the native file dialog is never opened — and it accepts absolute repository paths directly. |
-| Do external image URLs embed? | Yes, including a 38 MB GIF served by GitHub as `application/octet-stream`. The 10 MB attachment ceiling does not apply to URLs. First render took ~18 s while Discord proxied the file; later viewers get it cached. |
+| Do external image URLs embed? | Yes, including a 38 MB GIF served by GitHub as `application/octet-stream` — comfortably past any candidate attachment ceiling (the exact current value is unverified), which is enough to confirm the attachment ceiling does not apply to URLs at all. First render took ~18 s while Discord proxied the file; later viewers get it cached. |
 | Does the URL stay visible? | Only when the message contains something else. A message consisting solely of a media URL is replaced by the medium itself. |
 | Is the mod.io link preview useful? | No. It renders mod.io's own corporate card ("Cross Platform Mod Support for Games"), not the mod. |
 
@@ -175,6 +175,5 @@ is pasted, and the character budget is checked as it is for posts.
 ## Rollout
 
 Threads are created in order of first publication, which the mod.io IDs
-record unambiguously — they are assigned sequentially and match the
-repositories' first commits. `disable-durability` was posted first on
-2026-08-26; the remaining mods follow in that order.
+record unambiguously — they are assigned sequentially. `disable-durability`
+was posted first on 2026-08-26; the remaining mods follow in that order.
