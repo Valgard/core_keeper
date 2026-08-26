@@ -106,22 +106,27 @@ empty item on Steam whose id was written down nowhere — a preview over [the 1 
 is the easy way to reach that state. The next attempt then takes the create-new
 branch again and makes a second item. Nothing in the UI mentions the first.
 
-A related trap: that `<Mod>_Steam.asset` sits inside the mod's asset folder, and
-**ModBuilder ships what it finds there**. Scripts, DLLs, `Conf/*.json` and
-`Localization/*.csv` leave the bundle by their own routes, and anything under an
-`Editor` or `CodeGen` directory is dropped outright — the settings asset is none
-of those, so it goes into the AssetBundle, carrying the SteamID64 in `modOwner`
-and an absolute path from the author's machine in `selectedPath`. The same
-applies to any other file left there for convenience, including the
-`description.txt` the tab itself reads from that folder.
+A related trap, and a smaller one than it first looks: that `<Mod>_Steam.asset`
+sits inside the mod's asset folder, and **ModBuilder collects what it finds
+there**. Scripts, DLLs, `Conf/*.json` and `Localization/*.csv` leave the bundle
+by their own routes, and anything under an `Editor` or `CodeGen` directory is
+dropped outright — the settings asset is none of those, so it is handed to the
+bundle build and its path is written into the plaintext
+`.assetbundle.manifest` that ships beside the bundle.
 
-Two things make it less visible than it sounds. It cannot happen on a *first*
-upload: the tab writes the asset only after the upload returns, and the upload
-sends an already-built directory, so the asset is first collected by the next
-build. And searching the bundle proves nothing, because it is compressed — the
-plaintext `.assetbundle.manifest` written beside it lists the same paths, which
-is also how the author's project path ships no matter how well the bundle
-compresses.
+**Its contents do not ship, though.** `SteamWorkshopModSettings` is declared in
+an assembly with `"includePlatforms": ["Editor"]`, so the type does not exist in
+a player build and Unity writes no object for it. Measured across four built
+bundles (two mods × Windows/Linux): the asset is absent from all of them, and so
+are the SteamID64 in `modOwner` and the author's absolute `selectedPath`. What
+leaks is the project path in the manifest — the mod's own name, which the
+listing carries anyway.
+
+A `description.txt` left in the same folder is a different case: a `TextAsset`
+exists at runtime, so it is written into the bundle like any other asset.
+
+Reading the bundle to check any of this needs a deserialiser (UnityPy or
+similar) — searching it proves nothing either way, because it is compressed.
 
 ## Uploading needs a live Steam session
 
