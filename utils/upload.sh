@@ -320,12 +320,27 @@ PY
     if [ "$steam_rc" != "0" ]; then
         echo "✗ Steam bundle could not be assembled (exit $steam_rc)." >&2
     else
+        # Core Keeper's Steam app id — kept in sync by hand with Program.cs's
+        # CoreKeeperAppId constant, the same way steam_appid.txt duplicates it
+        # a third time; it is a published, stable constant, not a secret.
+        # Steamworks reads it from this environment variable in preference to
+        # steam_appid.txt, and unlike that file (found via a relative fopen()
+        # against the process's CURRENT WORKING DIRECTORY — see the comment
+        # in ck-workshop.csproj) an environment variable is inherited by a
+        # child process regardless of its working directory. That matters
+        # here specifically: this script never `cd`s, so $PWD at this point
+        # is still whatever directory the operator invoked it from (a mod's
+        # own repo root, per its usage comment above) — not
+        # utils/ck-workshop/ or its build output, so the copied
+        # steam_appid.txt alone would not be found through this call.
+        readonly STEAM_APP_ID="1621690"
+
         # stdout+stderr share one file here on purpose: unlike the bundle build
         # above, nothing downstream captures this stream directly — it is
         # dumped to the operator's terminal and scanned for its last JSON line.
         # timeout guards against a hung upload the same way mod.io's does —
         # Facepunch's submit loop can spin indefinitely on a stalled connection.
-        printf '%s' "$bundle" | timeout 600 dotnet run --project "$UTILS_DIR/ck-workshop" -- ${PUBLISH_DRY_RUN:+--dry-run} \
+        printf '%s' "$bundle" | SteamAppId="$STEAM_APP_ID" timeout 600 dotnet run --project "$UTILS_DIR/ck-workshop" -- ${PUBLISH_DRY_RUN:+--dry-run} \
             >"$STEAM_RESULT" 2>&1 || steam_rc=$?
         cat "$STEAM_RESULT" >&2
 

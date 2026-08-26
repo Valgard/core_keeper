@@ -20,6 +20,41 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The managed Facepunch assembly P/Invokes into the native Steamworks
+         library, and .NET resolves a DllImport target against the runtime
+         directory, this project's own output directory, and system library
+         paths — never an arbitrary folder such as SDK_PATH's plugin
+         directory, which is where libsteam_api.dylib actually lives (fetched
+         there by fetch_steam_lib.sh, and deliberately not committed to the
+         SDK clone since that repository is Pugstorm's, not ours). Linking it
+         into our own output directory under its expected name is what makes
+         SteamClient.Init find it at all instead of throwing
+         DllNotFoundException. -->
+    <None Include="$(SDK_PATH)/Assets/Plugins/CoreKeeperModSDK/libsteam_api.dylib">
+      <Link>libsteam_api.dylib</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <!-- Steamworks additionally refuses to initialise outside of a real
+         Steam-launched process unless it can learn the app id some other
+         way. It reads this from a `steam_appid.txt` it looks for via a plain
+         relative fopen() — resolved against the process's CURRENT WORKING
+         DIRECTORY, not this assembly's directory (confirmed: the native
+         library imports no exe-path API such as _NSGetExecutablePath or
+         dladdr, only _fopen/_getenv) — so copying it next to the built
+         binary only helps when something is run with that directory as its
+         CWD (e.g. `dotnet run` invoked from inside this project directory
+         during development). utils/upload.sh runs dotnet against this
+         project from the mod's own directory instead, so for that path the
+         fix is the `SteamAppId` environment variable exported right before
+         that call — see upload.sh. Steamworks looks for that too (same strings
+         appear in the library) and an environment variable is inherited by a
+         child process regardless of its working directory. -->
+    <None Include="steam_appid.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
   <!-- BeforeTargets="Build" fires too late to help: Build's own dependency chain
        (ResolveAssemblyReferences, then CoreCompile) already runs and fails first,
        so the operator saw a bare CS0246 with no mention of SDK_PATH. Hooking
@@ -30,6 +65,14 @@
     <Error
       Condition="!Exists('$(SDK_PATH)/Assets/Plugins/CoreKeeperModSDK/Facepunch.Steamworks.Posix.dll')"
       Text="Facepunch.Steamworks.Posix.dll not found under SDK_PATH=$(SDK_PATH)."
+    />
+    <!-- Catches the same class of failure for the native library before it
+         can surface instead as an MSB3021 "unable to copy file" from the
+         CopyToOutputDirectory item above, which would name a path but not
+         explain what it is or how to fix it. -->
+    <Error
+      Condition="!Exists('$(SDK_PATH)/Assets/Plugins/CoreKeeperModSDK/libsteam_api.dylib')"
+      Text="libsteam_api.dylib not found under SDK_PATH=$(SDK_PATH) — run utils/fetch_steam_lib.sh."
     />
   </Target>
 </Project>
