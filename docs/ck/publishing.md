@@ -62,6 +62,16 @@ generated manifest changes nothing.
 keeps them on a separate settings asset of its own, so neither tracks
 `metadata.name`.
 
+That second asset is a **cache of the live profile rather than an input**.
+Opening the window's upload tab fetches the mod from mod.io and writes the
+fetched summary straight into it, so the file comes back modified from a visit
+where nothing was typed — and reverting that is pointless, since the next visit
+writes it again. Worth knowing before treating such a diff as a stray edit, or
+as a second source of truth competing with whatever the publish itself sends.
+Only `summary` lands that way in practice: the same callback also assigns the
+downloaded logo, yet `logo: {fileID: 0}` was unchanged across a visit that did
+update `summary`.
+
 `requiredOn` and `skipSafetyChecks` do not become mod.io tags through
 anything the SDK does — the window makes no mod.io tag call at all; the only
 tag picker it ships is a manual one for Steam Workshop, a different target
