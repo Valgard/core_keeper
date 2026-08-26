@@ -48,10 +48,14 @@ export SDK_PATH="/path/to/core_keeper/CoreKeeperModSDK"
 # export CK_SERVER_PLATFORM="Steam"    # empty = allow all platforms (needs the crossplay privilege)
 # export CK_SERVER_DIR="$CK_BOTTLE_PATH/drive_c/Program Files (x86)/Steam/steamapps/common/Core Keeper Dedicated Server"
 
-# Base directory for each mod's build-output staging dir. A mod's .envrc sets
-# MOD_INSTALL_PATH="$MOD_INSTALL_BASE_PATH/$MOD_NAME_ID-build" (combined after this
-# file is sourced and MOD_NAME_ID is set).
+# Where ModBuilder stages its output — one directory shared by every mod, so a
+# mod's .envrc no longer sets MOD_INSTALL_PATH. ModBuilder creates a <ModName>/
+# subdirectory itself, which is why no per-mod component is needed here, and why
+# the old "<mod-id>-build/<ModName>/" named the same mod twice. That <ModName>
+# subdirectory is also what the SDK's Steam Workshop tab matches on — it picks
+# its content folder by EndsWith() on the PascalCase mod name.
 export MOD_INSTALL_BASE_PATH="$HOME/Library/Caches"
+export MOD_INSTALL_PATH="$MOD_INSTALL_BASE_PATH/CoreKeeperMods"
 
 # --- Shared defaults (a mod's own .envrc may override) ----------------------
 
