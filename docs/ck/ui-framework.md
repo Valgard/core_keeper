@@ -1477,6 +1477,23 @@ text no longer is. Re-fit such a mask every frame to the intersection of its own
 rectangle with the viewport bounds. An empty intersection may simply disable it:
 with no mask left, the renderer disappears on its own.
 
+**Size such a mask from the text's own origin, not from the row frame.** A frame
+sprite is usually centred on the row, so a 22-unit frame at local x 10.5 spans
+`[-0.5, 21.5]` while the text starts at 0 — a mask given the frame's width and
+position sits half a unit off and lets the text render *past* the frame it is
+supposed to stay inside. Read the mask's authored transform instead, and read it
+**once**: re-fitting moves it every frame, so after the first fit its live
+transform no longer witnesses the rectangle it was authored with.
+
+**A caret that shares the glyphs' sorting order needs the same mask interaction
+as they do.** `CharacterMarkBlinker` ships with `maskInteraction: None`, so a
+field whose text is clipped will still show its caret wandering outside the
+field while scrolling — clipped text, unclipped cursor.
+
+**And whatever moves the text must stay off the texel grid.** A scroll offset
+that lands on `k/16` fragments every glyph at once; quantising it to whole
+pixels makes that permanent rather than fixing it. See [on-grid distortion](prefabs-and-rendering.md#it-also-hits-text-and-a-computed-position-can-land-there-by-construction).
+
 ### Mouse-wheel ownership
 
 `UIScrollWindow.UpdateScroll` — called from its own `LateUpdate` — reads the

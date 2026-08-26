@@ -312,6 +312,37 @@ and `filterMode` unchanged throughout.
   builds), so it will not fight you in the shipped build — but it will silently undo
   your nudge while you are working in the Editor.
 
+### It also hits text, and a computed position can land there by construction
+
+`PugText` glyphs are point-filtered pixel art like any other sprite, so moving the text
+transform puts **every glyph at once** at the same offset from the grid. A text scrolled
+by an on-grid amount does not merely look soft — individual letters come apart, with pixel
+rows displaced into neighbouring cells. It reads as a font or AssetBundle fault rather
+than a positioning one.
+
+The dangerous version is a position that is *computed* rather than authored, because every
+term can be on-grid without anyone noticing. Measured while building a horizontally
+scrolling text field, where the offset was
+
+```
+offset = -max(0, caretX - fieldWidth + margin)
+```
+
+`fieldWidth` was 21 (= 336/16) and `caretX` comes from `PugText.localCharacterEndPositions`,
+which for a pixel font are whole pixels — both on-grid. With `margin = 1.0` every offset
+therefore landed exactly on `k/16` and the glyphs fragmented; with an earlier `margin` of
+4.2 (= 67.2/16) none of them did. Changing that one constant from a fraction to a whole
+number introduced the artefact, and nothing in the change looked like it touched rendering.
+
+**The obvious fix is the wrong one.** Quantising a scroll offset to whole pixels —
+`Mathf.Round(x * 16f) / 16f`, the standard recipe for keeping pixel art crisp — forces the
+texel boundary on every frame and makes the distortion permanent instead of intermittent.
+Here it is the opposite: keep the offset **off** the grid (`1.005f` in place of `1f` was
+enough), and let the glyphs' own sub-pixel placement stay as authored.
+
+When a glyph-level artefact appears after a change that only touched a number, check
+whether that number made a computed position an integer multiple of `1/16`.
+
 ## uiCamera Z-sorting, and the tie that dims a sprite
 
 **Within one sorting layer and one `sortingOrder`, CK's uiCamera resolves transparent
