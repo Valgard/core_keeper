@@ -879,12 +879,36 @@ accident.
 Keeping it at `0` also avoids the [kerning crash](#a-non-zero-maxwidth-can-crash-on-a-character-its-face-does-not-map) above, which only exists on the
 wrapping path.
 
-**Consequence: an over-long value cannot be entered at all.** With wrapping off
-there is no viewport and no scrolling — `localCharacterEndPositions` exists only
-to place the caret, and no offset is ever applied. A value wider than the capacity
-is silently refused keystroke by keystroke; `Shake()` (inherited, with
+**Consequence: vanilla refuses an over-long value instead of scrolling it.** With
+wrapping off there is no viewport — `localCharacterEndPositions` only places the
+caret, and no offset is ever applied to the text — so a value wider than the
+capacity is turned away keystroke by keystroke; `Shake()` (inherited, with
 `shakeDuration` / `shakeMagnitude` / `shakesPerSecond` already serialized) is the
 feedback CK provides for exactly that.
+
+**That is a vanilla limit, not a structural one — but clearing one field is not
+how it is lifted.** `maxWidth` is enforced **twice, asymmetrically**: the
+per-frame trim in `Update` is gated on `maxWidth > 0f` (`Pug.Other:343398`),
+while the rejection at the end of `AppendString` is not (`:343446`, plain
+`if (pugText.dimensions.width > maxWidth)`). Set `maxWidth = 0` on its own and
+that comparison is true for every non-empty string: the field then accepts
+nothing at all, which reads as a broken row rather than an uncapped one.
+
+A row that scrolls therefore needs three pieces, not one:
+
+- **`maxWidth = 0` *plus* a replacement for `AppendString`.** The first stops the
+  trim, the second removes the width rejection that would otherwise reject
+  everything.
+- **A viewport of your own** — a second `SpriteMask` clipping the glyphs
+  horizontally, subject to [the combination rule below](#two-masks-over-one-renderer-combine-as-or-not-and), and an offset on the text
+  transform that follows the caret.
+- **A length cap of your own.** That width rejection is the *only* limit on the
+  keyboard path, paste included: `HandleTypingInput` hands
+  `GUIUtility.systemCopyBuffer` straight to `AppendString` (`:269667-269669`),
+  so removing the check without replacing it leaves an accidental Ctrl+V writing
+  unbounded text into the field. `MaxCharactersForOnScreenKeyboard`
+  (`[field: SerializeField]`, `255` on a stock row, `:343354-343355`) is what the
+  on-screen-keyboard path already enforces, and the natural value to reuse.
 
 ## Rebindable keybinds
 
