@@ -525,6 +525,18 @@ export CK_MODIO_TYPE="{modio_type}"
 # of writing the post.
 export CK_DISCORD_TAGS=""
 
+# The mod's thread in #available-mods, once it has one. Empty means no thread
+# yet, so the ck-discord-post skill creates a post; set means a new version is
+# announced as a comment there. Filled in after the first post, not by hand.
+export CK_DISCORD_THREAD=""
+
+# Images and clips for the post, beyond the logo — PIPE-separated, in the order
+# they should appear. A relative path becomes an attachment, an http(s) URL
+# becomes its own follow-up message (the only route for a clip past Discord's
+# upload ceiling). Empty is legitimate here, unlike CK_DISCORD_TAGS: it means
+# the mod has nothing to show beyond its logo, which is true of a chat command.
+export CK_DISCORD_MEDIA=""
+
 # --- Localisation (read by utils/CLIBuildHelper.cs -> LocalizationGenerator.GenerateFromEnv) ---
 # LOC_TABLE (the shared CK language-address table) is inherited from the parent core_keeper/.envrc.
 # Wired from the start even for a mod with no text yet: a table holding no terms

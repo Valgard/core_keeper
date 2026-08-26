@@ -709,3 +709,13 @@ def test_envrc_reserves_the_discord_forum_tags_empty():
     # its forum tags are unknowable here. discord_post.py refuses to render a
     # post while they are empty, which is the moment they can actually be chosen.
     assert 'export CK_DISCORD_TAGS=""' in _envrc()
+
+
+def test_envrc_scaffolds_the_discord_thread_and_media_variables():
+    """Both are empty on purpose and mean different things when empty: no
+    thread yet, and nothing to show beyond the logo. A generated repo that
+    lacks them makes discord_post.py look broken for a new mod."""
+    text = _envrc()
+
+    assert 'export CK_DISCORD_THREAD=""' in text
+    assert 'export CK_DISCORD_MEDIA=""' in text
