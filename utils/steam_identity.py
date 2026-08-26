@@ -69,6 +69,20 @@ NativeFormatImporter:
 """
 
 
+def asset_path(repo_root: Path, mod_name: str) -> Path:
+    """Where a mod repo keeps its Workshop identity asset.
+
+    One function rather than the same three path segments spelled out at each
+    call site. Every caller here addresses the asset BY PATH — the modName
+    field inside it is not a usable key (see the module docstring) — so the
+    path is the identity, and a reader that computes it differently from the
+    writer does not read a different file, it reads nothing: no id, a mod that
+    looks like it has never been published, and a second Workshop item created
+    over the first.
+    """
+    return repo_root / "unity" / mod_name / f"{mod_name}_Steam.asset"
+
+
 def read_file_id(asset: Path) -> int | None:
     """The stored id, or None when there is none — a missing asset, or a zero.
 

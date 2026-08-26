@@ -240,3 +240,10 @@ def test_ensure_recognizable_rejects_what_write_file_id_would_refuse(tmp_path):
 
     with pytest.raises(ValueError, match="fileId"):
         steam_identity.ensure_recognizable(asset)
+
+
+def test_the_asset_path_is_where_a_mod_repo_keeps_it(tmp_path):
+    assert (
+        steam_identity.asset_path(tmp_path, "DisableDurability")
+        == tmp_path / "unity" / "DisableDurability" / "DisableDurability_Steam.asset"
+    )

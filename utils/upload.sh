@@ -470,80 +470,12 @@ PY
             # from it, and both are already derived here. Through the
             # environment rather than as an argument because it carries the
             # whole Workshop description.
+            #
+            # A script rather than the heredoc this used to be: it is the step
+            # that decides whether write_file_id runs at all, and inline it was
+            # the one part of the Steam stage no test could reach.
             CK_STEAM_BUNDLE="$bundle" \
-            python3 - "$STEAM_RESULT" "$REPO_ROOT" <<'PY' || write_rc=$?
-import json, os, sys
-from pathlib import Path
-
-sys.path.insert(0, os.environ["CK_UTILS_DIR"])
-import steam_identity
-
-# Scanned from the end for the last line that is actually one of ck-workshop's
-# result objects, rather than taking the last '{'-prefixed line on faith. That
-# stream carries the tool's stderr too, so a stray brace-leading diagnostic
-# after the result — native Steamworks logging during Shutdown, say — would
-# otherwise take its place and throw. Losing the line that way discards the id
-# of an item that already exists, which is the one thing this step is for.
-result = None
-for line in reversed(list(open(sys.argv[1]))):
-    if not line.strip().startswith("{"):
-        continue
-    try:
-        candidate = json.loads(line)
-    except ValueError:
-        continue
-    if isinstance(candidate, dict) and "fileId" in candidate:
-        result = candidate
-        break
-
-if result is None:
-    sys.exit(0)  # ck-workshop crashed before it could report anything at all
-
-file_id = result["fileId"]
-if not file_id:
-    sys.exit(0)  # nothing was created on Steam — nothing to persist
-
-asset = Path(sys.argv[2]) / "unity" / os.environ["MOD_NAME"] / (os.environ["MOD_NAME"] + "_Steam.asset")
-
-# The fields only the SDK window reads. Each falls back to None — leave what is
-# already there — rather than to a blank: modOwner is 0 whenever Steam was not
-# initialised, and a bundle that could not be parsed is no reason to erase a
-# path and a tag list that were right before this run.
-bundle = {}
-try:
-    bundle = json.loads(os.environ.get("CK_STEAM_BUNDLE") or "{}")
-except ValueError:
-    pass
-
-try:
-    steam_identity.write_file_id(
-        asset,
-        file_id,
-        mod_owner=result.get("modOwner") or None,
-        selected_path=bundle.get("contentPath") or None,
-        tags=bundle.get("tags"),
-    )
-except Exception as err:
-    print(f"  ! Workshop item {file_id} is live, but its id could not be saved to {asset}: {err}", file=sys.stderr)
-    print(f"    Fix {asset} by hand — it needs a 'fileId:' line set to {file_id} — then re-run.", file=sys.stderr)
-    sys.exit(1)
-
-if result["success"]:
-    status = "created, hidden" if result["created"] else "updated"
-    print(f"  Workshop item {file_id} ({status})")
-elif result["created"]:
-    print(
-        f"  Workshop item {file_id} was created despite the failed publish above — "
-        "its id was saved so the next run reuses it instead of creating a duplicate.",
-        file=sys.stderr,
-    )
-else:
-    print(
-        f"  Workshop item {file_id} already existed — its id was (re-)saved, but "
-        "the update itself failed (see above).",
-        file=sys.stderr,
-    )
-PY
+                python3 "$UTILS_DIR/steam_result.py" "$STEAM_RESULT" "$REPO_ROOT" || write_rc=$?
             if [ "$write_rc" != "0" ]; then
                 echo "! A Workshop item's id could not be saved locally (see above)." >&2
                 # Only escalates a clean steam_rc: if the publish itself

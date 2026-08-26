@@ -94,12 +94,15 @@ a live Steam session; the other two are already in the publish bundle. Each is
 written only when its value is known, so a run that cannot determine one leaves
 what is there rather than blanking it.
 
-Two consequences worth knowing. `modOwner` is the author's SteamID64, and
-ModBuilder bundles everything in the mod's asset folder — so it ships inside
-every mod. And `modName` is *not* written on later publishes: it is the
-window's lookup key, it goes stale by design ([#11](https://github.com/Pugstorm/CoreKeeperModSDK/issues/11)), and overwriting it every
-time would fight the window over a value this pipeline has no better answer
-for.
+Two consequences worth knowing. `modOwner` is the author's SteamID64, and the
+asset sits in the folder ModBuilder collects the mod from — but its *contents*
+do not reach a player build, because the type is declared in an Editor-only
+assembly. Measured across four built bundles; what does ship is the asset's
+path, through the plaintext `.assetbundle.manifest`. The mechanism is [`docs/ck/steam-workshop.md`](ck/steam-workshop.md),
+and it is reported upstream as [#14](https://github.com/Pugstorm/CoreKeeperModSDK/issues/14). And `modName` is *not* written on later
+publishes: it is the window's lookup key, it goes stale by design ([#11](https://github.com/Pugstorm/CoreKeeperModSDK/issues/11)), and
+overwriting it every time would fight the window over a value this pipeline has
+no better answer for.
 
 **A run killed by a signal leaves that id in a file rather than losing it.**
 The step that writes a newly created id into the asset runs after
@@ -113,15 +116,19 @@ directory the EXIT trap removes: a killed run leaves a
 kill came after the tool had reported one. A run that gets far enough to
 persist removes its own file, and no run can overwrite another's.
 
-**A terminal Ctrl-C is one of the kills, not an exception to them.** It sends
-SIGINT to the whole foreground process group, so the script dies with the tool
-and the persist step never runs — measured, after an earlier version of this
-page claimed the opposite from a test that had signalled the script alone.
-Only `timeout` firing on a stalled upload leaves the run intact, because it
-signals just its own child. That is also why the tool's output is streamed
-through `tee` rather than collected and printed afterwards: on a Ctrl-C the
-line naming a newly created item is the last thing the operator sees, and a
-redirect would have swallowed it.
+**A terminal Ctrl-C is not one of those kills.** It signals the whole
+foreground process group, but `timeout` has put itself and the tool into a
+group of their own (`setpgid`), so neither receives it — only the `tee` in the
+pipeline dies, and the script keeps waiting and reaches the persist step. The
+same holds when `timeout` fires. What ends a run early is a signal aimed at
+`upload.sh` itself, which is the case the result file above exists for.
+
+The surprising part of a Ctrl-C is therefore not that it loses anything: it is
+that **the upload keeps going**. The terminal falls silent because `tee` died,
+while the tool runs on for up to its full ten minutes. The output is streamed
+through `tee` for an unrelated reason — so the line naming a newly created item
+appears the moment `CreateItem` succeeds, rather than whenever the tool
+eventually returns.
 
 **Copy such an id into `<Mod>_Steam.asset` only while that asset still has
 none.** The asset is the authority; the file is one run's notes. Publish the

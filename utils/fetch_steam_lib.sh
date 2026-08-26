@@ -42,10 +42,11 @@ fi
 # would pull the library into a macOS-targeted mod build the way it would a
 # genuine Standalone Player build — untested, since only the Editor-side
 # "Initialize Steam" path (the reason this file exists) has been verified.
-# A function, not a one-shot heredoc, because two call sites below need it:
-# a Unity reimport can mangle or drop a .meta independently of the .dylib
-# sitting right next to it, so the idempotent early-return path has to repair
-# it too rather than report success while quietly leaving it broken.
+# A function, not a one-shot heredoc, because ensure_meta both diffs against it
+# and writes it — and ensure_meta itself runs on both paths below. A Unity
+# reimport can mangle or drop a .meta independently of the .dylib sitting right
+# next to it, so the idempotent early-return path has to repair it too rather
+# than report success while quietly leaving it broken.
 render_meta() {
     cat <<'META'
 fileFormatVersion: 2
@@ -96,6 +97,11 @@ ensure_meta() {
 # binary, or SDK_PATH not being a git repo at all must not fail the fetch —
 # protecting the file from an accidental `git add` is a courtesy, not the job
 # this script exists to do.
+# Every path returns 0, so the `|| true` at both call sites is redundant today.
+# It stays as a standing guarantee rather than a fact about the current body:
+# this is a convenience that keeps a downloaded binary out of `git status`,
+# and under `set -e` a future edit that let it return non-zero would abort a
+# fetch that had already succeeded.
 protect_from_git() {
     command -v git >/dev/null 2>&1 || return 0
     local common_dir

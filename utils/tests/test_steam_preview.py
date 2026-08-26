@@ -1,6 +1,6 @@
 """Unit tests for deriving a Workshop-legal preview image.
 
-Steam rejects a preview above 1 MB outright, and every logo in this family is a
+Steam rejects an oversized preview outright, and every logo in this family is a
 1024² PNG with a soft golden glow — the one thing PNG compresses badly. The
 ladder therefore matters more than any single size: it must come down in
 resolution before it gives up colour depth, because the Workshop renders
@@ -50,6 +50,45 @@ def _incompressible_logo(tmp_path, side=1024, seed=20260826):
     return path
 
 
+def _band_logo(tmp_path, seed=20260826):
+    """A logo whose full-resolution PNG lands *between* the two readings of "1 MB".
+
+    Measured: 1,017,794 bytes -- 17,794 over the decimal 1,000,000 and 30,782
+    under the binary 1,048,576. That gap is the whole point: an image in it is
+    accepted at full resolution under one definition and stepped down under the
+    other, so a test against it can tell which limit is actually in force. Three
+    of this family's real logos sit in exactly this band (item-checklist,
+    refill-ore-boulders, reusable-cattle-box, measured 2026-08-27), so it is the
+    band a publish really lands in, not a contrived one.
+
+    512² is deliberate: it is a LADDER rung, so it is tried unresized and its
+    size is the one measured above. The extra bytes over plain RGB noise come
+    from randomising alpha over the top three quarters -- a fourth noise channel
+    -- because RGB noise alone tops out at 917,883 bytes here, below the band.
+    """
+    side, opaque_from = 512, 384
+    px = bytearray(random.Random(seed).randbytes(side * side * 4))
+    px[opaque_from * side * 4 + 3 :: 4] = b"\xff" * (side * (side - opaque_from))
+    path = tmp_path / "logo.png"
+    Image.frombytes("RGBA", (side, side), bytes(px)).save(path)
+    return path
+
+
+def test_the_limit_is_the_decimal_megabyte_not_the_binary_one(tmp_path):
+    """Valve documents "roughly one megabyte" and never says which one. This
+    fixture is sized to fall between the two, so accepting it at full resolution
+    is the binary reading and stepping down is the decimal one -- and only the
+    decimal one is safe, because the cost of guessing wrong is paid after the
+    Workshop item has already been created."""
+    src = _band_logo(tmp_path)
+    dest = tmp_path / "preview.png"
+
+    size, how = steam_preview.derive_preview(src, dest)
+
+    assert size <= 1_000_000, f"{size:,} bytes would fail a decimal-MB limit"
+    assert "512" not in how, "must not have been accepted at full resolution"
+
+
 def test_a_small_image_is_taken_at_full_resolution(tmp_path):
     src = _flat_logo(tmp_path, side=64)
     dest = tmp_path / "preview.png"
@@ -58,20 +97,20 @@ def test_a_small_image_is_taken_at_full_resolution(tmp_path):
 
     assert dest.is_file()
     assert "1024" not in how  # not upscaled
-    assert size < 1_048_576
+    assert size < steam_preview.LIMIT
 
 
 def test_it_steps_down_until_the_result_fits(tmp_path):
     """1024² lossless is 3,658,908 bytes for this fixture (measured) -- well
-    over the default 1 MB limit -- so the default limit can only be met after
-    the ladder has actually come down in resolution, not by accepting the
-    first candidate tried."""
+    over the default limit under either reading of "1 MB" -- so the default can
+    only be met after the ladder has actually come down in resolution, not by
+    accepting the first candidate tried."""
     src = _incompressible_logo(tmp_path)
     dest = tmp_path / "preview.png"
 
     size, how = steam_preview.derive_preview(src, dest)
 
-    assert size <= 1_048_576
+    assert size <= steam_preview.LIMIT
     assert "lossless" in how
     reported_side = int(how.split("²")[0])
     assert reported_side < 1024, (
