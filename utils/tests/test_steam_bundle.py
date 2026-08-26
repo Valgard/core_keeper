@@ -145,6 +145,58 @@ def test_an_existing_mod_keeps_its_visibility(tmp_path):
     assert bundle["visibility"] == "unchanged"
 
 
+def test_check_prerequisites_passes_without_a_built_content_folder(tmp_path):
+    # The whole point: this must be callable BEFORE the mod.io build runs,
+    # when MOD_INSTALL_PATH/<mod> does not exist yet.
+    repo = _repo(tmp_path)
+    env = {"MOD_NAME": "DisableDurability", "CK_MODIO_TYPE": "Item"}
+
+    steam_bundle.check_prerequisites(repo, env)
+
+
+def test_check_prerequisites_reports_a_missing_description_by_name(tmp_path):
+    repo = _repo(tmp_path, description=None)
+    env = {"MOD_NAME": "DisableDurability", "CK_MODIO_TYPE": "Item"}
+
+    with pytest.raises(ValueError, match="steam-description.txt"):
+        steam_bundle.check_prerequisites(repo, env)
+
+
+def test_check_prerequisites_reports_an_unrecognized_identity_asset(tmp_path):
+    repo = _repo(tmp_path)
+    identity = repo / "unity" / "DisableDurability" / "DisableDurability_Steam.asset"
+    identity.write_text("this is not a Steam asset at all\n")
+    env = {"MOD_NAME": "DisableDurability", "CK_MODIO_TYPE": "Item"}
+
+    with pytest.raises(ValueError, match="fileId"):
+        steam_bundle.check_prerequisites(repo, env)
+
+
+def test_check_prerequisites_reports_an_unresolvable_required_dependency(tmp_path):
+    repo = _repo(
+        tmp_path,
+        asset=ASSET.replace(
+            "    dependencies: []",
+            "    dependencies:\n    - modName: CoreLib\n      required: 1",
+        ),
+    )
+    env = {"MOD_NAME": "DisableDurability", "CK_MODIO_TYPE": "Item"}
+
+    with pytest.raises(ValueError, match="CoreLib"):
+        steam_bundle.check_prerequisites(repo, env)
+
+
+def test_build_bundle_calls_check_prerequisites_first(tmp_path):
+    # A missing description must surface even though the content folder is
+    # ALSO missing (build_bundle checks that one itself) — check_prerequisites
+    # runs first, so its error is the one that surfaces.
+    repo = _repo(tmp_path, description=None)
+    env = _env(tmp_path, MOD_INSTALL_PATH=str(tmp_path / "nowhere"))
+
+    with pytest.raises(ValueError, match="steam-description.txt"):
+        steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
+
+
 def test_an_unrecognized_identity_asset_aborts_before_any_upload(tmp_path):
     # Task 5's guard, called from here: an existing _Steam.asset without a
     # 'fileId:' line must be caught before the bundle is even assembled, not

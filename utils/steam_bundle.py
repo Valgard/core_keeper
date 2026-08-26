@@ -135,7 +135,17 @@ def derive_tags(metadata: Mapping[str, object], modio_type: str) -> list[str]:
     return tags
 
 
-def build_bundle(repo_root: Path, env: Mapping[str, str], preview_dest: Path) -> dict:
+def check_prerequisites(repo_root: Path, env: Mapping[str, str]) -> None:
+    """Validate everything a Steam publish needs that does NOT depend on a
+    finished build, by raising ValueError on the first thing that is missing.
+
+    Deliberately excludes the built content folder (MOD_INSTALL_PATH): that
+    is the one thing build_bundle checks that cannot exist yet before the
+    mod.io build has run. Call this before that build starts — mod.io's own
+    release cannot be undone once it has happened, so a missing
+    steam-description.txt or an unresolvable dependency should surface before
+    it, not after, on a mod.io release that already went out.
+    """
     mod_name = env.get("MOD_NAME")
     if not mod_name:
         raise ValueError("MOD_NAME is not set")
@@ -144,7 +154,6 @@ def build_bundle(repo_root: Path, env: Mapping[str, str], preview_dest: Path) ->
     if not asset.is_file():
         raise ValueError(f"no ModBuilderSettings asset at {asset}")
     asset_text = asset.read_text()
-    metadata = _read_metadata(asset_text)
 
     description_path = repo_root / "steam-description.txt"
     if not description_path.is_file():
@@ -156,6 +165,31 @@ def build_bundle(repo_root: Path, env: Mapping[str, str], preview_dest: Path) ->
     changelog_path = repo_root / "CHANGELOG.md"
     if not changelog_path.is_file():
         raise ValueError(f"no CHANGELOG.md at {changelog_path}")
+    parse_changelog(changelog_path.read_text())
+
+    logo = repo_root / "unity" / mod_name / "Editor" / "logo.png"
+    if not logo.is_file():
+        raise ValueError(f"no logo at {logo}")
+
+    identity_asset = repo_root / "unity" / mod_name / f"{mod_name}_Steam.asset"
+    steam_identity.ensure_recognizable(identity_asset)
+
+    resolve_dependencies(
+        parse_dependencies(asset_text),
+        Path(env["STEAM_DEPS_MAP"]) if env.get("STEAM_DEPS_MAP") else None,
+    )
+
+
+def build_bundle(repo_root: Path, env: Mapping[str, str], preview_dest: Path) -> dict:
+    check_prerequisites(repo_root, env)
+
+    mod_name = env["MOD_NAME"]
+    asset = repo_root / "unity" / f"{mod_name}.asset"
+    asset_text = asset.read_text()
+    metadata = _read_metadata(asset_text)
+
+    description_path = repo_root / "steam-description.txt"
+    changelog_path = repo_root / "CHANGELOG.md"
     version, changelog = parse_changelog(changelog_path.read_text())
 
     install_path = env.get("MOD_INSTALL_PATH")
@@ -165,16 +199,14 @@ def build_bundle(repo_root: Path, env: Mapping[str, str], preview_dest: Path) ->
     if not content.is_dir():
         raise ValueError(f"no built content at {content} — build the mod first")
 
+    # Existence and recognizability were already checked by
+    # check_prerequisites above; both are cheap, so re-deriving the paths
+    # here costs nothing and keeps this function correct even if a future
+    # caller ever invokes it without going through that check first.
     logo = repo_root / "unity" / mod_name / "Editor" / "logo.png"
-    if not logo.is_file():
-        raise ValueError(f"no logo at {logo}")
     steam_preview.derive_preview(logo, preview_dest)
 
     identity_asset = repo_root / "unity" / mod_name / f"{mod_name}_Steam.asset"
-    # Before, not after, the upload: an identity asset write_file_id would
-    # refuse must be caught while nothing has been sent yet, not once a
-    # Workshop item already exists with no way to record its id.
-    steam_identity.ensure_recognizable(identity_asset)
     file_id = steam_identity.read_file_id(identity_asset)
 
     return {
