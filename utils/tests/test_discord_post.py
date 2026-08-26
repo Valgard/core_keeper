@@ -14,6 +14,7 @@ import pytest
 
 _ENV = {
     "MOD_NAME_ID": "probe-mod",
+    "MOD_NAME": "ProbeMod",
     "CK_GAME_VERSION": "1.2.1.5",
     "CK_DISCORD_TAGS": "Tweaks|Equipment",
 }
@@ -41,6 +42,19 @@ def _render(markdown, **overrides):
     }
     args.update(overrides)
     return dp.render(markdown, **args)
+
+
+def _repo(tmp_path, body="# T\n\nBody.\n"):
+    """A repo with a post and the logo every mod has.
+
+    The logo is not optional: it always leads the attachments, so a repo
+    without one is a mod name spelled wrong rather than a mod with no images.
+    """
+    (tmp_path / "discord-post.md").write_text(body)
+    logo = tmp_path / "unity" / "ProbeMod" / "Editor" / "logo.png"
+    logo.parent.mkdir(parents=True)
+    logo.write_bytes(b"\x89PNG")
+    return tmp_path
 
 
 def test_version_line_collapses_to_minor_when_every_known_build_is_supported():
@@ -170,12 +184,10 @@ def test_a_repo_without_a_post_or_tags_is_skipped_not_an_error(tmp_path):
 
 
 def test_render_repo_reads_the_post_beside_the_mod(tmp_path):
-    (tmp_path / "discord-post.md").write_text("# T\n\nBody.\n")
+    result = dp.render_repo(_repo(tmp_path), _ENV, ["1.2.1.5"])
 
-    post, tags, _ = dp.render_repo(tmp_path, _ENV, ["1.2.1.5"])
-
-    assert "Body." in post
-    assert tags == ["Tweaks", "Equipment"]
+    assert "Body." in result["body"]
+    assert result["tags"] == ["Tweaks", "Equipment"]
 
 
 def test_a_post_without_forum_tags_names_the_variable_it_wants(tmp_path):
@@ -191,11 +203,11 @@ def test_a_post_without_forum_tags_names_the_variable_it_wants(tmp_path):
 def test_the_h1_becomes_the_thread_title_rather_than_being_discarded(tmp_path):
     """The heading is dropped from the body because Discord shows it as the
     thread title -- so it is authored, not derived from a directory name."""
-    (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
+    result = dp.render_repo(
+        _repo(tmp_path, "# Probe Mod\n\nBody.\n"), _ENV, ["1.2.1.5"]
+    )
 
-    _, _, title = dp.render_repo(tmp_path, _ENV, ["1.2.1.5"])
-
-    assert title == "Probe Mod"
+    assert result["title"] == "Probe Mod"
 
 
 def test_an_empty_tag_list_is_as_wrong_as_a_missing_one(tmp_path):
@@ -313,19 +325,17 @@ def test_a_blank_game_version_is_as_wrong_as_a_missing_one(tmp_path):
 
 def test_spaces_around_the_tag_separator_are_not_part_of_the_tag(tmp_path):
     """`Tweaks | Equipment` is how a person writes it into an .envrc by hand."""
-    (tmp_path / "discord-post.md").write_text("# T\n\nBody.\n")
     env = dict(_ENV, CK_DISCORD_TAGS="Tweaks | Equipment")
 
-    _, tags, _ = dp.render_repo(tmp_path, env, ["1.2.1.5"])
+    result = dp.render_repo(_repo(tmp_path), env, ["1.2.1.5"])
 
-    assert tags == ["Tweaks", "Equipment"]
+    assert result["tags"] == ["Tweaks", "Equipment"]
 
 
 def test_main_puts_the_post_on_stdout_and_everything_else_on_stderr(tmp_path, capsys):
     """The documented contract: `discord_post.py | pbcopy` must copy the post
     and not the title or the character count."""
-    (tmp_path / "discord-post.md").write_text("# Some Mod\n\nBody.\n")
-    _run_main(tmp_path, monkeypatched=_ENV)
+    _run_main(_repo(tmp_path, "# Some Mod\n\nBody.\n"), monkeypatched=_ENV)
 
     out, err = capsys.readouterr()
     assert out.startswith("**Compatible with Core Keeper")
@@ -333,8 +343,9 @@ def test_main_puts_the_post_on_stdout_and_everything_else_on_stderr(tmp_path, ca
 
 
 def test_main_check_prints_nothing_on_stdout(tmp_path, capsys):
-    (tmp_path / "discord-post.md").write_text("# Some Mod\n\nBody.\n")
-    _run_main(tmp_path, monkeypatched=_ENV, args=["--check"])
+    _run_main(
+        _repo(tmp_path, "# Some Mod\n\nBody.\n"), monkeypatched=_ENV, args=["--check"]
+    )
 
     out, err = capsys.readouterr()
     assert out == ""
@@ -462,3 +473,40 @@ def test_a_missing_logo_is_refused_because_it_always_leads(tmp_path):
 
     with pytest.raises(ValueError, match="logo"):
         dp.resolve_media(tmp_path, dict(_ENV), "ProbeMod")
+
+
+def test_json_mode_emits_everything_the_browser_step_needs(tmp_path, capsys):
+    """The skill consumes this. Parsing the human-facing stderr lines instead
+    would break the first time one of them is reworded."""
+    import json as _json
+
+    (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
+    logo = tmp_path / "unity" / "ProbeMod" / "Editor" / "logo.png"
+    logo.parent.mkdir(parents=True)
+    logo.write_bytes(b"\x89PNG")
+    env = dict(_ENV, MOD_NAME="ProbeMod", CK_DISCORD_THREAD="https://discord.com/x")
+
+    code = _run_main(tmp_path, monkeypatched=env, args=["--json"])
+
+    assert code == 0
+    doc = _json.loads(capsys.readouterr().out)
+    assert doc["title"] == "Probe Mod"
+    assert doc["tags"] == ["Tweaks", "Equipment"]
+    assert doc["thread"] == "https://discord.com/x"
+    assert doc["attachments"] == [str(logo)]
+    assert doc["follow_ups"] == []
+    assert doc["body"].startswith("**Compatible with Core Keeper")
+
+
+def test_json_mode_reports_no_thread_as_null_not_as_an_empty_string(tmp_path, capsys):
+    """null is 'no thread yet, create a post'; the skill branches on it."""
+    import json as _json
+
+    (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
+    logo = tmp_path / "unity" / "ProbeMod" / "Editor" / "logo.png"
+    logo.parent.mkdir(parents=True)
+    logo.write_bytes(b"\x89PNG")
+
+    _run_main(tmp_path, monkeypatched=dict(_ENV, MOD_NAME="ProbeMod"), args=["--json"])
+
+    assert _json.loads(capsys.readouterr().out)["thread"] is None

@@ -187,7 +187,7 @@ def render_repo(repo, env, known):
                 f"{repo} — found instead: {', '.join(near) or 'nothing similar'}"
             )
         return None
-    for name in ("CK_GAME_VERSION", "MOD_NAME_ID"):
+    for name in ("CK_GAME_VERSION", "MOD_NAME_ID", "MOD_NAME"):
         if not env.get(name, "").strip():
             raise ValueError(
                 f"{name} is not set — it comes from the .envrc chain, so run "
@@ -233,7 +233,16 @@ def render_repo(repo, env, known):
         raise ValueError(
             f"thread title is {len(title)} characters — Discord accepts {TITLE_LIMIT}"
         )
-    return post, tags, title
+    attachments, follow_ups = resolve_media(repo, env, env["MOD_NAME"])
+    return {
+        "title": title,
+        "body": post,
+        "tags": tags,
+        "attachments": [str(p) for p in attachments],
+        "follow_ups": follow_ups,
+        "thread": env.get("CK_DISCORD_THREAD", "").strip() or None,
+        "length": len(post),
+    }
 
 
 def known_versions():
@@ -277,7 +286,8 @@ def main(argv=None):
     """
     argv = list(sys.argv[1:] if argv is None else argv)
     check_only = "--check" in argv
-    paths = [a for a in argv if a != "--check"]
+    as_json = "--json" in argv
+    paths = [a for a in argv if a not in ("--check", "--json")]
     # Without this, `--chek` becomes a path, render_repo finds no post there and
     # the run succeeds in silence -- the same outcome as "all fine".
     unknown = [a for a in paths if a.startswith("-")]
@@ -299,12 +309,20 @@ def main(argv=None):
     if result is None:
         return 0
 
-    post, tags, title = result
-    print(f"thread title : {title}", file=sys.stderr)
-    print(f"forum tags   : {', '.join(tags)}", file=sys.stderr)
-    print(f"length       : {len(post)} / {LIMIT}", file=sys.stderr)
-    if not check_only:
-        print(post)
+    print(f"thread title : {result['title']}", file=sys.stderr)
+    print(f"forum tags   : {', '.join(result['tags'])}", file=sys.stderr)
+    print(f"length       : {result['length']} / {LIMIT}", file=sys.stderr)
+    print(f"attachments  : {len(result['attachments'])}", file=sys.stderr)
+    if result["follow_ups"]:
+        print(f"follow-ups   : {len(result['follow_ups'])}", file=sys.stderr)
+    print(
+        f"thread       : {result['thread'] or 'none yet — a new post'}",
+        file=sys.stderr,
+    )
+    if as_json:
+        print(json.dumps(result, indent=2))
+    elif not check_only:
+        print(result["body"])
     return 0
 
 

@@ -38,6 +38,7 @@ def _posts():
         example = _text(repo / ".envrc.example")
         env = {
             "MOD_NAME_ID": _export(example, "MOD_NAME_ID"),
+            "MOD_NAME": _export(example, "MOD_NAME"),
             "CK_GAME_VERSION": _export(example, "CK_GAME_VERSION") or parent,
         }
         tags = _export(example, "CK_DISCORD_TAGS")
@@ -80,9 +81,9 @@ needs_posts = pytest.mark.skipif(
 def test_every_written_post_renders_within_discords_limits(repo, env):
     """render_repo raises on all four ceilings -- length, unknown tag, tag
     count, missing heading -- so rendering it *is* the assertion."""
-    post, tags, title = dp.render_repo(repo, env, dp.known_versions())
+    result = dp.render_repo(repo, env, dp.known_versions())
 
-    assert post and tags and title
+    assert result["body"] and result["tags"] and result["title"]
 
 
 @needs_posts
