@@ -343,7 +343,23 @@ else
     STEAM_TMP="$(mktemp -d -t ck-workshop.XXXXXX)"
     trap 'rm -rf "$STEAM_TMP"' EXIT
     STEAM_PREVIEW="$STEAM_TMP/preview.png"
-    STEAM_RESULT="$STEAM_TMP/result.log"
+
+    # Deliberately NOT inside $STEAM_TMP, and deliberately not on that trap.
+    # This file can hold the id of a Workshop item that already exists on
+    # Steam, and it is the only place that id lives until the persist step far
+    # below reads it. The two interrupts worth planning for are safe either
+    # way: `timeout` signals only its own child, and a terminal Ctrl-C reaches
+    # the foreground group but leaves this script running -- both reach that
+    # persist step. A signal aimed at THIS script (kill, a closed terminal, an
+    # outer timeout wrapper) does not: the EXIT trap would fire first and
+    # delete the id along with the directory, and the next run -- finding no
+    # local id -- would create a second, public, duplicate item over the
+    # orphaned one. Surviving that is the whole point, so: its own mktemp name
+    # per run, removed on the way out of a run that got far enough to persist.
+    # A killed run therefore leaves exactly one file behind, named for its mod,
+    # holding the id to put into <Mod>_Steam.asset by hand -- and no later run
+    # can overwrite it, which a fixed path would.
+    STEAM_RESULT="$(mktemp "${TMPDIR:-/tmp}/ck-workshop-$MOD_NAME-result.XXXXXX")"
     steam_rc=0
 
     # Everything a publish needs is derivable from files already in the repo
@@ -465,6 +481,19 @@ PY
                 *) echo "✗ Steam Workshop publish failed (exit $steam_rc)." >&2 ;;
             esac
         fi
+    fi
+
+    # Only once its contents are safely elsewhere. A failed persist (write_rc
+    # non-zero) means the id reached neither the asset nor anywhere else, and
+    # the message above naming it has already scrolled past by the time anyone
+    # acts on it -- this file is then the copy still there to read. Unset in
+    # the dry-run and bundle-failure paths, where nothing was ever persisted
+    # because nothing was ever created; the default covers both. An `if`
+    # rather than `[ … ] && rm …`: under `set -e` a false test makes that
+    # whole list the failing command and kills the script before the exit
+    # below, which is how a Steam success once turned into a silent exit 1.
+    if [ "${write_rc:-0}" = "0" ]; then
+        rm -f "$STEAM_RESULT"
     fi
 
     exit "$steam_rc"

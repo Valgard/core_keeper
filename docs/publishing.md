@@ -80,6 +80,21 @@ Workshop item with no way to tell it apart from the first. Commit it once,
 right after the first Steam publish, the same way the mod.io asset already
 is.
 
+**A run killed by a signal leaves that id in a file rather than losing it.**
+The step that writes a newly created id into the asset runs after
+`ck-workshop` returns, so a signal aimed at `upload.sh` itself — `kill`, a
+closed terminal, an outer `timeout` wrapper — can end the run in the window
+between Steam creating the item and its id reaching disk, which is the same
+duplicate-item hazard as above with no untracked file to blame. The tool's
+output therefore goes to its own `mktemp` file *outside* the scratch
+directory the EXIT trap removes: a killed run leaves one
+`ck-workshop-<MOD_NAME>-result.*` in `$TMPDIR` holding the id, to be put into
+`<Mod>_Steam.asset` by hand before publishing that mod again. A run that gets
+far enough to persist removes its own file, and no run can overwrite another's.
+The two interrupts that actually occur need none of this: neither `timeout`
+firing on a stalled upload nor a terminal Ctrl-C stops `upload.sh`, so the
+persist step runs normally in both.
+
 **Two flags select which destinations run, and they contradict each other.**
 `--no-steam` publishes to mod.io only; `--steam-only` skips mod.io and
 publishes to Steam alone. `upload.sh` refuses to run with both set.
