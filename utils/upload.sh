@@ -451,11 +451,27 @@ from pathlib import Path
 sys.path.insert(0, os.environ["CK_UTILS_DIR"])
 import steam_identity
 
-lines = [line for line in open(sys.argv[1]) if line.strip().startswith("{")]
-if not lines:
+# Scanned from the end for the last line that is actually one of ck-workshop's
+# result objects, rather than taking the last '{'-prefixed line on faith. That
+# stream carries the tool's stderr too, so a stray brace-leading diagnostic
+# after the result — native Steamworks logging during Shutdown, say — would
+# otherwise take its place and throw. Losing the line that way discards the id
+# of an item that already exists, which is the one thing this step is for.
+result = None
+for line in reversed(list(open(sys.argv[1]))):
+    if not line.strip().startswith("{"):
+        continue
+    try:
+        candidate = json.loads(line)
+    except ValueError:
+        continue
+    if isinstance(candidate, dict) and "fileId" in candidate:
+        result = candidate
+        break
+
+if result is None:
     sys.exit(0)  # ck-workshop crashed before it could report anything at all
 
-result = json.loads(lines[-1])
 file_id = result["fileId"]
 if not file_id:
     sys.exit(0)  # nothing was created on Steam — nothing to persist

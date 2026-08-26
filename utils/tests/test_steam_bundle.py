@@ -264,7 +264,11 @@ def test_a_missing_content_folder_is_reported(tmp_path):
     repo = _repo(tmp_path)
     env = _env(tmp_path, MOD_INSTALL_PATH=str(tmp_path / "nowhere"))
 
-    with pytest.raises(ValueError, match="build|content|nowhere"):
+    # Matched against the message's own wording, not against words that also
+    # occur in the interpolated path: `content` is in pytest's tmp_path name
+    # (derived from this test's own name) and `nowhere` is in the path passed
+    # in, so the previous pattern passed even for an unrelated message.
+    with pytest.raises(ValueError, match="no built content at"):
         steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
 
 
