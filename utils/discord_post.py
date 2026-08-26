@@ -382,16 +382,24 @@ def main(argv=None):
     if result is None:
         return 0
 
-    print(f"thread title : {result['title']}", file=sys.stderr)
-    print(f"forum tags   : {', '.join(result['tags'])}", file=sys.stderr)
-    print(f"length       : {result['length']} / {LIMIT}", file=sys.stderr)
-    print(f"attachments  : {len(result['attachments'])}", file=sys.stderr)
-    if result["follow_ups"]:
-        print(f"follow-ups   : {len(result['follow_ups'])}", file=sys.stderr)
-    print(
-        f"thread       : {result['thread'] or 'none yet — a new post'}",
-        file=sys.stderr,
-    )
+    if update:
+        # No title, no tags, no attachments in this mode -- the thread
+        # already carries all three, and CK_DISCORD_THREAD is required by
+        # render_repo's update branch, so 'none yet' cannot apply here.
+        print(f"version      : {result['title']}", file=sys.stderr)
+        print(f"length       : {result['length']} / {LIMIT}", file=sys.stderr)
+        print(f"thread       : {result['thread']}", file=sys.stderr)
+    else:
+        print(f"thread title : {result['title']}", file=sys.stderr)
+        print(f"forum tags   : {', '.join(result['tags'])}", file=sys.stderr)
+        print(f"length       : {result['length']} / {LIMIT}", file=sys.stderr)
+        print(f"attachments  : {len(result['attachments'])}", file=sys.stderr)
+        if result["follow_ups"]:
+            print(f"follow-ups   : {len(result['follow_ups'])}", file=sys.stderr)
+        print(
+            f"thread       : {result['thread'] or 'none yet — a new post'}",
+            file=sys.stderr,
+        )
     if as_json:
         print(json.dumps(result, indent=2))
     elif not check_only:

@@ -699,3 +699,25 @@ def test_update_without_a_thread_says_to_post_one_first(tmp_path):
 
     with pytest.raises(ValueError, match="CK_DISCORD_THREAD"):
         dp.render_repo(tmp_path, env, ["1.2.1.5"], update=True)
+
+
+def test_update_mode_diagnostics_do_not_call_the_version_a_thread_title(
+    tmp_path, capsys
+):
+    """The update branch's title field holds 'version 1.4.0', not a thread
+    title, and its thread is never 'none yet' -- CK_DISCORD_THREAD is
+    required by then."""
+    (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
+    (tmp_path / "CHANGELOG.md").write_text(_CHANGELOG)
+    logo = tmp_path / "unity" / "ProbeMod" / "Editor" / "logo.png"
+    logo.parent.mkdir(parents=True)
+    logo.write_bytes(b"\x89PNG")
+    env = dict(_ENV, MOD_NAME="ProbeMod", CK_DISCORD_THREAD="https://discord.com/x")
+
+    _run_main(tmp_path, monkeypatched=env, args=["--update"])
+
+    err = capsys.readouterr().err
+    assert "version      : version 1.4.0" in err
+    assert "thread title" not in err
+    assert "none yet" not in err
+    assert "thread       : https://discord.com/x" in err
