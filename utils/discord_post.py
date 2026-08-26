@@ -262,13 +262,16 @@ def render_repo(repo, env, known, *, update=False):
             known=known,
             slug=env["MOD_NAME_ID"],
         )
-        attachments, follow_ups = resolve_media(repo, env, env["MOD_NAME"])
+        # Validated but discarded, attachments and follow_ups alike: the
+        # thread's opening images already carry the logo and every clip, and
+        # a release comment must not repost them.
+        resolve_media(repo, env, env["MOD_NAME"])
         return {
             "title": f"version {version}",
             "body": comment,
             "tags": [],
             "attachments": [],
-            "follow_ups": follow_ups,
+            "follow_ups": [],
             "thread": env.get("CK_DISCORD_THREAD", "").strip() or None,
             "length": len(comment),
         }
@@ -296,7 +299,10 @@ def render_repo(repo, env, known, *, update=False):
         "title": title,
         "body": post,
         "tags": tags,
-        "attachments": [str(p) for p in attachments],
+        # Resolved, not just str()'d: the repo argument may be relative, and
+        # the browser tool this reaches (mcp__claude-in-chrome__file_upload)
+        # requires an absolute path.
+        "attachments": [str(p.resolve()) for p in attachments],
         "follow_ups": follow_ups,
         "thread": env.get("CK_DISCORD_THREAD", "").strip() or None,
         "length": len(post),

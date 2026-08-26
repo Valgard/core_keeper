@@ -8,6 +8,7 @@ to reach — the over-limit abort among them would never run at all.
 """
 
 import os
+import pathlib
 
 import discord_post as dp
 import pytest
@@ -382,11 +383,16 @@ def test_a_wrapped_list_item_stays_one_item():
 
 def test_forum_tags_come_from_the_data_file_not_the_code():
     """The channel's tag set belongs to somebody else's channel, so it is data
-    the browser step can refresh — not a constant only a code edit can fix."""
+    the browser step can refresh — not a constant only a code edit can fix.
+    Asserts the property this test names, not a snapshot of the current file:
+    the ck-discord-post skill updates ck-discord-tags.json whenever the live
+    channel diverges, and pytest runs as a pre-commit hook, so pinning the
+    exact count would make the first legitimate reconciliation a commit the
+    repo's own gate rejects."""
     tags = dp.forum_tags()
 
     assert "Misc / Other" in tags
-    assert len(tags) == 20
+    assert len(tags) > 10
 
 
 def _mod_tree(tmp_path, *, media=None, extra_files=()):
@@ -493,9 +499,34 @@ def test_json_mode_emits_everything_the_browser_step_needs(tmp_path, capsys):
     assert doc["title"] == "Probe Mod"
     assert doc["tags"] == ["Tweaks", "Equipment"]
     assert doc["thread"] == "https://discord.com/x"
-    assert doc["attachments"] == [str(logo)]
+    assert doc["attachments"] == [str(logo.resolve())]
     assert doc["follow_ups"] == []
     assert doc["body"].startswith("**Compatible with Core Keeper")
+
+
+def test_attachment_paths_are_absolute_even_from_a_relative_repo_argument(
+    tmp_path, monkeypatch, capsys
+):
+    """`file_upload`, the browser tool the skill hands these to, requires an
+    absolute path -- and so does README.md. Without resolving, a relative
+    repo argument (`python3 discord_post.py --json some-mod`) leaked a
+    relative path into the JSON instead."""
+    import json as _json
+
+    (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
+    logo = tmp_path / "unity" / "ProbeMod" / "Editor" / "logo.png"
+    logo.parent.mkdir(parents=True)
+    logo.write_bytes(b"\x89PNG")
+    monkeypatch.chdir(tmp_path.parent)
+
+    code = _run_main(
+        tmp_path.name, monkeypatched=dict(_ENV, MOD_NAME="ProbeMod"), args=["--json"]
+    )
+
+    assert code == 0
+    doc = _json.loads(capsys.readouterr().out)
+    assert doc["attachments"] == [str(logo.resolve())]
+    assert pathlib.Path(doc["attachments"][0]).is_absolute()
 
 
 def test_json_mode_reports_no_thread_as_null_not_as_an_empty_string(tmp_path, capsys):
@@ -629,3 +660,27 @@ def test_update_mode_announces_the_version_rather_than_the_whole_post(tmp_path, 
     assert code == 0
     assert out.startswith("**Version 1.4.0**")
     assert "Body." not in out
+
+
+def test_update_mode_does_not_repost_the_threads_opening_clips(tmp_path, capsys):
+    """auto-rail-bridges' CK_DISCORD_MEDIA names 38 MB GIFs meant to open the
+    thread once -- announcing v1.0.2 must not post them again as follow-ups,
+    the same reasoning that already drops the logo from attachments."""
+    import json as _json
+
+    (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
+    (tmp_path / "CHANGELOG.md").write_text(_CHANGELOG)
+    logo = tmp_path / "unity" / "ProbeMod" / "Editor" / "logo.png"
+    logo.parent.mkdir(parents=True)
+    logo.write_bytes(b"\x89PNG")
+    env = dict(
+        _ENV,
+        MOD_NAME="ProbeMod",
+        CK_DISCORD_MEDIA="https://example.invalid/clip.gif",
+    )
+
+    _run_main(tmp_path, monkeypatched=env, args=["--update", "--json"])
+
+    doc = _json.loads(capsys.readouterr().out)
+    assert doc["attachments"] == []
+    assert doc["follow_ups"] == []

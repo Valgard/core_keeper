@@ -78,4 +78,7 @@ draft (the X at the top left) and rebuild it**. Four actions, deterministic.
 ## Comment on an existing thread
 
 Navigate to `thread`, paste the comment into the thread's message box, hand
-over. No tags, no title, and the logo is not re-attached.
+over. No tags, no title, and neither the logo nor any clip is re-attached —
+`attachments` and `follow_ups` are both empty in `--update` mode, because the
+thread's opening post already carries them and a release comment must not
+repost a 38 MB GIF on every version.
