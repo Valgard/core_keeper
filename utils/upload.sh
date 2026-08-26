@@ -347,18 +347,19 @@ else
     # Deliberately NOT inside $STEAM_TMP, and deliberately not on that trap.
     # This file can hold the id of a Workshop item that already exists on
     # Steam, and it is the only place that id lives until the persist step far
-    # below reads it. The two interrupts worth planning for are safe either
-    # way: `timeout` signals only its own child, and a terminal Ctrl-C reaches
-    # the foreground group but leaves this script running -- both reach that
-    # persist step. A signal aimed at THIS script (kill, a closed terminal, an
-    # outer timeout wrapper) does not: the EXIT trap would fire first and
-    # delete the id along with the directory, and the next run -- finding no
-    # local id -- would create a second, public, duplicate item over the
-    # orphaned one. Surviving that is the whole point, so: its own mktemp name
-    # per run, removed on the way out of a run that got far enough to persist.
-    # A killed run therefore leaves exactly one file behind, named for its mod,
-    # holding the id to put into <Mod>_Steam.asset by hand -- and no later run
-    # can overwrite it, which a fixed path would.
+    # below reads it. Of the ways a run ends, exactly one reaches that step:
+    # `timeout` firing, because it signals only its own child. Everything else
+    # ends the script itself -- a terminal Ctrl-C sends SIGINT to the whole
+    # foreground process group (measured: the script dies with the child, an
+    # earlier version of this comment claimed otherwise), and so do `kill`, a
+    # closed terminal and an outer timeout wrapper. In all of those the EXIT
+    # trap would have deleted the id along with the directory, and the next
+    # run -- finding no local id -- would create a second, public, duplicate
+    # item over the orphaned one. Surviving that is the whole point, so: its
+    # own mktemp name per run, removed on the way out of a run that got far
+    # enough to persist. A killed run therefore leaves exactly one file behind,
+    # named for its mod, holding the id to put into <Mod>_Steam.asset by hand
+    # -- and no later run can overwrite it, which a fixed path would.
     STEAM_RESULT="$(mktemp "${TMPDIR:-/tmp}/ck-workshop-$MOD_NAME-result.XXXXXX")"
     steam_rc=0
 
@@ -404,9 +405,20 @@ PY
         # dumped to the operator's terminal and scanned for its last JSON line.
         # timeout guards against a hung upload the same way mod.io's does —
         # Facepunch's submit loop can spin indefinitely on a stalled connection.
+        #
+        # `tee` rather than a plain redirect, so the operator sees the output as
+        # it happens rather than only once the tool returns. That matters for
+        # exactly one line: the id ck-workshop prints the moment CreateItem
+        # succeeds. A terminal Ctrl-C sends SIGINT to the whole foreground
+        # process group and kills this script along with the child — measured,
+        # despite what an earlier comment here claimed — so nothing after this
+        # command runs, the persist step included. Streaming is then the only
+        # way that id reaches the operator's screen at all; the result file
+        # keeps its own copy either way (see its mktemp above).
+        # `pipefail` is already on from the top of the script, so a failing
+        # `dotnet run` still reaches steam_rc through the added `tee`.
         printf '%s' "$bundle" | SteamAppId="$STEAM_APP_ID" timeout 600 dotnet run --project "$UTILS_DIR/ck-workshop" -- ${PUBLISH_DRY_RUN:+--dry-run} \
-            >"$STEAM_RESULT" 2>&1 || steam_rc=$?
-        cat "$STEAM_RESULT" >&2
+            2>&1 | tee "$STEAM_RESULT" >&2 || steam_rc=$?
 
         if [ "${PUBLISH_DRY_RUN:-}" = "1" ]; then
             if [ "$steam_rc" = "0" ]; then

@@ -111,10 +111,17 @@ output therefore goes to its own `mktemp` file *outside* the scratch
 directory the EXIT trap removes: a killed run leaves a
 `ck-workshop-<MOD_NAME>-result.*` behind in `$TMPDIR`, holding the id if the
 kill came after the tool had reported one. A run that gets far enough to
-persist removes its own file, and no run can overwrite another's. The two
-interrupts that actually occur need none of this: neither `timeout` firing on
-a stalled upload nor a terminal Ctrl-C stops `upload.sh`, so the persist step
-runs normally in both.
+persist removes its own file, and no run can overwrite another's.
+
+**A terminal Ctrl-C is one of the kills, not an exception to them.** It sends
+SIGINT to the whole foreground process group, so the script dies with the tool
+and the persist step never runs — measured, after an earlier version of this
+page claimed the opposite from a test that had signalled the script alone.
+Only `timeout` firing on a stalled upload leaves the run intact, because it
+signals just its own child. That is also why the tool's output is streamed
+through `tee` rather than collected and printed afterwards: on a Ctrl-C the
+line naming a newly created item is the last thing the operator sees, and a
+redirect would have swallowed it.
 
 **Copy such an id into `<Mod>_Steam.asset` only while that asset still has
 none.** The asset is the authority; the file is one run's notes. Publish the
