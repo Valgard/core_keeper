@@ -107,10 +107,21 @@ is the easy way to reach that state. The next attempt then takes the create-new
 branch again and makes a second item. Nothing in the UI mentions the first.
 
 A related trap: that `<Mod>_Steam.asset` sits inside the mod's asset folder, and
-**ModBuilder bundles everything in that folder**. The asset — including the
-author's SteamID64 in its `modOwner` field — is therefore shipped inside the mod.
-The same applies to any other file placed there for convenience, including a
-`description.txt`.
+**ModBuilder ships what it finds there**. Scripts, DLLs, `Conf/*.json` and
+`Localization/*.csv` leave the bundle by their own routes, and anything under an
+`Editor` or `CodeGen` directory is dropped outright — the settings asset is none
+of those, so it goes into the AssetBundle, carrying the SteamID64 in `modOwner`
+and an absolute path from the author's machine in `selectedPath`. The same
+applies to any other file left there for convenience, including the
+`description.txt` the tab itself reads from that folder.
+
+Two things make it less visible than it sounds. It cannot happen on a *first*
+upload: the tab writes the asset only after the upload returns, and the upload
+sends an already-built directory, so the asset is first collected by the next
+build. And searching the bundle proves nothing, because it is compressed — the
+plaintext `.assetbundle.manifest` written beside it lists the same paths, which
+is also how the author's project path ships no matter how well the bundle
+compresses.
 
 ## Uploading needs a live Steam session
 
