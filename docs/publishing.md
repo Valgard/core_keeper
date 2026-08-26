@@ -84,13 +84,22 @@ next opens the Editor, leaving the repo one file short of the rule that it
 holds every one of them. The `.meta` is written only when absent: an existing
 GUID is Unity's, and something may already reference it.
 
-The other fields in that asset — `modOwner`, `selectedPath`, `tags` — stay
-empty on purpose, and only the SDK window ever wanted them. It writes
-`modOwner` without ever reading it back; `selectedPath` is an absolute path
-that is right on one machine; `tags` would be a stale copy of what the publish
-derives afresh every time. `modOwner` costs more than the others, because
-ModBuilder bundles everything in the mod's asset folder: writing it would ship
-the author's SteamID64 inside every mod.
+**The publish fills that asset in completely, not just its id.** `modOwner`,
+`selectedPath` and `tags` are read by the SDK window alone, and a publish is
+the moment their current values are known — so the window finds a usable asset
+instead of a half-filled one. It also keeps them from rotting: the window's own
+`selectedPath` still named the pre-`MOD_INSTALL_PATH` build directory until a
+publish corrected it. `modOwner` comes back from `ck-workshop`, since it needs
+a live Steam session; the other two are already in the publish bundle. Each is
+written only when its value is known, so a run that cannot determine one leaves
+what is there rather than blanking it.
+
+Two consequences worth knowing. `modOwner` is the author's SteamID64, and
+ModBuilder bundles everything in the mod's asset folder — so it ships inside
+every mod. And `modName` is *not* written on later publishes: it is the
+window's lookup key, it goes stale by design ([#11](https://github.com/Pugstorm/CoreKeeperModSDK/issues/11)), and overwriting it every
+time would fight the window over a value this pipeline has no better answer
+for.
 
 **A run killed by a signal leaves that id in a file rather than losing it.**
 The step that writes a newly created id into the asset runs after

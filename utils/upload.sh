@@ -426,6 +426,12 @@ PY
             # does not recognise (see steam_identity.py) — that must surface,
             # not be swallowed, for the same reason.
             write_rc=0
+            # The bundle rides along so the asset can be filled in completely,
+            # not just with the id: the SDK window reads selectedPath and tags
+            # from it, and both are already derived here. Through the
+            # environment rather than as an argument because it carries the
+            # whole Workshop description.
+            CK_STEAM_BUNDLE="$bundle" \
             python3 - "$STEAM_RESULT" "$REPO_ROOT" <<'PY' || write_rc=$?
 import json, os, sys
 from pathlib import Path
@@ -444,8 +450,24 @@ if not file_id:
 
 asset = Path(sys.argv[2]) / "unity" / os.environ["MOD_NAME"] / (os.environ["MOD_NAME"] + "_Steam.asset")
 
+# The fields only the SDK window reads. Each falls back to None — leave what is
+# already there — rather than to a blank: modOwner is 0 whenever Steam was not
+# initialised, and a bundle that could not be parsed is no reason to erase a
+# path and a tag list that were right before this run.
+bundle = {}
 try:
-    steam_identity.write_file_id(asset, file_id)
+    bundle = json.loads(os.environ.get("CK_STEAM_BUNDLE") or "{}")
+except ValueError:
+    pass
+
+try:
+    steam_identity.write_file_id(
+        asset,
+        file_id,
+        mod_owner=result.get("modOwner") or None,
+        selected_path=bundle.get("contentPath") or None,
+        tags=bundle.get("tags"),
+    )
 except Exception as err:
     print(f"  ! Workshop item {file_id} is live, but its id could not be saved to {asset}: {err}", file=sys.stderr)
     print(f"    Fix {asset} by hand — it needs a 'fileId:' line set to {file_id} — then re-run.", file=sys.stderr)

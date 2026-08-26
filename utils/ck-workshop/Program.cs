@@ -136,6 +136,14 @@ internal static class Program
             return 3;
         }
 
+        // Reported so upload.sh can put it in <Mod>_Steam.asset, where only the
+        // SDK window reads it. AppOwner rather than SteamId because that is what
+        // the window itself writes, and the two differ under Family Sharing.
+        // Every EmitResult below picks it up from here; it stays 0 on the dry-run
+        // path, which returns before this line ever runs, and 0 tells the shell
+        // side there is no value to write rather than an owner of zero.
+        _modOwner = SteamApps.AppOwner.Value;
+
         // Captured the moment CreateItem succeeds, independently of the value
         // SubmitAsync eventually returns: it also sets this on its return value
         // whenever creation succeeded, even if a later step then fails, but not
@@ -331,6 +339,9 @@ internal static class Program
     // travels alongside fileId/created so a caller can tell "published (or at
     // least created) but something else failed" from a clean run without
     // depending on the process exit code, which a shell pipeline can lose.
+    // 0 until SteamClient.Init has run — see where it is assigned.
+    private static ulong _modOwner;
+
     private static void EmitResult(ulong fileId, bool created, bool success) =>
         Console.WriteLine(
             JsonSerializer.Serialize(
@@ -339,6 +350,7 @@ internal static class Program
                     fileId,
                     created,
                     success,
+                    modOwner = _modOwner,
                 }
             )
         );

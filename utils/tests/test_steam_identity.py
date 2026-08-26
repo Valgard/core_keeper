@@ -129,6 +129,68 @@ def test_creating_an_asset_beside_an_existing_meta_keeps_that_meta(tmp_path):
     assert "guid: 0123456789abcdef0123456789abcdef" in meta.read_text()
 
 
+def test_creating_fills_every_field_the_sdk_window_reads(tmp_path):
+    asset = tmp_path / "NewMod_Steam.asset"
+
+    steam_identity.write_file_id(
+        asset,
+        99,
+        mod_owner=10000000000000000,
+        selected_path="/Users/x/Library/Caches/CoreKeeperMods/NewMod",
+        tags=["Client", "Script", "Quality of Life"],
+    )
+
+    text = asset.read_text()
+    assert "modOwner: 10000000000000000" in text
+    assert "selectedPath: /Users/x/Library/Caches/CoreKeeperMods/NewMod" in text
+    assert "tags:\n  - Client\n  - Script\n  - Quality of Life\n" in text
+
+
+def test_updating_refreshes_those_fields_too(tmp_path):
+    # The SDK window's own values go stale — the build path moved once already.
+    # A publish knows the current ones, so it corrects them rather than leaving
+    # the window pointed at a directory that no longer exists.
+    asset = tmp_path / "DisableDurability_Steam.asset"
+    asset.write_text(ASSET)
+
+    steam_identity.write_file_id(
+        asset,
+        4242424242,
+        mod_owner=10000000000000000,
+        selected_path="/new/path/DisableDurability",
+        tags=["Client"],
+    )
+
+    text = asset.read_text()
+    assert "selectedPath: /new/path/DisableDurability" in text
+    assert "tags:\n  - Client\n" in text
+    assert "/var/folders" not in text
+    assert "- Script" not in text  # the old list is replaced, not appended to
+    assert "modName: Disable Durability" in text  # still not ours to touch
+
+
+def test_omitted_fields_are_left_exactly_as_they_were(tmp_path):
+    # A caller without a live Steam session cannot know modOwner; passing
+    # nothing must not blank out what is already there.
+    asset = tmp_path / "DisableDurability_Steam.asset"
+    asset.write_text(ASSET)
+
+    steam_identity.write_file_id(asset, 4242424242)
+
+    text = asset.read_text()
+    assert "modOwner: 10000000000000000" in text
+    assert "selectedPath: /var/folders/x/T/BuiltMods/DisableDurability" in text
+    assert "tags:\n  - Client\n  - Script\n" in text
+
+
+def test_an_empty_tag_list_is_written_as_the_sdk_writes_it(tmp_path):
+    asset = tmp_path / "NewMod_Steam.asset"
+
+    steam_identity.write_file_id(asset, 99, tags=[])
+
+    assert "tags: []" in asset.read_text()
+
+
 def test_writing_refuses_an_existing_file_it_does_not_recognize(tmp_path):
     asset = tmp_path / "Unrecognized_Steam.asset"
     original = "this is not a Steam asset at all\n"
