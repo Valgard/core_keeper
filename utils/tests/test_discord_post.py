@@ -651,10 +651,9 @@ def test_update_mode_announces_the_version_rather_than_the_whole_post(tmp_path, 
     logo = tmp_path / "unity" / "ProbeMod" / "Editor" / "logo.png"
     logo.parent.mkdir(parents=True)
     logo.write_bytes(b"\x89PNG")
+    env = dict(_ENV, MOD_NAME="ProbeMod", CK_DISCORD_THREAD="https://discord.com/x")
 
-    code = _run_main(
-        tmp_path, monkeypatched=dict(_ENV, MOD_NAME="ProbeMod"), args=["--update"]
-    )
+    code = _run_main(tmp_path, monkeypatched=env, args=["--update"])
 
     out = capsys.readouterr().out
     assert code == 0
@@ -676,6 +675,7 @@ def test_update_mode_does_not_repost_the_threads_opening_clips(tmp_path, capsys)
     env = dict(
         _ENV,
         MOD_NAME="ProbeMod",
+        CK_DISCORD_THREAD="https://discord.com/x",
         CK_DISCORD_MEDIA="https://example.invalid/clip.gif",
     )
 
@@ -684,3 +684,18 @@ def test_update_mode_does_not_repost_the_threads_opening_clips(tmp_path, capsys)
     doc = _json.loads(capsys.readouterr().out)
     assert doc["attachments"] == []
     assert doc["follow_ups"] == []
+
+
+def test_update_without_a_thread_says_to_post_one_first(tmp_path):
+    """CK_DISCORD_THREAD is scaffolded empty by new_mod.py, so this is the
+    default state of every new mod -- --update must not read that as 'create
+    a new post', which is what a null thread otherwise signals."""
+    (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
+    (tmp_path / "CHANGELOG.md").write_text(_CHANGELOG)
+    logo = tmp_path / "unity" / "ProbeMod" / "Editor" / "logo.png"
+    logo.parent.mkdir(parents=True)
+    logo.write_bytes(b"\x89PNG")
+    env = dict(_ENV, MOD_NAME="ProbeMod")
+
+    with pytest.raises(ValueError, match="CK_DISCORD_THREAD"):
+        dp.render_repo(tmp_path, env, ["1.2.1.5"], update=True)

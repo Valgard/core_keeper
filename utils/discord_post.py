@@ -253,6 +253,14 @@ def render_repo(repo, env, known, *, update=False):
         )
 
     if update:
+        thread = env.get("CK_DISCORD_THREAD", "").strip()
+        if not thread:
+            raise ValueError(
+                "--update announces a version in an existing thread, but "
+                "CK_DISCORD_THREAD is empty -- post the mod's thread first "
+                "(without --update), then record its URL in CK_DISCORD_THREAD "
+                "and .envrc.example"
+            )
         changelog = pathlib.Path(repo) / "CHANGELOG.md"
         if not changelog.is_file():
             raise ValueError("no CHANGELOG.md to take the version comment from")
@@ -272,7 +280,7 @@ def render_repo(repo, env, known, *, update=False):
             "tags": [],
             "attachments": [],
             "follow_ups": [],
-            "thread": env.get("CK_DISCORD_THREAD", "").strip() or None,
+            "thread": thread,
             "length": len(comment),
         }
 
