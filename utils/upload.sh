@@ -125,9 +125,10 @@ else
     STEAM_WILL_RUN=1
 fi
 
-# mod.io needs a Unity batchmode build; Steam does not (steam_bundle.py reads
-# straight from the repo and the already-built MOD_INSTALL_PATH). --steam-only
-# skips the whole mod.io block below, so none of its requirements apply here.
+# mod.io needs a Unity batchmode build; Steam publishes whatever that build
+# produced, and under --steam-only the last local one in MOD_INSTALL_PATH,
+# so it needs no Unity of its own. --steam-only skips the whole mod.io block
+# below, so none of its requirements apply here.
 if [ "$STEAM_ONLY" != "1" ]; then
     : "${UNITY_BIN:?must be set — see .envrc.example}"
     : "${SDK_PATH:?must be set — see .envrc.example}"
@@ -159,6 +160,20 @@ export CK_UTILS_DIR="$UTILS_DIR"
 [ "$DRY_RUN" = "1" ] && export PUBLISH_DRY_RUN=1
 [ "$PROFILE_ONLY" = "1" ] && export PUBLISH_PROFILE_ONLY=1
 [ "$CHANGELOG_ONLY" = "1" ] && export PUBLISH_CHANGELOG_ONLY=1
+
+# Where CLIPublishHelper reports the directory it just built for mod.io, so the
+# Steam stage can upload that exact directory. It builds into a fresh temporary
+# one per run — deliberately, so a publish can never ship stale Generated/
+# assets — and the Steam stage used to read MOD_INSTALL_PATH instead, which
+# only build.sh ever writes. The two were never the same folder: Steam would
+# have shipped whatever was last built locally, labelled with the version
+# mod.io was publishing from somewhere else.
+BUILD_DIR_FILE="$(mktemp -t ck-build-dir.XXXXXX)"
+export CK_BUILD_DIR_OUT="$BUILD_DIR_FILE"
+# Set here rather than in the Steam stage: that stage arms its own EXIT trap
+# for its scratch directory, and a second `trap … EXIT` would replace this one
+# instead of adding to it.
+trap 'rm -f "$BUILD_DIR_FILE"' EXIT
 
 # Steam preflight — before mod.io, not after: mod.io's own release cannot be
 # undone once it has happened, so a missing steam-description.txt or an
@@ -341,7 +356,9 @@ else
     # or a killed `dotnet run` below would otherwise skip that rm and leak the
     # directory, the same reasoning fetch_steam_lib.sh's own trap documents.
     STEAM_TMP="$(mktemp -d -t ck-workshop.XXXXXX)"
-    trap 'rm -rf "$STEAM_TMP"' EXIT
+    # Replaces the earlier trap rather than adding to it, so it has to clean up
+    # both — bash keeps one handler per signal.
+    trap 'rm -rf "$STEAM_TMP"; rm -f "$BUILD_DIR_FILE"' EXIT
     STEAM_PREVIEW="$STEAM_TMP/preview.png"
 
     # Deliberately NOT inside $STEAM_TMP, and deliberately not on that trap.
@@ -362,6 +379,16 @@ else
     # -- and no later run can overwrite it, which a fixed path would.
     STEAM_RESULT="$(mktemp "${TMPDIR:-/tmp}/ck-workshop-$MOD_NAME-result.XXXXXX")"
     steam_rc=0
+
+    # The directory mod.io was just published from, reported by CLIPublishHelper
+    # (see CK_BUILD_DIR_OUT above). Empty under --steam-only, where no mod.io
+    # build ran at all — there the last local build is the only thing to
+    # publish, and steam_bundle falls back to MOD_INSTALL_PATH for it.
+    if [ -s "$BUILD_DIR_FILE" ]; then
+        CK_STEAM_CONTENT="$(cat "$BUILD_DIR_FILE")"
+        export CK_STEAM_CONTENT
+        echo "  Content: the build mod.io was published from"
+    fi
 
     # Everything a publish needs is derivable from files already in the repo
     # (see steam_bundle.py) — this only serialises that derivation as JSON.

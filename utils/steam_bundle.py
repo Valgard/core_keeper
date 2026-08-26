@@ -171,12 +171,18 @@ def check_prerequisites(repo_root: Path, env: Mapping[str, str]) -> None:
     """Validate everything a Steam publish needs that does NOT depend on a
     finished build, by raising ValueError on the first thing that is missing.
 
-    Deliberately excludes the built content folder (MOD_INSTALL_PATH): that
-    is the one thing build_bundle checks that cannot exist yet before the
-    mod.io build has run. Call this before that build starts — mod.io's own
-    release cannot be undone once it has happened, so a missing
-    steam-description.txt or an unresolvable dependency should surface before
-    it, not after, on a mod.io release that already went out.
+    Deliberately excludes the built content folder: on the normal path that is
+    the directory CLIPublishHelper creates for this very run, so it genuinely
+    cannot exist yet — it is the one thing here that the mod.io build produces
+    rather than the repository. (The claim used to be made of MOD_INSTALL_PATH,
+    which no build in the publish path ever writes; that folder was checkable
+    all along, and reading it was the bug this exclusion now correctly
+    describes.)
+
+    Call this before that build starts — mod.io's own release cannot be undone
+    once it has happened, so a missing steam-description.txt or an unresolvable
+    dependency should surface before it, not after, on a mod.io release that
+    already went out.
     """
     mod_name = env.get("MOD_NAME")
     if not mod_name:
@@ -224,10 +230,23 @@ def build_bundle(repo_root: Path, env: Mapping[str, str], preview_dest: Path) ->
     changelog_path = repo_root / "CHANGELOG.md"
     version, changelog = parse_changelog(changelog_path.read_text())
 
-    install_path = env.get("MOD_INSTALL_PATH")
-    if not install_path:
-        raise ValueError("MOD_INSTALL_PATH is not set")
-    content = Path(install_path) / mod_name
+    # The directory mod.io was just published from, when this run published to
+    # mod.io at all. CLIPublishHelper builds into a fresh temporary one per run
+    # and uploads exactly that, so anything else here would put a different
+    # build on Steam than the one the version number refers to.
+    #
+    # MOD_INSTALL_PATH is the fallback, not the source: only build.sh writes
+    # there, so it holds the last *local* build. That is the right answer for
+    # --steam-only, where no mod.io build ran, and the wrong one everywhere
+    # else — which is what it used to be used for.
+    reported = env.get("CK_STEAM_CONTENT")
+    if reported:
+        content = Path(reported)
+    else:
+        install_path = env.get("MOD_INSTALL_PATH")
+        if not install_path:
+            raise ValueError("MOD_INSTALL_PATH is not set")
+        content = Path(install_path) / mod_name
     if not content.is_dir():
         raise ValueError(f"no built content at {content} — build the mod first")
 

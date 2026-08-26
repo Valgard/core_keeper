@@ -260,6 +260,31 @@ def test_a_missing_description_is_reported_by_name(tmp_path):
         steam_bundle.build_bundle(repo, _env(tmp_path), tmp_path / "p.png")
 
 
+def test_the_content_is_the_build_modio_published_when_one_is_reported(tmp_path):
+    # CLIPublishHelper builds into a fresh temporary directory and publishes
+    # THAT to mod.io. Steam has to upload the same one, or the two platforms
+    # ship different code under the same version number.
+    repo = _repo(tmp_path)
+    published = tmp_path / "published-build"
+    published.mkdir()
+    env = _env(tmp_path, CK_STEAM_CONTENT=str(published))
+
+    bundle = steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
+
+    assert bundle["contentPath"] == str(published)
+
+
+def test_without_a_reported_build_the_local_install_is_used(tmp_path):
+    # --steam-only runs no mod.io build, so there is no fresh directory to
+    # point at and the last local build is the only thing there is to publish.
+    repo = _repo(tmp_path)
+    env = _env(tmp_path)
+
+    bundle = steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
+
+    assert bundle["contentPath"] == str(tmp_path / "build" / "DisableDurability")
+
+
 def test_a_missing_content_folder_is_reported(tmp_path):
     repo = _repo(tmp_path)
     env = _env(tmp_path, MOD_INSTALL_PATH=str(tmp_path / "nowhere"))

@@ -142,6 +142,18 @@ namespace CoreKeeperModUtils
                 _buildDir = Path.Combine(Application.temporaryCachePath, Guid.NewGuid().ToString());
                 Directory.CreateDirectory(_buildDir);
 
+                // Reported so a later stage of the same run can publish THIS
+                // build rather than guessing where one might be. The Steam
+                // stage used to read MOD_INSTALL_PATH, which only build.sh
+                // ever writes — so it shipped whatever was last built locally,
+                // or nothing at all, while mod.io shipped this directory.
+                // Nothing depends on the file when the variable is unset.
+                var buildDirOut = Environment.GetEnvironmentVariable("CK_BUILD_DIR_OUT");
+                if (!string.IsNullOrEmpty(buildDirOut))
+                {
+                    File.WriteAllText(buildDirOut, _buildDir);
+                }
+
                 ModBuilder.BuildMod(
                     settings,
                     _buildDir,
