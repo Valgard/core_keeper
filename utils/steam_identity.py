@@ -50,12 +50,20 @@ def read_file_id(asset: Path) -> int | None:
 
 
 def write_file_id(asset: Path, file_id: int) -> None:
-    """Set the id, creating the asset if it does not exist yet."""
+    """Set the id, creating the asset if it does not exist yet.
+
+    An *existing* file that does not carry a `fileId:` line is refused rather
+    than templated over — silently replacing it would also discard modOwner,
+    modName, selectedPath and tags, which belong to the SDK window, not to us.
+    """
     if asset.is_file():
         text = asset.read_text()
-        if FILE_ID.search(text):
-            asset.write_text(FILE_ID.sub(rf"\g<1>{file_id}", text, count=1))
-            return
+        if not FILE_ID.search(text):
+            raise ValueError(
+                f"{asset} exists but has no 'fileId:' line — expected a Steam Workshop asset"
+            )
+        asset.write_text(FILE_ID.sub(rf"\g<1>{file_id}", text, count=1))
+        return
 
     mod_name = asset.stem.removesuffix("_Steam")
     asset.parent.mkdir(parents=True, exist_ok=True)

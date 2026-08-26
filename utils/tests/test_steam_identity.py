@@ -6,6 +6,7 @@ title and looked up by metadata.name, so it goes stale the moment a readable
 title is used (CoreKeeperModSDK#11) — reading it would inherit the defect.
 """
 
+import pytest
 import steam_identity
 
 ASSET = """%YAML 1.1
@@ -67,5 +68,21 @@ def test_writing_creates_the_asset_when_absent(tmp_path):
 
     steam_identity.write_file_id(asset, 99)
 
+    text = asset.read_text()
     assert steam_identity.read_file_id(asset) == 99
-    assert asset.read_text().startswith("%YAML 1.1")
+    assert text.startswith("%YAML 1.1")
+    assert "m_Name: NewMod_Steam" in text
+    assert "modName: NewMod" in text
+
+
+def test_writing_refuses_an_existing_file_it_does_not_recognize(tmp_path):
+    asset = tmp_path / "Unrecognized_Steam.asset"
+    original = "this is not a Steam asset at all\n"
+    asset.write_text(original)
+
+    with pytest.raises(ValueError, match="fileId"):
+        steam_identity.write_file_id(asset, 99)
+
+    # The whole point of the guard: an unrecognized file must be left exactly
+    # as it was, never silently replaced by a fresh template.
+    assert asset.read_text() == original
