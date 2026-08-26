@@ -910,6 +910,109 @@ A row that scrolls therefore needs three pieces, not one:
   (`[field: SerializeField]`, `255` on a stock row, `:343354-343355`) is what the
   on-screen-keyboard path already enforces, and the natural value to reuse.
 
+### Glyph positions are not string positions
+
+`PugText.localCharacterEndPositions` (`Pug.Other:351285`) is a list of **glyph**
+end positions, and it is what places the caret: `Update` offsets the blinker by
+`localCharacterEndPositions[currentCharIndex - 1].x` (`:343387`). Recovering an
+index from a position — the nearest entry to where the caret sits — and then
+using that number as a **string** index assumes the two counts agree. They need
+not, and nothing announces when they stop.
+
+`PugFont.Render` empties the list (`:350502`) and adds one entry per character at
+the bottom of its loop (`:350695`). Four paths through that loop never reach the
+add, or reach it having consumed more than one character — and a fifth that looks
+like one of them is not:
+
+| In the string | What the list gets | Line |
+|---|---|---|
+| a character the current face has no glyph data for | nothing — `GetGlyphData` fails and the iteration `continue`s before the add, so every index from there on sits one too low | `:350600-350602` |
+| a colour tag | one entry for three characters (`i += 2`), or for eleven (`i += 10`) | `:350588`, `:350594` |
+| a pause sign (a backtick or `*`, while `usePauseSigns` is on) | nothing | `:350579-350581` |
+| more text than the container pool or the glyph pool can serve | nothing, and the loop `break`s — every later character is missing too | `:350534`, `:350609` |
+| `\r` | one entry, then `continue` — the count does **not** shift | `:350562-350564` |
+
+The last row is worth stating precisely because it looks like it would shift: the
+carriage return leaves the iteration early, but it adds its entry first.
+
+**The dynamic-font path may not populate the list at all.** There the list is
+filled only under `trackDynamicTextCharacterEndPositions` (`:352043`), and even
+inside that gate a prefix whose `TMP_TextInfo` reports no characters adds nothing
+(`:352050`). With the flag off, nothing on that path ever writes an entry — and
+an empty list makes a nearest-entry search return 0 for every query, so every
+insertion silently goes to the **front** of the string.
+
+**Two doors lead to that path, and only one of them is about language.**
+`PugText.SetFont` tests `isWrittenToByUser` first (`:351520`). If it is set, the
+face comes from `TextManager.GetFontToUseForString` (`:351522`), which picks
+whichever font matches the most characters of the current string — and hands back
+the Thai *unicode* font, i.e. `SetDynamicFont` (`:351529`), whenever the pixel
+faces match fewer (`:272128-272141`). No language is consulted anywhere in it, so
+this door opens for **any** locale the moment a typed character is one the pixel
+face does not map. Only with the flag off does control reach
+`ShouldUseDynamicFont` (`:351532`), whose test is `Manager.prefs.language == "th"`
+(`:272040`) — and which returns `false` before ever getting there for text with
+`localize` off (`:272035-272038`).
+
+That last early return has an ironic consequence: a row that turns localisation
+off for an entirely unrelated reason is thereby shut off from the Thai door too.
+The protection is real, invisible in play, and easy to remove by accident.
+
+**`Clear` never empties the list either.** It frees the pooled containers and
+glyph renderers and clears `glyphs`, `glyphTransforms`, `glyphColorOverrides` and
+`displayedTextString` — and stops there, in both modes (`:351943-351967`).
+Emptying `localCharacterEndPositions` is `PugFont.Render`'s doing alone, and
+`PugText.Render` returns early on an empty string (`:351862-351866`) long before
+it gets that far. So a field the player has just emptied still carries the
+previous render's entries: `Count > 0` while the text length is `0`. Any
+soundness check comparing the two counts has to special-case empty text, or it
+reports a fault on every blank row.
+
+**Vanilla's own `AppendString` already inserts at the caret**, not at the end
+(`:343442`) — so a replacement has to carry the insertion point over, or typing
+into the middle of a value starts appending at its end instead. `currentCharIndex`
+itself is `private` (`:343320`). It is still reachable, through the SDK's checked
+reflection rather than `System.Reflection` (see [resolving a private member](sandbox.md#reaching-a-private-member-resolving-it-is-only-half-the-job)); a mod
+that instead derives the index from the caret's position trades an authoritative
+counter for one recomputed from glyph metrics, which is what makes every
+divergence above load-bearing.
+
+### The typing path repeats keys on a timer of its own
+
+`Input.GetKeyDown` is an edge: one frame per press. CK's typing path is not.
+While a field is active, `MenuManager.HandleTypingInput` polls its keys through
+`MenuManager.IsKeyDown` (`Pug.Other:269693-269702`), which is a key-repeat:
+
+```csharp
+if (Input.GetKeyDown(keyCode) || (!checkOnlyOnPressedDown && Input.GetKey(keyCode) && (typingInputCooldown.isTimerElapsed || !typingInputCooldown.isRunning)))
+{
+    typingInputCooldown.Start(Input.GetKeyDown(keyCode) ? 0.3f : 0.05f);
+    return true;
+}
+```
+
+A held key therefore fires on the press, then again every 0.05 s after a 0.3 s
+delay. Backspace, Delete and the two arrow keys all go through it (`:269628`,
+`:269632`, `:269659`, `:269663`); Return and KeypadEnter pass
+`checkOnlyOnPressedDown: true` (`:269636`), which suppresses the repeat for them
+alone.
+
+**So a patch on the typing path that triggers on plain `Input.GetKeyDown` fires
+once while vanilla keeps going.** Hold the arrow key and the caret walks the
+whole value while the mod's reaction to it happens a single time. Switching to
+`Input.GetKey` is not the fix either: that fires *every* frame while vanilla
+moves only on its own ticks, so anything the patch does to compensate for
+vanilla's action is now wrong on all the frames in between. Matching the
+behaviour means carrying an equivalent timer — the two intervals above are the
+whole of it.
+
+**`IsKeyDown` also has a side effect worth knowing.** It sets
+`typingActionWasClicked` from `GetKeyUp || GetKeyDown || GetKey` (`:269695`), and
+that flag gates the two branches at the bottom of `HandleTypingInput` that reach
+`AppendString` at all — paste (`:269667`) and `Input.inputString` (`:269671`). So
+while any of those keys is held, typed characters and paste are suppressed for
+that frame; the flag is reset at the top of each call (`:269627`).
+
 ## Rebindable keybinds
 
 CoreLib's `ControlMappingModule` (a submodule, loaded in `EarlyInit`) puts a

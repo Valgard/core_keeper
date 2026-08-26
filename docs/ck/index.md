@@ -102,6 +102,8 @@ symptom, not the topic.
 | Masked content vanishes entirely once you add a second mask | [UI framework](ui-framework.md) — masks combine as OR, and a range whose lower bound sits on the target drops it out of both |
 | A second mask widens the clip instead of narrowing it | [UI framework](ui-framework.md) — same cause, seen from the other side |
 | Your HUD lands on top of another mod's | [Prefabs and rendering](prefabs-and-rendering.md) — sharing a corner, measured rather than referenced |
+| Typing inserts at the wrong position in a text field | [UI framework](ui-framework.md#glyph-positions-are-not-string-positions) — glyph positions are not string positions |
+| A held key repeats for the game and fires once for your patch | [UI framework](ui-framework.md#the-typing-path-repeats-keys-on-a-timer-of-its-own) — the typing path has a repeat timer of its own |
 | Players are blocked from joining your server | [Multiplayer and server](multiplayer-and-server.md), [Mod anatomy](mod-anatomy.md) — `requiredOn` |
 | "Game version mismatch" between client and server | [Multiplayer and server](multiplayer-and-server.md) — it is a mod-set mismatch |
 | Dedicated server fails to generate a world | [Multiplayer and server](multiplayer-and-server.md) — the server renders, so `-nographics` breaks it |
