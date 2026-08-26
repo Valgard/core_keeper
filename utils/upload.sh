@@ -29,10 +29,15 @@
 # edit for a shipped change note, so this mode is mod.io-only — Steam is skipped.
 #
 # --no-steam publishes to mod.io only. --steam-only skips mod.io and publishes
-# to Steam only (the two contradict each other). Steam always runs after
-# mod.io and never aborts it: by the time Steam runs, the mod.io release has
-# already happened and cannot be taken back, so a Steam failure is reported
-# and reflected in the exit code instead of being treated as fatal to the run.
+# to Steam only (the two contradict each other). Before mod.io even starts, a
+# preflight checks everything the Steam stage will need (steam-description.txt,
+# a resolvable dependency, ...); on failure it SKIPS Steam and lets the mod.io
+# release proceed rather than aborting the run, since that release is what the
+# invocation is actually for. (--steam-only has no mod.io release to protect,
+# so there a failed preflight is a hard error instead.) Once Steam does run, it
+# always runs after mod.io and never aborts it either: by then the mod.io
+# release has already happened and cannot be taken back, so a Steam failure is
+# reported and reflected in the exit code instead of being treated as fatal.
 #
 # Required env vars (set in the mod's .envrc):
 #   UNITY_BIN, SDK_PATH, MOD_NAME, CK_GAME_VERSION, MOD_SUMMARY
@@ -153,8 +158,17 @@ export CK_UTILS_DIR="$UTILS_DIR"
 # is derivable without a finished build (see check_prerequisites); the one
 # thing a Steam publish also needs — the built content folder — does not
 # exist yet at this point, which is exactly why it is not checked here.
+#
+# A failure here SKIPS the Steam stage, it does not abort the run: the
+# invariant below ("Steam can never fail the mod.io publish") has to hold
+# for a preflight failure too, not just for a failure once Steam is actually
+# uploading — otherwise a missing steam-description.txt would block a
+# release that has nothing to do with Steam. --steam-only is the one
+# exception: there is no mod.io release for the skip to protect, so a failed
+# preflight there means the whole invocation would do nothing, and that must
+# be a loud failure instead of a silent, misleading success.
 if [ "$STEAM_WILL_RUN" = "1" ]; then
-    python3 - <<'PY'
+    if ! python3 - <<'PY'
 import os, sys
 from pathlib import Path
 
@@ -167,6 +181,17 @@ except ValueError as err:
     print(f"ERROR: Steam preflight failed: {err}", file=sys.stderr)
     sys.exit(1)
 PY
+    then
+        if [ "$STEAM_ONLY" = "1" ]; then
+            echo "ERROR: Steam preflight failed (see above) — and --steam-only means" >&2
+            echo "       there is nothing else for this run to do." >&2
+            exit 1
+        fi
+        echo "! Steam preflight failed (see above) — skipping the Steam Workshop stage." >&2
+        echo "  The mod.io release below is unaffected. Fix the issue above, then re-run" >&2
+        echo "  with --steam-only to publish to Steam without cutting another mod.io release." >&2
+        STEAM_WILL_RUN=0
+    fi
 fi
 
 if [ "$STEAM_ONLY" != "1" ]; then
@@ -283,6 +308,11 @@ elif [ "$CHANGELOG_ONLY" = "1" ]; then
     echo "Skipping Steam (--changelog-only: no changelog-only edit on Steam)."
 elif [ "$PROFILE_ONLY" = "1" ]; then
     echo "Skipping Steam (--profile-only: no metadata-only path on Steam yet)."
+elif [ "$STEAM_WILL_RUN" != "1" ]; then
+    # Only reachable when the preflight above turned this off: none of the
+    # three flag-driven skips above fired, so STEAM_WILL_RUN started at 1 and
+    # was flipped afterward. The detailed reason already went to stderr there.
+    echo "Skipping Steam (preflight failed — see above)."
 else
     echo
     echo "Publishing $MOD_NAME to the Steam Workshop${PUBLISH_DRY_RUN:+ (dry run)}..."
