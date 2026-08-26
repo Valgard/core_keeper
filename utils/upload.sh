@@ -289,9 +289,11 @@ else
 
     # A scratch directory rather than a bare mktemp file: build_bundle wants a
     # .png path for the preview, and mktemp has no portable way to hand it one
-    # directly. Removing the directory at the end also covers the dotnet-run
-    # capture file below in one shot, so nothing from this stage outlives it.
+    # directly. A trap rather than an rm at the bottom of this branch: a Ctrl-C
+    # or a killed `dotnet run` below would otherwise skip that rm and leak the
+    # directory, the same reasoning fetch_steam_lib.sh's own trap documents.
     STEAM_TMP="$(mktemp -d -t ck-workshop.XXXXXX)"
+    trap 'rm -rf "$STEAM_TMP"' EXIT
     STEAM_PREVIEW="$STEAM_TMP/preview.png"
     STEAM_RESULT="$STEAM_TMP/result.log"
     steam_rc=0
@@ -321,19 +323,29 @@ PY
         # stdout+stderr share one file here on purpose: unlike the bundle build
         # above, nothing downstream captures this stream directly — it is
         # dumped to the operator's terminal and scanned for its last JSON line.
-        printf '%s' "$bundle" | dotnet run --project "$UTILS_DIR/ck-workshop" -- ${PUBLISH_DRY_RUN:+--dry-run} \
+        # timeout guards against a hung upload the same way mod.io's does —
+        # Facepunch's submit loop can spin indefinitely on a stalled connection.
+        printf '%s' "$bundle" | timeout 600 dotnet run --project "$UTILS_DIR/ck-workshop" -- ${PUBLISH_DRY_RUN:+--dry-run} \
             >"$STEAM_RESULT" 2>&1 || steam_rc=$?
         cat "$STEAM_RESULT" >&2
-        if [ "$steam_rc" = "0" ] && [ "${PUBLISH_DRY_RUN:-}" != "1" ]; then
-            # The result is the last '{...}' line: dotnet's own build/restore
-            # chatter and ck-workshop's progress lines (Program.cs) precede it
-            # in the same file. write_file_id raises on an asset it does not
-            # recognise (see steam_identity.py) — that must surface, not be
-            # swallowed, because a lost id makes the NEXT publish treat this
-            # item as new (steam_identity.read_file_id sees nothing) and risk
-            # creating a duplicate Workshop item. The Workshop upload itself
-            # already succeeded by this point, so this is reported as its own
-            # condition rather than folded into "publish failed".
+
+        if [ "${PUBLISH_DRY_RUN:-}" = "1" ]; then
+            if [ "$steam_rc" = "0" ]; then
+                echo "✓ Steam Workshop dry run complete — nothing was sent."
+            else
+                echo "✗ Steam Workshop dry run failed (exit $steam_rc)." >&2
+            fi
+        else
+            # Attempted regardless of steam_rc, not only on success: Program.cs
+            # now reports a Workshop item's id even when the publish failed
+            # afterward (a missed legal agreement, a network abort, a Ctrl-C),
+            # because CreateItem already ran by that point and the item exists
+            # on Steam whether or not the rest of the publish did. Losing that
+            # id here is exactly how the NEXT run would see no local id
+            # (steam_identity.read_file_id) and create a second, duplicate
+            # item over the orphaned one. write_file_id raises on an asset it
+            # does not recognise (see steam_identity.py) — that must surface,
+            # not be swallowed, for the same reason.
             write_rc=0
             python3 - "$STEAM_RESULT" "$REPO_ROOT" <<'PY' || write_rc=$?
 import json, os, sys
@@ -343,8 +355,14 @@ sys.path.insert(0, os.environ["CK_UTILS_DIR"])
 import steam_identity
 
 lines = [line for line in open(sys.argv[1]) if line.strip().startswith("{")]
+if not lines:
+    sys.exit(0)  # ck-workshop crashed before it could report anything at all
+
 result = json.loads(lines[-1])
 file_id = result["fileId"]
+if not file_id:
+    sys.exit(0)  # nothing was created on Steam — nothing to persist
+
 asset = Path(sys.argv[2]) / "unity" / os.environ["MOD_NAME"] / (os.environ["MOD_NAME"] + "_Steam.asset")
 
 try:
@@ -354,20 +372,31 @@ except Exception as err:
     print(f"    Fix {asset} by hand — it needs a 'fileId:' line set to {file_id} — then re-run.", file=sys.stderr)
     sys.exit(1)
 
-status = "created, hidden" if result["created"] else "updated"
-print(f"  Workshop item {file_id} ({status})")
+if result["success"]:
+    status = "created, hidden" if result["created"] else "updated"
+    print(f"  Workshop item {file_id} ({status})")
+else:
+    print(
+        f"  Workshop item {file_id} was created despite the failed publish above — "
+        "its id was saved so the next run reuses it instead of creating a duplicate.",
+        file=sys.stderr,
+    )
 PY
-            if [ "$write_rc" = "0" ]; then
-                echo "✓ Steam Workshop publish complete."
-            else
-                echo "! Steam Workshop publish succeeded, but the local file id was not saved (see above)." >&2
-                steam_rc=$write_rc
+            if [ "$write_rc" != "0" ]; then
+                echo "! A Workshop item's id could not be saved locally (see above)." >&2
+                # Only escalates a clean steam_rc: if the publish itself
+                # already failed, that failure — not this one — is why the
+                # run is non-zero.
+                [ "$steam_rc" = "0" ] && steam_rc=$write_rc
             fi
-        elif [ "$steam_rc" != "0" ]; then
-            echo "✗ Steam Workshop publish failed (exit $steam_rc)." >&2
+
+            case "$steam_rc" in
+                0) echo "✓ Steam Workshop publish complete." ;;
+                7) echo "! Steam Workshop publish complete, but dependency sync had failures (see above)." >&2 ;;
+                *) echo "✗ Steam Workshop publish failed (exit $steam_rc)." >&2 ;;
+            esac
         fi
     fi
 
-    rm -rf "$STEAM_TMP"
     exit "$steam_rc"
 fi
