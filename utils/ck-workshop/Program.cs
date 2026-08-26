@@ -8,6 +8,22 @@
 // Why not the SDK's own Steam Workshop tab: it never writes a change note, it
 // keys its stored File ID on the display title (CoreKeeperModSDK#11), and it
 // finds its content through a five-entry UI ring buffer.
+//
+// Exit codes, which utils/upload.sh reports as the run's own:
+//   0  published — or a dry run, which sends nothing and says so
+//   2  the bundle on stdin is unusable (not JSON, empty, no contentPath)
+//   3  Steam would not initialise — client not running, or the native library
+//   4  the target item does not exist, or belongs to another account
+//   5  the submit failed; an id may still have been emitted for a created item
+//   6  an unexpected exception
+//   7  published, but the dependency sync had failures
+//
+// 1 is not assigned here; upload.sh uses it for its own failures (assembling
+// the bundle, persisting an id). 8 is NOT free either, though nothing below
+// returns it: upload.sh means "Steam never started, because its preflight
+// failed" by it — a state this tool cannot report, since in it the tool never
+// runs. Taking 8 here would merge two outcomes an operator has to tell apart,
+// so a new code goes to 9 or higher.
 
 using System;
 using System.Collections.Generic;
