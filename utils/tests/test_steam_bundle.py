@@ -117,6 +117,26 @@ def test_requiredOn_0_produces_no_application_type_tag():
     assert "Client" not in tags and "Server" not in tags
 
 
+def test_requiredOn_is_read_bitwise_not_looked_up():
+    # The SDK's own settings GUI writes -1 ("Everything") when "Client and
+    # Server" is picked, and the mod.io side reads the field bitwise, so it
+    # tags both. Anything that maps whole values instead drops the tags for
+    # that one input — and Steam discards a missing tag without a word.
+    tags = steam_bundle.derive_tags({"requiredOn": -1, "skipSafetyChecks": 0}, "Visual")
+
+    assert "Client" in tags and "Server" in tags
+
+
+def test_an_unknown_application_type_warns_instead_of_going_out_silently(capsys):
+    # 0 is legitimate — a mod that gates nothing — but it is also what an unset
+    # field reads as, and only the author can tell the two apart. mod.io says so
+    # on its own path; saying it on one platform only is how they diverge.
+    steam_bundle.derive_tags({"requiredOn": 0, "skipSafetyChecks": 0}, "Visual")
+
+    err = capsys.readouterr().err
+    assert "Application Type" in err and "requiredOn" in err
+
+
 def test_elevated_access_changes_the_access_tag():
     tags = steam_bundle.derive_tags({"requiredOn": 1, "skipSafetyChecks": 1}, "Library")
 

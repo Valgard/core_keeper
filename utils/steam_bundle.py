@@ -25,8 +25,9 @@ DEPENDENCY = re.compile(
 )
 
 # requiredOn is a [Flags] enum: None=0, Client=1, Server=2, ClientAndServer=3.
-# 0 is valid and means "gates nothing", so it produces no Application Type tag.
-APPLICATION_TYPE = {1: ["Client"], 2: ["Server"], 3: ["Client", "Server"]}
+# The [Flags] bits of ModExistsOn, in the order the tags should appear. 0 is
+# valid and means "gates nothing", so it produces no Application Type tag.
+APPLICATION_TYPE = ((1, "Client"), (2, "Server"))
 
 
 def parse_changelog(text: str) -> tuple[str, str]:
@@ -129,9 +130,27 @@ def derive_tags(metadata: Mapping[str, object], modio_type: str) -> list[str]:
     Sent flat: Core Keeper's Workshop configuration owns the grouping, so a
     value like "Quality of Life" needs no prefix. Steam drops an unknown value
     without a word, exactly as mod.io does.
+
+    `requiredOn` is read bit by bit, the way the mod.io path reads it — it is a
+    [Flags] enum, and the SDK's own settings GUI writes -1 ("Everything") when
+    "Client and Server" is picked. Mapping whole values instead would tag that
+    input with nothing at all, on the one platform that never says a tag went
+    missing, while mod.io tagged both from the same field.
     """
     tags = [part.strip() for part in modio_type.split("|") if part.strip()]
-    tags += APPLICATION_TYPE.get(int(metadata.get("requiredOn", 0) or 0), [])
+
+    required_on = int(metadata.get("requiredOn", 0) or 0)
+    app_types = [name for bit, name in APPLICATION_TYPE if required_on & bit]
+    if not app_types:
+        # Legitimate for a mod that gates neither side — and equally what an
+        # unset field reads as. Only the author can tell those apart, so it
+        # earns a line rather than silence, as it does on the mod.io side.
+        print(
+            f"  ! requiredOn is {required_on} — publishing with no 'Application Type' tag. "
+            "Set 1 (Client), 2 (Server) or 3 (both) if that was not intended.",
+            file=sys.stderr,
+        )
+    tags += app_types
     tags.append(
         "Script (Elevated Access)"
         if int(metadata.get("skipSafetyChecks", 0) or 0)
