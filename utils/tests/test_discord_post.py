@@ -510,3 +510,90 @@ def test_json_mode_reports_no_thread_as_null_not_as_an_empty_string(tmp_path, ca
     _run_main(tmp_path, monkeypatched=dict(_ENV, MOD_NAME="ProbeMod"), args=["--json"])
 
     assert _json.loads(capsys.readouterr().out)["thread"] is None
+
+
+_CHANGELOG = """# Changelog
+
+Preamble that is not part of any release.
+
+## [1.4.0] - 2026-08-12
+
+Tools stop wearing down twice as slowly.
+
+### Changed
+
+- The toggle now applies without a restart.
+- Accented characters come from the font mod.
+
+## [1.3.5] - 2026-08-06
+
+### Fixed
+
+- Declared as client-only.
+"""
+
+
+def test_update_takes_the_topmost_entry_and_nothing_below_it():
+    version, comment = dp.render_update(
+        _CHANGELOG, supported=["1.2.1.5"], known=["1.2.1.5"], slug="probe-mod"
+    )
+
+    assert version == "1.4.0"
+    assert "applies without a restart" in comment
+    assert "client-only" not in comment
+
+
+def test_update_drops_the_section_headings_but_keeps_the_bullets():
+    """'### Changed' is changelog scaffolding; in a chat message it reads as a
+    heading with one line under it."""
+    _, comment = dp.render_update(
+        _CHANGELOG, supported=["1.2.1.5"], known=["1.2.1.5"], slug="probe-mod"
+    )
+
+    assert "### Changed" not in comment
+    assert "- The toggle now applies without a restart." in comment
+
+
+def test_update_opens_by_naming_the_version():
+    _, comment = dp.render_update(
+        _CHANGELOG, supported=["1.2.1.5"], known=["1.2.1.5"], slug="probe-mod"
+    )
+
+    assert comment.startswith("**Version 1.4.0**")
+
+
+def test_update_refuses_an_over_long_comment_instead_of_trimming_it():
+    long_entry = "## [2.0.0] - 2026-08-26\n\n" + ("word " * 500)
+
+    with pytest.raises(ValueError, match="characters"):
+        dp.render_update(
+            long_entry, supported=["1.2.1.5"], known=["1.2.1.5"], slug="probe-mod"
+        )
+
+
+def test_a_changelog_without_a_release_entry_says_so():
+    with pytest.raises(ValueError, match="no '## \\[x.y.z\\]' entry"):
+        dp.render_update(
+            "# Changelog\n\nNothing released yet.\n",
+            supported=["1.2.1.5"],
+            known=["1.2.1.5"],
+            slug="probe-mod",
+        )
+
+
+def test_update_mode_announces_the_version_rather_than_the_whole_post(tmp_path, capsys):
+    """An existing thread does not need the mod explained again."""
+    (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
+    (tmp_path / "CHANGELOG.md").write_text(_CHANGELOG)
+    logo = tmp_path / "unity" / "ProbeMod" / "Editor" / "logo.png"
+    logo.parent.mkdir(parents=True)
+    logo.write_bytes(b"\x89PNG")
+
+    code = _run_main(
+        tmp_path, monkeypatched=dict(_ENV, MOD_NAME="ProbeMod"), args=["--update"]
+    )
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert out.startswith("**Version 1.4.0**")
+    assert "Body." not in out

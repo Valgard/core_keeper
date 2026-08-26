@@ -97,6 +97,36 @@ def render(markdown, *, supported, known, tags, slug):
     return post
 
 
+def render_update(changelog, *, supported, known, slug):
+    """The comment announcing a new version in an existing thread.
+
+    CHANGELOG.md is already the canonical release source -- CLIPublishHelper
+    publishes the same topmost entry -- so a separate file would be a second
+    place to keep in step, and the version line would drift the way it did
+    before it was generated.
+    """
+    entries = re.split(r"^## \[([0-9.]+)\][^\n]*\n", changelog, flags=re.M)
+    if len(entries) < 3:
+        raise ValueError("no '## [x.y.z]' entry in the changelog")
+    version, body = entries[1], entries[2]
+
+    blocks = [_unwrap(b) for b in body.strip().split("\n\n")]
+    # '### Changed' is changelog scaffolding. In a chat message it renders as a
+    # heading owning a single bullet, which reads as emphasis nobody intended.
+    blocks = [b for b in blocks if b and not b.startswith("###")]
+    # The version line keeps its own bold markers, so it gets its own line
+    # rather than being spliced into one -- concatenating two bold runs with a
+    # dash between them produces stray asterisks mid-sentence.
+    comment = (
+        f"**Version {version}**\n{version_line(supported, known)}\n\n"
+        + "\n\n".join(blocks)
+        + f"\n\n<https://mod.io/g/corekeeper/m/{slug}>"
+    )
+    if len(comment) > LIMIT:
+        raise ValueError(f"comment is {len(comment)} characters — {LIMIT} is the limit")
+    return version, comment
+
+
 def resolve_media(repo, env, mod_name):
     """Split CK_DISCORD_MEDIA into attachments and follow-up URLs.
 
@@ -166,7 +196,7 @@ def _unwrap(block):
     return "\n".join(out)
 
 
-def render_repo(repo, env, known):
+def render_repo(repo, env, known, *, update=False):
     """Render the post for one mod repo, or None when it has no `discord-post.md`.
 
     A mod need not have a forum thread, so a missing file is skipped. That is
@@ -214,6 +244,27 @@ def render_repo(repo, env, known):
             f"{VERSIONS_FILENAME} does not list as a shipped build — a typo, or "
             "a build to add (utils/refresh_game_versions.py)"
         )
+
+    if update:
+        changelog = pathlib.Path(repo) / "CHANGELOG.md"
+        if not changelog.is_file():
+            raise ValueError("no CHANGELOG.md to take the version comment from")
+        version, comment = render_update(
+            changelog.read_text(),
+            supported=env["CK_GAME_VERSION"].split(),
+            known=known,
+            slug=env["MOD_NAME_ID"],
+        )
+        attachments, follow_ups = resolve_media(repo, env, env["MOD_NAME"])
+        return {
+            "title": f"version {version}",
+            "body": comment,
+            "tags": [],
+            "attachments": [],
+            "follow_ups": follow_ups,
+            "thread": env.get("CK_DISCORD_THREAD", "").strip() or None,
+            "length": len(comment),
+        }
 
     markdown = source.read_text()
     # [^\S\n] rather than \s: the latter spans newlines, so a bare '#' line took
@@ -287,13 +338,14 @@ def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     check_only = "--check" in argv
     as_json = "--json" in argv
-    paths = [a for a in argv if a not in ("--check", "--json")]
+    update = "--update" in argv
+    paths = [a for a in argv if a not in ("--check", "--json", "--update")]
     # Without this, `--chek` becomes a path, render_repo finds no post there and
     # the run succeeds in silence -- the same outcome as "all fine".
     unknown = [a for a in paths if a.startswith("-")]
     if unknown or len(paths) > 1:
         print(
-            f"usage: discord_post.py [mod-repo-path] [--check]\n"
+            f"usage: discord_post.py [mod-repo-path] [--check] [--json] [--update]\n"
             f"       got: {' '.join(argv)}",
             file=sys.stderr,
         )
@@ -302,7 +354,7 @@ def main(argv=None):
 
     known = known_versions()
     try:
-        result = render_repo(repo, os.environ, known)
+        result = render_repo(repo, os.environ, known, update=update)
     except ValueError as err:
         print(f"discord_post: {repo.name or repo}: {err}", file=sys.stderr)
         return EXIT_CONTENT
