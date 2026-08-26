@@ -72,6 +72,15 @@ if "$UNITY_BIN" \
         -logFile - \
         -quit; then
     echo "✓ Build complete."
+    # Tell the SDK window about this build. Its Steam Workshop tab finds the folder
+    # it uploads only through ModPaths.asset, which otherwise just CreateMod.cs
+    # fills -- so without this a batchmode build is invisible there and the tab
+    # says "No built mod found". Registered is the content folder ModBuilder
+    # created, not the staging dir: only that one ends in the PascalCase mod name
+    # the tab matches on. Never fatal -- the mod is already built.
+    python3 "$UTILS_DIR/register_build_path.py" \
+        "$SDK_PATH/Packages/dev.pugstorm.mod/SDK/Editor/ModPaths.asset" \
+        "$MOD_INSTALL_PATH/$MOD_NAME" || true
 else
     echo "✗ Build failed. Check Unity log output above for errors." >&2
     exit 2
