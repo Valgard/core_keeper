@@ -29,6 +29,12 @@ TAGS_FILENAME = "ck-discord-tags.json"
 LIMIT = 2000
 TITLE_LIMIT = 100
 MAX_TAGS = 5
+# Discord's own ceiling per message. The logo always holds slot one, so a mod
+# may configure nine more.
+MAX_ATTACHMENTS = 10
+# Discord's non-Nitro upload ceiling. It has moved repeatedly (25 -> 8 -> 10 MB),
+# which is why it is a constant here rather than a number in a message.
+SIZE_LIMIT = 10 * 1024 * 1024
 
 
 def _norm(version):
@@ -89,6 +95,46 @@ def render(markdown, *, supported, known, tags, slug):
     if len(post) > LIMIT:
         raise ValueError(f"post is {len(post)} characters — {LIMIT} is the limit")
     return post
+
+
+def resolve_media(repo, env, mod_name):
+    """Split CK_DISCORD_MEDIA into attachments and follow-up URLs.
+
+    The logo always leads, so every thread carries the same kind of preview
+    image in the channel list. An entry that parses as an http(s) URL becomes
+    its own follow-up message -- Discord replaces a message consisting of
+    nothing but a media URL with the medium itself, which is the only way a
+    38 MB clip reaches a post at all.
+    """
+    repo = pathlib.Path(repo)
+    logo = repo / "unity" / mod_name / "Editor" / "logo.png"
+    if not logo.is_file():
+        raise ValueError(f"no logo at {logo.relative_to(repo)} — is MOD_NAME right?")
+
+    attachments, follow_ups = [logo], []
+    for entry in (e.strip() for e in env.get("CK_DISCORD_MEDIA", "").split("|")):
+        if not entry:
+            continue
+        if entry.startswith(("http://", "https://")):
+            follow_ups.append(entry)
+            continue
+        path = repo / entry
+        if not path.is_file():
+            raise ValueError(f"CK_DISCORD_MEDIA names {entry}, which is not a file")
+        attachments.append(path)
+
+    if len(attachments) > MAX_ATTACHMENTS:
+        raise ValueError(
+            f"{len(attachments)} attachments including the logo — "
+            f"Discord accepts {MAX_ATTACHMENTS}"
+        )
+    total = sum(p.stat().st_size for p in attachments)
+    if total > SIZE_LIMIT:
+        raise ValueError(
+            f"attachments total {total // 1024} KB, which exceeds the "
+            f"{SIZE_LIMIT // 1024} KB Discord accepts without Nitro"
+        )
+    return attachments, follow_ups
 
 
 def _unwrap(block):

@@ -376,3 +376,89 @@ def test_forum_tags_come_from_the_data_file_not_the_code():
 
     assert "Misc / Other" in tags
     assert len(tags) == 20
+
+
+def _mod_tree(tmp_path, *, media=None, extra_files=()):
+    """A repo with the logo every mod has, plus whatever the test needs."""
+    logo = tmp_path / "unity" / "ProbeMod" / "Editor" / "logo.png"
+    logo.parent.mkdir(parents=True)
+    logo.write_bytes(b"\x89PNG" + b"0" * 100)
+    for name, size in extra_files:
+        f = tmp_path / name
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_bytes(b"0" * size)
+    env = dict(_ENV)
+    if media is not None:
+        env["CK_DISCORD_MEDIA"] = media
+    return env
+
+
+def test_the_logo_leads_even_when_no_media_is_configured(tmp_path):
+    """Empty is a legitimate statement about a mod with nothing to show --
+    unlike CK_DISCORD_TAGS, where empty is an omission."""
+    env = _mod_tree(tmp_path, media="")
+
+    attachments, follow_ups = dp.resolve_media(tmp_path, env, "ProbeMod")
+
+    assert [p.name for p in attachments] == ["logo.png"]
+    assert follow_ups == []
+
+
+def test_paths_become_attachments_and_urls_become_follow_ups(tmp_path):
+    """The value says which kind it is, so one variable keeps the order across
+    both -- a second variable would force the author to classify up front."""
+    env = _mod_tree(
+        tmp_path,
+        media="sources/a.png|https://example.invalid/clip.gif|sources/b.png",
+        extra_files=[("sources/a.png", 10), ("sources/b.png", 10)],
+    )
+
+    attachments, follow_ups = dp.resolve_media(tmp_path, env, "ProbeMod")
+
+    assert [p.name for p in attachments] == ["logo.png", "a.png", "b.png"]
+    assert follow_ups == ["https://example.invalid/clip.gif"]
+
+
+def test_a_missing_media_file_is_refused_before_the_browser_opens(tmp_path):
+    """Finding this out in the post dialog means the text is already typed."""
+    env = _mod_tree(tmp_path, media="sources/gone.png")
+
+    with pytest.raises(ValueError, match="gone.png"):
+        dp.resolve_media(tmp_path, env, "ProbeMod")
+
+
+def test_more_attachments_than_discord_accepts_are_refused(tmp_path):
+    """Ten is Discord's ceiling and the logo holds slot one, so nine remain."""
+    names = [f"sources/f{i}.png" for i in range(10)]
+    env = _mod_tree(
+        tmp_path, media="|".join(names), extra_files=[(n, 10) for n in names]
+    )
+
+    with pytest.raises(ValueError, match="attachments"):
+        dp.resolve_media(tmp_path, env, "ProbeMod")
+
+
+def test_media_over_the_size_ceiling_is_refused(tmp_path, monkeypatch):
+    """auto-rail-bridges has 38 MB GIFs sitting in sources/; attaching one
+    fails in the dialog after everything else is already filled in.
+
+    The ceiling is patched down rather than writing a 10 MB file: the test is
+    about the comparison, not about the constant's value.
+    """
+    monkeypatch.setattr(dp, "SIZE_LIMIT", 200)
+    env = _mod_tree(
+        tmp_path,
+        media="sources/huge.png",
+        extra_files=[("sources/huge.png", 500)],
+    )
+
+    with pytest.raises(ValueError, match="exceeds"):
+        dp.resolve_media(tmp_path, env, "ProbeMod")
+
+
+def test_a_missing_logo_is_refused_because_it_always_leads(tmp_path):
+    """Every mod has one; its absence means the mod name is wrong."""
+    (tmp_path / "sources").mkdir()
+
+    with pytest.raises(ValueError, match="logo"):
+        dp.resolve_media(tmp_path, dict(_ENV), "ProbeMod")
