@@ -22,9 +22,17 @@ after someone next opens the Editor is one the repo cannot hold — see
 ../docs/publishing.md on committing this asset.
 """
 
+import os
 import re
+import shutil
+import subprocess
+import sys
 import uuid
 from pathlib import Path
+
+# Long enough that a cold index or a network-backed checkout answers, short
+# enough that a publish never stalls on a question it is allowed not to answer.
+GIT_TIMEOUT_SECONDS = 10
 
 # Reading and recognising: the value must be a number, so a file that merely
 # has the word in it is not mistaken for an identity asset.
@@ -103,16 +111,75 @@ def read_file_id(asset: Path) -> int | None:
     return int(match.group(2)) or None
 
 
-def ensure_recognizable(asset: Path) -> None:
-    """Raise before any Steam call if an existing asset has no `fileId:` line.
+def is_tracked(asset: Path) -> bool | None:
+    """Whether git has this file in its index — None when git cannot say.
 
-    A missing asset is fine — that is a mod's first publish, and one will be
-    created from TEMPLATE. An existing file that write_file_id would refuse
-    (see below) is not fine, and the whole point is to find that out HERE:
-    checked after the read above, this still runs before the Steam upload
-    that follows it, so a bad asset aborts before a Workshop item is created
-    rather than after — an item created and then unrecognized on write would
-    be a live, duplicate-risking item whose id has nowhere to go.
+    Three answers, not two. "git says no" and "git could not be asked" look
+    the same to a caller that collapses them into False, and they call for
+    opposite responses: the first is a real hazard worth a warning, the second
+    is a checkout with no repository, no git binary, or a layout this does not
+    understand — none of which is the author's problem to be told about.
+
+    `ls-files --error-unmatch` rather than `status`: it answers exactly the
+    question (is this path in the index) with an exit code, so nothing has to
+    parse porcelain output, and staged-but-uncommitted counts as tracked —
+    which is right, that file is on its way into the commit.
+    """
+    if shutil.which("git") is None:
+        return None
+    # GIT_DIR and GIT_INDEX_FILE outrank -C, so inherited they would have git
+    # answer about whatever repository invoked the publish rather than the
+    # mod's. Measured: a tracked asset then reports untracked, and a warning
+    # that fires on a correctly committed asset is one the author stops
+    # reading. Same defence check_docs_wrapping.markdown_files documents.
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    try:
+        completed = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(asset.parent),
+                "ls-files",
+                "--error-unmatch",
+                "--",
+                asset.name,
+            ],
+            capture_output=True,
+            timeout=GIT_TIMEOUT_SECONDS,
+            env=env,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    # Measured against git 2.x: 0 = in the index, 1 = "did not match any
+    # file(s) known to git", 128 = not a repository at all. Anything else is
+    # a reading this does not have, and guessing at one here would turn a
+    # note into a false alarm.
+    return {0: True, 1: False}.get(completed.returncode)
+
+
+def ensure_recognizable(asset: Path) -> None:
+    """Check the identity asset at the point where losing its id would hurt.
+
+    Two things, both about the same failure — a Workshop item alive on Steam
+    with its id recorded nowhere:
+
+    First, raise if an existing asset has no `fileId:` line. A missing asset
+    is fine — that is a mod's first publish, and one will be created from
+    TEMPLATE. An existing file that write_file_id would refuse (see below) is
+    not fine, and the whole point is to find that out HERE: checked after the
+    read above, this still runs before the Steam upload that follows it, so a
+    bad asset aborts before a Workshop item is created rather than after — an
+    item created and then unrecognized on write would be a live,
+    duplicate-risking item whose id has nowhere to go.
+
+    Second, warn — never raise — if git does not have the asset. See
+    ../docs/publishing.md: an untracked asset is one `git clean` or fresh
+    checkout away from taking the id with it, after which the next publish
+    creates a second Workshop item indistinguishable from the first. That is a
+    hazard to the NEXT run, not this one, and this run's caller
+    (steam_bundle.check_prerequisites) aborts the mod.io release too — so
+    raising would cancel a release that is in no danger, over something a
+    single `git add` fixes.
     """
     if not asset.is_file():
         return
@@ -122,6 +189,26 @@ def ensure_recognizable(asset: Path) -> None:
             "Fix or remove it before publishing: found only after the upload, this would "
             "leave a newly created Workshop item with its id unrecorded."
         )
+    warn_if_untracked(asset)
+
+
+def warn_if_untracked(asset: Path) -> None:
+    """Say so, once, when the Workshop id is only as durable as a temp file.
+
+    Only on a definite "no" from git: silence covers both "tracked" and
+    "unanswerable", because a note that fires on every checkout without a
+    repository is one an author learns to scroll past — including on the
+    publish where it is true.
+    """
+    if is_tracked(asset) is not False:
+        return
+    print(
+        f"  ! {asset} is not tracked by git — the Workshop id it holds would be lost "
+        "to a `git clean` or a fresh checkout, and the next publish would then create "
+        "a SECOND Workshop item beside the existing one.",
+        file=sys.stderr,
+    )
+    print(f"    Commit it: git add {asset}", file=sys.stderr)
 
 
 def _set_scalar(text: str, pattern: re.Pattern, value: object) -> str:

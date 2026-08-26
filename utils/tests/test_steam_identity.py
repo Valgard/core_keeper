@@ -6,6 +6,9 @@ title and looked up by metadata.name, so it goes stale the moment a readable
 title is used (CoreKeeperModSDK#11) — reading it would inherit the defect.
 """
 
+import shutil
+import subprocess
+
 import pytest
 import steam_identity
 
@@ -247,3 +250,125 @@ def test_the_asset_path_is_where_a_mod_repo_keeps_it(tmp_path):
         steam_identity.asset_path(tmp_path, "DisableDurability")
         == tmp_path / "unity" / "DisableDurability" / "DisableDurability_Steam.asset"
     )
+
+
+# --- is the id durable, or one `git clean` from gone? ---------------------
+
+needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+
+
+@pytest.fixture
+def repo(tmp_path):
+    """A real git repo with the asset in it — untracked until `add` is called.
+
+    Against the real binary rather than a mock: what is being checked here is
+    an exit code contract with git itself (0 tracked / 1 untracked / 128 not a
+    repo), and a mock would only assert that this file's own assumptions match
+    themselves.
+    """
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    asset = steam_identity.asset_path(tmp_path, "DisableDurability")
+    asset.parent.mkdir(parents=True)
+    asset.write_text(ASSET)
+    return asset
+
+
+@needs_git
+def test_a_committed_asset_is_seen_as_tracked(repo):
+    subprocess.run(["git", "-C", str(repo.parent), "add", repo.name], check=True)
+
+    assert steam_identity.is_tracked(repo) is True
+
+
+@needs_git
+def test_an_untracked_asset_is_seen_as_untracked(repo):
+    assert steam_identity.is_tracked(repo) is False
+
+
+def test_outside_a_repo_the_question_has_no_answer(tmp_path):
+    # Not False: "git cannot tell us" and "git says no" must not collapse into
+    # one, or an unusual setup would be reported as a hazard it is not in.
+    asset = tmp_path / "Loose_Steam.asset"
+    asset.write_text(ASSET)
+
+    assert steam_identity.is_tracked(asset) is None
+
+
+@needs_git
+def test_without_git_the_question_has_no_answer(repo, monkeypatch):
+    # Deliberately an asset that IS in a repo and IS untracked, so a real
+    # answer of False is available — and must still come back as None once the
+    # binary is gone. In a non-repo directory both paths return None and the
+    # test could not tell them apart.
+    monkeypatch.setattr(steam_identity.shutil, "which", lambda _: None)
+
+    assert steam_identity.is_tracked(repo) is None
+
+
+@needs_git
+def test_an_inherited_GIT_DIR_does_not_answer_for_another_repo(
+    repo, tmp_path, monkeypatch
+):
+    # GIT_DIR and GIT_INDEX_FILE outrank -C. Inherited from whatever invoked
+    # the publish, they would have git answer about a different repository —
+    # and the answer that costs something is the false "tracked", which would
+    # withhold the warning on the one asset that needs it. Same defence
+    # check_docs_wrapping.markdown_files already documents.
+    subprocess.run(["git", "-C", str(repo.parent), "add", repo.name], check=True)
+    decoy = tmp_path / "decoy"
+    subprocess.run(["git", "init", "-q", str(decoy)], check=True)
+    monkeypatch.setenv("GIT_DIR", str(decoy / ".git"))
+    monkeypatch.setenv("GIT_INDEX_FILE", str(decoy / ".git" / "index"))
+
+    assert steam_identity.is_tracked(repo) is True
+
+
+@needs_git
+def test_ensure_recognizable_warns_about_an_untracked_asset(repo, capsys):
+    steam_identity.ensure_recognizable(repo)
+
+    err = capsys.readouterr().err
+    assert "not tracked by git" in err
+    # The message has to carry the fix, not just the diagnosis: this is read
+    # in the middle of a publish, by someone who is not thinking about git.
+    assert f"git add {repo}" in err
+
+
+@needs_git
+def test_ensure_recognizable_stays_quiet_about_a_tracked_asset(repo, capsys):
+    subprocess.run(["git", "-C", str(repo.parent), "add", repo.name], check=True)
+
+    steam_identity.ensure_recognizable(repo)
+
+    assert capsys.readouterr().err == ""
+
+
+def test_ensure_recognizable_stays_quiet_when_git_cannot_answer(tmp_path, capsys):
+    asset = tmp_path / "Loose_Steam.asset"
+    asset.write_text(ASSET)
+
+    steam_identity.ensure_recognizable(asset)
+
+    assert capsys.readouterr().err == ""
+
+
+def test_ensure_recognizable_says_nothing_about_an_asset_that_does_not_exist(
+    tmp_path, capsys
+):
+    # A mod's first publish. There is no file to track yet, so a warning here
+    # would be advice about something that does not exist.
+    steam_identity.ensure_recognizable(tmp_path / "absent.asset")
+
+    assert capsys.readouterr().err == ""
+
+
+@needs_git
+def test_a_bad_asset_is_refused_before_it_is_judged_on_tracking(repo, capsys):
+    # Order matters: an asset that will not hold an id at all is the bigger
+    # problem, and burying that raise under a git note would read as advice.
+    repo.write_text("this is not a Steam asset at all\n")
+
+    with pytest.raises(ValueError, match="fileId"):
+        steam_identity.ensure_recognizable(repo)
+
+    assert capsys.readouterr().err == ""

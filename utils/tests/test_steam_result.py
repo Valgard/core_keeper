@@ -9,6 +9,8 @@ nothing", because doing nothing is only correct when nothing was created.
 """
 
 import json
+import shutil
+import subprocess
 
 import pytest
 import steam_identity
@@ -235,6 +237,56 @@ def test_a_zero_mod_owner_leaves_the_stored_one_alone(scenario):
 
     assert code == 0
     assert "modOwner: 10000000000000000" in asset.read_text()
+
+
+# --- the asset this run brought into existence ----------------------------
+
+
+needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+
+
+@needs_git
+def test_an_asset_created_by_this_run_is_flagged_as_untracked(tmp_path, capsys):
+    # The moment docs/publishing.md is actually about: "Commit it once, right
+    # after the first Steam publish." check_prerequisites cannot cover this —
+    # it ran before the file existed — so the warning has to happen here or
+    # nowhere, and here the file holds a brand-new public item's only id.
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    asset = steam_identity.asset_path(tmp_path, MOD)
+    asset.parent.mkdir(parents=True)
+    result = tmp_path / "result.txt"
+    result.write_text(result_line(4242424242, created=True, success=True) + "\n")
+
+    code = steam_result.main(
+        ["steam_result.py", str(result), str(tmp_path)],
+        env={"MOD_NAME": MOD, "CK_STEAM_BUNDLE": BUNDLE},
+    )
+
+    assert code == 0
+    assert steam_identity.read_file_id(asset) == 4242424242
+    err = capsys.readouterr().err
+    assert "not tracked by git" in err
+    assert f"git add {asset}" in err
+
+
+@needs_git
+def test_an_asset_that_already_existed_is_not_flagged_again(tmp_path, capsys):
+    # check_prerequisites already said it this run, before the mod.io release.
+    # Saying it twice per publish is how it stops being read at all.
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    asset = steam_identity.asset_path(tmp_path, MOD)
+    asset.parent.mkdir(parents=True)
+    asset.write_text(ASSET)
+    result = tmp_path / "result.txt"
+    result.write_text(result_line(4242424242, created=False, success=True) + "\n")
+
+    code = steam_result.main(
+        ["steam_result.py", str(result), str(tmp_path)],
+        env={"MOD_NAME": MOD, "CK_STEAM_BUNDLE": BUNDLE},
+    )
+
+    assert code == 0
+    assert "not tracked by git" not in capsys.readouterr().err
 
 
 def test_an_unreadable_result_file_reports_rather_than_traces(tmp_path, capsys):

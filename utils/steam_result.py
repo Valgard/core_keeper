@@ -91,6 +91,14 @@ def main(argv: list[str], env: Mapping[str, str] | None = None) -> int:
         return 0  # nothing was created on Steam — nothing to persist
 
     asset = steam_identity.asset_path(Path(argv[2]), mod_name)
+    # Noted before the write, used after it. check_prerequisites warns about an
+    # untracked asset, but it can only warn about one that already existed when
+    # it ran — and the asset a first publish creates, holding a brand-new public
+    # item's only id, is exactly the one docs/publishing.md says to commit. It
+    # comes into being here, after every check, so this is the only place that
+    # can say so; an asset that was already there was already covered, and
+    # saying it twice per publish is how it stops being read.
+    created_the_asset = not asset.is_file()
 
     # The fields only the SDK window reads. Each falls back to None — leave
     # what is already there — rather than to a blank: modOwner is 0 whenever
@@ -120,6 +128,9 @@ def main(argv: list[str], env: Mapping[str, str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+
+    if created_the_asset:
+        steam_identity.warn_if_untracked(asset)
 
     if result["success"]:
         status = "created, hidden" if result["created"] else "updated"
