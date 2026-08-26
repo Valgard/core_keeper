@@ -7,10 +7,20 @@ as a readable title is used (CoreKeeperModSDK#11); keying on it here would
 inherit that defect.
 
 Only the fileId line is touched on write. The asset also carries modOwner, tags
-and a selectedPath, and every one of those belongs to the SDK window.
+and a selectedPath, and every one of those belongs to the SDK window — filling
+them here would be worse than leaving them empty: the SDK never reads modOwner
+back (it only writes it), selectedPath is an absolute path valid on one machine,
+and tags would be a second copy of what the publish derives fresh each time.
+modOwner has a further cost, since ModBuilder ships everything in the mod's
+asset folder: writing it would put the author's SteamID64 inside every mod.
+
+A created asset gets its .meta too, because a GUID carrier that only exists
+after someone next opens the Editor is one the repo cannot hold — see
+../docs/publishing.md on committing this asset.
 """
 
 import re
+import uuid
 from pathlib import Path
 
 FILE_ID = re.compile(r"^(\s*fileId:\s*)(\d+)\s*$", re.MULTILINE)
@@ -34,6 +44,18 @@ MonoBehaviour:
   modName: {mod_name}
   selectedPath:\x20
   tags: []
+"""
+
+# Unity's own shape for a ScriptableObject asset, copied from one the SDK
+# generated. mainObjectFileID matches the &11400000 anchor in TEMPLATE above.
+META_TEMPLATE = """fileFormatVersion: 2
+guid: {guid}
+NativeFormatImporter:
+  externalObjects: {{}}
+  mainObjectFileID: 11400000
+  userData:\x20
+  assetBundleName:\x20
+  assetBundleVariant:\x20
 """
 
 
@@ -99,3 +121,11 @@ def write_file_id(asset: Path, file_id: int) -> None:
     asset.write_text(
         TEMPLATE.format(name=asset.stem, file_id=file_id, mod_name=mod_name)
     )
+
+    # Never overwritten, only supplied when missing: once a .meta exists its
+    # GUID is the one Unity — and anything referencing the asset — already
+    # knows, and this asset outliving its own .meta (deleted by hand, dropped
+    # by a checkout) is exactly when replacing it would do damage.
+    meta = asset.parent / f"{asset.name}.meta"
+    if not meta.exists():
+        meta.write_text(META_TEMPLATE.format(guid=uuid.uuid4().hex))

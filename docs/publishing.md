@@ -78,7 +78,19 @@ a `git clean` or a fresh checkout drops the id silently; the next publish
 then sees no id, treats the mod as never published, and creates a **second**
 Workshop item with no way to tell it apart from the first. Commit it once,
 right after the first Steam publish, the same way the mod.io asset already
-is.
+is — **together with the `.meta` beside it**, which the publish writes at the
+same time. Unity would otherwise generate that GUID carrier only when someone
+next opens the Editor, leaving the repo one file short of the rule that it
+holds every one of them. The `.meta` is written only when absent: an existing
+GUID is Unity's, and something may already reference it.
+
+The other fields in that asset — `modOwner`, `selectedPath`, `tags` — stay
+empty on purpose, and only the SDK window ever wanted them. It writes
+`modOwner` without ever reading it back; `selectedPath` is an absolute path
+that is right on one machine; `tags` would be a stale copy of what the publish
+derives afresh every time. `modOwner` costs more than the others, because
+ModBuilder bundles everything in the mod's asset folder: writing it would ship
+the author's SteamID64 inside every mod.
 
 **A run killed by a signal leaves that id in a file rather than losing it.**
 The step that writes a newly created id into the asset runs after

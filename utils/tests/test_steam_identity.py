@@ -75,6 +75,60 @@ def test_writing_creates_the_asset_when_absent(tmp_path):
     assert "modName: NewMod" in text
 
 
+def test_creating_the_asset_also_writes_its_meta(tmp_path):
+    asset = tmp_path / "NewMod_Steam.asset"
+
+    steam_identity.write_file_id(asset, 99)
+
+    meta = asset.with_suffix(".asset.meta")
+    text = meta.read_text()
+    guid = next(
+        line.split("guid: ")[1]
+        for line in text.splitlines()
+        if line.startswith("guid: ")
+    )
+    assert len(guid) == 32 and int(guid, 16) >= 0, guid
+    assert "fileFormatVersion: 2" in text
+    assert "mainObjectFileID: 11400000" in text
+
+
+def test_two_created_assets_do_not_share_a_guid(tmp_path):
+    first = tmp_path / "A" / "A_Steam.asset"
+    second = tmp_path / "B" / "B_Steam.asset"
+
+    steam_identity.write_file_id(first, 1)
+    steam_identity.write_file_id(second, 2)
+
+    assert (
+        first.with_suffix(".asset.meta").read_text()
+        != second.with_suffix(".asset.meta").read_text()
+    )
+
+
+def test_updating_an_asset_leaves_an_existing_meta_untouched(tmp_path):
+    # The GUID is Unity's, and once it exists something may reference it. A
+    # publish updates the id inside the asset and must not touch its identity.
+    asset = tmp_path / "DisableDurability_Steam.asset"
+    asset.write_text(ASSET)
+    meta = asset.with_suffix(".asset.meta")
+    meta.write_text("fileFormatVersion: 2\nguid: 0123456789abcdef0123456789abcdef\n")
+
+    steam_identity.write_file_id(asset, 4242424242)
+
+    assert "guid: 0123456789abcdef0123456789abcdef" in meta.read_text()
+
+
+def test_creating_an_asset_beside_an_existing_meta_keeps_that_meta(tmp_path):
+    # Asset deleted, meta left behind: its GUID is still the one Unity knows.
+    asset = tmp_path / "NewMod_Steam.asset"
+    meta = asset.with_suffix(".asset.meta")
+    meta.write_text("fileFormatVersion: 2\nguid: 0123456789abcdef0123456789abcdef\n")
+
+    steam_identity.write_file_id(asset, 7)
+
+    assert "guid: 0123456789abcdef0123456789abcdef" in meta.read_text()
+
+
 def test_writing_refuses_an_existing_file_it_does_not_recognize(tmp_path):
     asset = tmp_path / "Unrecognized_Steam.asset"
     original = "this is not a Steam asset at all\n"
