@@ -345,6 +345,18 @@ def test_changelog_starts_at_0_1_0():
     assert "## [0.1.0]" in cl
 
 
+def test_steam_description_is_bbcode_not_markdown():
+    # The Workshop renders BBCode; a stray '##' or '**' would show up literally
+    # on the item page instead of as a heading or bold run.
+    text = nm.build_steam_description("Faster Pet Talents", "Speeds up pet talents.")
+    assert "[b]Faster Pet Talents[/b]" in text
+    assert "Speeds up pet talents." in text
+    assert "[h2]Features[/h2]" in text
+    assert "[list]" in text and "[/list]" in text
+    assert "##" not in text
+    assert "**" not in text
+
+
 # --- formatting-gate files ---------------------------------------------------
 
 
@@ -457,6 +469,7 @@ def test_plan_contains_the_expected_file_set():
         ".envrc.example",
         ".gitignore",
         "CHANGELOG.md",
+        "steam-description.txt",
         "localization/localization.yaml",
         ".csharpierrc",
         ".csharpierignore",

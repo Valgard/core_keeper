@@ -114,6 +114,15 @@ unless the live modfile's version matches `CHANGELOG.md`'s topmost entry.
 Details and the reason `--changelog-only` is the one path that calls mod.io's
 REST API directly: `docs/publishing.md`.
 
+The same `upload.sh` run also publishes to the **Steam Workshop**, against
+that same build output — skippable with `--no-steam`, or run alone with
+`--steam-only`. A Steam failure never undoes a mod.io release that has
+already gone out, and `--changelog-only`/`--profile-only` skip Steam
+entirely, since neither has a Steam-side equivalent yet. It needs a one-time
+per-SDK-clone setup step, below; everything else — the two flags, where the
+description and preview come from, dependency resolution — is
+`docs/publishing.md`.
+
 A new mod.io profile is created **hidden**; review it on the website and
 switch it to visible manually. The real mod ID is stored in the SDK-native
 `<mod-name>/unity/<MOD_NAME>/Editor/<MOD_NAME>_modio.asset` — versioned in
@@ -121,6 +130,26 @@ git, so re-runs reuse the profile instead of creating a second one.
 
 `utils/uninstall-macos.sh` is the counterpart to `install-macos.sh`: it
 removes a fake-ID local dev install from the CrossOver bottle.
+
+### Steam Workshop setup
+
+A fresh SDK clone has no native Steam library: the SDK ships the managed
+Facepunch assemblies and a Windows `steam_api64.dll`, but no macOS
+`libsteam_api.dylib`, so Steam publishing fails until one is supplied. Run
+this **once per SDK clone**, from any mod directory (its `.envrc` already
+exports `SDK_PATH`):
+
+```bash
+../utils/fetch_steam_lib.sh
+```
+
+It downloads Valve's redistributable at the one version this SDK's bundled
+Steamworks interfaces actually match, verifies its checksum and exported
+symbols, and installs it with import settings restricted to the macOS Editor.
+**Restart the Unity Editor afterward** — native plugins load at startup, so
+dropping the file in while Unity is running changes nothing. The platform-level
+reasoning (why a newer redistributable does not work, how the matching version
+was identified) is [`docs/ck/steam-workshop.md`](docs/ck/steam-workshop.md).
 
 ### The Discord forum post
 

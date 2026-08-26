@@ -601,6 +601,25 @@ unity/{mod_name}/Editor/LocalizationGenerator.cs.meta
 """
 
 
+def build_steam_description(display_name: str, summary: str) -> str:
+    """The Steam Workshop item description.
+
+    Deliberately not derived from modio-description.md: the Workshop renders
+    **BBCode**, not Markdown, so a shared source would either ship literal `##`
+    and `**` on the Steam page or force modio-description.md itself into BBCode,
+    which mod.io does not render. Two small files in two dialects cost less than
+    one file that is wrong on one of the two platforms."""
+    return f"""[b]{display_name}[/b]
+
+{summary}
+
+[h2]Features[/h2]
+[list]
+[*] Describe what the mod does.
+[/list]
+"""
+
+
 def build_changelog() -> str:
     """A starter CHANGELOG. The publish helper reads the top `## [x.y.z]` as the
     version, so a new mod starts at 0.1.0."""
@@ -806,6 +825,7 @@ def build_plan(
         (".envrc.example", envrc),
         (".gitignore", build_gitignore(mod_name)),
         ("CHANGELOG.md", build_changelog()),
+        ("steam-description.txt", build_steam_description(display, summary)),
         ("localization/localization.yaml", build_localization_yaml(mod_name)),
         (".csharpierrc", build_csharpierrc()),
         (".csharpierignore", build_csharpierignore()),

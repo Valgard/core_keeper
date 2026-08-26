@@ -59,6 +59,57 @@ changelog; use a real release for anything that changes what the mod does.
   invokes Unity **without `-quit`** and `CLIPublishHelper` calls
   `EditorApplication.Exit` itself; a `timeout` guards a hung run.
 
+### Publishing to the Steam Workshop
+
+`utils/upload.sh` publishes to two destinations from one command. mod.io runs as
+described above; Steam publishing — `utils/steam_bundle.py` assembling a publish
+bundle, handed as JSON to the `utils/ck-workshop` .NET tool, which makes the
+Steamworks calls — runs afterward, against that same build output. How the
+Workshop itself behaves as a platform (one item rather than a profile/modfile
+split, its tag groups, the preview size limit, the macOS native-library gap) is [`docs/ck/steam-workshop.md`](ck/steam-workshop.md);
+this section covers only what this repository's pipeline does with it.
+
+**Two flags select which destinations run, and they contradict each other.**
+`--no-steam` publishes to mod.io only; `--steam-only` skips mod.io and
+publishes to Steam alone. `upload.sh` refuses to run with both set.
+
+**Steam runs second and can never fail the mod.io publish.** By the time it
+starts, the mod.io release has already happened and cannot be undone, so a
+Steam failure is reported — and reflected in the exit code — rather than
+treated as fatal: aborting at that point would reverse nothing and only hide
+what had already succeeded. `--changelog-only` and `--profile-only` skip
+Steam outright rather than attempting an equivalent: the former edits a
+mod.io modfile's changelog text, which the Workshop's single-item model has
+no counterpart for, and the latter has no metadata-only publish path on the
+Steam side yet — running it there would ship a full Workshop update for what
+was asked to be a text-only mod.io edit.
+
+**The description comes from `steam-description.txt`, and it is BBCode.**
+The Workshop renders `[b]`, `[h2]`, `[list][*]…[/list]` — a literal `##` or
+`**` from `modio-description.md` would show up unrendered on the item page —
+so the two descriptions are separate files in separate dialects rather than
+one derived from the other. `new_mod.py` scaffolds a BBCode template for the
+same reason.
+
+**The preview image is derived from the mod's logo, not authored by hand.**
+`utils/steam_preview.py` downsizes `Editor/logo.png` down a fixed resolution
+ladder — and, failing that, quantises it — until it clears the Workshop's
+1 MB preview limit, which the golden-glow gradient in every existing logo
+routinely exceeds at its native 1024² resolution.
+
+**`utils/steam-dependencies.json` has no automated search step and is filled
+by hand on a miss.** `modio-dependencies.json` self-populates: a cache miss
+there triggers a `GetMods` name search and accepts the result only on a
+single unambiguous match. Steam has nothing equivalent to search on — a
+Workshop item's Title is a display name, not an identity, and more than one
+item can carry the same one, so a name match could silently resolve to the
+wrong item and ship a dependency that installs something else. A miss is
+therefore never guessed at: resolving it means finding the item on the
+Workshop and adding its numeric file id to the JSON by hand, once — after
+that, every later publish reuses it. Severity still follows the `.asset`'s
+`required` flag, exactly as it does for mod.io: a required dependency with no
+cached id aborts the publish, an optional one is skipped with a warning.
+
 ### Mod dependencies → mod.io platform dependencies
 
 On publish, `CLIPublishHelper` syncs the `.asset`'s `metadata.dependencies`
