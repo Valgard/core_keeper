@@ -84,16 +84,30 @@ is.
 `--no-steam` publishes to mod.io only; `--steam-only` skips mod.io and
 publishes to Steam alone. `upload.sh` refuses to run with both set.
 
+**A Steam preflight runs before mod.io, and a failure there skips Steam
+instead of aborting the run.** `steam_bundle.check_prerequisites` validates
+everything the Steam stage will need — `steam-description.txt`, the identity
+asset, every declared dependency's Workshop id — before Unity is even
+started. It runs first, not merely early, for the same reason the modfile
+upload itself cannot: once that release goes out it cannot be undone, so a
+missing file or an unresolved dependency has to surface while skipping still
+costs nothing. On failure it prints why and continues into the mod.io release
+with the Steam stage turned off, the same as if `--no-steam` had been passed.
+`--steam-only` is the one case with no mod.io release for that skip to
+protect, so there a failed preflight aborts the run instead — publishing
+nothing while reporting success would be worse than the previous behaviour.
+
 **Steam runs second and can never fail the mod.io publish.** By the time it
 starts, the mod.io release has already happened and cannot be undone, so a
 Steam failure is reported — and reflected in the exit code — rather than
 treated as fatal: aborting at that point would reverse nothing and only hide
-what had already succeeded. `--changelog-only` and `--profile-only` skip
-Steam outright rather than attempting an equivalent: the former edits a
-mod.io modfile's changelog text, which the Workshop's single-item model has
-no counterpart for, and the latter has no metadata-only publish path on the
-Steam side yet — running it there would ship a full Workshop update for what
-was asked to be a text-only mod.io edit.
+what had already succeeded. This is the same invariant the preflight above
+upholds at its own, earlier point in the run. `--changelog-only` and
+`--profile-only` skip Steam outright rather than attempting an equivalent:
+the former edits a mod.io modfile's changelog text, which the Workshop's
+single-item model has no counterpart for, and the latter has no
+metadata-only publish path on the Steam side yet — running it there would
+ship a full Workshop update for what was asked to be a text-only mod.io edit.
 
 **The description comes from `steam-description.txt`, and it is BBCode.**
 The Workshop renders `[b]`, `[h2]`, `[list][*]…[/list]` — a literal `##` or
