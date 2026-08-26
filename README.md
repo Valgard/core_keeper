@@ -145,7 +145,9 @@ exports `SDK_PATH`):
 
 It downloads Valve's redistributable at the one version this SDK's bundled
 Steamworks interfaces actually match, verifies its checksum and exported
-symbols, and installs it with import settings restricted to the macOS Editor.
+symbol, and installs it with import settings enabled for the macOS Editor
+and macOS Standalone builds only (see the comment in the script for why the
+latter is not a full guarantee against shipping inside a mod).
 **Restart the Unity Editor afterward** — native plugins load at startup, so
 dropping the file in while Unity is running changes nothing. The platform-level
 reasoning (why a newer redistributable does not work, how the matching version

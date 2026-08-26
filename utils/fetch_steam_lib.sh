@@ -4,7 +4,8 @@
 # The SDK ships the managed Facepunch assemblies and a Windows steam_api64.dll,
 # but no macOS native library, so the Steam Workshop tab's "Initialize Steam"
 # throws and the upload path is unusable. This fetches the one version that
-# works and installs it with import settings limited to the macOS Editor.
+# works and installs it with import settings enabled for the macOS Editor and
+# macOS Standalone builds only — see the platformData comment below.
 #
 # WHY THIS EXACT VERSION: the managed assembly requests SteamAPI_SteamUGC_v016
 # and SteamAPI_SteamUser_v021, and calls SteamAPI_Init — which Valve removed
@@ -33,8 +34,14 @@ if [ ! -d "$DEST_DIR" ]; then
     exit 1
 fi
 
-# Native plugin import settings: Editor + macOS only. Without "Any: enabled: 0"
-# this would be offered to every build target and could ship inside a mod.
+# Native plugin import settings: Editor + OSXUniversal (macOS Standalone)
+# only — every other build target (Windows, Linux, …) stays off. Without
+# "Any: enabled: 0" this would default to every build target instead. Note
+# this does NOT fully rule out shipping inside a mod: OSXUniversal is a real
+# player build target, and it is unclear whether ModBuilder's own build step
+# would pull the library into a macOS-targeted mod build the way it would a
+# genuine Standalone Player build — untested, since only the Editor-side
+# "Initialize Steam" path (the reason this file exists) has been verified.
 # A function, not a one-shot heredoc, because two call sites below need it:
 # a Unity reimport can mangle or drop a .meta independently of the .dylib
 # sitting right next to it, so the idempotent early-return path has to repair
