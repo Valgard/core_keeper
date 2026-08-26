@@ -77,12 +77,12 @@ def render(markdown, *, supported, known, tags, slug):
     # rewraps — same source format, two different consequences.
     blocks = [_unwrap(b) for b in body.split("\n\n")]
     body = "\n\n".join(b for b in blocks if b)
-    # One bare link, so the post carries a single mod.io preview card. A bare
-    # URL in the authored prose would add a competing one -- an invariant the
-    # author keeps, not something this can enforce.
-    # The source link is bracketed to keep a second card from competing with it.
+    # Both links bracketed, so neither adds an embed. The bare mod.io link used
+    # to be deliberate -- it was meant to buy one preview card -- but mod.io
+    # serves its own corporate card ("Cross Platform Mod Support for Games"),
+    # which says nothing about the mod and lands after the images.
     links = (
-        f"**Download:** https://mod.io/g/corekeeper/m/{slug}\n"
+        f"**Download:** <https://mod.io/g/corekeeper/m/{slug}>\n"
         f"**Source:** <https://github.com/Valgard/ck_{slug.replace('-', '_')}>"
     )
     post = version_line(supported, known) + "\n\n" + body + "\n\n" + links

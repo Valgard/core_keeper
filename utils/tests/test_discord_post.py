@@ -109,13 +109,14 @@ def test_render_opens_with_the_version_line_the_channel_rules_ask_for():
     assert post.startswith("**Compatible with Core Keeper 1.2.x**")
 
 
-def test_render_suppresses_the_embed_on_source_but_not_on_download():
-    """One link without angle brackets gives the post a single mod.io preview
-    card; a second bare link would add a competing one."""
+def test_render_suppresses_the_embed_on_both_links():
+    """A bare mod.io link renders mod.io's own corporate card — the platform's
+    advertisement, not the mod — as the last thing in the post. Verified in the
+    live channel on 2026-08-26."""
     post = _render("# T\n\nBody.\n", slug="probe-mod")
 
     assert post.endswith(
-        "**Download:** https://mod.io/g/corekeeper/m/probe-mod\n"
+        "**Download:** <https://mod.io/g/corekeeper/m/probe-mod>\n"
         "**Source:** <https://github.com/Valgard/ck_probe_mod>"
     )
 
