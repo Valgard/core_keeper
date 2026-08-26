@@ -86,3 +86,41 @@ def test_writing_refuses_an_existing_file_it_does_not_recognize(tmp_path):
     # The whole point of the guard: an unrecognized file must be left exactly
     # as it was, never silently replaced by a fresh template.
     assert asset.read_text() == original
+
+
+def test_a_permission_error_is_not_read_as_no_id(tmp_path):
+    # Only a MISSING file may read as "no id". An existing file that cannot be
+    # read for some other reason is a real problem with an asset that DOES
+    # exist, and folding it into "no id" would make a publish create a second
+    # Workshop item over one whose id merely could not be read.
+    asset = tmp_path / "DisableDurability_Steam.asset"
+    asset.write_text(ASSET)
+    asset.chmod(0)
+
+    try:
+        with pytest.raises(PermissionError):
+            steam_identity.read_file_id(asset)
+    finally:
+        asset.chmod(0o644)  # so tmp_path cleanup can remove it
+
+
+def test_ensure_recognizable_accepts_a_missing_asset(tmp_path):
+    # A mod's first publish: nothing to recognize yet, nothing to reject.
+    steam_identity.ensure_recognizable(tmp_path / "absent.asset")
+
+
+def test_ensure_recognizable_accepts_a_valid_asset(tmp_path):
+    asset = tmp_path / "DisableDurability_Steam.asset"
+    asset.write_text(ASSET)
+
+    steam_identity.ensure_recognizable(asset)
+
+
+def test_ensure_recognizable_rejects_what_write_file_id_would_refuse(tmp_path):
+    # The whole point: this must raise on the SAME files write_file_id
+    # refuses, and it must do so before any Steam call, not after.
+    asset = tmp_path / "Unrecognized_Steam.asset"
+    asset.write_text("this is not a Steam asset at all\n")
+
+    with pytest.raises(ValueError, match="fileId"):
+        steam_identity.ensure_recognizable(asset)

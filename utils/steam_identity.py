@@ -38,15 +38,44 @@ MonoBehaviour:
 
 
 def read_file_id(asset: Path) -> int | None:
-    """The stored id, or None when there is none — a missing asset, or a zero."""
+    """The stored id, or None when there is none — a missing asset, or a zero.
+
+    Only a missing file reads as "no id" here. Anything else that stops the
+    read (permissions, a directory where a file was expected) is a real
+    problem with an asset that DOES exist, and must not be silently folded
+    into "this is a brand-new mod" — that is exactly the misreading that lets
+    a publish create a second Workshop item over one whose id merely could
+    not be read.
+    """
     try:
         text = asset.read_text()
-    except OSError:
+    except FileNotFoundError:
         return None
     match = FILE_ID.search(text)
     if not match:
         return None
     return int(match.group(2)) or None
+
+
+def ensure_recognizable(asset: Path) -> None:
+    """Raise before any Steam call if an existing asset has no `fileId:` line.
+
+    A missing asset is fine — that is a mod's first publish, and one will be
+    created from TEMPLATE. An existing file that write_file_id would refuse
+    (see below) is not fine, and the whole point is to find that out HERE:
+    checked after the read above, this still runs before the Steam upload
+    that follows it, so a bad asset aborts before a Workshop item is created
+    rather than after — an item created and then unrecognized on write would
+    be a live, duplicate-risking item whose id has nowhere to go.
+    """
+    if not asset.is_file():
+        return
+    if not FILE_ID.search(asset.read_text()):
+        raise ValueError(
+            f"{asset} exists but has no 'fileId:' line — expected a Steam Workshop asset. "
+            "Fix or remove it before publishing: found only after the upload, this would "
+            "leave a newly created Workshop item with its id unrecorded."
+        )
 
 
 def write_file_id(asset: Path, file_id: int) -> None:

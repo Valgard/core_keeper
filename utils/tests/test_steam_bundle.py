@@ -145,6 +145,19 @@ def test_an_existing_mod_keeps_its_visibility(tmp_path):
     assert bundle["visibility"] == "unchanged"
 
 
+def test_an_unrecognized_identity_asset_aborts_before_any_upload(tmp_path):
+    # Task 5's guard, called from here: an existing _Steam.asset without a
+    # 'fileId:' line must be caught before the bundle is even assembled, not
+    # discovered only after a Workshop item was already created from it.
+    repo = _repo(tmp_path)
+    identity = repo / "unity" / "DisableDurability" / "DisableDurability_Steam.asset"
+    identity.parent.mkdir(parents=True, exist_ok=True)
+    identity.write_text("this is not a Steam asset at all\n")
+
+    with pytest.raises(ValueError, match="fileId"):
+        steam_bundle.build_bundle(repo, _env(tmp_path), tmp_path / "p.png")
+
+
 def test_a_missing_description_is_reported_by_name(tmp_path):
     repo = _repo(tmp_path, description=None)
 

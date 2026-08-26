@@ -171,6 +171,10 @@ def build_bundle(repo_root: Path, env: Mapping[str, str], preview_dest: Path) ->
     steam_preview.derive_preview(logo, preview_dest)
 
     identity_asset = repo_root / "unity" / mod_name / f"{mod_name}_Steam.asset"
+    # Before, not after, the upload: an identity asset write_file_id would
+    # refuse must be caught while nothing has been sent yet, not once a
+    # Workshop item already exists with no way to record its id.
+    steam_identity.ensure_recognizable(identity_asset)
     file_id = steam_identity.read_file_id(identity_asset)
 
     return {
