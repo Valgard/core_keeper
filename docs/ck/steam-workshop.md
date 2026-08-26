@@ -105,6 +105,7 @@ and uploads afterwards, so anything that fails during the upload leaves a real,
 empty item on Steam whose id was written down nowhere — a preview over [the 1 MB cap](#the-preview-image-is-capped-at-1-mb)
 is the easy way to reach that state. The next attempt then takes the create-new
 branch again and makes a second item. Nothing in the UI mentions the first.
+Reported upstream as [CoreKeeperModSDK#13](https://github.com/Pugstorm/CoreKeeperModSDK/issues/13).
 
 A related trap, and a smaller one than it first looks: that `<Mod>_Steam.asset`
 sits inside the mod's asset folder, and **ModBuilder collects what it finds
@@ -129,6 +130,9 @@ does exist at runtime, so it is written into the bundle like any other asset:
 measured with a marked file, it comes back out of both the Windows and the
 Linux bundle as a `TextAsset` named `description`, contents intact. The type
 decides, not the folder.
+
+Both files — the settings asset the tab writes there, and the `description.txt`
+it asks for there — are reported upstream as [CoreKeeperModSDK#14](https://github.com/Pugstorm/CoreKeeperModSDK/issues/14).
 
 Reading the bundle to check any of this needs a deserialiser (UnityPy or
 similar) — searching it proves nothing either way, because it is compressed.
