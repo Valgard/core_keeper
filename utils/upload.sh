@@ -45,11 +45,10 @@
 
 set -euo pipefail
 
-: "${UNITY_BIN:?must be set — see .envrc.example}"
-: "${SDK_PATH:?must be set — see .envrc.example}"
+# The only variable both destinations need. UNITY_BIN/SDK_PATH/CK_GAME_VERSION/
+# MOD_SUMMARY are mod.io- and Unity-specific — checked further down, and only
+# when --steam-only is not in effect, so a Steam-only publish needs none of them.
 : "${MOD_NAME:?must be set — see .envrc.example}"
-: "${CK_GAME_VERSION:?must be set — see .envrc.example}"
-: "${MOD_SUMMARY:?must be set — see .envrc.example}"
 
 REPO_ROOT="$PWD"
 DRY_RUN=0
@@ -101,59 +100,36 @@ fi
 
 UTILS_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-if [ ! -x "$UNITY_BIN" ]; then
-    echo "ERROR: \$UNITY_BIN is not executable: $UNITY_BIN" >&2
-    exit 1
+# Whether this run will touch the Steam stage at all — --changelog-only and
+# --profile-only each already skip it further down for their own reasons (see
+# the comment on that stage), and --no-steam skips it outright. Computed once,
+# here, so the preflight below and that later stage can't drift apart on what
+# "Steam will run" means.
+if [ "$NO_STEAM" = "1" ] || [ "$CHANGELOG_ONLY" = "1" ] || [ "$PROFILE_ONLY" = "1" ]; then
+    STEAM_WILL_RUN=0
+else
+    STEAM_WILL_RUN=1
 fi
 
-if [ ! -d "$SDK_PATH/Assets" ]; then
-    echo "ERROR: \$SDK_PATH does not look like a Unity project: $SDK_PATH" >&2
-    exit 1
+# mod.io needs a Unity batchmode build; Steam does not (steam_bundle.py reads
+# straight from the repo and the already-built MOD_INSTALL_PATH). --steam-only
+# skips the whole mod.io block below, so none of its requirements apply here.
+if [ "$STEAM_ONLY" != "1" ]; then
+    : "${UNITY_BIN:?must be set — see .envrc.example}"
+    : "${SDK_PATH:?must be set — see .envrc.example}"
+    : "${CK_GAME_VERSION:?must be set — see .envrc.example}"
+    : "${MOD_SUMMARY:?must be set — see .envrc.example}"
+
+    if [ ! -x "$UNITY_BIN" ]; then
+        echo "ERROR: \$UNITY_BIN is not executable: $UNITY_BIN" >&2
+        exit 1
+    fi
+
+    if [ ! -d "$SDK_PATH/Assets" ]; then
+        echo "ERROR: \$SDK_PATH does not look like a Unity project: $SDK_PATH" >&2
+        exit 1
+    fi
 fi
-
-# Discord preflight — before Unity, so a broken post surfaces in seconds rather
-# than after a ten-minute build, and at the top of the output rather than buried
-# in the batchmode log. A repo without a discord-post.md prints nothing.
-#
-# CK_DISCORD_THREAD set means the mod already has a thread: both this
-# preflight and the post-publish banner below render with --update, the
-# version comment for that thread, instead of the full original
-# announcement -- posting the whole introduction again would land as a
-# duplicate in a thread that already exists.
-DISCORD_MODE_FLAGS=()
-if [ -n "${CK_DISCORD_THREAD:-}" ]; then
-    DISCORD_MODE_FLAGS=(--update)
-fi
-
-# Exit 3 means the post itself is wrong, and that is waved through: nothing
-# about a forum thread should hold back a mod.io release. Any other non-zero
-# code is the tooling being broken (no python3, a corrupt data file, a syntax
-# error) and aborts, because continuing would publish while silently skipping a
-# check. Note the posts live in the *mod* repos, whose pre-commit hooks run
-# csharpier only — utils/tests/test_discord_post_content.py sees them just when
-# somebody commits under utils/ here, so it is a backstop, not a gate.
-discord_rc=0
-python3 "$UTILS_DIR/discord_post.py" --check "${DISCORD_MODE_FLAGS[@]}" "$REPO_ROOT" || discord_rc=$?
-case "$discord_rc" in
-    0) ;;
-    3) echo "  (continuing — the Discord post is not part of the mod.io release)" >&2 ;;
-    *) echo "ERROR: discord_post.py failed with exit $discord_rc — that is a tooling" >&2
-       echo "       failure, not a problem with the post. Fix it or publish without it." >&2
-       exit "$discord_rc" ;;
-esac
-
-# Refresh SDK symlinks (idempotent; self-heals after worktree moves).
-"$UTILS_DIR/link.sh" "$REPO_ROOT" >/dev/null
-
-# The shipped-build list, so CLIPublishHelper can tell a typo from a build
-# mod.io has no tag for without asking mod.io. That distinction is otherwise
-# only available on the tag-taxonomy path, which degrades to additive tagging
-# whenever the API hiccups -- and there a typo is dropped in silence.
-CK_KNOWN_GAME_VERSIONS="$(python3 -c "
-import json, sys
-print(' '.join(json.load(open(sys.argv[1]))['versions']))
-" "$UTILS_DIR/ck-game-versions.json")"
-export CK_KNOWN_GAME_VERSIONS
 
 # The CLIPublishHelper reads these from the environment. MOD_CALLER_CWD is the anchor every
 # relative one of them resolves against: a variable survives the jump into Unity, the working
@@ -170,7 +146,77 @@ export CK_UTILS_DIR="$UTILS_DIR"
 [ "$PROFILE_ONLY" = "1" ] && export PUBLISH_PROFILE_ONLY=1
 [ "$CHANGELOG_ONLY" = "1" ] && export PUBLISH_CHANGELOG_ONLY=1
 
+# Steam preflight — before mod.io, not after: mod.io's own release cannot be
+# undone once it has happened, so a missing steam-description.txt or an
+# unresolvable Steam dependency must surface before that release, not as a
+# batchmode-log surprise once it has already gone out. Everything this checks
+# is derivable without a finished build (see check_prerequisites); the one
+# thing a Steam publish also needs — the built content folder — does not
+# exist yet at this point, which is exactly why it is not checked here.
+if [ "$STEAM_WILL_RUN" = "1" ]; then
+    python3 - <<'PY'
+import os, sys
+from pathlib import Path
+
+sys.path.insert(0, os.environ["CK_UTILS_DIR"])
+import steam_bundle
+
+try:
+    steam_bundle.check_prerequisites(Path(os.environ["MOD_REPO_ROOT"]), os.environ)
+except ValueError as err:
+    print(f"ERROR: Steam preflight failed: {err}", file=sys.stderr)
+    sys.exit(1)
+PY
+fi
+
 if [ "$STEAM_ONLY" != "1" ]; then
+    # Discord preflight — before Unity, so a broken post surfaces in seconds
+    # rather than after a ten-minute build, and at the top of the output
+    # rather than buried in the batchmode log. A repo without a
+    # discord-post.md prints nothing.
+    #
+    # CK_DISCORD_THREAD set means the mod already has a thread: both this
+    # preflight and the post-publish banner below render with --update, the
+    # version comment for that thread, instead of the full original
+    # announcement -- posting the whole introduction again would land as a
+    # duplicate in a thread that already exists.
+    DISCORD_MODE_FLAGS=()
+    if [ -n "${CK_DISCORD_THREAD:-}" ]; then
+        DISCORD_MODE_FLAGS=(--update)
+    fi
+
+    # Exit 3 means the post itself is wrong, and that is waved through:
+    # nothing about a forum thread should hold back a mod.io release. Any
+    # other non-zero code is the tooling being broken (no python3, a corrupt
+    # data file, a syntax error) and aborts, because continuing would publish
+    # while silently skipping a check. Note the posts live in the *mod*
+    # repos, whose pre-commit hooks run csharpier only —
+    # utils/tests/test_discord_post_content.py sees them just when somebody
+    # commits under utils/ here, so it is a backstop, not a gate.
+    discord_rc=0
+    python3 "$UTILS_DIR/discord_post.py" --check "${DISCORD_MODE_FLAGS[@]}" "$REPO_ROOT" || discord_rc=$?
+    case "$discord_rc" in
+        0) ;;
+        3) echo "  (continuing — the Discord post is not part of the mod.io release)" >&2 ;;
+        *) echo "ERROR: discord_post.py failed with exit $discord_rc — that is a tooling" >&2
+           echo "       failure, not a problem with the post. Fix it or publish without it." >&2
+           exit "$discord_rc" ;;
+    esac
+
+    # Refresh SDK symlinks (idempotent; self-heals after worktree moves).
+    "$UTILS_DIR/link.sh" "$REPO_ROOT" >/dev/null
+
+    # The shipped-build list, so CLIPublishHelper can tell a typo from a build
+    # mod.io has no tag for without asking mod.io. That distinction is
+    # otherwise only available on the tag-taxonomy path, which degrades to
+    # additive tagging whenever the API hiccups -- and there a typo is
+    # dropped in silence.
+    CK_KNOWN_GAME_VERSIONS="$(python3 -c "
+import json, sys
+print(' '.join(json.load(open(sys.argv[1]))['versions']))
+" "$UTILS_DIR/ck-game-versions.json")"
+    export CK_KNOWN_GAME_VERSIONS
+
     echo "Publishing $MOD_NAME to mod.io${PUBLISH_PROFILE_ONLY:+ (profile only)}${PUBLISH_CHANGELOG_ONLY:+ (changelog only)}${PUBLISH_DRY_RUN:+ (dry run)}..."
 
     # No -quit: CLIPublishHelper drives async mod.io calls and exits itself.
