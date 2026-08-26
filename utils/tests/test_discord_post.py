@@ -555,11 +555,15 @@ def test_update_drops_the_section_headings_but_keeps_the_bullets():
 
 
 def test_update_opens_by_naming_the_version():
+    """The compatibility line is what the channel's posting rules ask to see
+    in the first lines -- so it must actually be there, on its own line, not
+    just anywhere after the version literal `startswith` alone would allow."""
     _, comment = dp.render_update(
         _CHANGELOG, supported=["1.2.1.5"], known=["1.2.1.5"], slug="probe-mod"
     )
 
     assert comment.startswith("**Version 1.4.0**")
+    assert comment.split("\n")[1] == dp.version_line(["1.2.1.5"], ["1.2.1.5"])
 
 
 def test_update_refuses_an_over_long_comment_instead_of_trimming_it():
