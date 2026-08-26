@@ -7,6 +7,7 @@ So the prose is authored per mod and the version line is generated from
 `CK_GAME_VERSION`.
 """
 
+import functools
 import json
 import os
 import pathlib
@@ -20,6 +21,7 @@ POST_FILENAME = "discord-post.md"
 # syntax error -- which a bare 1 made indistinguishable.
 EXIT_CONTENT = 3
 VERSIONS_FILENAME = "ck-game-versions.json"
+TAGS_FILENAME = "ck-discord-tags.json"
 
 # Discord's own ceilings for a forum post. LIMIT is the non-Nitro message
 # ceiling -- do not 'correct' it to 4000, since readers without Nitro are
@@ -27,35 +29,6 @@ VERSIONS_FILENAME = "ck-game-versions.json"
 LIMIT = 2000
 TITLE_LIMIT = 100
 MAX_TAGS = 5
-
-# The forum's own tag set, read off the channel. Discord offers these as
-# checkboxes when a thread is created, so a value outside the list cannot be
-# set at all — catching it here means finding out before you are standing in
-# the thread-creation dialog with the text already written.
-FORUM_TAGS = frozenset(
-    {
-        "Automation",
-        "Cheats",
-        "Combat",
-        "Content",
-        "Decoration",
-        "Difficulty",
-        "Enemies",
-        "Environment",
-        "Equipment",
-        "Fishing",
-        "Food",
-        "Gardening",
-        "Mining",
-        "Misc / Other",
-        "NPCs",
-        "Overhaul",
-        "Transportation",
-        "Tweaks",
-        "Utilities",
-        "Work In Progress",
-    }
-)
 
 
 def _norm(version):
@@ -92,7 +65,7 @@ def version_line(supported, known):
 
 
 def render(markdown, *, supported, known, tags, slug):
-    unknown = sorted(set(tags) - FORUM_TAGS)
+    unknown = sorted(set(tags) - forum_tags())
     if unknown:
         raise ValueError(f"not offered by #available-mods: {', '.join(unknown)}")
     if len(tags) > MAX_TAGS:
@@ -228,6 +201,25 @@ def known_versions():
     if "versions" not in doc:
         sys.exit(f"discord_post: {path} has no 'versions' key")
     return doc["versions"]
+
+
+@functools.lru_cache(maxsize=1)
+def forum_tags():
+    """The tag set #available-mods offers, as read off the channel.
+
+    A data file rather than a constant: the set belongs to a channel somebody
+    else administers, and the browser step refreshes it from the live dropdown.
+    """
+    path = pathlib.Path(__file__).with_name(TAGS_FILENAME)
+    try:
+        doc = json.loads(path.read_text())
+    except FileNotFoundError:
+        sys.exit(f"discord_post: {path} is missing — restore it from git")
+    except json.JSONDecodeError as err:
+        sys.exit(f"discord_post: {path} is not valid JSON: {err}")
+    if "tags" not in doc:
+        sys.exit(f"discord_post: {path} has no 'tags' key")
+    return frozenset(doc["tags"])
 
 
 def main(argv=None):

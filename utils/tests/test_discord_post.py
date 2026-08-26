@@ -366,3 +366,12 @@ def test_a_wrapped_list_item_stays_one_item():
     post = _render("# T\n\n- Craft one box and reuse it\n  indefinitely.\n- Second.\n")
 
     assert "- Craft one box and reuse it indefinitely.\n- Second." in post
+
+
+def test_forum_tags_come_from_the_data_file_not_the_code():
+    """The channel's tag set belongs to somebody else's channel, so it is data
+    the browser step can refresh — not a constant only a code edit can fix."""
+    tags = dp.forum_tags()
+
+    assert "Misc / Other" in tags
+    assert len(tags) == 20
