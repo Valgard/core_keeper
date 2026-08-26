@@ -87,13 +87,23 @@ closed terminal, an outer `timeout` wrapper — can end the run in the window
 between Steam creating the item and its id reaching disk, which is the same
 duplicate-item hazard as above with no untracked file to blame. The tool's
 output therefore goes to its own `mktemp` file *outside* the scratch
-directory the EXIT trap removes: a killed run leaves one
-`ck-workshop-<MOD_NAME>-result.*` in `$TMPDIR` holding the id, to be put into
-`<Mod>_Steam.asset` by hand before publishing that mod again. A run that gets
-far enough to persist removes its own file, and no run can overwrite another's.
-The two interrupts that actually occur need none of this: neither `timeout`
-firing on a stalled upload nor a terminal Ctrl-C stops `upload.sh`, so the
-persist step runs normally in both.
+directory the EXIT trap removes: a killed run leaves a
+`ck-workshop-<MOD_NAME>-result.*` behind in `$TMPDIR`, holding the id if the
+kill came after the tool had reported one. A run that gets far enough to
+persist removes its own file, and no run can overwrite another's. The two
+interrupts that actually occur need none of this: neither `timeout` firing on
+a stalled upload nor a terminal Ctrl-C stops `upload.sh`, so the persist step
+runs normally in both.
+
+**Copy such an id into `<Mod>_Steam.asset` only while that asset still has
+none.** The asset is the authority; the file is one run's notes. Publish the
+mod again before recovering the id and that run creates a *second* item and
+writes its id into the asset — after which the leftover file names the orphan
+while looking exactly like a recovery file, and copying it in would aim every
+later publish at the orphan instead of the live item. Two harmless variants
+exist and are safe to delete: an empty file, from a kill that landed before
+the tool wrote anything, and several files for one mod, from being killed
+twice with nothing to order them by.
 
 **Two flags select which destinations run, and they contradict each other.**
 `--no-steam` publishes to mod.io only; `--steam-only` skips mod.io and

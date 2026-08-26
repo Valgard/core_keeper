@@ -489,9 +489,14 @@ PY
     # acts on it -- this file is then the copy still there to read. Unset in
     # the dry-run and bundle-failure paths, where nothing was ever persisted
     # because nothing was ever created; the default covers both. An `if`
-    # rather than `[ … ] && rm …`: under `set -e` a false test makes that
-    # whole list the failing command and kills the script before the exit
-    # below, which is how a Steam success once turned into a silent exit 1.
+    # rather than `[ … ] && rm …` because such a list returns 1 when its test
+    # is false, and that becomes the script's own exit status whenever it is
+    # the last thing the script runs -- which is how a Steam success once
+    # turned into a silent exit 1. `set -e` is NOT the mechanism: bash exempts
+    # every command in an && list but the final one, so the `&&` form would be
+    # safe here too (an `exit` follows it), exactly as it is at the
+    # steam_rc/write_rc line above. The `if` is simply the form that stays
+    # correct no matter what is written after it.
     if [ "${write_rc:-0}" = "0" ]; then
         rm -f "$STEAM_RESULT"
     fi
