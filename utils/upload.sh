@@ -420,10 +420,16 @@ except Exception as err:
 if result["success"]:
     status = "created, hidden" if result["created"] else "updated"
     print(f"  Workshop item {file_id} ({status})")
-else:
+elif result["created"]:
     print(
         f"  Workshop item {file_id} was created despite the failed publish above — "
         "its id was saved so the next run reuses it instead of creating a duplicate.",
+        file=sys.stderr,
+    )
+else:
+    print(
+        f"  Workshop item {file_id} already existed — its id was (re-)saved, but "
+        "the update itself failed (see above).",
         file=sys.stderr,
     )
 PY
