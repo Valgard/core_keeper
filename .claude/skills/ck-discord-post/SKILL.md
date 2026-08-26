@@ -31,7 +31,9 @@ input events produces exactly the traffic a human produces. So:
    ```
 
    `thread` being `null` means create a post; a URL means comment there.
-   A non-zero exit is a content problem — report it and stop.
+   A non-zero exit is a content problem — report it and stop, **unless** the
+   error names a tag `#available-mods` does not offer: `utils/ck-discord-tags.json`
+   may just be stale, so do steps 2–3 first and re-run this one.
 
 2. **Open the channel** at
    `https://discord.com/channels/851842678340845600/1083718088526139443`

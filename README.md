@@ -167,9 +167,11 @@ Three things are generated rather than written by hand:
   at once. It collapses to `1.2.x` only when that claim checks out against
   `utils/ck-game-versions.json`, the list of builds that shipped; otherwise it
   prints the exact span.
-* **The download and source links**, from `MOD_NAME_ID`. The mod.io link is
-  bare so the post carries one preview card; the GitHub link is bracketed so a
-  second one does not compete with it.
+* **The download and source links**, from `MOD_NAME_ID`. Both are bracketed so
+  neither adds an embed. The mod.io link used to be left bare on purpose, to
+  buy the post one preview card — but mod.io serves its own corporate card
+  there ("Cross Platform Mod Support for Games"), which says nothing about the
+  mod, so both links are bracketed now.
 * **The paragraph flow**. Discord does not rewrap, so the source file's hard
   line breaks are joined back into paragraphs. A heading keeps its own line and
   a wrapped list item stays one item; `##` passes through, because Discord
