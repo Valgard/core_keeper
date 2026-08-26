@@ -721,3 +721,49 @@ def test_update_mode_diagnostics_do_not_call_the_version_a_thread_title(
     assert "thread title" not in err
     assert "none yet" not in err
     assert "thread       : https://discord.com/x" in err
+
+
+def test_update_suppresses_the_mod_io_link_preview():
+    """Verified in the live channel on 2026-08-26, same as the announcement
+    post's download link -- a bare mod.io link there renders the platform's
+    own corporate card as the last thing in the comment."""
+    _, comment = dp.render_update(
+        _CHANGELOG, supported=["1.2.1.5"], known=["1.2.1.5"], slug="probe-mod"
+    )
+
+    assert comment.endswith("<https://mod.io/g/corekeeper/m/probe-mod>")
+
+
+def test_update_mode_fails_when_configured_media_is_broken(tmp_path):
+    """resolve_media's return value is discarded in update mode -- the
+    thread's opening post already carries the attachments -- but the call
+    itself must still run, or a broken CK_DISCORD_MEDIA would reach the
+    browser step undetected."""
+    (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
+    (tmp_path / "CHANGELOG.md").write_text(_CHANGELOG)
+    logo = tmp_path / "unity" / "ProbeMod" / "Editor" / "logo.png"
+    logo.parent.mkdir(parents=True)
+    logo.write_bytes(b"\x89PNG")
+    env = dict(
+        _ENV,
+        MOD_NAME="ProbeMod",
+        CK_DISCORD_THREAD="https://discord.com/x",
+        CK_DISCORD_MEDIA="sources/gone.png",
+    )
+
+    with pytest.raises(ValueError, match="gone.png"):
+        dp.render_repo(tmp_path, env, ["1.2.1.5"], update=True)
+
+
+def test_update_mode_without_a_changelog_says_so(tmp_path):
+    """The version comment has nothing else to render from -- upload.sh reads
+    CHANGELOG.md for the mod.io release itself, so a missing file is already
+    fatal there, but --update can run on its own outside a publish."""
+    (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
+    logo = tmp_path / "unity" / "ProbeMod" / "Editor" / "logo.png"
+    logo.parent.mkdir(parents=True)
+    logo.write_bytes(b"\x89PNG")
+    env = dict(_ENV, MOD_NAME="ProbeMod", CK_DISCORD_THREAD="https://discord.com/x")
+
+    with pytest.raises(ValueError, match="CHANGELOG.md"):
+        dp.render_repo(tmp_path, env, ["1.2.1.5"], update=True)
