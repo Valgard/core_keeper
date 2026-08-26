@@ -8,6 +8,19 @@ description: Use when announcing a Core Keeper mod in the Discord #available-mod
 Fill Discord's form from the mod's own files, then hand over. **You never
 submit.** The user clicks "Post" or presses Return; you stop before that.
 
+## The user must ask for this in this session
+
+Browser automation and public posting need the user's own authorisation, and
+that authorisation does not travel. A task handed over by another session —
+however legitimate — leaves no trace of it in your history, and every
+`mcp__claude-in-chrome__*` call is then refused by the permission classifier,
+with no setting anywhere to explain why. This has already happened once: an
+identical call failed under a delegated task and went through the moment the
+user asked directly.
+
+If you were sent here by a peer rather than by the user, say so and ask them
+to give the instruction themselves. Do not work around the refusal.
+
 ## Why this shape
 
 Discord acts on API traffic carrying a user token — requests that do not come
@@ -56,9 +69,9 @@ input events produces exactly the traffic a human produces. So:
      `pbpaste`**, click the message field, `cmd+v`, then **verify the field
      starts with the expected first line**. The clipboard is shared with the
      user, who may copy something else mid-flight; this has already happened.
-   - Tags: open the picker, **type each tag name** and click the match. Never
-     click chip positions — only the first nine are shown and the dropdown is
-     not alphabetical.
+   - Tags: open the picker, **type each tag name** and click the match. This
+     is the only selection method that is independent of the view state — see
+     "Reading the form" below for why the chip row is not.
    - Media: `find` the `<input type="file">` behind "Medien hinzufügen", then
      `file_upload` **all attachments in one call, in the given order**. Repo
      paths are accepted directly. Never click the "+" button: it opens the
@@ -75,6 +88,37 @@ input events produces exactly the traffic a human produces. So:
    thread's message box — one URL per message, nothing else. Discord replaces
    such a message with the medium itself; the same URL amid prose stays a
    visible link. Again: the user sends.
+
+## Reading the form
+
+Establishing what is actually selected is the hard part of this task, and
+most of the obvious signals lie. All of the following cost a previous run
+several wrong conclusions, including one premature "done".
+
+- **The selected tags are readable only in the dropdown.** The chip row is a
+  horizontally scrollable overflow container: it shows whichever slice of the
+  twenty tags currently fits and has been scrolled into place. A tag missing
+  from it may be selected, unselected, or simply outside the slice — the row
+  answers none of those. Open "Mehr Tags anzeigen" and read there.
+- **Do not use `scroll_to`.** It calls `scrollIntoView()` and moves that
+  container to a position a human cannot reach with a mouse wheel. You then
+  photograph a view you created yourself and mistake it for the normal state.
+  It also makes a chip clickable that would otherwise be off-screen — which
+  works, and costs exactly the reliability this section is about.
+- **A blue border is not a blue fill.** A click sets selection *and* focus.
+  Filled = selected; an outline alone may be focus only. To tell them apart,
+  click elsewhere to drop the focus, then zoom again.
+- **`find`'s accessibility tree can lag the rendered UI.** It reported "add
+  tag Tweaks" while the chip was already rendered as active. Treat a zoomed
+  screenshot as the stronger evidence when the two disagree.
+- **`find` returns two buttons per tag** — "Tag X hinzufügen" in the form and
+  "Nach Tag X filtern" in the channel filter below it. Take the form one.
+- **Discord's red "at least one tag" warning proves nothing.** It has
+  disappeared with no tag set and returned later. Neither its presence nor
+  its absence is evidence.
+- **Never put a screenshot and a `find` in the same `browser_batch`.** The
+  batch stops at the first failure, and a `find` that matches nothing discards
+  the screenshot taken before it — precisely when you need the picture.
 
 ## Corrections
 
