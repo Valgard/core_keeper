@@ -110,10 +110,17 @@ def render_update(changelog, *, supported, known, slug):
         raise ValueError("no '## [x.y.z]' entry in the changelog")
     version, body = entries[1], entries[2]
 
-    blocks = [_unwrap(b) for b in body.strip().split("\n\n")]
     # '### Changed' is changelog scaffolding. In a chat message it renders as a
-    # heading owning a single bullet, which reads as emphasis nobody intended.
-    blocks = [b for b in blocks if b and not b.startswith("###")]
+    # heading owning its bullets, which reads as emphasis nobody intended. The
+    # heading is dropped line by line rather than block by block: some mods
+    # write it with no blank line before its bullets, so heading and bullets
+    # split into one block together, and a block-level filter took the
+    # bullets with it.
+    blocks = []
+    for b in body.strip().split("\n\n"):
+        kept = "\n".join(l for l in _unwrap(b).split("\n") if not l.startswith("###"))
+        if kept.strip():
+            blocks.append(kept)
     # The version line keeps its own bold markers, so it gets its own line
     # rather than being spliced into one -- concatenating two bold runs with a
     # dash between them produces stray asterisks mid-sentence.

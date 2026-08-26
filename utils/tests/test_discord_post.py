@@ -554,6 +554,34 @@ def test_update_drops_the_section_headings_but_keeps_the_bullets():
     assert "- The toggle now applies without a restart." in comment
 
 
+_CHANGELOG_TIGHT_HEADING = """# Changelog
+
+## [1.0.0] - 2026-08-08
+
+### Added
+- Bullet one.
+- Bullet two.
+"""
+
+
+def test_update_keeps_the_bullets_when_the_heading_has_no_blank_line_after_it():
+    """refill-ore-boulders, rebalance-key-crafting and auto-rail-bridges write
+    their changelogs this way: '### Added' immediately followed by its
+    bullets, with no blank line between them. Blocks are split on blank
+    lines, so heading and bullets are one block -- and the block-level filter
+    used to drop the whole thing, silently deleting the entry."""
+    _, comment = dp.render_update(
+        _CHANGELOG_TIGHT_HEADING,
+        supported=["1.2.1.5"],
+        known=["1.2.1.5"],
+        slug="probe-mod",
+    )
+
+    assert "### Added" not in comment
+    assert "- Bullet one." in comment
+    assert "- Bullet two." in comment
+
+
 def test_update_opens_by_naming_the_version():
     """The compatibility line is what the channel's posting rules ask to see
     in the first lines -- so it must actually be there, on its own line, not
