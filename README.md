@@ -139,6 +139,27 @@ python3 ../utils/discord_post.py            # from the mod repo root
 python3 ../utils/discord_post.py --check    # validate only, no post on stdout
 ```
 
+`utils/discord_post.py --json` emits the same thing as data — title, body,
+tags, absolute attachment paths, clip URLs and the thread URL — which is what
+the `ck-discord-post` skill consumes to fill the form in the browser. The
+skill never submits: it fills the form and hands back.
+
+`--update` renders a version comment from the topmost `CHANGELOG.md` entry
+instead of the post, for a mod whose thread already exists.
+
+Two more variables live beside `CK_DISCORD_TAGS`, both in `.envrc` and
+`.envrc.example`:
+
+* **`CK_DISCORD_THREAD`** — the mod's thread URL. Empty means no thread yet,
+  so a new post is created; set means a release is announced as a comment.
+* **`CK_DISCORD_MEDIA`** — the images and clips beyond the logo, pipe-
+  separated and in order. A relative path becomes an attachment, an `http(s)`
+  URL becomes its own follow-up message — the only route for a clip past
+  Discord's upload ceiling. **The logo is always attached first**, so empty
+  here simply means "logo only", which is the honest answer for a mod whose
+  function has nothing to show. That is the opposite of `CK_DISCORD_TAGS`,
+  where empty is an omission the renderer refuses.
+
 Three things are generated rather than written by hand:
 
 * **The compatibility line**, from `CK_GAME_VERSION`. The channel asks for it

@@ -328,6 +328,14 @@ one hand-kept exception list. `CK_DISCORD_TAGS` *is* scaffolded, but empty: the
 variable is universal, its value belongs to a forum thread that does not exist
 yet, and `utils/discord_post.py` refuses to render while it is blank.
 
+`CK_DISCORD_THREAD` and `CK_DISCORD_MEDIA` are scaffolded empty too, but for
+a different reason — and the difference matters, because all three look
+alike. An empty `CK_DISCORD_TAGS` is an omission the renderer refuses; an
+empty `CK_DISCORD_THREAD` states that no thread exists yet, and an empty
+`CK_DISCORD_MEDIA` that the mod has nothing to show beyond its logo, which
+is the honest answer for a chat command. Same syntax, opposite semantics for
+the empty value; the `.envrc.example` comments have to say which is which.
+
 ## Formatting gate (every repo)
 
 Every repo under this directory — each mod repo and `core_keeper` itself —
