@@ -104,9 +104,14 @@ def resolve_dependencies(
             resolved.append({"name": name, "fileId": file_id, "required": required})
             continue
         if required:
+            if cache_path:
+                raise ValueError(
+                    f"required dependency {name!r} has no Workshop id. Add it to "
+                    f"{cache_path} once — see the spec on why this is not searched automatically."
+                )
             raise ValueError(
-                f"required dependency {name!r} has no Workshop id. Add it to "
-                f"{cache_path} once — see the spec on why this is not searched automatically."
+                f"required dependency {name!r} has no Workshop id, and STEAM_DEPS_MAP "
+                "is not set — point it at a cache JSON file and add the id there once."
             )
         # stderr, not stdout: Task 7 captures this function's caller's stdout
         # whole as the JSON bundle for the .NET tool, and a warning line ahead

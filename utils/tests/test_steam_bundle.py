@@ -277,6 +277,23 @@ def test_an_unresolvable_required_dependency_aborts(tmp_path):
         steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
 
 
+def test_an_unresolvable_required_dependency_with_no_cache_names_the_env_var(tmp_path):
+    # Distinct from the case above: here STEAM_DEPS_MAP itself is unset, so
+    # there is no cache_path to name. The message must say so instead of
+    # rendering "None" as if it were a real, actionable file path.
+    repo = _repo(
+        tmp_path,
+        asset=ASSET.replace(
+            "    dependencies: []",
+            "    dependencies:\n    - modName: CoreLib\n      required: 1",
+        ),
+    )
+    env = _env(tmp_path)
+
+    with pytest.raises(ValueError, match="STEAM_DEPS_MAP"):
+        steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
+
+
 def test_an_unresolvable_optional_dependency_is_skipped(tmp_path):
     repo = _repo(
         tmp_path,
