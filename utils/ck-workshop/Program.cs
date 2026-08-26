@@ -134,6 +134,20 @@ internal static class Program
         {
             createdFileId = (ulong)created.FileId;
             needsWorkshopAgreement = created.NeedsWorkshopAgreement;
+
+            // Written the moment the item exists on Steam, not just once the
+            // whole publish finishes below: SubmitAsync still has uploading
+            // and dependency-syncing left to do, and a timeout or a Ctrl-C
+            // during that stretch kills this process with no chance to reach
+            // either EmitResult call further down — the only other place
+            // this id is reported. Console.Out is flushed on every
+            // WriteLine, so this line reaches STEAM_RESULT on disk even if
+            // nothing after it does. success is always false here because
+            // the publish has not concluded yet; if it goes on to succeed,
+            // the real EmitResult below overwrites this — upload.sh takes
+            // only the LAST '{'-prefixed line in the result file.
+            Console.Error.WriteLine($"  Workshop item {createdFileId} created, publish continuing...");
+            EmitResult(createdFileId.Value, created: true, success: false);
         }
 
         try
