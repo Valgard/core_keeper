@@ -44,6 +44,9 @@ def _posts():
         tags = _export(example, "CK_DISCORD_TAGS")
         if tags is not None:
             env["CK_DISCORD_TAGS"] = tags
+        media = _export(example, "CK_DISCORD_MEDIA")
+        if media is not None:
+            env["CK_DISCORD_MEDIA"] = media
         found.append((repo, env))
     return found
 
