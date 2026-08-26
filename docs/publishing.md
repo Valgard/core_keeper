@@ -195,6 +195,40 @@ that, every later publish reuses it. Severity still follows the `.asset`'s
 `required` flag, exactly as it does for mod.io: a required dependency with no
 cached id aborts the publish, an optional one is skipped with a warning.
 
+**That makes the family's first Steam publishes an ordered sequence.** Several
+mods here depend on other mods here, and a Workshop id cannot exist before the
+mod that owns it has been published. So a mod is publishable to Steam only once
+every mod it declares is already on the Workshop and its id is in that JSON —
+which is why the first round has to run in dependency order rather than
+mod by mod as the mood takes you. `CoreLib` is the only foreign dependency and
+is already cached, so it never gates anything.
+
+The sequence is not written down here, because it changes with every publish
+and a stale list would be worse than none. Ask the repository instead:
+
+~~~bash
+python3 - <<'PY'
+import glob, json, re
+from pathlib import Path
+cache = json.loads(Path("utils/steam-dependencies.json").read_text())
+DEP = re.compile(r"^\s*-\s*modName:\s*(\S+)\s*\n\s*required:\s*(\d+)", re.MULTILINE)
+for asset in sorted(glob.glob("*/unity/*.asset")):
+    missing = [n for n, req in DEP.findall(Path(asset).read_text())
+               if req != "0" and n not in cache]
+    print(f"{asset.split('/')[0]:<32} {', '.join(missing) or 'ready'}")
+PY
+~~~
+
+Everything printed as `ready` can go now; everything else names what it is
+waiting for. Publish a ready one, put its Workshop id into
+`utils/steam-dependencies.json`, and re-run — the list gets shorter each round.
+Two rounds are enough as things stand.
+
+Getting this wrong is loud rather than dangerous: the preflight refuses before
+Unity starts, so the run publishes to mod.io and skips Steam with exit 8. It
+costs a mod.io release that gains nothing, which is reason enough to check
+first.
+
 ### Mod dependencies → mod.io platform dependencies
 
 On publish, `CLIPublishHelper` syncs the `.asset`'s `metadata.dependencies`
