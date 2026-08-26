@@ -102,7 +102,7 @@ internal static class Program
         if (dryRun)
         {
             Console.Error.WriteLine("  (dry run — nothing sent)");
-            Console.WriteLine(JsonSerializer.Serialize(new { fileId = bundle.FileId, created = false }));
+            EmitResult(bundle.FileId, created: false, success: true);
             return 0;
         }
 
@@ -118,6 +118,22 @@ internal static class Program
             Console.Error.WriteLine("  Is the desktop Steam client running and signed in?");
             Console.Error.WriteLine("  Is libsteam_api.dylib installed? See utils/fetch_steam_lib.sh");
             return 3;
+        }
+
+        // Captured the moment CreateItem succeeds, independently of the value
+        // SubmitAsync eventually returns: it also sets this on its return value
+        // whenever creation succeeded, even if a later step then fails, but not
+        // when a later step THROWS instead of returning — and the only way to
+        // learn the id of an item that exists on Steam but never got to return
+        // is this callback. Losing it here is exactly how a re-run creates a
+        // second, duplicate public Workshop item over one that already exists.
+        ulong? createdFileId = null;
+        var needsWorkshopAgreement = false;
+
+        void OnItemCreated(PublishResult created)
+        {
+            createdFileId = (ulong)created.FileId;
+            needsWorkshopAgreement = created.NeedsWorkshopAgreement;
         }
 
         try
@@ -161,71 +177,141 @@ internal static class Program
                 editor = editor.WithPrivateVisibility();
             }
 
-            var result = await editor.SubmitAsync(new Progress());
+            var result = await editor.SubmitAsync(new Progress(), OnItemCreated);
+            // SubmitAsync sets result.FileId as soon as CreateItem succeeds, and
+            // keeps it set through a later failure — the callback above is the
+            // fallback for the one path that doesn't return a result at all.
+            var fileId = (ulong)result.FileId != 0 ? (ulong)result.FileId : createdFileId;
+            needsWorkshopAgreement = needsWorkshopAgreement || result.NeedsWorkshopAgreement;
+
             if (!result.Success)
             {
                 Console.Error.WriteLine($"Workshop submit failed: {result.Result}");
+                if (needsWorkshopAgreement)
+                {
+                    Console.Error.WriteLine("  The Steam Workshop legal agreement has not been accepted for this account.");
+                    Console.Error.WriteLine($"  Accept it at https://steamcommunity.com/sharedfiles/workshoplegalagreement/{CoreKeeperAppId} and re-run.");
+                }
+                // The item may already be live even though the publish failed —
+                // report its id (if any) so upload.sh can still save it.
+                EmitResult(fileId ?? 0, created: creating && fileId.HasValue, success: false);
                 return 5;
             }
 
-            // Full sync rather than additive, so the Workshop list mirrors the
-            // .asset: what is declared is added, what is not is removed.
-            if (bundle.Dependencies != null)
+            var dependenciesOk = await SyncDependencies(fileId.Value, bundle.Dependencies);
+
+            EmitResult(fileId.Value, created: creating, success: true);
+            return dependenciesOk ? 0 : 7;
+        }
+        catch (Exception ex)
+        {
+            // Content Folder missing/empty (thrown before any item exists, so
+            // nothing to report) and any other Steamworks failure — a network
+            // abort, a Ctrl-C — land here alike. If an item was already
+            // created, its id must still reach stdout: that is the only way
+            // upload.sh learns of a live item it would otherwise treat as
+            // never having existed.
+            Console.Error.WriteLine($"Workshop publish threw: {ex.GetType().Name}: {ex.Message}");
+            if (createdFileId.HasValue)
             {
-                var published = (ulong)result.FileId;
-
-                // Item.GetAsync (see its use above) only asks for
-                // WithLongDescription, never WithChildren, so it always comes
-                // back with Children == null. Querying directly with
-                // WithChildren(true) is the only way to see what the item
-                // already carries, which the removal side needs to know.
-                var page = await Query.All.WithFileId(published).WithChildren(true).GetPageAsync(1);
-                if (page.HasValue)
-                {
-                    using (page.Value)
-                    {
-                        if (page.Value.ResultCount > 0)
-                        {
-                            var item = page.Value.Entries.First();
-                            var wanted = new HashSet<ulong>();
-                            foreach (var dep in bundle.Dependencies)
-                            {
-                                wanted.Add(dep.FileId);
-                                await item.AddDependency(dep.FileId);
-                                Console.Error.WriteLine($"  dependency + {dep.Name} ({dep.FileId})");
-                            }
-                            foreach (var child in item.Children ?? Array.Empty<PublishedFileId>())
-                            {
-                                if (!wanted.Contains(child.Value))
-                                {
-                                    await item.RemoveDependency(child.Value);
-                                    Console.Error.WriteLine($"  dependency - {child.Value}");
-                                }
-                            }
-                        }
-                        else
-                        {
-                            // Silent here would contradict "full sync, not additive": the
-                            // publish still reports success while no dependency was
-                            // added or removed at all.
-                            Console.Error.WriteLine($"  dependency sync skipped — Workshop item {published} not found (0 results)");
-                        }
-                    }
-                }
-                else
-                {
-                    Console.Error.WriteLine($"  dependency sync skipped — could not query Workshop item {published}");
-                }
+                EmitResult(createdFileId.Value, created: true, success: false);
             }
-
-            Console.WriteLine(JsonSerializer.Serialize(new { fileId = (ulong)result.FileId, created = creating }));
-            return 0;
+            return 6;
         }
         finally
         {
             SteamClient.Shutdown();
         }
     }
+
+    // Full sync rather than additive, so the Workshop list mirrors the .asset:
+    // what is declared is added, what is not is removed. Returns false when
+    // any single add/remove call failed, so the caller can tell "published,
+    // but not fully synced" apart from a clean run instead of reporting
+    // success regardless of what AddDependency/RemoveDependency actually did.
+    private static async Task<bool> SyncDependencies(ulong publishedFileId, Bundle.Dependency[] dependencies)
+    {
+        if (dependencies == null)
+        {
+            return true;
+        }
+
+        // Item.GetAsync (see its use above) only asks for WithLongDescription,
+        // never WithChildren, so it always comes back with Children == null.
+        // Querying directly with WithChildren(true) is the only way to see
+        // what the item already carries, which the removal side needs to know.
+        var page = await Query.All.WithFileId(publishedFileId).WithChildren(true).GetPageAsync(1);
+        if (!page.HasValue)
+        {
+            Console.Error.WriteLine($"  dependency sync skipped — could not query Workshop item {publishedFileId}");
+            return false;
+        }
+
+        using (page.Value)
+        {
+            if (page.Value.ResultCount == 0)
+            {
+                // Silent here would contradict "full sync, not additive": the
+                // publish still reports success while no dependency was
+                // added or removed at all.
+                Console.Error.WriteLine($"  dependency sync skipped — Workshop item {publishedFileId} not found (0 results)");
+                return false;
+            }
+
+            var item = page.Value.Entries.First();
+            var wanted = new HashSet<ulong>();
+            var ok = true;
+
+            foreach (var dep in dependencies)
+            {
+                wanted.Add(dep.FileId);
+                if (await item.AddDependency(dep.FileId))
+                {
+                    Console.Error.WriteLine($"  dependency + {dep.Name} ({dep.FileId})");
+                }
+                else
+                {
+                    Console.Error.WriteLine($"  dependency + {dep.Name} ({dep.FileId}) FAILED");
+                    ok = false;
+                }
+            }
+
+            foreach (var child in item.Children ?? Array.Empty<PublishedFileId>())
+            {
+                if (wanted.Contains(child.Value))
+                {
+                    continue;
+                }
+                if (await item.RemoveDependency(child.Value))
+                {
+                    Console.Error.WriteLine($"  dependency - {child.Value}");
+                }
+                else
+                {
+                    Console.Error.WriteLine($"  dependency - {child.Value} FAILED");
+                    ok = false;
+                }
+            }
+
+            return ok;
+        }
+    }
+
+    // The one place that writes the result line upload.sh parses. success
+    // travels alongside fileId/created so a caller can tell "published (or at
+    // least created) but something else failed" from a clean run without
+    // depending on the process exit code, which a shell pipeline can lose.
+    private static void EmitResult(ulong fileId, bool created, bool success) =>
+        Console.WriteLine(
+            JsonSerializer.Serialize(
+                new
+                {
+                    fileId,
+                    created,
+                    success,
+                }
+            )
+        );
 
     private sealed class Progress : IProgress<float>
     {
