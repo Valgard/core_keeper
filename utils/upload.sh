@@ -87,6 +87,18 @@ if [ "$NO_STEAM" = "1" ] && [ "$STEAM_ONLY" = "1" ]; then
     exit 1
 fi
 
+if [ "$STEAM_ONLY" = "1" ] && [ "$CHANGELOG_ONLY" = "1" ]; then
+    echo "ERROR: --changelog-only has no Steam equivalent (see the mode comment" >&2
+    echo "       above) — --steam-only with it would just skip everything." >&2
+    exit 1
+fi
+
+if [ "$STEAM_ONLY" = "1" ] && [ "$PROFILE_ONLY" = "1" ]; then
+    echo "ERROR: --profile-only has no Steam equivalent yet (see the mode comment" >&2
+    echo "       above) — --steam-only with it would just skip everything." >&2
+    exit 1
+fi
+
 UTILS_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 if [ ! -x "$UNITY_BIN" ]; then
