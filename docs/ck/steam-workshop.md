@@ -98,6 +98,14 @@ the asset it wrote, and presents an empty File ID field. From that state the
 next upload takes the create-new branch rather than the update branch. Reported
 upstream as [CoreKeeperModSDK#11](https://github.com/Pugstorm/CoreKeeperModSDK/issues/11).
 
+**A failed upload leaves an item behind and forgets its id.** The tab saves the
+File ID only inside `if (result.Success)`; the `else` branch prints the result
+code and never reads `result.FileId`. But `SubmitAsync` creates the item first
+and uploads afterwards, so anything that fails during the upload leaves a real,
+empty item on Steam whose id was written down nowhere — a preview over [the 1 MB cap](#the-preview-image-is-capped-at-1-mb)
+is the easy way to reach that state. The next attempt then takes the create-new
+branch again and makes a second item. Nothing in the UI mentions the first.
+
 A related trap: that `<Mod>_Steam.asset` sits inside the mod's asset folder, and
 **ModBuilder bundles everything in that folder**. The asset — including the
 author's SteamID64 in its `modOwner` field — is therefore shipped inside the mod.
