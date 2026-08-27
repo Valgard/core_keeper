@@ -240,9 +240,22 @@ Why nothing else works:
   sizes. Coordinates read from an earlier picture then land somewhere else,
   and a click that misses looks like an element that does not respond.
 
-One selector detail, if you ever need the title field: it is a
-`textarea[placeholder="Titel"]`, not an `input`. The `input` form of that
-selector returns `null` silently and looks like a closed composer.
+**Do not compare the body's length.** It never matches, and the mismatch
+looks exactly like a truncated paste. The Slate editor's `textContent` drops
+every newline but adds a `U+FEFF` filler inside each *empty* block, so a
+923-character body reads as 913: minus 19 newlines, plus 9 blank-line
+fillers. In a read it shows up as `1.2.1.5.﻿Vanil`. The clipboard's byte count
+differs again, because `—` and `→` are multi-byte in UTF-8. Compare the
+**first and last line** instead; a number here only produces false alarms,
+and acting on one means discarding an intact paste and redoing it.
+
+Two selector details worth knowing. The title field is a
+`textarea[placeholder="Titel"]`, not an `input` — the `input` form returns
+`null` silently and looks like a closed composer. And it sits only about 17
+pixels above the message field in an empty composer, so a missed click fails
+quietly: the title stays empty and its text lands in the body. Reading
+`title`, the body's first line and the selected tags back in one call after
+step 4 costs nothing and catches it.
 
 ## Checking the attachments
 
