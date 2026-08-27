@@ -58,7 +58,19 @@ input events produces exactly the traffic a human produces. So:
    in a tab you created. If Discord offers "open in app", choose
    **"Im Browser fortfahren"** — the app hand-off breaks the session.
 
-3. **Reconcile the tag list.** Open "Mehr Tags anzeigen" — its search field
+3. **Reconcile the tag list — unless it already happened today.**
+   `utils/ck-discord-tags.json` carries a `verified` date. If it is today's
+   date, skip this step and say so: the channel's vocabulary belongs to
+   somebody else and changes over months, while this reconciliation costs
+   several browser round-trips, and posting a run of mods in one sitting would
+   otherwise repeat it for every single one.
+
+   Otherwise reconcile, and **set `verified` to today afterwards even when
+   nothing diverged** — the date records when the list was last confirmed, not
+   when it last changed. Leaving it stale is what makes the next session repeat
+   the work.
+
+   To reconcile: open "Mehr Tags anzeigen" — its search field
    takes focus by itself — and read the whole list in one call:
    `read_page` with the list's `ref_id` and `filter="interactive"`. That
    returns all twenty in channel order regardless of scroll position, and an

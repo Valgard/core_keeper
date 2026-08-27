@@ -1,6 +1,6 @@
 {
-  "note": "Forum tags offered by #available-mods in the Core Keeper Discord. Read from the channel's own tag picker; refreshed by the ck-discord-post skill, not by hand. Order matches the dropdown, which is not alphabetical.",
-  "verified": "2026-08-26",
+  "note": "Forum tags offered by #available-mods in the Core Keeper Discord. Read from the channel's own tag picker; refreshed by the ck-discord-post skill, not by hand. Order matches the dropdown, which is not alphabetical. 'verified' is the day the list was last confirmed against the live channel, whether or not it changed; the skill skips its reconciliation step when that is today, so posting several mods in one sitting checks once rather than once per mod.",
+  "verified": "2026-08-28",
   "tags": [
     "Automation",
     "Cheats",

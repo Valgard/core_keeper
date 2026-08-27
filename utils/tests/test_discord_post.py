@@ -395,6 +395,25 @@ def test_forum_tags_come_from_the_data_file_not_the_code():
     assert len(tags) > 10
 
 
+def test_the_verified_date_is_a_past_iso_date():
+    """The ck-discord-post skill skips its reconciliation step when this date
+    is today, so the field decides whether the live channel gets checked at
+    all. A malformed value would silently never match — tolerable — but a
+    future date would silently always match, and the list would then go stale
+    unnoticed. Neither failure announces itself, so the format is asserted
+    here rather than trusted."""
+    import datetime
+    import json
+    import pathlib
+
+    doc = json.loads(
+        (pathlib.Path(dp.__file__).with_name(dp.TAGS_FILENAME)).read_text()
+    )
+
+    verified = datetime.date.fromisoformat(doc["verified"])
+    assert verified <= datetime.date.today()
+
+
 def _mod_tree(tmp_path, *, media=None, extra_files=()):
     """A repo with the logo every mod has, plus whatever the test needs."""
     logo = tmp_path / "unity" / "ProbeMod" / "Editor" / "logo.png"
