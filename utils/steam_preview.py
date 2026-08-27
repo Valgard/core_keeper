@@ -53,6 +53,20 @@ def _targets(side: int) -> tuple[int, ...]:
     return rungs if rungs else (side,)
 
 
+def _at(original: Image.Image, target: int, side: int) -> Image.Image:
+    """`original` scaled to `target`², or itself when that is already its size.
+
+    The identity case is not an optimisation. `_targets` can return the
+    source's own side as the sole rung, and resampling an image to the size it
+    already has still runs it through LANCZOS — so the top rung would be a
+    resampled copy rather than the file as authored, and the "lossless" it
+    reports would be a claim about a different image.
+    """
+    return (
+        original if target == side else original.resize((target, target), Image.LANCZOS)
+    )
+
+
 def _save(img: Image.Image, dest: Path) -> int:
     img.save(dest, optimize=True, compress_level=9)
     return dest.stat().st_size
@@ -65,12 +79,7 @@ def derive_preview(source: Path, dest: Path, limit: int = LIMIT) -> tuple[int, s
     targets = _targets(side)
 
     for target in targets:
-        candidate = (
-            original
-            if target == side
-            else original.resize((target, target), Image.LANCZOS)
-        )
-        size = _save(candidate, dest)
+        size = _save(_at(original, target, side), dest)
         if size <= limit:
             return size, f"{target}² lossless"
 
@@ -78,12 +87,10 @@ def derive_preview(source: Path, dest: Path, limit: int = LIMIT) -> tuple[int, s
     # indexed palette, which is roughly a third of the size at the cost of
     # banding — acceptable only because the alternative is no preview at all.
     for target in targets:
-        candidate = (
-            original
-            if target == side
-            else original.resize((target, target), Image.LANCZOS)
+        candidate = _at(original, target, side).quantize(
+            colors=255, method=Image.FASTOCTREE
         )
-        size = _save(candidate.quantize(colors=255, method=Image.FASTOCTREE), dest)
+        size = _save(candidate, dest)
         if size <= limit:
             return size, f"{target}² quantised"
 
