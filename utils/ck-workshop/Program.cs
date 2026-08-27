@@ -17,11 +17,18 @@
 // keys its stored File ID on the display title (CoreKeeperModSDK#11), and it
 // finds its content through a five-entry UI ring buffer.
 //
+// It has one other mode, `--read-item <fileId>`, which sends nothing: it prints
+// what a Workshop item currently says about itself, including the publisher-only
+// Metadata string. utils/steam_backfill.py reads its own progress out of that
+// field, so it needs a read that is guaranteed to have ASKED for it — a query
+// that does not returns null there, and null read as "nothing recorded" is the
+// one mistake that turns an append-only history into a duplicated one.
+//
 // Exit codes, which utils/upload.sh reports as the run's own:
-//   0  published — or a dry run, which sends nothing and says so
+//   0  published — or a dry run, which sends nothing and says so; or an item read
 //   2  the bundle on stdin is unusable — not JSON, or a field that reaches the
 //      Workshop item is missing, blank, names a file that is not there, or is
-//      one this tool cannot act on
+//      one this tool cannot act on. Also a --read-item without a usable id.
 //   3  Steam would not initialise — client not running, or the native library
 //   4  the target item does not exist, or belongs to another account
 //   5  the submit failed; an id may still have been emitted for a created item
@@ -80,6 +87,15 @@ internal sealed class Bundle
     [JsonPropertyName("dependencies")]
     public Dependency[] Dependencies { get; set; }
 
+    // The item's publisher-only Metadata string. Null means "not in the bundle",
+    // and that is the normal case: Facepunch's Editor only calls
+    // SetItemMetadata when WithMetaData was used, so an absent key leaves what
+    // the item already carries alone. A publish that wrote it unconditionally
+    // would erase utils/steam_backfill.py's progress record on the next
+    // ordinary release.
+    [JsonPropertyName("metadata")]
+    public string Metadata { get; set; }
+
     internal sealed class Dependency
     {
         [JsonPropertyName("name")]
@@ -107,8 +123,23 @@ internal static class Program
 {
     private const uint CoreKeeperAppId = 1621690;
 
+    // Valve documents 5,000 for SetItemMetadata; the read buffer on the query
+    // side is 32,768. The smaller, documented one is what a writer is bound by
+    // — relying on the larger is relying on an implementation detail that can
+    // change without notice, and a metadata string that silently failed to
+    // store would be read back as "nothing recorded".
+    private const int MetadataLimit = 5000;
+
     private static async Task<int> Main(string[] args)
     {
+        // Before the stdin read below, which would otherwise block this mode
+        // forever on an interactive terminal: --read-item takes no bundle.
+        var readIndex = Array.IndexOf(args, "--read-item");
+        if (readIndex >= 0)
+        {
+            return await ReadItem(readIndex + 1 < args.Length ? args[readIndex + 1] : null);
+        }
+
         var dryRun = Array.IndexOf(args, "--dry-run") >= 0;
 
         Bundle bundle;
@@ -143,6 +174,11 @@ internal static class Program
         // logic below actually reads. Validate has just tied the two together,
         // so this line cannot describe one item while the code creates another.
         Console.Error.WriteLine(visibility == ItemVisibility.Hidden ? "  Item:    new (hidden)" : $"  Item:    {bundle.FileId}");
+        // Named on both paths rather than only in the dry run, because "the
+        // item's own progress record was rewritten" is not something to learn
+        // about only from a rehearsal. Absent is the ordinary case and says so,
+        // so a publish that started writing it by accident is visible here.
+        Console.Error.WriteLine(bundle.Metadata == null ? "  Meta:    unchanged (not in the bundle)" : $"  Meta:    {bundle.Metadata}");
 
         if (dryRun)
         {
@@ -234,6 +270,22 @@ internal static class Program
             // with no preview and no complaint.
             editor = editor.WithPreviewFile(bundle.PreviewPath);
 
+            // Only when the bundle carries one: WithMetaData is what makes
+            // SubmitAsync call SetItemMetadata at all, so skipping it is how an
+            // ordinary publish leaves the backfill's progress record standing.
+            // Set here rather than in the chain above so that stays true by
+            // construction and not by remembering to guard a longer expression.
+            //
+            // In the same submit as the content it describes, which is the
+            // whole reason the record lives on the item: a local file can say
+            // "done" for a submit that failed, or say nothing for one that
+            // succeeded, and in an append-only history the second reading
+            // duplicates an entry that cannot be deleted through any API.
+            if (bundle.Metadata != null)
+            {
+                editor = editor.WithMetaData(bundle.Metadata);
+            }
+
             foreach (var tag in tags)
             {
                 editor = editor.WithTag(tag);
@@ -288,6 +340,105 @@ internal static class Program
             {
                 EmitResult(createdFileId.Value, created: true, success: false);
             }
+            return 6;
+        }
+        finally
+        {
+            SteamClient.Shutdown();
+        }
+    }
+
+    // Print what a Workshop item says about itself, and send nothing. One JSON
+    // line on stdout, in the same shape EmitResult uses, so the reader on the
+    // other side parses one kind of line either way.
+    //
+    // The point of it is `metadata`, the publisher-only string
+    // utils/steam_backfill.py keeps its progress in. Two things make that
+    // reading trustworthy, and both are here rather than on the caller's side
+    // because only this side can know them:
+    //
+    //   - WithMetadata(true). Facepunch fills Item.Metadata only when the query
+    //     asked; Item.GetAsync never asks, so it always comes back null. The
+    //     emitted `metadataQueried` says the flag was set, which is the one
+    //     thing the caller could not otherwise tell from a null — and null read
+    //     as "nothing recorded yet" would send every already-submitted version
+    //     a second time, into a history no API can delete from.
+    //   - title and owner beside it. A bulk query page answers with
+    //     placeholders — empty title, owner 0 — so a null field there measures
+    //     the response rather than the item. Emitting both lets the caller
+    //     apply that control instead of trusting this one to have used the
+    //     right query.
+    private static async Task<int> ReadItem(string raw)
+    {
+        if (!ulong.TryParse(raw, out var fileId) || fileId == 0)
+        {
+            Console.Error.WriteLine($"--read-item needs a Workshop file id, got {Quoted(raw)}");
+            return 2;
+        }
+
+        try
+        {
+            SteamClient.Init(CoreKeeperAppId);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Steam could not be initialised: {ex.Message}");
+            Console.Error.WriteLine("  Is the desktop Steam client running and signed in?");
+            Console.Error.WriteLine("  Is libsteam_api.dylib installed? See utils/fetch_steam_lib.sh");
+            return 3;
+        }
+
+        try
+        {
+            var page = await Query.All.WithFileId(fileId).WithMetadata(true).GetPageAsync(1);
+            if (!page.HasValue)
+            {
+                Console.Error.WriteLine($"Workshop item {fileId} could not be queried.");
+                return 4;
+            }
+
+            using (page.Value)
+            {
+                // Both conditions, for the reason SyncDependencies documents at
+                // length: a query for an id that is no item comes back with
+                // ResultCount 1 and an entry whose Result is FileNotFound, so
+                // the count alone never detects a missing item.
+                var item = page.Value.Entries.FirstOrDefault();
+                if (page.Value.ResultCount == 0 || item.Result != Result.OK)
+                {
+                    Console.Error.WriteLine($"Workshop item {fileId} not found ({item.Result}).");
+                    return 4;
+                }
+                // The same ownership check the submit path makes, made here so
+                // a caller learns it before it has planned a run of submits
+                // against an item it cannot write to. The owner goes on the
+                // line because "belongs to someone else" is not actionable
+                // without knowing whom.
+                if (item.Owner.Id != SteamClient.SteamId)
+                {
+                    Console.Error.WriteLine($"Workshop item {fileId} belongs to {item.Owner.Id.Value}, not to this account.");
+                    return 4;
+                }
+
+                Console.WriteLine(
+                    JsonSerializer.Serialize(
+                        new
+                        {
+                            fileId,
+                            result = item.Result.ToString(),
+                            title = item.Title,
+                            owner = item.Owner.Id.Value,
+                            metadata = item.Metadata,
+                            metadataQueried = true,
+                        }
+                    )
+                );
+                return 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Workshop read threw: {ex.GetType().Name}: {ex.Message}");
             return 6;
         }
         finally
@@ -372,6 +523,16 @@ internal static class Program
                 // which on an item being created that same second means Steam's
                 // own default. Public.
                 return $"bundle field \"visibility\" is {Quoted(bundle.Visibility)}, expected \"hidden\" or \"unchanged\"";
+        }
+
+        // Refused rather than truncated. Whatever reads this field back reads
+        // the whole of it or nothing — a string cut at 5,000 bytes is not a
+        // shorter record, it is a JSON document that no longer parses, and the
+        // reader treats an unparseable record as "unknown" and stops. Better to
+        // stop here, before the submit, where stopping costs nothing.
+        if (bundle.Metadata != null && System.Text.Encoding.UTF8.GetByteCount(bundle.Metadata) > MetadataLimit)
+        {
+            return $"bundle field \"metadata\" is {System.Text.Encoding.UTF8.GetByteCount(bundle.Metadata)} bytes, over Steam's documented {MetadataLimit}";
         }
 
         // hidden ⇔ fileId == 0, and both directions are worth refusing.
