@@ -12,7 +12,8 @@
 // Exit codes, which utils/upload.sh reports as the run's own:
 //   0  published — or a dry run, which sends nothing and says so
 //   2  the bundle on stdin is unusable — not JSON, or a field that reaches the
-//      Workshop item is missing, blank or one this tool cannot act on
+//      Workshop item is missing, blank, names a file that is not there, or is
+//      one this tool cannot act on
 //   3  Steam would not initialise — client not running, or the native library
 //   4  the target item does not exist, or belongs to another account
 //   5  the submit failed; an id may still have been emitted for a created item
@@ -218,10 +219,10 @@ internal static class Program
 
             editor = editor.WithTitle(bundle.Title).WithDescription(bundle.Description).WithContent(bundle.ContentPath).WithChangeLog(bundle.Changelog);
 
-            if (File.Exists(bundle.PreviewPath))
-            {
-                editor = editor.WithPreviewFile(bundle.PreviewPath);
-            }
+            // Unconditional: Validate has already established that the file is
+            // there. Guarding it here instead is what used to publish an item
+            // with no preview and no complaint.
+            editor = editor.WithPreviewFile(bundle.PreviewPath);
 
             foreach (var tag in tags)
             {
@@ -297,6 +298,11 @@ internal static class Program
     // Workshop item, where a wrong one is not an error but a wrong item in a
     // public catalogue. Returns the message to print, or null when the bundle
     // is usable.
+    //
+    // It runs ahead of the dry-run branch, so a rehearsal rejects every bundle
+    // a real run would reject — which is also what makes all of this reachable
+    // from the test suite, with no Steam client anywhere. That is the reason
+    // the one filesystem check below lives here rather than beside its use.
     private static string Validate(Bundle bundle, out ItemVisibility visibility)
     {
         visibility = ItemVisibility.Unchanged;
@@ -329,6 +335,23 @@ internal static class Program
             return "bundle field \"changelog\" is missing";
         }
 
+        // The one filesystem question asked here, and asked because nothing
+        // else asks it. A missing content folder is Steamworks' own error,
+        // thrown loudly before any item exists; a preview file that is not
+        // there produces no error anywhere — WithPreviewFile simply never runs
+        // and the item goes into the catalogue with a placeholder where its
+        // logo belongs. There is no metadata-only publish path on the Steam
+        // side, so that costs a whole Workshop update to correct, while
+        // refusing it here costs nothing: no item has been created yet.
+        if (string.IsNullOrWhiteSpace(bundle.PreviewPath))
+        {
+            return "bundle field \"previewPath\" is missing or blank";
+        }
+        if (!File.Exists(bundle.PreviewPath))
+        {
+            return $"bundle field \"previewPath\" names no file: {bundle.PreviewPath}";
+        }
+
         switch (bundle.Visibility)
         {
             case "unchanged":
@@ -356,6 +379,35 @@ internal static class Program
         {
             return $"bundle field \"visibility\" is {Quoted(bundle.Visibility)} but fileId is {bundle.FileId} — "
                 + "a new item (fileId 0) must be \"hidden\", an existing one \"unchanged\"";
+        }
+
+        // A null LIST stays usable: that is the producer's "unknown, change
+        // nothing", and SyncDependencies early-returns on it rather than
+        // removing what it cannot name. Its ENTRIES are a different matter —
+        // each becomes an AddDependency call, and neither way of getting one
+        // wrong announces itself. steam_bundle.py cannot produce either, but
+        // that guarantee lives in another language, and an item published with
+        // a dependency missing is not an error, it is a mod that does not run
+        // for whoever subscribes to it.
+        foreach (var dependency in bundle.Dependencies ?? Array.Empty<Bundle.Dependency>())
+        {
+            if (dependency == null)
+            {
+                return "bundle field \"dependencies\" has a null entry";
+            }
+            // Before the id check, because the id is what the message would
+            // otherwise have to identify a nameless entry by.
+            if (string.IsNullOrWhiteSpace(dependency.Name))
+            {
+                return $"bundle dependency {dependency.FileId} has no \"name\" — the log line reporting it is the only place its severity is visible";
+            }
+            // Also what an absent "fileId" key deserialises to, which is the
+            // likelier of the two ways to arrive here: AddDependency(0) asks
+            // Steam about an item that cannot exist.
+            if (dependency.FileId == 0)
+            {
+                return $"bundle dependency \"{dependency.Name}\" has no \"fileId\" — 0 is not a Workshop item";
+            }
         }
 
         return null;

@@ -26,21 +26,42 @@ PROJECT = UTILS / "ck-workshop"
 SDK_PATH = UTILS.parent / "CoreKeeperModSDK"
 PLUGINS = SDK_PATH / "Assets" / "Plugins" / "CoreKeeperModSDK"
 
-# What steam_bundle.build_bundle emits for a mod that has never been published:
-# no file id, and therefore hidden. Paths are never opened on the dry-run path,
-# so they need not exist.
-GOLDEN = {
-    "fileId": 0,
-    "title": "Item Checklist",
-    "description": "[b]Item Checklist[/b]",
-    "tags": ["1.2.1.3", "Quality of Life", "Client", "Script"],
-    "changelog": "- first release",
-    "version": "1.0.0",
-    "contentPath": "/nonexistent/build/ItemChecklist",
-    "previewPath": "/nonexistent/build/preview.png",
-    "visibility": "hidden",
-    "dependencies": [],
-}
+
+@pytest.fixture(scope="module")
+def preview(tmp_path_factory):
+    """A file for previewPath to name, because the tool checks that one exists.
+
+    Its contents are never read here — nothing on the dry-run path opens it,
+    and Steam is what would eventually reject a preview it does not like. What
+    is being exercised is the existence check, so an existing file is the whole
+    of what this has to be.
+    """
+    path = tmp_path_factory.mktemp("preview") / "preview.png"
+    path.write_bytes(b"not really a png")
+    return path
+
+
+@pytest.fixture
+def golden(preview):
+    """What steam_bundle.build_bundle emits for a mod never published before:
+    no file id, and therefore hidden.
+
+    contentPath is never opened on the dry-run path and so need not exist;
+    previewPath is, which is the asymmetry the fixture above exists for. A
+    fresh dict per test, so a test that mutates it cannot reach the next one.
+    """
+    return {
+        "fileId": 0,
+        "title": "Item Checklist",
+        "description": "[b]Item Checklist[/b]",
+        "tags": ["1.2.1.3", "Quality of Life", "Client", "Script"],
+        "changelog": "- first release",
+        "version": "1.0.0",
+        "contentPath": "/nonexistent/build/ItemChecklist",
+        "previewPath": str(preview),
+        "visibility": "hidden",
+        "dependencies": [],
+    }
 
 
 @pytest.fixture(scope="module")
@@ -105,8 +126,8 @@ def result_line(completed):
 
 
 class TestAcceptedBundle:
-    def test_a_new_item_reports_no_id_and_success(self, tool):
-        done = run(tool, GOLDEN)
+    def test_a_new_item_reports_no_id_and_success(self, tool, golden):
+        done = run(tool, golden)
         assert done.returncode == 0
         assert result_line(done) == {
             "fileId": 0,
@@ -117,13 +138,13 @@ class TestAcceptedBundle:
             "modOwner": 0,
         }
 
-    def test_an_existing_item_echoes_its_id_back(self, tool):
-        done = run(tool, {**GOLDEN, "fileId": 3210987654, "visibility": "unchanged"})
+    def test_an_existing_item_echoes_its_id_back(self, tool, golden):
+        done = run(tool, {**golden, "fileId": 3210987654, "visibility": "unchanged"})
         assert done.returncode == 0
         assert result_line(done)["fileId"] == 3210987654
 
-    def test_it_sends_nothing(self, tool):
-        assert "nothing sent" in run(tool, GOLDEN).stderr
+    def test_it_sends_nothing(self, tool, golden):
+        assert "nothing sent" in run(tool, golden).stderr
 
 
 class TestUnusableBundle:
@@ -145,8 +166,8 @@ class TestUnusableBundle:
         assert done.returncode == 2
 
     @pytest.mark.parametrize("value", [None, ""])
-    def test_content_path_missing_or_blank(self, tool, value):
-        bundle = dict(GOLDEN)
+    def test_content_path_missing_or_blank(self, tool, golden, value):
+        bundle = dict(golden)
         if value is None:
             del bundle["contentPath"]
         else:
@@ -165,34 +186,34 @@ class TestRequiredFields:
     """
 
     @pytest.mark.parametrize("field", ["title", "description", "changelog"])
-    def test_a_missing_field_is_named(self, tool, field):
-        bundle = dict(GOLDEN)
+    def test_a_missing_field_is_named(self, tool, golden, field):
+        bundle = dict(golden)
         del bundle[field]
         done = run(tool, bundle)
         assert done.returncode == 2
         assert field in done.stderr
 
     @pytest.mark.parametrize("field", ["title", "description", "changelog"])
-    def test_an_explicit_null_is_refused_too(self, tool, field):
+    def test_an_explicit_null_is_refused_too(self, tool, golden, field):
         # A JSON null and an absent key are the same thing on this side, and
         # both are a producer that stopped supplying a value.
-        done = run(tool, {**GOLDEN, field: None})
+        done = run(tool, {**golden, field: None})
         assert done.returncode == 2
         assert field in done.stderr
 
-    def test_a_blank_title_is_refused(self, tool):
+    def test_a_blank_title_is_refused(self, tool, golden):
         # Blank only counts as missing where blank is itself a wrong item, and
         # an untitled entry in the Workshop catalogue is one.
-        done = run(tool, {**GOLDEN, "title": "   "})
+        done = run(tool, {**golden, "title": "   "})
         assert done.returncode == 2
         assert "title" in done.stderr
 
     @pytest.mark.parametrize("field", ["description", "changelog"])
-    def test_an_empty_one_is_accepted(self, tool, field):
+    def test_an_empty_one_is_accepted(self, tool, golden, field):
         # Neither is refused when empty: an empty description makes a sparse
         # item rather than a broken one, and steam_bundle.parse_changelog
         # genuinely returns "" for a version heading with nothing under it.
-        assert run(tool, {**GOLDEN, field: ""}).returncode == 0
+        assert run(tool, {**golden, field: ""}).returncode == 0
 
 
 class TestVisibility:
@@ -204,30 +225,122 @@ class TestVisibility:
     does not recognise are exactly the ones that must stop it.
     """
 
-    def test_a_missing_key_is_refused(self, tool):
-        bundle = dict(GOLDEN)
+    def test_a_missing_key_is_refused(self, tool, golden):
+        bundle = dict(golden)
         del bundle["visibility"]
         done = run(tool, bundle)
         assert done.returncode == 2
         assert "visibility" in done.stderr
 
     @pytest.mark.parametrize("value", ["public", "Hidden", "", "unlisted"])
-    def test_an_unrecognised_value_is_refused(self, tool, value):
+    def test_an_unrecognised_value_is_refused(self, tool, golden, value):
         # "Hidden" among them on purpose: the comparison is case-sensitive, so
         # a producer that ever capitalised the value would have published one
         # public item per new mod, silently.
-        done = run(tool, {**GOLDEN, "visibility": value})
+        done = run(tool, {**golden, "visibility": value})
         assert done.returncode == 2
         assert "visibility" in done.stderr
 
-    def test_a_new_item_may_not_say_unchanged(self, tool):
+    def test_a_new_item_may_not_say_unchanged(self, tool, golden):
         # hidden ⇔ fileId == 0, forwards: "unchanged" on an item that does not
         # exist yet is how it gets created public.
-        done = run(tool, {**GOLDEN, "fileId": 0, "visibility": "unchanged"})
+        done = run(tool, {**golden, "fileId": 0, "visibility": "unchanged"})
         assert done.returncode == 2
 
-    def test_an_existing_item_may_not_say_hidden(self, tool):
+    def test_an_existing_item_may_not_say_hidden(self, tool, golden):
         # And backwards: hiding a live item takes something out of the
         # catalogue that a person deliberately put there.
-        done = run(tool, {**GOLDEN, "fileId": 3210987654, "visibility": "hidden"})
+        done = run(tool, {**golden, "fileId": 3210987654, "visibility": "hidden"})
         assert done.returncode == 2
+
+
+class TestPreview:
+    """The field whose absence used to publish an item with no preview at all.
+
+    `if (File.Exists(previewPath))` with no else read a missing key, a typo and
+    a preview that was never written as the same instruction: send no preview,
+    say nothing. The result is a live catalogue entry with a placeholder where
+    its logo belongs — and the Steam side has no metadata-only publish path
+    (see docs/publishing.md), so correcting it afterwards costs a whole
+    Workshop update, where refusing here costs nothing at all.
+
+    Checked on the dry run too, which is why these tests can see it. A
+    rehearsal that passed while the real run would go out without a preview
+    would not be a rehearsal.
+    """
+
+    def test_a_missing_key_is_refused(self, tool, golden):
+        bundle = dict(golden)
+        del bundle["previewPath"]
+        done = run(tool, bundle)
+        assert done.returncode == 2
+        assert "previewPath" in done.stderr
+
+    @pytest.mark.parametrize("value", [None, "", "   "])
+    def test_a_blank_value_is_refused(self, tool, golden, value):
+        done = run(tool, {**golden, "previewPath": value})
+        assert done.returncode == 2
+        assert "previewPath" in done.stderr
+
+    def test_a_path_that_names_no_file_is_refused(self, tool, golden):
+        # What a present-and-non-blank check alone would still let through, and
+        # the case that actually happens: the producer derives the preview into
+        # a scratch directory that a trap removes, so the path is spelled
+        # perfectly and the file is simply not there any more.
+        done = run(tool, {**golden, "previewPath": "/nonexistent/preview.png"})
+        assert done.returncode == 2
+        assert "/nonexistent/preview.png" in done.stderr
+
+
+class TestDependencies:
+    """Entries on their way to AddDependency, checked before they get there.
+
+    steam_bundle.py cannot emit any of the refusals below — it resolves an id
+    or reports None for the whole list — so this guards a bundle assembled by
+    hand or by some later producer. It is worth guarding because neither
+    failure announces itself: AddDependency(0) asks Steam about an item that
+    cannot exist, and a nameless entry empties the one log line on which a
+    dependency's severity is visible while the log is still on screen.
+    """
+
+    def test_an_entry_with_no_file_id_is_refused(self, tool, golden):
+        entry = {"name": "CoreLib", "fileId": 0, "required": True}
+        done = run(tool, {**golden, "dependencies": [entry]})
+        assert done.returncode == 2
+        assert "CoreLib" in done.stderr
+
+    def test_an_absent_file_id_is_refused_as_well(self, tool, golden):
+        # An absent key deserialises to 0, so it is the same AddDependency(0)
+        # arriving by a different route — and the likelier of the two.
+        done = run(tool, {**golden, "dependencies": [{"name": "CoreLib"}]})
+        assert done.returncode == 2
+        assert "CoreLib" in done.stderr
+
+    @pytest.mark.parametrize("name", [None, "", "  "])
+    def test_an_entry_with_no_name_is_refused(self, tool, golden, name):
+        entry = {"name": name, "fileId": 3000000001, "required": False}
+        done = run(tool, {**golden, "dependencies": [entry]})
+        assert done.returncode == 2
+        # Named by its id, because the name is the thing that is missing.
+        assert "3000000001" in done.stderr
+
+    def test_a_null_entry_is_refused(self, tool, golden):
+        done = run(tool, {**golden, "dependencies": [None]})
+        assert done.returncode == 2
+        assert "dependencies" in done.stderr
+
+    def test_a_resolved_entry_is_accepted(self, tool, golden):
+        entry = {"name": "CoreLib", "fileId": 3000000001, "required": True}
+        assert run(tool, {**golden, "dependencies": [entry]}).returncode == 0
+
+    def test_null_is_accepted_because_it_means_unknown(self, tool, golden):
+        # What steam_bundle emits when it could not resolve every declared
+        # dependency. Program.cs early-returns on it and syncs nothing, which
+        # is the point: a list it cannot complete would remove what it cannot
+        # name. Refusing null here would turn that safeguard into an abort.
+        assert run(tool, {**golden, "dependencies": None}).returncode == 0
+
+    def test_an_empty_list_is_accepted(self, tool, golden):
+        # "Declares none, so remove anything stale" — a complete picture, and a
+        # different claim from the null above.
+        assert run(tool, {**golden, "dependencies": []}).returncode == 0
