@@ -146,22 +146,29 @@ publishes to Steam alone. `upload.sh` refuses to run with both set.
 
 **A Steam preflight runs before mod.io, and a failure there skips Steam
 instead of aborting the run.** `steam_bundle.check_prerequisites` validates
-everything the Steam stage needs that does not depend on a finished build:
-`MOD_NAME`, the ModBuilderSettings `.asset`, `steam-description.txt`, a
-`CHANGELOG.md` whose topmost `## [x.y.z]` entry parses, `Editor/logo.png`, a
-recognizable `<Mod>_Steam.asset`, and a Workshop id for every declared
-dependency. The built content folder is the one thing it leaves out, because
-that cannot exist yet. It runs first, not merely early, for the same reason
-the modfile upload itself cannot: once that release goes out it cannot be
-undone, so a missing file or an unresolved dependency has to surface while
-skipping still costs nothing. On failure it prints why and continues into the
-mod.io release with the Steam stage turned off — then ends the run with **exit
-8**, so a caller reading only the status still learns that Steam did not go
-out. That release is published and is not retracted by the non-zero code; a
-code of its own rather than 1 is what says so. `--steam-only` is the one case
-with no mod.io release for that skip to protect, so there a failed preflight
-aborts the run instead — publishing nothing while reporting success would be
-worse than the previous behaviour.
+the repository-side inputs a Steam publish needs: `MOD_NAME`, a
+`CK_MODIO_TYPE` that names at least one category, the ModBuilderSettings
+`.asset`, `steam-description.txt`, a `CHANGELOG.md` whose topmost `## [x.y.z]`
+entry parses, `Editor/logo.png`, a recognizable `<Mod>_Steam.asset`, and a
+Workshop id for every dependency the `.asset` marks `required` — an
+unresolvable *optional* one only warns.
+
+It is not a check of everything the stage needs, and reading it as one is how a
+gap goes unnoticed: `libsteam_api.dylib`, a working `dotnet` toolchain and a
+signed-in Steam client are equally independent of the build and none of them is
+checked here — they surface from `ck-workshop` or its MSBuild step instead. What
+*is* left out on purpose is the built content folder: on the normal path
+mod.io's own build creates it, so at preflight time it genuinely cannot exist
+yet. It runs first, not merely early, for the same reason the modfile upload
+itself cannot: once that release goes out it cannot be undone, so a missing file
+or an unresolved dependency has to surface while skipping still costs nothing.
+On failure it prints why and continues into the mod.io release with the Steam
+stage turned off — then ends the run with **exit 8**, so a caller reading only
+the status still learns that Steam did not go out. That release is published and
+is not retracted by the non-zero code; a code of its own rather than 1 is what
+says so. `--steam-only` is the one case with no mod.io release for that skip to
+protect, so there a failed preflight aborts the run instead — publishing nothing
+while reporting success would be worse than the previous behaviour.
 
 **Steam runs second and can never fail the mod.io publish.** By the time it
 starts, the mod.io release has already happened and cannot be undone, so a Steam
@@ -170,6 +177,23 @@ fatal: aborting at that point would reverse nothing and only hide what had
 already succeeded. The preflight above upholds that same invariant at its own,
 earlier point in the run, exit code included; it uses a distinct one because
 "Steam never started" and "Steam started and failed" are worth telling apart.
+
+**The exit codes exist to keep outcomes apart that all leave the item live.**
+Nothing can be undone at that point, so saying precisely what happened is the
+only thing left:
+
+| Code | Meaning |
+|---|---|
+| 7 | published, but an **optional** dependency did not attach |
+| 8 | the mod.io release is done; Steam never started, its preflight failed |
+| 9 | published, but a **required** dependency may be missing from the item |
+
+7 and 9 are the same API failure with different consequences: an optional
+dependency that did not attach costs a subscriber a convenience, a required one
+costs them a mod that does not run. Codes 2–6 come straight through from
+`utils/ck-workshop` — its own header says what each means — and 124 is a
+`timeout` firing, on either destination.
+
 `--changelog-only` and `--profile-only` skip Steam outright rather than
 attempting an equivalent: the former edits a mod.io modfile's changelog text,
 which the Workshop's single-item model has no counterpart for, and the latter

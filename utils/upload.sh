@@ -31,10 +31,11 @@
 # --no-steam publishes to mod.io only. --steam-only skips mod.io and publishes
 # to Steam only (the two contradict each other). Before mod.io even starts, a
 # preflight checks the repository-side inputs a Steam publish needs: MOD_NAME,
-# the ModBuilderSettings .asset, steam-description.txt, a CHANGELOG.md whose
-# topmost "## [x.y.z]" entry parses, Editor/logo.png, a recognizable
-# <Mod>_Steam.asset, and a Workshop id for every dependency the .asset marks
-# `required` (an unresolvable OPTIONAL one only warns and is skipped).
+# a CK_MODIO_TYPE that names at least one category, the ModBuilderSettings
+# .asset, steam-description.txt, a CHANGELOG.md whose topmost "## [x.y.z]"
+# entry parses, Editor/logo.png, a recognizable <Mod>_Steam.asset, and a
+# Workshop id for every dependency the .asset marks `required` (an
+# unresolvable OPTIONAL one only warns and is skipped).
 #
 # It is not a check of everything the stage needs, and should not be read as
 # one: libsteam_api.dylib under SDK_PATH, a working dotnet toolchain and a
