@@ -31,6 +31,7 @@ machinery those arrangements sit on.
 | [Localisation](localisation.md) | The game-wide table, first-write-wins and its consequences, the ways localisation has shipped broken, term-key conventions |
 | [Publishing to mod.io](publishing.md) | Profile versus modfile and why a changelog cannot be edited, which manifest field becomes which tag, the silent tag drop, dependencies existing twice |
 | [Publishing to the Steam Workshop](steam-workshop.md) | One item instead of a profile and a modfile, tags grouped by the platform, the 1 MB preview cap, what the SDK tab does behind its fields, and the native library macOS needs |
+| [Announcing a mod in the community Discord](announcing-in-discord.md) | The `#available-mods` forum's rules and what they demand of a post, and why an inactive thread is archived rather than gone |
 | [Savegame formats](savegame-formats.md) | World, map and character files — what is readable, what is not, and why the map is a fog-of-war snapshot |
 | [Troubleshooting](troubleshooting.md) | Symptom-first index for mods that will not load, will not compile, or take something else down with them — and for the Editor and build failures that have nothing to do with any mod |
 | [Reverse engineering](reverse-engineering.md) | Decompiling the assemblies, unpacking assets, querying prefab YAML, and how much evidence a claim needs |
@@ -89,6 +90,7 @@ symptom, not the topic.
 | A tag you set on mod.io simply is not there | [Publishing to mod.io](publishing.md) — unknown values are dropped silently |
 | The Steam Workshop tab's "Initialize Steam" does nothing | [Troubleshooting](troubleshooting.md) — a native library the SDK does not ship on macOS |
 | A Workshop upload fails, or its preview is rejected | [Publishing to the Steam Workshop](steam-workshop.md) — the 1 MB preview cap and what else the tab does silently |
+| Your Discord announcement is no longer in the channel list | [Announcing a mod in the community Discord](announcing-in-discord.md) — inactivity archives a thread, it does not delete it |
 | Mod fails to compile (`CompileFailed`) | [The load-time sandbox](sandbox.md), then [Troubleshooting](troubleshooting.md) |
 | Scripts are not compiled at all, and the log says nothing | [Troubleshooting](troubleshooting.md) — the mod.io `Access Type` tag |
 | An unrelated, previously working mod stopped patching | [Troubleshooting](troubleshooting.md) — the CompileFailed cascade |
@@ -129,6 +131,7 @@ symptom, not the topic.
 | Translate your mod's text | [Localisation](localisation.md) |
 | Read data out of a save | [Savegame formats](savegame-formats.md) |
 | Publish a mod, or fix what its listing says | [Publishing to mod.io](publishing.md), [Publishing to the Steam Workshop](steam-workshop.md) |
+| Tell players a mod exists, or that a new version shipped | [Announcing a mod in the community Discord](announcing-in-discord.md) |
 | Find where the game keeps mods, saves or logs | [Platforms and hosts](platforms.md) |
 | Answer a question nothing here answers | [Reverse engineering](reverse-engineering.md) |
 | Get a build running in the first place | [Toolchain requirements](toolchain.md) |
