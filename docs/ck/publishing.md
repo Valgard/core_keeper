@@ -34,6 +34,24 @@ that appears on mod.io is supplied at publish time. Where it comes from is a
 matter of convention, and a repository is free to keep it in a changelog file,
 a build argument, or a prompt.
 
+**Every modfile a mod ever published stays downloadable, and the read-only game
+key is enough.** `GET /games/{game}/mods/{mod}/files?api_key={game key}` lists
+them with version, size, date and a `download.binary_url` per entry, and that
+URL serves the actual zip — measured against a mod's first release, which came
+back complete. The key needed is the *game* key that ships in the SDK's own
+`Assets/Resources/mod.io/config.asset`, not an OAuth token: no login, no
+publisher rights.
+
+That makes a mod's release history recoverable from the platform rather than
+from local archives, which is what any migration to another platform needs.
+Two caveats when reading that listing as history: `result_total` counts what is
+*there*, so a version that was never uploaded simply does not appear — compare
+against the repository's own changelog and its tags before concluding that
+something was deleted. And the mod's `date_added` together with the
+`MOD_AVAILABLE` event in `/events` says when the mod first existed on mod.io at
+all, which settles "was this version ever published here" without guessing.
+`urllib` gets a 403 from this API; `curl` does not.
+
 **A newly created profile is public unless you ask otherwise.** The plugin
 sends `visible = 1` for every profile whose `ModProfileDetails.visible` was not
 explicitly set to `false`, so a first publish puts a half-configured listing in

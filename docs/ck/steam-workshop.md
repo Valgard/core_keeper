@@ -23,16 +23,72 @@ and every submit updates whichever of them were set.
 
 Two consequences follow, and both surprise people arriving from mod.io:
 
-- **There is no metadata-only edit that leaves no trace.** Every
-  `SubmitItemUpdate` appends an entry to the item's change history, whether or not
-  new content came with it. Correcting a description is a visible event.
+- **A submit is a visible event.** `SubmitItemUpdate` appends an entry to the
+  item's change history, so correcting a description is not a quiet edit.
+  Whether a submit carrying *no* content also appends one is unsettled: a probe
+  that submitted only a change note returned `Success = true` and produced no
+  entry on the item's history page. Either the entry is invisible or none was
+  made — do not rely on either reading.
 - **A change note belongs to that entry, not to a version.** It is written at
-  submit time and there is no call to edit one afterwards — the same one-way
-  property a mod.io changelog has, arrived at from a different direction.
+  submit time, and no API can go back and change it — see below, because that
+  sentence is easy to over-read.
 
 There is also **no Game Version dimension**. mod.io carries compatibility tags per
 build; the Workshop has no equivalent, so a mod cannot advertise which game
 versions it runs on.
+
+## The change history is append-only to every API, and editable in the browser
+
+The distinction matters and is easy to collapse into "immutable", which is
+wrong. **In the web UI an author can edit a change note and delete a history
+entry.** No programmatic path can do either. Checked three ways:
+
+- **`ISteamUGC`** — the whole surface of the bundled assembly is 84 calls. The
+  only ones that touch an item's history are `SubmitItemUpdate`, which appends,
+  and `DeleteItem`, which removes the entire item. Nothing names an individual
+  entry; `ChangeNote` exists solely as a field on the editor for the entry
+  being created. (`Revision` appears in the assembly only for controller
+  bindings.)
+- **`steamcmd`** — four workshop commands: `workshop_status`,
+  `workshop_download_item`, `workshop_create_legacy_item`,
+  `workshop_build_item`. The last takes a VDF whose keys are `appid`,
+  `publishedfileid`, `contentfolder`, `previewfile`, `visibility`, `title`,
+  `description`, `changenote`, `language`, `tags` — `changenote` being the new
+  entry's. It is an uploader over the same `ISteamUGC` calls, so it could not
+  exceed them.
+- **Steam's public Web API** — `GetSupportedAPIList` offers only reads for
+  Workshop content (`GetPublishedFileDetails`, `GetCollectionDetails`,
+  `GetUserVoteSummary`). `IPublishedFileService`'s writing methods are
+  publisher-key gated, and a publisher key belongs to the app's owner rather
+  than to a mod author.
+
+So a mistake in a published history is repairable, but only by hand, one entry
+at a time. Anything that writes many entries should therefore be rehearsed
+against a throwaway item first — not because a mistake is permanent, but
+because correcting N of them is N visits to a web form.
+
+One caveat on `steamcmd` in particular: it needs a TTY for its first-run
+bootstrap. Given `</dev/null` it stops after its start banner and sits until
+killed, so it is not usable from a script here even though it works fine from
+an interactive shell.
+
+## An item can carry publisher-side state, and it is the right place for it
+
+`SetItemMetadata` gives every item a free-form string that only the publisher
+reads — `Editor.WithMetaData(string)` writes it, and a query returns it as
+`Item.Metadata`. The read buffer is 32,768 bytes, though Valve documents the
+limit as 5,000.
+
+**A query only fills it when asked**: `Query.All.WithFileId(id).WithMetadata(true)`.
+Without that flag the field is `null`, and code that reads `null` as "nothing
+recorded yet" would be wrong for every item that has something recorded.
+
+Why it is worth knowing: it removes the need for a local state file when a
+process spans several submits. A file can disagree with reality — the upload
+succeeds, the file write does not — whereas metadata travels in the same
+`SubmitItemUpdate` as the content it describes, and survives a fresh checkout
+or a different machine. (The Workshop *id* still has to live locally, because
+it is needed before the first submit exists to carry anything.)
 
 ## Tags are sent flat and grouped by the platform
 
