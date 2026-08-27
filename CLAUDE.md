@@ -372,6 +372,16 @@ human-facing setup; what matters when editing code here:
   `docs/ck/index.md` does not link blocks the commit. Practical
   consequence: **renaming a heading in `docs/ck/` breaks every link into it**,
   and the gate will say so — fix the links in the same commit.
+- **A staged `.md` runs the wrapping gate as well**
+  (`utils/check_docs_wrapping.py`, the same two stages): a paragraph whose line
+  breaks no longer fit the width that file is written at blocks the commit.
+  There is no number to write to — it takes each file's width from that file's
+  own median, because the handbook is not uniform. Practical consequence: **an
+  `Edit` into the middle of a paragraph leaves exactly this defect**, a replaced
+  line ending short or long while the rest of the paragraph keeps its old
+  breaks. Run `uv run utils/check_docs_wrapping.py --fix <file>` after such an
+  edit rather than discovering it when the commit is rejected. `docs/specs/` is
+  excluded on purpose: reformatting a spec edits a record of what was decided.
 - `pre-commit` itself is pinned once in the parent `.tool-versions`; asdf
   resolves it for the mod subdirectories by walking up.
 - **`utils/new_mod.py` scaffolds the gate too.** A freshly generated mod repo
