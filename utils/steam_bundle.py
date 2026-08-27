@@ -5,9 +5,12 @@ sends are all derivable from files in the repository, and deriving them is
 testable, whereas the Steamworks calls are not. What crosses into the .NET tool
 is this dict, as JSON.
 
-Where each value comes from is the spec's table, and the reason it is a table
-rather than a form is that mod.io already publishes from these same sources — a
-value typed twice is a value that will eventually differ.
+No value here is entered for Steam's benefit: each is read from the file that
+already owns it for the mod.io publish — the ModBuilderSettings `.asset`,
+`CHANGELOG.md`, `steam-description.txt`, the mod's logo. A value typed a second
+time is a value that will eventually differ, and the two platforms would then
+ship the same version under different descriptions. `docs/adrs/003-steam-workshop-publishing.md`
+records why publishing to both is worth that constraint.
 """
 
 import json
@@ -78,7 +81,7 @@ def parse_dependencies(asset_text: str) -> list[tuple[str, bool]]:
 
 def resolve_dependencies(
     declared: list[tuple[str, bool]], cache_path: Path | None
-) -> list[dict]:
+) -> list[dict] | None:
     """Map declared dependencies onto Workshop file ids via the cache.
 
     Resolution is never guessed. A Steam title is a display name rather than an
@@ -89,6 +92,17 @@ def resolve_dependencies(
     failure points back at the publish.
 
     Severity follows the `.asset`'s own `required` flag, as the mod.io path does.
+
+    **Returns None when any declared entry could not be resolved**, and that
+    distinction is the point rather than a detail. ck-workshop syncs the list in
+    full — it removes every dependency the item carries that the list does not
+    name — so a list is only safe to send when it is a complete picture of what
+    the mod declares. An incomplete one is a floor, and sending it removes
+    entries nobody asked to remove while the publish reports success. The two
+    values therefore mean different things: `[]` is "this mod has none, remove
+    what is stale", `None` is "unknown, change nothing", which is the case
+    Program.cs early-returns on. An empty list from a mod that declares two
+    dependencies would be read as the first and mean the second.
     """
     if not declared:
         return []
@@ -101,6 +115,7 @@ def resolve_dependencies(
             raise ValueError(f"{cache_path} is not valid JSON: {err}") from err
 
     resolved = []
+    unresolved = []
     for name, required in declared:
         file_id = cache.get(name)
         if file_id:
@@ -116,20 +131,44 @@ def resolve_dependencies(
             if cache_path:
                 raise ValueError(
                     f"required dependency {name!r} has no Workshop id. Add it to "
-                    f"{cache_path} once — see the spec on why this is not searched automatically."
+                    f"{cache_path} once — a Workshop title is a display name, not an "
+                    "identity, so this is looked up by hand rather than searched."
                 )
             raise ValueError(
                 f"required dependency {name!r} has no Workshop id, and STEAM_DEPS_MAP "
                 "is not set — point it at a cache JSON file and add the id there once."
             )
-        # stderr, not stdout: Task 7 captures this function's caller's stdout
+        unresolved.append(name)
+        # stderr, not stdout: upload.sh captures this function's caller's stdout
         # whole as the JSON bundle for the .NET tool, and a warning line ahead
         # of the JSON would make that capture fail to parse.
         print(
             f"  ! optional dependency {name!r} has no Workshop id — skipped",
             file=sys.stderr,
         )
+    if unresolved:
+        # See the docstring: a partial list is not a smaller truth, it is a
+        # different claim. Nothing is sent rather than a claim we cannot back.
+        print(
+            f"  ! dependency sync skipped — {len(unresolved)} of {len(declared)} "
+            "declared dependencies have no Workshop id, so the list would be "
+            "incomplete and syncing it would remove what it cannot name",
+            file=sys.stderr,
+        )
+        return None
     return resolved
+
+
+def category_tags(modio_type: str) -> list[str]:
+    """The `Type` group's values out of CK_MODIO_TYPE, pipe-separated.
+
+    Pipes rather than spaces because the values contain spaces themselves
+    ("Quality of Life"). Shared with the preflight rather than inlined in
+    `derive_tags`, so that what the preflight accepts and what a publish sends
+    cannot drift apart — a check reimplementing the split would eventually
+    approve a value the split then drops.
+    """
+    return [part.strip() for part in modio_type.split("|") if part.strip()]
 
 
 def derive_tags(metadata: Mapping[str, object], modio_type: str) -> list[str]:
@@ -145,7 +184,7 @@ def derive_tags(metadata: Mapping[str, object], modio_type: str) -> list[str]:
     input with nothing at all, on the one platform that never says a tag went
     missing, while mod.io tagged both from the same field.
     """
-    tags = [part.strip() for part in modio_type.split("|") if part.strip()]
+    tags = category_tags(modio_type)
 
     required_on = int(metadata.get("requiredOn", 0) or 0)
     app_types = [name for bit, name in APPLICATION_TYPE if required_on & bit]
@@ -167,9 +206,15 @@ def derive_tags(metadata: Mapping[str, object], modio_type: str) -> list[str]:
     return tags
 
 
-def check_prerequisites(repo_root: Path, env: Mapping[str, str]) -> None:
+def check_prerequisites(repo_root: Path, env: Mapping[str, str]) -> list[dict] | None:
     """Validate everything a Steam publish needs that does NOT depend on a
     finished build, by raising ValueError on the first thing that is missing.
+
+    Returns what it resolved the declared dependencies to, so `build_bundle` can
+    reuse it instead of resolving a second time. That is not a convenience: the
+    resolution prints a warning per skipped optional dependency, and running it
+    twice in one process printed each warning twice, which reads as two separate
+    skips of two different entries.
 
     Deliberately excludes the built content folder: on the normal path that is
     the directory CLIPublishHelper creates for this very run, so it genuinely
@@ -187,6 +232,18 @@ def check_prerequisites(repo_root: Path, env: Mapping[str, str]) -> None:
     mod_name = env.get("MOD_NAME")
     if not mod_name:
         raise ValueError("MOD_NAME is not set")
+
+    # Checked here because --steam-only is the one path that reaches a publish
+    # without CLIPublishHelper, which is where this is otherwise enforced. Steam
+    # discards a tag value it does not know without a word, and an unset variable
+    # sends no value at all — so an unchecked publish puts up an item with no
+    # category tags and reports success. Tested for what comes OUT of the split,
+    # not for the variable being set: "|" is neither empty nor a category.
+    if not category_tags(env.get("CK_MODIO_TYPE", "")):
+        raise ValueError(
+            "CK_MODIO_TYPE names no category — pipe-separated mod.io 'Type' tags, "
+            'e.g. CK_MODIO_TYPE="Visual|Quality of Life"'
+        )
 
     asset = repo_root / "unity" / f"{mod_name}.asset"
     if not asset.is_file():
@@ -212,14 +269,14 @@ def check_prerequisites(repo_root: Path, env: Mapping[str, str]) -> None:
     identity_asset = repo_root / "unity" / mod_name / f"{mod_name}_Steam.asset"
     steam_identity.ensure_recognizable(identity_asset)
 
-    resolve_dependencies(
+    return resolve_dependencies(
         parse_dependencies(asset_text),
         Path(env["STEAM_DEPS_MAP"]) if env.get("STEAM_DEPS_MAP") else None,
     )
 
 
 def build_bundle(repo_root: Path, env: Mapping[str, str], preview_dest: Path) -> dict:
-    check_prerequisites(repo_root, env)
+    dependencies = check_prerequisites(repo_root, env)
 
     mod_name = env["MOD_NAME"]
     asset = repo_root / "unity" / f"{mod_name}.asset"
@@ -272,8 +329,7 @@ def build_bundle(repo_root: Path, env: Mapping[str, str], preview_dest: Path) ->
         # A new item must never appear half-configured in the catalogue; an
         # existing one's visibility was set by a human and is not ours to change.
         "visibility": "unchanged" if file_id else "hidden",
-        "dependencies": resolve_dependencies(
-            parse_dependencies(asset_text),
-            Path(env["STEAM_DEPS_MAP"]) if env.get("STEAM_DEPS_MAP") else None,
-        ),
+        # Resolved by check_prerequisites above, deliberately not again here:
+        # see its docstring on why resolving twice warns twice.
+        "dependencies": dependencies,
     }

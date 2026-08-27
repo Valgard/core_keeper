@@ -89,6 +89,31 @@ def test_the_limit_is_the_decimal_megabyte_not_the_binary_one(tmp_path):
     assert "512" not in how, "must not have been accepted at full resolution"
 
 
+def test_the_ladder_yields_the_largest_rung_that_fits(tmp_path):
+    """`derive_preview` promises the *largest* preview that fits, and the only
+    thing enforcing that is LADDER descending. Reversing it still returns
+    something that fits -- the smallest rung fits trivially -- so a test that
+    only asserts "fits" cannot see the difference. This one names the rung above
+    the chosen one and shows it does not fit, which is what "largest" means."""
+    src = _incompressible_logo(tmp_path)
+    dest = tmp_path / "preview.png"
+
+    _, how = steam_preview.derive_preview(src, dest)
+
+    chosen = int(how.split("²")[0])
+    bigger = [rung for rung in steam_preview.LADDER if rung > chosen]
+    assert bigger, "fixture must not be answered at the top rung, or nothing is proven"
+    next_up = min(bigger)
+    original = Image.open(src).convert("RGBA")
+    probe = tmp_path / "probe.png"
+    original.resize((next_up, next_up), Image.LANCZOS).save(
+        probe, optimize=True, compress_level=9
+    )
+    assert probe.stat().st_size > steam_preview.LIMIT, (
+        f"{next_up}² also fits, so {chosen}² was not the largest that does"
+    )
+
+
 def test_a_small_image_is_taken_at_full_resolution(tmp_path):
     src = _flat_logo(tmp_path, side=64)
     dest = tmp_path / "preview.png"

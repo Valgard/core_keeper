@@ -6,17 +6,58 @@ set that drifts, a changelog that says something else — each is a defect this
 module exists to make impossible.
 """
 
+import new_mod
 import pytest
 import steam_bundle
 
-ASSET = """MonoBehaviour:
+# A verbatim copy of disable-durability's real ModBuilderSettings asset, with
+# only its dependency list emptied so the tests below can substitute their own.
+#
+# It used to be an eight-line stub holding just the four keys the parsers read,
+# which made every test in this file agree with a document no Unity Editor would
+# ever write: no YAML header, no `guid:`, no `files: []`, no `m_Name:` — and the
+# parsers are regexes over the whole document, so everything around those four
+# keys is input too.
+#
+# Being honest about what this does and does not buy, because it is less than it
+# looks: it does NOT catch a `name` lookup that strays onto `m_Name:`, since a
+# real asset holds the mod's internal name in both and the wrong match returns
+# the right string. What it buys is that every assertion here is now measured
+# against the shape a publish really reads. The guard against a parser that
+# works on this one document and not on the family's is
+# `test_the_parsers_hold_against_every_real_mod_asset` at the bottom.
+ASSET = """%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bc43e4983a160e543856e5ba0421c9e1, type: 3}
+  m_Name: DisableDurability
+  m_EditorClassIdentifier:
   metadata:
+    guid: 45103bfded4742c2b747b83c2c2da350
     name: DisableDurability
     displayName: Disable Durability
     skipSafetyChecks: 0
+    disableScripts: 0
+    accessesExtraAssemblies: 1
+    disableHarmonyPatching: 0
     requiredOn: 3
+    files: []
     dependencies: []
   modPath: Assets/DisableDurability
+  forceReimport: 1
+  buildBundles: 1
+  cacheBundles: 0
+  buildLinux: 1
+  assets: []
+  lastBuildLinux: 0
 """
 
 CHANGELOG = """# Changelog
@@ -241,8 +282,8 @@ def test_build_bundle_calls_check_prerequisites_first(tmp_path):
 
 
 def test_an_unrecognized_identity_asset_aborts_before_any_upload(tmp_path):
-    # Task 5's guard, called from here: an existing _Steam.asset without a
-    # 'fileId:' line must be caught before the bundle is even assembled, not
+    # steam_identity's guard, called from here: an existing _Steam.asset without
+    # a 'fileId:' line must be caught before the bundle is even assembled, not
     # discovered only after a Workshop item was already created from it.
     repo = _repo(tmp_path)
     identity = repo / "unity" / "DisableDurability" / "DisableDurability_Steam.asset"
@@ -366,7 +407,12 @@ def test_an_unresolvable_required_dependency_with_no_cache_names_the_env_var(tmp
         steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
 
 
-def test_an_unresolvable_optional_dependency_is_skipped(tmp_path):
+def test_an_unresolvable_optional_dependency_does_not_abort_the_publish(tmp_path):
+    # Severity follows the .asset's own `required` flag: optional means the
+    # publish goes ahead without it, where required aborts. What the resulting
+    # dependency list should say is a separate question, asked below by
+    # test_declared_but_unresolved_dependencies_are_not_reported_as_none — this
+    # one used to assert [] there, which was the wipe.
     repo = _repo(
         tmp_path,
         asset=ASSET.replace(
@@ -380,13 +426,14 @@ def test_an_unresolvable_optional_dependency_is_skipped(tmp_path):
 
     bundle = steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
 
-    assert bundle["dependencies"] == []
+    assert bundle["version"] == "1.1.1"
 
 
 def test_the_optional_skip_warning_goes_to_stderr_not_stdout(tmp_path, capsys):
-    # Task 7 captures the caller's whole stdout as the JSON bundle for the .NET
-    # tool. A warning line printed to stdout ahead of that JSON would corrupt
-    # the capture and fail the entire publish over a merely-skipped dependency.
+    # upload.sh captures the caller's whole stdout as the JSON bundle for the
+    # .NET tool. A warning line printed to stdout ahead of that JSON would
+    # corrupt the capture and fail the entire publish over a merely-skipped
+    # dependency.
     repo = _repo(
         tmp_path,
         asset=ASSET.replace(
@@ -445,3 +492,260 @@ def test_declared_dependencies_are_parsed_with_their_required_flag():
     )
 
     assert deps == [("CoreLib", True), ("Other", False)]
+
+
+def test_the_bundle_is_exactly_these_values(tmp_path):
+    # The one test that pins the whole dict. Every other test here reads a
+    # single key, which leaves the rest free to be wrong: a preview that is
+    # never derived, a previewPath aimed at the 1024² logo, a description taken
+    # from CHANGELOG.md, version and changelog swapped, or a contentPath at the
+    # install ROOT — which would upload every mod in the family into one
+    # Workshop item. All five survived the per-key tests; none survives this.
+    repo = _repo(tmp_path)
+    env = _env(tmp_path)
+    preview = tmp_path / "preview.png"
+
+    bundle = steam_bundle.build_bundle(repo, env, preview)
+
+    assert bundle == {
+        "fileId": 0,
+        "title": "Disable Durability",
+        "description": "[b]Bold[/b]",
+        "tags": ["Item", "Overhaul", "Quality of Life", "Client", "Server", "Script"],
+        "changelog": "### Added\n\n- A thing.\n- Another thing.",
+        "version": "1.1.1",
+        "contentPath": str(tmp_path / "build" / "DisableDurability"),
+        "previewPath": str(preview),
+        "visibility": "hidden",
+        "dependencies": [],
+    }
+    # previewPath is a promise about a file, and the dict alone cannot tell a
+    # derived preview from a path that was merely spelled correctly.
+    assert preview.is_file(), "previewPath names a file that was never written"
+
+
+def test_check_prerequisites_reports_a_missing_mod_name(tmp_path):
+    with pytest.raises(ValueError, match="MOD_NAME"):
+        steam_bundle.check_prerequisites(_repo(tmp_path), {})
+
+
+def test_check_prerequisites_reports_a_missing_logo(tmp_path):
+    # The logo is the only source the preview has. Missing, the publish would
+    # get as far as deriving one and fail there — with the mod.io release for
+    # this same run already out, which is exactly what the preflight prevents.
+    repo = _repo(tmp_path)
+    (repo / "unity" / "DisableDurability" / "Editor" / "logo.png").unlink()
+    env = {"MOD_NAME": "DisableDurability", "CK_MODIO_TYPE": "Item"}
+
+    with pytest.raises(ValueError, match="logo"):
+        steam_bundle.check_prerequisites(repo, env)
+
+
+def test_check_prerequisites_reports_a_missing_changelog(tmp_path):
+    repo = _repo(tmp_path)
+    (repo / "CHANGELOG.md").unlink()
+    env = {"MOD_NAME": "DisableDurability", "CK_MODIO_TYPE": "Item"}
+
+    with pytest.raises(ValueError, match="CHANGELOG.md"):
+        steam_bundle.check_prerequisites(repo, env)
+
+
+def test_check_prerequisites_reports_a_changelog_with_no_entry(tmp_path):
+    # Distinct from the file being absent: it is there and unreadable as a
+    # version. The preflight parses rather than merely stat-ing it, because the
+    # version and the change note both come out of that parse — and until this
+    # test, no test in the suite reached parse_changelog's own error at all.
+    repo = _repo(tmp_path, changelog="# Changelog\n\nNothing released yet.\n")
+    env = {"MOD_NAME": "DisableDurability", "CK_MODIO_TYPE": "Item"}
+
+    with pytest.raises(ValueError, match=r"## \[x\.y\.z\]"):
+        steam_bundle.check_prerequisites(repo, env)
+
+
+def test_check_prerequisites_requires_a_mod_type(tmp_path):
+    # On the normal path CLIPublishHelper aborts on an empty CK_MODIO_TYPE, but
+    # --steam-only never runs it, and derive_tags turns an empty value into an
+    # empty category list without a word. Steam then discards nothing, because
+    # nothing was sent: the item goes up with no category tags at all.
+    repo = _repo(tmp_path)
+
+    with pytest.raises(ValueError, match="CK_MODIO_TYPE"):
+        steam_bundle.check_prerequisites(repo, {"MOD_NAME": "DisableDurability"})
+
+
+def test_a_mod_type_of_only_separators_is_refused(tmp_path):
+    # "|" splits into empty parts that derive_tags drops, so a value can be
+    # non-empty and still name no category. Checking for a set value would pass
+    # this; the check has to be that a category actually comes out.
+    repo = _repo(tmp_path)
+    env = {"MOD_NAME": "DisableDurability", "CK_MODIO_TYPE": " | "}
+
+    with pytest.raises(ValueError, match="CK_MODIO_TYPE"):
+        steam_bundle.check_prerequisites(repo, env)
+
+
+def test_no_declared_dependencies_means_sync_an_empty_list(tmp_path):
+    # Nothing declared is a complete picture of "this mod has none", so the
+    # full sync on the other side should run and remove anything stale.
+    bundle = steam_bundle.build_bundle(
+        _repo(tmp_path), _env(tmp_path), tmp_path / "p.png"
+    )
+
+    assert bundle["dependencies"] == []
+
+
+def test_declared_but_unresolved_dependencies_are_not_reported_as_none(tmp_path):
+    # The dangerous case. ck-workshop treats the list as authoritative and
+    # removes every dependency not in it, then reports success — so an empty
+    # list from "declared two, resolved neither" wipes the item's dependencies
+    # while saying the publish went fine. null is the one value that means
+    # "unknown": Program.cs early-returns on it and skips the sync entirely.
+    repo = _repo(
+        tmp_path,
+        asset=ASSET.replace(
+            "    dependencies: []",
+            "    dependencies:\n    - modName: SomeOptional\n      required: 0",
+        ),
+    )
+    cache = tmp_path / "deps.json"
+    cache.write_text("{}")
+    env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
+
+    bundle = steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
+
+    assert bundle["dependencies"] is None
+
+
+def test_a_partly_resolved_dependency_list_is_not_a_full_sync(tmp_path):
+    # Same hazard one step subtler: CoreLib resolves, the other does not. The
+    # list is now a floor rather than a picture, and syncing it would still
+    # remove an item a human had attached for the entry that failed to resolve.
+    # Sync only what is complete; the skipped entry has already been warned about.
+    repo = _repo(
+        tmp_path,
+        asset=ASSET.replace(
+            "    dependencies: []",
+            "    dependencies:\n    - modName: CoreLib\n      required: 0"
+            "\n    - modName: SomeOptional\n      required: 0",
+        ),
+    )
+    cache = tmp_path / "deps.json"
+    cache.write_text('{"CoreLib": 3000000001}')
+    env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
+
+    bundle = steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
+
+    assert bundle["dependencies"] is None
+
+
+def test_the_optional_skip_warning_is_printed_once_per_run(tmp_path, capsys):
+    # build_bundle calls check_prerequisites, and both used to resolve the
+    # dependencies themselves, so one bundle printed the same warning twice.
+    # A warning repeated without anything having happened in between reads as
+    # two separate skips and teaches the operator to skim past it.
+    repo = _repo(
+        tmp_path,
+        asset=ASSET.replace(
+            "    dependencies: []",
+            "    dependencies:\n    - modName: SomeOptional\n      required: 0",
+        ),
+    )
+    cache = tmp_path / "deps.json"
+    cache.write_text("{}")
+    env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
+
+    steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
+
+    assert capsys.readouterr().err.count("SomeOptional") == 1
+
+
+def test_the_preflight_still_raises_on_the_first_missing_required_dependency(tmp_path):
+    # The guard on the fix above: resolving once must not be achieved by having
+    # check_prerequisites stop resolving. It is the preflight's job to refuse a
+    # required dependency it cannot map, before the mod.io release goes out.
+    repo = _repo(
+        tmp_path,
+        asset=ASSET.replace(
+            "    dependencies: []",
+            "    dependencies:\n    - modName: CoreLib\n      required: 1",
+        ),
+    )
+    cache = tmp_path / "deps.json"
+    cache.write_text("{}")
+    env = {
+        "MOD_NAME": "DisableDurability",
+        "CK_MODIO_TYPE": "Item",
+        "STEAM_DEPS_MAP": str(cache),
+    }
+
+    with pytest.raises(ValueError, match="CoreLib"):
+        steam_bundle.check_prerequisites(repo, env)
+
+
+def _real_mod_assets():
+    """Every sibling mod repo's real ModBuilderSettings asset, as (name, text).
+
+    Enumerated live from the mod repos rather than listed, for the reason
+    test_new_mod_parity.py gives at length: a hardcoded roster of mods is the
+    thing this repo has repeatedly found stale. `resolve_mods_dir()` is shared
+    with the generator, so this finds the family from a worktree too.
+    """
+    found = []
+    for git_entry in sorted(new_mod.resolve_mods_dir().glob("*/.git")):
+        repo = git_entry.parent
+        if repo.name == "CoreKeeperModSDK":
+            continue
+        for asset in sorted((repo / "unity").glob("*.asset")):
+            text = asset.read_text()
+            if "metadata:" in text:
+                found.append((asset.stem, text))
+    return found
+
+
+REAL_ASSETS = _real_mod_assets()
+
+
+@pytest.mark.skipif(
+    not REAL_ASSETS,
+    reason=(
+        "no sibling mod repos beside this checkout, so the parsers were NOT "
+        "measured against a real ModBuilderSettings asset"
+    ),
+)
+def test_the_parsers_hold_against_every_real_mod_asset():
+    """The fixture at the top of this file is one asset, frozen. This is all of
+    them, as they are today.
+
+    A regex over a whole YAML document is only as good as the documents it has
+    met, and the fixture cannot grow a field while the real ones do: the Editor
+    rewrites these files, and a mod added next month brings whatever it brings.
+    So this asserts properties rather than values -- asserting the values would
+    only restate the files -- and each property is one a parser reading the
+    wrong key, or stopping early, would violate.
+    """
+    for name, text in REAL_ASSETS:
+        metadata = steam_bundle._read_metadata(text)
+
+        # The asset is named for its mod, so a `name` that is anything else was
+        # read off a neighbouring key rather than out of `metadata:`.
+        assert metadata.get("name") == name, (
+            f"{name}: read name {metadata.get('name')!r}"
+        )
+        # It becomes the Workshop item's title, and an item titled
+        # "skipSafetyChecks: 0" is what reading past an empty value looks like.
+        assert metadata.get("displayName"), f"{name}: no displayName"
+        assert ":" not in str(metadata["displayName"]), f"{name}: displayName ran on"
+        # requiredOn drives the Application Type tags bitwise, and every mod in
+        # the family gates at least one side.
+        assert int(metadata.get("requiredOn", 0)) & 3, (
+            f"{name}: requiredOn gates nothing"
+        )
+
+        # Counted independently of the parser: `modName:` appears nowhere else
+        # in this schema, so that line count is what the parse must come to. A
+        # regex that stopped after the first entry passes "did it find any" and
+        # fails this.
+        declared = steam_bundle.parse_dependencies(text)
+        assert len(declared) == text.count("- modName:"), f"{name}: missed an entry"
+        for dep_name, _ in declared:
+            assert dep_name.isidentifier(), f"{name}: parsed {dep_name!r} as a mod name"
