@@ -139,8 +139,8 @@ class TestUnusableBundle:
         assert done.returncode == 2
 
     def test_json_null(self, tool):
-        # `null` parses, so the JSON guard lets it through; only the emptiness
-        # check below it catches this one.
+        # `null` is valid JSON, so it gets past the parse and deserialises to a
+        # null bundle. Only the emptiness check after it catches this one.
         done = run(tool, "null")
         assert done.returncode == 2
 
@@ -154,6 +154,45 @@ class TestUnusableBundle:
         done = run(tool, bundle)
         assert done.returncode == 2
         assert "contentPath" in done.stderr
+
+
+class TestRequiredFields:
+    """The fields that reach the Steamworks API, checked before they do.
+
+    The csproj disables nullable annotations, so nothing in the C# says which
+    of these may be absent — the only thing keeping a null out of a Workshop
+    item is the discipline of a producer written in another language.
+    """
+
+    @pytest.mark.parametrize("field", ["title", "description", "changelog"])
+    def test_a_missing_field_is_named(self, tool, field):
+        bundle = dict(GOLDEN)
+        del bundle[field]
+        done = run(tool, bundle)
+        assert done.returncode == 2
+        assert field in done.stderr
+
+    @pytest.mark.parametrize("field", ["title", "description", "changelog"])
+    def test_an_explicit_null_is_refused_too(self, tool, field):
+        # A JSON null and an absent key are the same thing on this side, and
+        # both are a producer that stopped supplying a value.
+        done = run(tool, {**GOLDEN, field: None})
+        assert done.returncode == 2
+        assert field in done.stderr
+
+    def test_a_blank_title_is_refused(self, tool):
+        # Blank only counts as missing where blank is itself a wrong item, and
+        # an untitled entry in the Workshop catalogue is one.
+        done = run(tool, {**GOLDEN, "title": "   "})
+        assert done.returncode == 2
+        assert "title" in done.stderr
+
+    @pytest.mark.parametrize("field", ["description", "changelog"])
+    def test_an_empty_one_is_accepted(self, tool, field):
+        # Neither is refused when empty: an empty description makes a sparse
+        # item rather than a broken one, and steam_bundle.parse_changelog
+        # genuinely returns "" for a version heading with nothing under it.
+        assert run(tool, {**GOLDEN, field: ""}).returncode == 0
 
 
 class TestVisibility:

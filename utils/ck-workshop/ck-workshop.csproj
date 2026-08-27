@@ -2,6 +2,11 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
+    <!-- Off because the one type that could carry annotations is the bundle,
+         and every field on it arrives from JSON, where the compiler's guarantee
+         does not reach: a deserialiser hands back null for an absent key no
+         matter what the property is declared as. Program.Validate checks the
+         bundle instead, in one place, before any of it reaches Steamworks. -->
     <Nullable>disable</Nullable>
     <AssemblyName>ck-workshop</AssemblyName>
     <RootNamespace>CoreKeeperModUtils</RootNamespace>

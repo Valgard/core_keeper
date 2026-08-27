@@ -11,19 +11,21 @@
 //
 // Exit codes, which utils/upload.sh reports as the run's own:
 //   0  published — or a dry run, which sends nothing and says so
-//   2  the bundle on stdin is unusable (not JSON, empty, no contentPath)
+//   2  the bundle on stdin is unusable — not JSON, or a field that reaches the
+//      Workshop item is missing, blank or one this tool cannot act on
 //   3  Steam would not initialise — client not running, or the native library
 //   4  the target item does not exist, or belongs to another account
 //   5  the submit failed; an id may still have been emitted for a created item
 //   6  an unexpected exception
-//   7  published, but the dependency sync had failures
+//   7  published, but an OPTIONAL dependency did not sync
+//   9  published, but a REQUIRED dependency may be missing from the item
 //
 // 1 is not assigned here; upload.sh uses it for its own failures (assembling
 // the bundle, persisting an id). 8 is NOT free either, though nothing below
 // returns it: upload.sh means "Steam never started, because its preflight
 // failed" by it — a state this tool cannot report, since in it the tool never
 // runs. Taking 8 here would merge two outcomes an operator has to tell apart,
-// so a new code goes to 9 or higher.
+// so a new code goes past it; 9 is now taken, and the next one is 10.
 
 using System;
 using System.Collections.Generic;
@@ -81,6 +83,16 @@ internal sealed class Bundle
     }
 }
 
+// The two values steam_bundle.py emits, and so the only two that mean
+// anything here. There is deliberately no third one for "public": a new item
+// is created hidden and an existing item's visibility was chosen by a person,
+// so nothing in this tool ever puts an item into the catalogue.
+internal enum ItemVisibility
+{
+    Unchanged,
+    Hidden,
+}
+
 internal static class Program
 {
     private const uint CoreKeeperAppId = 1621690;
@@ -100,20 +112,27 @@ internal static class Program
             return 2;
         }
 
-        if (bundle == null || string.IsNullOrEmpty(bundle.ContentPath))
+        var unusable = Validate(bundle, out var visibility);
+        if (unusable != null)
         {
-            Console.Error.WriteLine("bundle is empty or has no contentPath");
+            Console.Error.WriteLine(unusable);
             return 2;
         }
 
+        // Coalesced once, for both the line below and the tag loop further
+        // down: a mod with no tags is a legitimate bundle, so this is the one
+        // field that stays optional — but the log and the editor must not
+        // disagree about what "no tags" means.
+        var tags = bundle.Tags ?? Array.Empty<string>();
+
         Console.Error.WriteLine($"  Title:   {bundle.Title}");
         Console.Error.WriteLine($"  Version: {bundle.Version}");
-        Console.Error.WriteLine($"  Tags:    {string.Join(", ", bundle.Tags ?? Array.Empty<string>())}");
+        Console.Error.WriteLine($"  Tags:    {string.Join(", ", tags)}");
         Console.Error.WriteLine($"  Content: {bundle.ContentPath}");
-        // Worded from Visibility, not from FileId == 0: that's the field the
-        // gating logic below actually reads, so the log can't go stale if the
-        // two ever decouple.
-        Console.Error.WriteLine(bundle.Visibility == "hidden" ? "  Item:    new (hidden)" : $"  Item:    {bundle.FileId}");
+        // Worded from visibility, not from FileId == 0: that's what the gating
+        // logic below actually reads. Validate has just tied the two together,
+        // so this line cannot describe one item while the code creates another.
+        Console.Error.WriteLine(visibility == ItemVisibility.Hidden ? "  Item:    new (hidden)" : $"  Item:    {bundle.FileId}");
 
         if (dryRun)
         {
@@ -168,8 +187,11 @@ internal static class Program
             // WriteLine, so this line reaches STEAM_RESULT on disk even if
             // nothing after it does. success is always false here because
             // the publish has not concluded yet; if it goes on to succeed,
-            // the real EmitResult below overwrites this — upload.sh takes
-            // only the LAST '{'-prefixed line in the result file.
+            // the real EmitResult below supersedes this one — the reader
+            // (utils/steam_result.py) scans the stream backwards for the
+            // last line that both parses as JSON and carries a "fileId",
+            // so the later of the two wins while a brace-leading diagnostic
+            // printed after either cannot displace them.
             Console.Error.WriteLine($"  Workshop item {createdFileId} created, publish continuing...");
             EmitResult(createdFileId.Value, created: true, success: false);
         }
@@ -201,16 +223,17 @@ internal static class Program
                 editor = editor.WithPreviewFile(bundle.PreviewPath);
             }
 
-            foreach (var tag in bundle.Tags ?? Array.Empty<string>())
+            foreach (var tag in tags)
             {
                 editor = editor.WithTag(tag);
             }
 
             // The bundle is the single source of truth for visibility, not the
-            // creating/updating distinction: Task 3 already encodes "an existing
-            // item's visibility was chosen by a person and is not this tool's to
-            // change" as "unchanged", so this only ever fires for a new item.
-            if (bundle.Visibility == "hidden")
+            // creating/updating distinction — an existing item's visibility was
+            // chosen by a person and is not this tool's to change. Validate has
+            // already established that "hidden" means fileId 0, so this fires
+            // for a new item and for nothing else.
+            if (visibility == ItemVisibility.Hidden)
             {
                 editor = editor.WithPrivateVisibility();
             }
@@ -236,10 +259,15 @@ internal static class Program
                 return 5;
             }
 
-            var dependenciesOk = await SyncDependencies(fileId.Value, bundle.Dependencies);
+            var dependencySync = await SyncDependencies(fileId.Value, bundle.Dependencies);
 
             EmitResult(fileId.Value, created: creating, success: true);
-            return dependenciesOk ? 0 : 7;
+            return dependencySync switch
+            {
+                DependencySync.Ok => 0,
+                DependencySync.RequiredFailed => 9,
+                _ => 7,
+            };
         }
         catch (Exception ex)
         {
@@ -262,17 +290,112 @@ internal static class Program
         }
     }
 
+    // Everything the calls below assume about the bundle, checked in one place
+    // before the first of them runs. steam_bundle.py does guarantee all of it —
+    // but that guarantee lives in another language in another file, and nothing
+    // on this side would notice it lapsing: these values travel straight into a
+    // Workshop item, where a wrong one is not an error but a wrong item in a
+    // public catalogue. Returns the message to print, or null when the bundle
+    // is usable.
+    private static string Validate(Bundle bundle, out ItemVisibility visibility)
+    {
+        visibility = ItemVisibility.Unchanged;
+
+        if (bundle == null)
+        {
+            return "bundle is empty";
+        }
+
+        // Blank counts as missing only where a blank value is itself a wrong
+        // item: an untitled entry in the catalogue, or a publish of nothing.
+        // An empty description or changelog makes a sparse item rather than a
+        // broken one, and steam_bundle.parse_changelog genuinely returns "" for
+        // a version heading with nothing under it — so those two are required
+        // to be present, not to be filled in.
+        if (string.IsNullOrWhiteSpace(bundle.ContentPath))
+        {
+            return "bundle field \"contentPath\" is missing or blank";
+        }
+        if (string.IsNullOrWhiteSpace(bundle.Title))
+        {
+            return "bundle field \"title\" is missing or blank";
+        }
+        if (bundle.Description == null)
+        {
+            return "bundle field \"description\" is missing";
+        }
+        if (bundle.Changelog == null)
+        {
+            return "bundle field \"changelog\" is missing";
+        }
+
+        switch (bundle.Visibility)
+        {
+            case "unchanged":
+                visibility = ItemVisibility.Unchanged;
+                break;
+            case "hidden":
+                visibility = ItemVisibility.Hidden;
+                break;
+            default:
+                // The failure this replaces was silent: anything unrecognised —
+                // a typo, a missing key, a value from a later version of the
+                // producer — fell through to "leave the visibility alone",
+                // which on an item being created that same second means Steam's
+                // own default. Public.
+                return $"bundle field \"visibility\" is {Quoted(bundle.Visibility)}, expected \"hidden\" or \"unchanged\"";
+        }
+
+        // hidden ⇔ fileId == 0, and both directions are worth refusing.
+        // "unchanged" on an item that does not exist yet is exactly how one
+        // gets created public; "hidden" on one that does takes a live item out
+        // of the catalogue that a person deliberately put there. The producer
+        // derives each from the other, so a bundle where they disagree did not
+        // come from it and this tool cannot tell which half to believe.
+        if ((visibility == ItemVisibility.Hidden) != (bundle.FileId == 0))
+        {
+            return $"bundle field \"visibility\" is {Quoted(bundle.Visibility)} but fileId is {bundle.FileId} — "
+                + "a new item (fileId 0) must be \"hidden\", an existing one \"unchanged\"";
+        }
+
+        return null;
+    }
+
+    // Tells a missing field from one that is present and wrong, which are two
+    // different mistakes to go looking for in the producer.
+    private static string Quoted(string value) => value == null ? "missing" : $"\"{value}\"";
+
+    // Told apart because the two cost a subscriber different things: an
+    // optional dependency that did not attach costs them a convenience, a
+    // required one costs them a mod that does not work. By this point the item
+    // is live and nothing can be undone, so saying which of the two happened
+    // is the whole of what this side can still do about it.
+    private enum DependencySync
+    {
+        Ok,
+        Failed,
+        RequiredFailed,
+    }
+
     // Full sync rather than additive, so the Workshop list mirrors the .asset:
-    // what is declared is added, what is not is removed. Returns false when
-    // any single add/remove call failed, so the caller can tell "published,
-    // but not fully synced" apart from a clean run instead of reporting
-    // success regardless of what AddDependency/RemoveDependency actually did.
-    private static async Task<bool> SyncDependencies(ulong publishedFileId, Bundle.Dependency[] dependencies)
+    // what is declared is added, what is not is removed. Reports any failed
+    // add/remove call, so the caller can tell "published, but not fully synced"
+    // apart from a clean run instead of reporting success regardless of what
+    // AddDependency/RemoveDependency actually did.
+    private static async Task<DependencySync> SyncDependencies(ulong publishedFileId, Bundle.Dependency[] dependencies)
     {
         if (dependencies == null)
         {
-            return true;
+            return DependencySync.Ok;
         }
+
+        // What either "sync skipped" below reports. A skipped sync attached
+        // nothing at all this run, so a required dependency is missing from an
+        // item that was just created and merely unconfirmed on one that already
+        // existed. Both take the louder code: the two cannot be told apart from
+        // here, and the expensive one to miss is the brand-new item that has no
+        // hard dependency on it at all.
+        var skipped = dependencies.Any(dependency => dependency.Required) ? DependencySync.RequiredFailed : DependencySync.Failed;
 
         // Item.GetAsync (see its use above) only asks for WithLongDescription,
         // never WithChildren, so it always comes back with Children == null.
@@ -282,7 +405,7 @@ internal static class Program
         if (!page.HasValue)
         {
             Console.Error.WriteLine($"  dependency sync skipped — could not query Workshop item {publishedFileId}");
-            return false;
+            return skipped;
         }
 
         using (page.Value)
@@ -293,12 +416,13 @@ internal static class Program
                 // publish still reports success while no dependency was
                 // added or removed at all.
                 Console.Error.WriteLine($"  dependency sync skipped — Workshop item {publishedFileId} not found (0 results)");
-                return false;
+                return skipped;
             }
 
             var item = page.Value.Entries.First();
             var wanted = new HashSet<ulong>();
-            var ok = true;
+            var failed = false;
+            var requiredFailed = false;
 
             foreach (var dep in dependencies)
             {
@@ -309,8 +433,12 @@ internal static class Program
                 }
                 else
                 {
-                    Console.Error.WriteLine($"  dependency + {dep.Name} ({dep.FileId}) FAILED");
-                    ok = false;
+                    // Named on the line itself, not left to whoever thinks to
+                    // open the .asset: this line is the only place the two
+                    // severities are visible while the log is still on screen.
+                    Console.Error.WriteLine($"  dependency + {dep.Name} ({dep.FileId}) FAILED{(dep.Required ? " — REQUIRED" : "")}");
+                    failed = true;
+                    requiredFailed = requiredFailed || dep.Required;
                 }
             }
 
@@ -326,12 +454,19 @@ internal static class Program
                 }
                 else
                 {
+                    // Never the louder code: a surplus dependency the item kept
+                    // is one too many, which installs something unwanted rather
+                    // than leaving the mod unable to run.
                     Console.Error.WriteLine($"  dependency - {child.Value} FAILED");
-                    ok = false;
+                    failed = true;
                 }
             }
 
-            return ok;
+            if (requiredFailed)
+            {
+                return DependencySync.RequiredFailed;
+            }
+            return failed ? DependencySync.Failed : DependencySync.Ok;
         }
     }
 
