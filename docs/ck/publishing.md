@@ -52,6 +52,17 @@ something was deleted. And the mod's `date_added` together with the
 all, which settles "was this version ever published here" without guessing.
 `urllib` gets a 403 from this API; `curl` does not.
 
+**A third caveat, and the one that bites when the history is re-published
+elsewhere: the `changelog` on each entry comes back HTML-escaped.** Measured
+across 49 modfiles of one mod family — every `>` in the uploaded text reads back
+as `&gt;` and every `&` as `&amp;`, three and one occurrence respectively, with
+no `<` anywhere in that corpus to test. Whether the escaping happens on storage
+or on read is not visible from the outside; either way the field is not the text
+that was uploaded. So it is fine to *read* as a record of what shipped, and not
+fine to feed into another platform's release notes unexamined — a Steam Workshop
+change note built from it would display the entities literally, on a note no API
+can edit afterwards.
+
 **A newly created profile is public unless you ask otherwise.** The plugin
 sends `visible = 1` for every profile whose `ModProfileDetails.visible` was not
 explicitly set to `false`, so a first publish puts a half-configured listing in
