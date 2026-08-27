@@ -115,8 +115,11 @@ input events produces exactly the traffic a human produces. So:
      paths are accepted directly. Never click the "+" button: it opens the
      native file dialog, which blocks the extension until a human dismisses it.
      `file_upload` caps a single call at 10 MB — its own limit, separate from
-     Discord's — so `du -ch` the list first when it looks large. Then verify,
-     with the read in "Checking the attachments" below.
+     Discord's — so **sum the list every time**, not when it looks large. The
+     count tells you nothing: across this family the heaviest mod has four
+     attachments at 8.9 MB, while the one with eight comes to 4.7 MB. Only the
+     total matters. Then verify, with the read in "Checking the attachments"
+     below.
 
 5. **Hand over.** Report what is filled in and ask the user to review and
    submit. Do not click "Post".
