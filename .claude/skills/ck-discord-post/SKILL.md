@@ -110,11 +110,18 @@ input events produces exactly the traffic a human produces. So:
      `pbpaste`**, click the message field, `cmd+v`, then **verify the field
      starts with the expected first line**. The clipboard is shared with the
      user, who may copy something else mid-flight; this has already happened.
-   - Tags: open the picker, **type each tag name** and click the match — the
-     only selection method independent of the view state. Then **verify with
-     the DOM read** from "Reading the form" below, once, after all of them.
-     Do not click a tag twice because a check said it was unselected: every
-     click toggles, and the checks that look authoritative here are wrong.
+   - Tags: for **each** tag, click "Mehr Tags anzeigen", type the name, click
+     the match. Typing the name is the only selection method independent of
+     the view state — and **the picker closes after every selection**, so it
+     has to be reopened per tag. Typing the second name without reopening it
+     does not merely miss: the keystrokes land in the message body and damage
+     the text already pasted there, which looks nothing like its cause. A mod
+     with a single tag never shows this.
+
+     Then **verify with the DOM read** from "Reading the form" below, once,
+     after all of them. Do not click a tag twice because a check said it was
+     unselected: every click toggles, and the checks that look authoritative
+     here are wrong.
    - Media: `find` the `<input type="file">` behind "Medien hinzufügen", then
      `file_upload` **all attachments in one call, in the given order**. Repo
      paths are accepted directly. Never click the "+" button: it opens the
@@ -203,6 +210,11 @@ Why nothing else works:
 - **Never put a screenshot and a `find` in the same `browser_batch`.** The
   batch stops at the first failure, and a `find` that matches nothing discards
   the screenshot taken before it — precisely when you need the picture.
+- **Take coordinates only from the most recent screenshot.** The viewport
+  changes size between calls — one run went from 1456×819 to 1105×1113 while
+  Discord was still loading, and a single session has produced three different
+  sizes. Coordinates read from an earlier picture then land somewhere else,
+  and a click that misses looks like an element that does not respond.
 
 One selector detail, if you ever need the title field: it is a
 `textarea[placeholder="Titel"]`, not an `input`. The `input` form of that
