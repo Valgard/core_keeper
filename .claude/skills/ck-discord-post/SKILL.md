@@ -130,15 +130,22 @@ input events produces exactly the traffic a human produces. So:
      Discord's — so **sum the list every time**, not when it looks large. The
      count tells you nothing: across this family the heaviest mod has four
      attachments at 8.9 MB, while the one with eight comes to 4.7 MB. Only the
-     total matters. Then verify, with the read in "Checking the attachments"
+     total matters. 8.9 MB has gone through in one call, so the ceiling is real
+     but not yet met; that mod has about 7 % of headroom, and one more image of
+     that size would exceed it. If a call is ever refused, discard the draft
+     and rebuild rather than splitting into several uploads — nobody has
+     established whether a second call appends or replaces, and order is what
+     is at stake. Then verify, with the read in "Checking the attachments"
      below.
 
 5. **Hand over.** Report what is filled in and ask the user to review and
    submit. Do not click "Post".
 
 6. **After the user confirms it is posted**, if `thread` was `null`: read the
-   new thread URL from the tab and write it into the mod's `.envrc` **and**
-   `.envrc.example` as `CK_DISCORD_THREAD`. Then run `direnv allow` — an
+   new thread URL — `javascript_tool` with `location.href` gives exactly the
+   form every `.envrc` carries, the full URL including `/threads/<id>` — and
+   write it into the mod's `.envrc` **and** `.envrc.example` as
+   `CK_DISCORD_THREAD`. Then run `direnv allow` — an
    edited `.envrc` is blocked until you do, and the next verification fails
    with "is blocked", which reads like a broken script.
 
@@ -159,6 +166,9 @@ input events produces exactly the traffic a human produces. So:
    Every run so far reported it and left it, and the user had to ask each
    time. The usual restraint about committing does not apply here: without
    this commit the mod is announced and the repository does not know it.
+
+   The message is the same across the family, so use it rather than inventing
+   one: `docs(discord): record this mod's #available-mods thread`.
 
 7. **Clips.** For each entry in `follow_ups`, put the URL alone in the
    thread's message box — one URL per message, nothing else. Discord replaces
