@@ -6,11 +6,20 @@ title and looked up by metadata.name, so it goes stale the moment a readable
 title is used (CoreKeeperModSDK#11) — reading it would inherit the defect.
 """
 
+import os
 import shutil
 import subprocess
 
 import pytest
 import steam_identity
+
+# git sets GIT_DIR and GIT_INDEX_FILE for the processes it spawns, so any test
+# run from a hook inherits them. A `git add` here would then write into the
+# REAL repository's index instead of the temp one this test just created —
+# which fails the assertion for the right reason and stages temp paths into a
+# repository nobody asked it to touch. steam_identity.is_tracked scrubs these
+# for exactly this hazard; the tests that prove it has to do the same, first.
+GIT_ENV = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
 
 ASSET = """%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
@@ -245,6 +254,25 @@ def test_ensure_recognizable_rejects_what_write_file_id_would_refuse(tmp_path):
         steam_identity.ensure_recognizable(asset)
 
 
+def test_the_id_is_written_even_if_the_template_stops_carrying_it(
+    tmp_path, monkeypatch
+):
+    # Guards the write that looks redundant on the create path. It is what makes
+    # the id arrive by one mechanism on both paths, so deleting it as dead code
+    # would leave creation depending on TEMPLATE's {file_id} alone — and re.sub
+    # is silent on a non-match, so nothing else here would notice.
+    monkeypatch.setattr(
+        steam_identity,
+        "TEMPLATE",
+        steam_identity.TEMPLATE.replace("fileId: {file_id}", "fileId: 0"),
+    )
+    asset = tmp_path / "NewMod_Steam.asset"
+
+    steam_identity.write_file_id(asset, 4242424242)
+
+    assert steam_identity.read_file_id(asset) == 4242424242
+
+
 def test_the_asset_path_is_where_a_mod_repo_keeps_it(tmp_path):
     assert (
         steam_identity.asset_path(tmp_path, "DisableDurability")
@@ -266,7 +294,7 @@ def repo(tmp_path):
     repo), and a mock would only assert that this file's own assumptions match
     themselves.
     """
-    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True, env=GIT_ENV)
     asset = steam_identity.asset_path(tmp_path, "DisableDurability")
     asset.parent.mkdir(parents=True)
     asset.write_text(ASSET)
@@ -275,7 +303,9 @@ def repo(tmp_path):
 
 @needs_git
 def test_a_committed_asset_is_seen_as_tracked(repo):
-    subprocess.run(["git", "-C", str(repo.parent), "add", repo.name], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo.parent), "add", repo.name], check=True, env=GIT_ENV
+    )
 
     assert steam_identity.is_tracked(repo) is True
 
@@ -314,9 +344,11 @@ def test_an_inherited_GIT_DIR_does_not_answer_for_another_repo(
     # and the answer that costs something is the false "tracked", which would
     # withhold the warning on the one asset that needs it. Same defence
     # check_docs_wrapping.markdown_files already documents.
-    subprocess.run(["git", "-C", str(repo.parent), "add", repo.name], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo.parent), "add", repo.name], check=True, env=GIT_ENV
+    )
     decoy = tmp_path / "decoy"
-    subprocess.run(["git", "init", "-q", str(decoy)], check=True)
+    subprocess.run(["git", "init", "-q", str(decoy)], check=True, env=GIT_ENV)
     monkeypatch.setenv("GIT_DIR", str(decoy / ".git"))
     monkeypatch.setenv("GIT_INDEX_FILE", str(decoy / ".git" / "index"))
 
@@ -336,7 +368,9 @@ def test_ensure_recognizable_warns_about_an_untracked_asset(repo, capsys):
 
 @needs_git
 def test_ensure_recognizable_stays_quiet_about_a_tracked_asset(repo, capsys):
-    subprocess.run(["git", "-C", str(repo.parent), "add", repo.name], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo.parent), "add", repo.name], check=True, env=GIT_ENV
+    )
 
     steam_identity.ensure_recognizable(repo)
 
