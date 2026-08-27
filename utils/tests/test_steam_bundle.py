@@ -105,6 +105,31 @@ def _env(tmp_path, **overrides):
     return env
 
 
+def _preflight_env(**overrides):
+    """Exactly what `check_prerequisites` needs, and deliberately nothing more.
+
+    No MOD_INSTALL_PATH and no built content folder, unlike `_env` above: the
+    preflight's whole purpose is to run BEFORE the mod.io build, so a fixture
+    that quietly supplied one would stop the tests here from proving that.
+    """
+    return {"MOD_NAME": "DisableDurability", "CK_MODIO_TYPE": "Item", **overrides}
+
+
+def _asset_with_dependencies(*declared):
+    """ASSET with its emptied `dependencies:` list filled in.
+
+    Takes (modName, required) pairs and writes the YAML the SDK writes, so the
+    tests below say which dependencies a mod declares instead of restating the
+    indentation of a `.asset` ten times over — where a typo in one copy would
+    read as a mod that declares nothing, and pass.
+    """
+    block = "    dependencies:\n" + "".join(
+        f"    - modName: {name}\n      required: {int(required)}\n"
+        for name, required in declared
+    )
+    return ASSET.replace("    dependencies: []\n", block)
+
+
 def test_the_topmost_changelog_entry_is_the_version():
     version, body = steam_bundle.parse_changelog(CHANGELOG)
 
@@ -233,41 +258,31 @@ def test_check_prerequisites_passes_without_a_built_content_folder(tmp_path):
     # The whole point: this must be callable BEFORE the mod.io build runs,
     # when MOD_INSTALL_PATH/<mod> does not exist yet.
     repo = _repo(tmp_path)
-    env = {"MOD_NAME": "DisableDurability", "CK_MODIO_TYPE": "Item"}
 
-    steam_bundle.check_prerequisites(repo, env)
+    steam_bundle.check_prerequisites(repo, _preflight_env())
 
 
 def test_check_prerequisites_reports_a_missing_description_by_name(tmp_path):
     repo = _repo(tmp_path, description=None)
-    env = {"MOD_NAME": "DisableDurability", "CK_MODIO_TYPE": "Item"}
 
     with pytest.raises(ValueError, match="steam-description.txt"):
-        steam_bundle.check_prerequisites(repo, env)
+        steam_bundle.check_prerequisites(repo, _preflight_env())
 
 
 def test_check_prerequisites_reports_an_unrecognized_identity_asset(tmp_path):
     repo = _repo(tmp_path)
     identity = repo / "unity" / "DisableDurability" / "DisableDurability_Steam.asset"
     identity.write_text("this is not a Steam asset at all\n")
-    env = {"MOD_NAME": "DisableDurability", "CK_MODIO_TYPE": "Item"}
 
     with pytest.raises(ValueError, match="fileId"):
-        steam_bundle.check_prerequisites(repo, env)
+        steam_bundle.check_prerequisites(repo, _preflight_env())
 
 
 def test_check_prerequisites_reports_an_unresolvable_required_dependency(tmp_path):
-    repo = _repo(
-        tmp_path,
-        asset=ASSET.replace(
-            "    dependencies: []",
-            "    dependencies:\n    - modName: CoreLib\n      required: 1",
-        ),
-    )
-    env = {"MOD_NAME": "DisableDurability", "CK_MODIO_TYPE": "Item"}
+    repo = _repo(tmp_path, asset=_asset_with_dependencies(("CoreLib", True)))
 
     with pytest.raises(ValueError, match="CoreLib"):
-        steam_bundle.check_prerequisites(repo, env)
+        steam_bundle.check_prerequisites(repo, _preflight_env())
 
 
 def test_build_bundle_calls_check_prerequisites_first(tmp_path):
@@ -344,10 +359,7 @@ def test_dependencies_come_from_the_asset_not_hardcoded_empty():
     # implementation that reads metadata.dependencies apart from one that just
     # returns []. disable-durability itself already depends on CoreLib and
     # ModSettingsMenu, so this is not a hypothetical case.
-    asset = ASSET.replace(
-        "    dependencies: []\n",
-        "    dependencies:\n    - modName: CoreLib\n      required: 1\n    - modName: ModSettingsMenu\n      required: 0\n",
-    )
+    asset = _asset_with_dependencies(("CoreLib", True), ("ModSettingsMenu", False))
 
     assert steam_bundle.parse_dependencies(asset) == [
         ("CoreLib", True),
@@ -356,13 +368,7 @@ def test_dependencies_come_from_the_asset_not_hardcoded_empty():
 
 
 def test_a_declared_dependency_is_resolved_from_the_cache(tmp_path):
-    repo = _repo(
-        tmp_path,
-        asset=ASSET.replace(
-            "    dependencies: []",
-            "    dependencies:\n    - modName: CoreLib\n      required: 1",
-        ),
-    )
+    repo = _repo(tmp_path, asset=_asset_with_dependencies(("CoreLib", True)))
     cache = tmp_path / "deps.json"
     cache.write_text('{"CoreLib": 3000000001}')
     env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
@@ -375,13 +381,7 @@ def test_a_declared_dependency_is_resolved_from_the_cache(tmp_path):
 
 
 def test_an_unresolvable_required_dependency_aborts(tmp_path):
-    repo = _repo(
-        tmp_path,
-        asset=ASSET.replace(
-            "    dependencies: []",
-            "    dependencies:\n    - modName: CoreLib\n      required: 1",
-        ),
-    )
+    repo = _repo(tmp_path, asset=_asset_with_dependencies(("CoreLib", True)))
     cache = tmp_path / "deps.json"
     cache.write_text("{}")
     env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
@@ -394,13 +394,7 @@ def test_an_unresolvable_required_dependency_with_no_cache_names_the_env_var(tmp
     # Distinct from the case above: here STEAM_DEPS_MAP itself is unset, so
     # there is no cache_path to name. The message must say so instead of
     # rendering "None" as if it were a real, actionable file path.
-    repo = _repo(
-        tmp_path,
-        asset=ASSET.replace(
-            "    dependencies: []",
-            "    dependencies:\n    - modName: CoreLib\n      required: 1",
-        ),
-    )
+    repo = _repo(tmp_path, asset=_asset_with_dependencies(("CoreLib", True)))
     env = _env(tmp_path)
 
     with pytest.raises(ValueError, match="STEAM_DEPS_MAP"):
@@ -413,13 +407,7 @@ def test_an_unresolvable_optional_dependency_does_not_abort_the_publish(tmp_path
     # dependency list should say is a separate question, asked below by
     # test_declared_but_unresolved_dependencies_are_not_reported_as_none — this
     # one used to assert [] there, which was the wipe.
-    repo = _repo(
-        tmp_path,
-        asset=ASSET.replace(
-            "    dependencies: []",
-            "    dependencies:\n    - modName: SomeOptional\n      required: 0",
-        ),
-    )
+    repo = _repo(tmp_path, asset=_asset_with_dependencies(("SomeOptional", False)))
     cache = tmp_path / "deps.json"
     cache.write_text("{}")
     env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
@@ -434,13 +422,7 @@ def test_the_optional_skip_warning_goes_to_stderr_not_stdout(tmp_path, capsys):
     # .NET tool. A warning line printed to stdout ahead of that JSON would
     # corrupt the capture and fail the entire publish over a merely-skipped
     # dependency.
-    repo = _repo(
-        tmp_path,
-        asset=ASSET.replace(
-            "    dependencies: []",
-            "    dependencies:\n    - modName: SomeOptional\n      required: 0",
-        ),
-    )
+    repo = _repo(tmp_path, asset=_asset_with_dependencies(("SomeOptional", False)))
     cache = tmp_path / "deps.json"
     cache.write_text("{}")
     env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
@@ -453,13 +435,7 @@ def test_the_optional_skip_warning_goes_to_stderr_not_stdout(tmp_path, capsys):
 
 
 def test_a_malformed_dependency_cache_is_reported_by_name(tmp_path):
-    repo = _repo(
-        tmp_path,
-        asset=ASSET.replace(
-            "    dependencies: []",
-            "    dependencies:\n    - modName: CoreLib\n      required: 1",
-        ),
-    )
+    repo = _repo(tmp_path, asset=_asset_with_dependencies(("CoreLib", True)))
     cache = tmp_path / "deps.json"
     cache.write_text("not json")
     env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
@@ -469,13 +445,7 @@ def test_a_malformed_dependency_cache_is_reported_by_name(tmp_path):
 
 
 def test_a_non_numeric_cached_id_is_reported_by_mod_and_file(tmp_path):
-    repo = _repo(
-        tmp_path,
-        asset=ASSET.replace(
-            "    dependencies: []",
-            "    dependencies:\n    - modName: CoreLib\n      required: 1",
-        ),
-    )
+    repo = _repo(tmp_path, asset=_asset_with_dependencies(("CoreLib", True)))
     cache = tmp_path / "deps.json"
     cache.write_text('{"CoreLib": "not-a-number"}')
     env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
@@ -535,19 +505,17 @@ def test_check_prerequisites_reports_a_missing_logo(tmp_path):
     # this same run already out, which is exactly what the preflight prevents.
     repo = _repo(tmp_path)
     (repo / "unity" / "DisableDurability" / "Editor" / "logo.png").unlink()
-    env = {"MOD_NAME": "DisableDurability", "CK_MODIO_TYPE": "Item"}
 
     with pytest.raises(ValueError, match="logo"):
-        steam_bundle.check_prerequisites(repo, env)
+        steam_bundle.check_prerequisites(repo, _preflight_env())
 
 
 def test_check_prerequisites_reports_a_missing_changelog(tmp_path):
     repo = _repo(tmp_path)
     (repo / "CHANGELOG.md").unlink()
-    env = {"MOD_NAME": "DisableDurability", "CK_MODIO_TYPE": "Item"}
 
     with pytest.raises(ValueError, match="CHANGELOG.md"):
-        steam_bundle.check_prerequisites(repo, env)
+        steam_bundle.check_prerequisites(repo, _preflight_env())
 
 
 def test_check_prerequisites_reports_a_changelog_with_no_entry(tmp_path):
@@ -556,10 +524,9 @@ def test_check_prerequisites_reports_a_changelog_with_no_entry(tmp_path):
     # version and the change note both come out of that parse — and until this
     # test, no test in the suite reached parse_changelog's own error at all.
     repo = _repo(tmp_path, changelog="# Changelog\n\nNothing released yet.\n")
-    env = {"MOD_NAME": "DisableDurability", "CK_MODIO_TYPE": "Item"}
 
     with pytest.raises(ValueError, match=r"## \[x\.y\.z\]"):
-        steam_bundle.check_prerequisites(repo, env)
+        steam_bundle.check_prerequisites(repo, _preflight_env())
 
 
 def test_check_prerequisites_requires_a_mod_type(tmp_path):
@@ -578,10 +545,9 @@ def test_a_mod_type_of_only_separators_is_refused(tmp_path):
     # non-empty and still name no category. Checking for a set value would pass
     # this; the check has to be that a category actually comes out.
     repo = _repo(tmp_path)
-    env = {"MOD_NAME": "DisableDurability", "CK_MODIO_TYPE": " | "}
 
     with pytest.raises(ValueError, match="CK_MODIO_TYPE"):
-        steam_bundle.check_prerequisites(repo, env)
+        steam_bundle.check_prerequisites(repo, _preflight_env(CK_MODIO_TYPE=" | "))
 
 
 def test_no_declared_dependencies_means_sync_an_empty_list(tmp_path):
@@ -600,13 +566,7 @@ def test_declared_but_unresolved_dependencies_are_not_reported_as_none(tmp_path)
     # list from "declared two, resolved neither" wipes the item's dependencies
     # while saying the publish went fine. null is the one value that means
     # "unknown": Program.cs early-returns on it and skips the sync entirely.
-    repo = _repo(
-        tmp_path,
-        asset=ASSET.replace(
-            "    dependencies: []",
-            "    dependencies:\n    - modName: SomeOptional\n      required: 0",
-        ),
-    )
+    repo = _repo(tmp_path, asset=_asset_with_dependencies(("SomeOptional", False)))
     cache = tmp_path / "deps.json"
     cache.write_text("{}")
     env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
@@ -623,11 +583,7 @@ def test_a_partly_resolved_dependency_list_is_not_a_full_sync(tmp_path):
     # Sync only what is complete; the skipped entry has already been warned about.
     repo = _repo(
         tmp_path,
-        asset=ASSET.replace(
-            "    dependencies: []",
-            "    dependencies:\n    - modName: CoreLib\n      required: 0"
-            "\n    - modName: SomeOptional\n      required: 0",
-        ),
+        asset=_asset_with_dependencies(("CoreLib", False), ("SomeOptional", False)),
     )
     cache = tmp_path / "deps.json"
     cache.write_text('{"CoreLib": 3000000001}')
@@ -643,13 +599,7 @@ def test_the_optional_skip_warning_is_printed_once_per_run(tmp_path, capsys):
     # dependencies themselves, so one bundle printed the same warning twice.
     # A warning repeated without anything having happened in between reads as
     # two separate skips and teaches the operator to skim past it.
-    repo = _repo(
-        tmp_path,
-        asset=ASSET.replace(
-            "    dependencies: []",
-            "    dependencies:\n    - modName: SomeOptional\n      required: 0",
-        ),
-    )
+    repo = _repo(tmp_path, asset=_asset_with_dependencies(("SomeOptional", False)))
     cache = tmp_path / "deps.json"
     cache.write_text("{}")
     env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
@@ -663,23 +613,14 @@ def test_the_preflight_still_raises_on_the_first_missing_required_dependency(tmp
     # The guard on the fix above: resolving once must not be achieved by having
     # check_prerequisites stop resolving. It is the preflight's job to refuse a
     # required dependency it cannot map, before the mod.io release goes out.
-    repo = _repo(
-        tmp_path,
-        asset=ASSET.replace(
-            "    dependencies: []",
-            "    dependencies:\n    - modName: CoreLib\n      required: 1",
-        ),
-    )
+    repo = _repo(tmp_path, asset=_asset_with_dependencies(("CoreLib", True)))
     cache = tmp_path / "deps.json"
     cache.write_text("{}")
-    env = {
-        "MOD_NAME": "DisableDurability",
-        "CK_MODIO_TYPE": "Item",
-        "STEAM_DEPS_MAP": str(cache),
-    }
 
     with pytest.raises(ValueError, match="CoreLib"):
-        steam_bundle.check_prerequisites(repo, env)
+        steam_bundle.check_prerequisites(
+            repo, _preflight_env(STEAM_DEPS_MAP=str(cache))
+        )
 
 
 def _real_mod_assets():
