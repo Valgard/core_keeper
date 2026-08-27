@@ -15,6 +15,16 @@
     <NoWarn>$(NoWarn);CS0618</NoWarn>
   </PropertyGroup>
 
+  <!-- DependencyDecision is internal and stays internal: it is this tool's own
+       rule, not an API anything else may call. The test project is the one
+       thing that needs to see it, because that rule is the only part of the
+       dependency path reachable without creating or modifying a real Workshop
+       item — everything around it sits behind SteamClient.Init and a
+       successful SubmitAsync. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="ck-workshop-tests" />
+  </ItemGroup>
+
   <!-- Bound from the SDK clone rather than NuGet, deliberately: the NuGet
        package ships no Posix variant (macOS needs one) and targets an older
        Steamworks generation than the native library this SDK expects. -->

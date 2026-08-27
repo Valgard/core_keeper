@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>ck_workshop_tests</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!-- The tool project, for DependencyDecision alone. Everything else in it
+       needs Steamworks and a live session; this one file needs neither, which
+       is the entire reason it is a file of its own. Referencing the project
+       still means SDK_PATH must be set to build these tests, because the tool
+       itself does not compile without it. -->
+  <ItemGroup>
+    <ProjectReference Include="../ck-workshop/ck-workshop.csproj" />
+  </ItemGroup>
+</Project>
