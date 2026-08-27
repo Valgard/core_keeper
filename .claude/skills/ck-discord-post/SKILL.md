@@ -44,19 +44,32 @@ input events produces exactly the traffic a human produces. So:
    ```
 
    `thread` being `null` means create a post; a URL means comment there.
-   Two different failures both exit non-zero: **exit 3** is a content
-   problem — report it and stop, **unless** the error names a tag
-   `#available-mods` does not offer: `utils/ck-discord-tags.json` may just be
-   stale, so do steps 2–3 first and re-run this one. **Any other exit** (1,
-   for a missing or malformed data file) is the tooling being broken, not the
-   post — and step 3 is the likely cause when it happens here, since that is
-   the moment this skill rewrites `utils/ck-discord-tags.json` itself. Check
-   that edit's JSON syntax before retrying.
 
-2. **Open the channel** at
-   `https://discord.com/channels/851842678340845600/1083718088526139443`
-   in a tab you created. If Discord offers "open in app", choose
-   **"Im Browser fortfahren"** — the app hand-off breaks the session.
+   **Read the failure before diagnosing it.** `direnv: … is blocked` is the
+   most likely one on a first run and has nothing to do with this skill: an
+   `.envrc` stays blocked until `direnv allow` runs in that directory, and the
+   exit code looks like any other. Run it and retry.
+
+   Otherwise: **exit 3** is a content problem — report it and stop, **unless**
+   the error names a tag `#available-mods` does not offer, in which case
+   `utils/ck-discord-tags.json` may be stale: do steps 2–3 first and re-run
+   this one. **Any other exit** means the tooling is broken rather than the
+   post — a missing or malformed data file. If you have already run step 3,
+   suspect the edit it made there and check its JSON syntax first.
+
+2. **Open the channel, then the composer.** The channel is
+   `https://discord.com/channels/851842678340845600/1083718088526139443`;
+   open it in a tab you created. If Discord offers "open in app", choose
+   **"Im Browser fortfahren"** — the app hand-off breaks the session. Then
+   click **"Neuer Post"**.
+
+   **The composer must be open before step 3, not after.** Everything that
+   follows depends on it: the tag list, the DOM read that verifies selections,
+   and the `form` scope that read relies on. With the composer closed, the tag
+   row belongs to the *channel filter* — labelled "Alle", not "Mehr Tags
+   anzeigen" — and a page-wide `[aria-pressed]` read returns around fifty
+   elements: twenty tags twice, because Discord renders both the bar and its
+   popout, plus the reaction buttons of the posts behind it.
 
 3. **Reconcile the tag list — unless it already happened today.**
    `utils/ck-discord-tags.json` carries a `verified` date. If it is today's
@@ -70,14 +83,16 @@ input events produces exactly the traffic a human produces. So:
    when it last changed. Leaving it stale is what makes the next session repeat
    the work.
 
-   To reconcile: open "Mehr Tags anzeigen" — its search field
-   takes focus by itself — and read the whole list in one call:
+   To reconcile: in the open composer, click **"Mehr Tags anzeigen"** — its
+   search field takes focus by itself — and read the whole list in one call:
    `read_page` with the list's `ref_id` and `filter="interactive"`. That
-   returns all twenty in channel order regardless of scroll position, and an
-   unfiltered `read_page(filter="interactive")` additionally shows the channel
-   filter's own copy of the list beside it, so which list is which becomes
-   obvious. Compare against `utils/ck-discord-tags.json`; on divergence update
-   the file and report exactly what changed.
+   returns all twenty in channel order regardless of scroll position. Compare
+   against `utils/ck-discord-tags.json`; on divergence update the file and
+   report exactly what changed.
+
+   If you ever read the page without scoping to the composer, the labels are
+   what tell the two lists apart: the composer's buttons are `Tag X
+   hinzufügen`, the channel filter's are `Nach Tag X filtern`.
 
    **Do not scroll and read repeatedly.** The list is virtualised, and the
    mouse wheel skips: one run jumped from position 7 straight to the end, so
@@ -99,6 +114,9 @@ input events produces exactly the traffic a human produces. So:
      `file_upload` **all attachments in one call, in the given order**. Repo
      paths are accepted directly. Never click the "+" button: it opens the
      native file dialog, which blocks the extension until a human dismisses it.
+     `file_upload` caps a single call at 10 MB — its own limit, separate from
+     Discord's — so `du -ch` the list first when it looks large. Then verify,
+     with the read in "Checking the attachments" below.
 
 5. **Hand over.** Report what is filled in and ask the user to review and
    submit. Do not click "Post".
@@ -181,6 +199,27 @@ Why nothing else works:
 One selector detail, if you ever need the title field: it is a
 `textarea[placeholder="Titel"]`, not an `input`. The `input` form of that
 selector returns `null` silently and looks like a closed composer.
+
+## Checking the attachments
+
+**Do not check the file input.** After `file_upload`, `form
+input[type="file"].files` is **empty** — Discord moves the files into its own
+state immediately and resets the input. It is the first thing anyone reaches
+for, and it reports a successful upload as a failed one.
+
+Read the previews instead. Each attachment gets one, labelled `Vergrößerte
+Bildanzeigen für <filename> öffnen`:
+
+```javascript
+Array.from(document.querySelectorAll('form [aria-label^="Vergrößerte Bildanzeigen"]'))
+  .map(b => b.getAttribute('aria-label'))
+```
+
+One entry per attachment, **in order**, so a single read confirms both that
+everything arrived and that the sequence is the one you passed — the logo
+first, then the configured media. Order matters because Discord's grid lays
+the attachments out in it, and it cannot be corrected afterwards: see
+"Corrections" below.
 
 ## Corrections
 
