@@ -46,9 +46,14 @@ input events produces exactly the traffic a human produces. So:
    `thread` being `null` means create a post; a URL means comment there.
 
    **Read the failure before diagnosing it.** `direnv: … is blocked` is the
-   most likely one on a first run and has nothing to do with this skill: an
-   `.envrc` stays blocked until `direnv allow` runs in that directory, and the
-   exit code looks like any other. Run it and retry.
+   likeliest one and says nothing about this skill's own state: an `.envrc`
+   stays blocked until `direnv allow` runs in that directory, and the exit
+   code looks like any other. Run it and retry.
+
+   It follows **any** edit to the mod's `.envrc` — including the one step 6
+   makes below, which is why `direnv allow` is part of that step. So it is not
+   a first-run symptom: the run most likely to hit it is a later `--update`
+   one, when step 6 was interrupted or the file was touched again afterwards.
 
    Otherwise: **exit 3** is a content problem — report it and stop, **unless**
    the error names a tag `#available-mods` does not offer, in which case
