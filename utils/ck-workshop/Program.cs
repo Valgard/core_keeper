@@ -35,6 +35,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using CoreKeeperModUtils;
 using Steamworks;
 using Steamworks.Data;
 using Steamworks.Ugc;
@@ -264,7 +265,7 @@ internal static class Program
             var dependencySync = await SyncDependencies(fileId.Value, bundle.Dependencies);
 
             EmitResult(fileId.Value, created: creating, success: true);
-            return ExitCodeFor(dependencySync);
+            return DependencyDecision.ExitCodeFor(dependencySync);
         }
         catch (Exception ex)
         {
@@ -413,47 +414,14 @@ internal static class Program
     // different mistakes to go looking for in the producer.
     private static string Quoted(string value) => value == null ? "missing" : $"\"{value}\"";
 
-    // Told apart because the two cost a subscriber different things: an
-    // optional dependency that did not attach costs them a convenience, a
-    // required one costs them a mod that does not work. By this point the item
-    // is live and nothing can be undone, so saying which of the two happened
-    // is the whole of what this side can still do about it.
-    private enum DependencySync
-    {
-        Ok,
-        Failed,
-        RequiredFailed,
-    }
-
-    // The two decisions in the dependency path that depend on nothing but the
-    // bundle, pulled out of the code that needs Steam to run.
-    //
-    // Not a tidying: everything around them is reachable only after a
-    // successful SubmitAsync, so as inline expressions they could not be
-    // exercised without publishing a real Workshop item. Named and called from
-    // the dry-run report below, they are driven by the test suite with no Steam
-    // client at all — and by the same functions the live path calls, so the two
-    // cannot drift into disagreeing about which failure is the loud one.
-
-    // What a sync that never ran reports. A skipped sync attached nothing this
-    // run, so a required dependency is missing from an item that was just
-    // created and merely unconfirmed on one that already existed. Both take the
-    // louder code: the two cannot be told apart from here, and the expensive
-    // one to miss is the brand-new item that has no hard dependency on it.
-    private static DependencySync SkippedSeverity(Bundle.Dependency[] dependencies) =>
-        dependencies.Any(dependency => dependency.Required) ? DependencySync.RequiredFailed : DependencySync.Failed;
-
-    // The enum above says why these three outcomes are kept apart; this is the
-    // only place that turns them into the numbers upload.sh and its callers
-    // read. 0 for a clean sync, and never a code that would read as one for a
-    // sync that did not complete.
-    private static int ExitCodeFor(DependencySync sync) =>
-        sync switch
-        {
-            DependencySync.Ok => 0,
-            DependencySync.RequiredFailed => 9,
-            _ => 7,
-        };
+    // What a sync that never ran amounts to: one outcome, not one per
+    // dependency, because the query is what failed and nothing was attempted.
+    // It carries the severity of what was DECLARED — a required dependency is
+    // missing from an item that was just created and merely unconfirmed on one
+    // that already existed, and the two cannot be told apart from here, so both
+    // take the louder reading.
+    private static DependencyResult[] Skipped(Bundle.Dependency[] dependencies) =>
+        new[] { new DependencyResult(DependencyOutcome.SyncSkipped, dependencies.Any(dependency => dependency.Required)) };
 
     // What the sync below would do, said before anything is sent. The dry run
     // otherwise described the item in four lines and left out the one part of a
@@ -462,17 +430,33 @@ internal static class Program
     {
         if (dependencies == null)
         {
-            Console.Error.WriteLine("  Deps:    unresolved in the bundle — the sync would be skipped, changing nothing");
+            Console.Error.WriteLine("  Deps:    unresolved in the bundle — the sync would be skipped entirely, changing nothing");
             return;
         }
 
-        var listed =
-            dependencies.Length == 0
-                ? "none declared, so the sync would remove any the item still carries"
-                : string.Join(", ", dependencies.Select(d => $"{d.Name} ({(d.Required ? "required" : "optional")})"));
-        // The code comes out of the same two functions the live path uses, so
-        // this line cannot promise one severity while the publish reports another.
-        Console.Error.WriteLine($"  Deps:    {listed} — a failed sync would report exit {ExitCodeFor(SkippedSeverity(dependencies))}");
+        if (dependencies.Length == 0)
+        {
+            Console.Error.WriteLine("  Deps:    none declared — the sync would remove any the item still carries");
+        }
+        else
+        {
+            Console.Error.WriteLine($"  Deps:    {dependencies.Length} to attach");
+            foreach (var dependency in dependencies)
+            {
+                Console.Error.WriteLine($"             + {dependency.Name} ({dependency.FileId}) {(dependency.Required ? "required" : "optional")}");
+            }
+        }
+
+        // Says what it cannot know, not merely that something is unknown: the
+        // sync is a full one, so it also REMOVES every dependency the live item
+        // carries that the bundle does not name. Which those are can only come
+        // from querying that item, so a dry run cannot list them — and without
+        // this sentence the lines above read as the whole plan.
+        Console.Error.WriteLine("           it will also remove any dependency the item carries that is not listed here;");
+        Console.Error.WriteLine("           which those are needs the live item, so they cannot be previewed");
+        // Out of the same function the live path ends on, so this line cannot
+        // promise one code while the publish reports another.
+        Console.Error.WriteLine($"           a sync that could not run at all would report exit {DependencyDecision.ExitCodeFor(Skipped(dependencies))}");
     }
 
     // Full sync rather than additive, so the Workshop list mirrors the .asset:
@@ -480,20 +464,25 @@ internal static class Program
     // add/remove call, so the caller can tell "published, but not fully synced"
     // apart from a clean run instead of reporting success regardless of what
     // AddDependency/RemoveDependency actually did.
-    private static async Task<DependencySync> SyncDependencies(ulong publishedFileId, Bundle.Dependency[] dependencies)
+    private static async Task<IReadOnlyCollection<DependencyResult>> SyncDependencies(ulong publishedFileId, Bundle.Dependency[] dependencies)
     {
         if (dependencies == null)
         {
-            return DependencySync.Ok;
+            // "Unknown, change nothing" — nothing was attempted, so there is
+            // nothing to report and no failure to grade.
+            return Array.Empty<DependencyResult>();
         }
 
-        // What either "sync skipped" below reports — see SkippedSeverity.
-        var skipped = SkippedSeverity(dependencies);
+        // What either "sync skipped" below reports — see Skipped.
+        var skipped = Skipped(dependencies);
 
         // Item.GetAsync (see its use above) only asks for WithLongDescription,
-        // never WithChildren, so it always comes back with Children == null.
-        // Querying directly with WithChildren(true) is the only way to see
-        // what the item already carries, which the removal side needs to know.
+        // never WithChildren, so it always comes back with Children == null —
+        // verified against a live item, not assumed. Querying directly with
+        // WithChildren(true) is the only way to see what the item already
+        // carries, and it does populate them (also measured; see
+        // docs/ck/steam-workshop.md). That is what lets the removal side below
+        // be a full sync rather than an additive one.
         var page = await Query.All.WithFileId(publishedFileId).WithChildren(true).GetPageAsync(1);
         if (!page.HasValue)
         {
@@ -503,19 +492,34 @@ internal static class Program
 
         using (page.Value)
         {
-            if (page.Value.ResultCount == 0)
+            // Both conditions, and the second is the one that fires. Measured
+            // against the live Workshop: a query for an id that is not an item
+            // comes back ResultCount == 1 with an entry whose Result is
+            // FileNotFound — three ids tried, two of them non-existent, all
+            // three returned ResultCount 1. So the count alone never detects a
+            // missing item; only the entry's own Result does. The count check
+            // is kept because an empty page is still a state worth naming, but
+            // it is not what catches this.
+            //
+            // Silence here would contradict "full sync, not additive": the
+            // publish would report success while nothing was added or removed.
+            // Without the Result check the code did something worse than stay
+            // silent — it ran AddDependency against a FileNotFound entry.
+            // FirstOrDefault, not First: an entry is a struct, so an empty page
+            // yields a default whose Result is not OK, which the check below
+            // then reports — where First() would throw and land in the
+            // catch-all as an "unexpected exception" instead.
+            var item = page.Value.Entries.FirstOrDefault();
+            if (page.Value.ResultCount == 0 || item.Result != Result.OK)
             {
-                // Silent here would contradict "full sync, not additive": the
-                // publish still reports success while no dependency was
-                // added or removed at all.
-                Console.Error.WriteLine($"  dependency sync skipped — Workshop item {publishedFileId} not found (0 results)");
+                Console.Error.WriteLine($"  dependency sync skipped — Workshop item {publishedFileId} not found ({item.Result})");
                 return skipped;
             }
 
-            var item = page.Value.Entries.First();
             var wanted = new HashSet<ulong>();
-            var failed = false;
-            var requiredFailed = false;
+            // Recorded rather than graded here: what each call did is this
+            // function's business, what it adds up to is DependencyDecision's.
+            var results = new List<DependencyResult>();
 
             foreach (var dep in dependencies)
             {
@@ -523,6 +527,7 @@ internal static class Program
                 if (await item.AddDependency(dep.FileId))
                 {
                     Console.Error.WriteLine($"  dependency + {dep.Name} ({dep.FileId})");
+                    results.Add(new DependencyResult(DependencyOutcome.Attached, dep.Required));
                 }
                 else
                 {
@@ -530,8 +535,7 @@ internal static class Program
                     // open the .asset: this line is the only place the two
                     // severities are visible while the log is still on screen.
                     Console.Error.WriteLine($"  dependency + {dep.Name} ({dep.FileId}) FAILED{(dep.Required ? " — REQUIRED" : "")}");
-                    failed = true;
-                    requiredFailed = requiredFailed || dep.Required;
+                    results.Add(new DependencyResult(DependencyOutcome.AttachFailed, dep.Required));
                 }
             }
 
@@ -544,22 +548,21 @@ internal static class Program
                 if (await item.RemoveDependency(child.Value))
                 {
                     Console.Error.WriteLine($"  dependency - {child.Value}");
+                    results.Add(new DependencyResult(DependencyOutcome.Removed, false));
                 }
                 else
                 {
-                    // Never the louder code: a surplus dependency the item kept
-                    // is one too many, which installs something unwanted rather
-                    // than leaving the mod unable to run.
+                    // Required: false, and not as a shrug — a surplus child is
+                    // by definition one the mod does not declare, so there is
+                    // no `required` flag anywhere that could apply to it. That
+                    // is what keeps a failed removal off the louder code; see
+                    // DependencyDecision.ExitCodeFor.
                     Console.Error.WriteLine($"  dependency - {child.Value} FAILED");
-                    failed = true;
+                    results.Add(new DependencyResult(DependencyOutcome.RemoveFailed, false));
                 }
             }
 
-            if (requiredFailed)
-            {
-                return DependencySync.RequiredFailed;
-            }
-            return failed ? DependencySync.Failed : DependencySync.Ok;
+            return results;
         }
     }
 

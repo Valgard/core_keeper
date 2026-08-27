@@ -137,6 +137,54 @@ it asks for there — are reported upstream as [CoreKeeperModSDK#14](https://git
 Reading the bundle to check any of this needs a deserialiser (UnityPy or
 similar) — searching it proves nothing either way, because it is compressed.
 
+## Reading an item's dependencies: which query answers, and which lies
+
+A Workshop item's dependencies are its **children**. Two Facepunch calls appear
+to offer them and only one does, which matters to anything that syncs a
+dependency list rather than only adding to it — removing what an item should no
+longer carry requires knowing what it carries now.
+
+**`Item.GetAsync(id)` never returns them.** It comes back with `Children ==
+null` for an item that demonstrably has children, because it asks only for
+`WithLongDescription`. Measured against a live item, not inferred from the
+signature.
+
+**`Query.All.WithFileId(id).WithChildren(true)` does return them, populated.**
+Measured against seven live Core Keeper items, each of which carries exactly one
+child:
+
+| Item | Child |
+|---|---|
+| PlacementPlus, ChatCommands, Quick Replace, Quick Potion, Master Experience, DummyMod | `3673516180` (CoreLib) |
+| Scenes+ | `3674611197` |
+
+**A bulk `Query.All` page is not usable for this, or for anything else about an
+item's content.** Its entries are placeholders: across 162 items every one came
+back with an empty `title`, `owner` of 0, no tags and no children. A `null`
+there measures how complete the response is, not what the item holds — so an
+absent value proves nothing at all.
+
+That trap is easy to walk into, because the placeholder page answers without
+erroring. The control that exposes it costs two minutes: print `title` and
+`owner` beside whatever is being read. An empty title next to a null field says
+the response is empty, not the item.
+
+One more way to probe this wrongly: CoreLib is the item nearly everything else
+points **at**. Reading *it* to find out whether children come back populated
+asks the wrong item — what is needed is one that **has** a dependency, not one
+that **is** one.
+
+## A missing item does not come back as an empty result
+
+Querying an id that is not a Workshop item returns `ResultCount == 1`, not 0 —
+with an entry whose `Result` is `FileNotFound`, an `Owner` of 0 and an empty
+title. Measured with three ids, two of them non-existent; all three returned a
+count of 1.
+
+So a `ResultCount == 0` check never detects a missing item. The entry's own
+`Result` is the only thing that does, and code that skips that check goes on to
+act on a `FileNotFound` entry as though it were real.
+
 ## Uploading needs a live Steam session
 
 Facepunch initialises against Core Keeper's app ID, so the desktop Steam client

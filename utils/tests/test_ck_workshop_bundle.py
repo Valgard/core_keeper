@@ -347,19 +347,41 @@ class TestDependencies:
 
 
 class TestDependencyPlan:
-    """The severity decision — which exit code a failed sync reports.
+    """What the dry run says it would do with dependencies.
 
     The sync itself runs after SubmitAsync and so needs a live Steam session,
     a published item and a real failure; none of that is reachable from a
-    test. But the DECISION is a function of the bundle alone, and the dry run
-    now states it, so these drive the very functions the live path calls —
-    SkippedSeverity and ExitCodeFor — with no Steam client anywhere.
+    test. What IS reachable is the plan the dry run states beforehand — the
+    list an operator reads before a real publish, and the exit code a sync
+    that could not run would produce, which comes out of the same
+    DependencyDecision.ExitCodeFor the live path ends on.
 
-    What that does and does not buy: a change to either function shows up
-    here, because the printed code comes out of them rather than out of a
-    second copy of the rule. What it cannot see is the sync loop itself
-    deciding that a dependency failed.
+    The decision table itself is tested directly, in C#, by
+    utils/ck-workshop-tests — see test_ck_workshop_severity.py. These cover
+    the reporting around it.
     """
+
+    def test_each_dependency_is_listed_with_its_file_id(self, tool, golden):
+        # The id, not just the name: it is what actually gets attached, and
+        # what a wrong entry in steam-dependencies.json would show up as. A
+        # name alone cannot be checked against the Workshop by eye.
+        deps = [{"name": "CoreLib", "fileId": 3673516180, "required": True}]
+        err = run(tool, {**golden, "dependencies": deps}).stderr
+        assert "CoreLib" in err
+        assert "3673516180" in err
+        assert "required" in err
+
+    def test_it_says_what_it_cannot_show_not_merely_that_something_is_missing(
+        self, tool, golden
+    ):
+        # Without this the list reads as the whole plan, and it is not: the
+        # sync is a full one, so it also removes what the live item carries and
+        # the bundle does not name. Naming the removals specifically is the
+        # point — "some things cannot be previewed" would not warn anyone.
+        deps = [{"name": "CoreLib", "fileId": 3673516180, "required": True}]
+        err = run(tool, {**golden, "dependencies": deps}).stderr
+        assert "remove any dependency the item carries that is not listed" in err
+        assert "cannot be previewed" in err
 
     def test_a_required_dependency_takes_the_louder_code(self, tool, golden):
         # 9 rather than 7 whenever ANY declared dependency is required: the
