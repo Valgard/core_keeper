@@ -123,6 +123,13 @@ per-SDK-clone setup step, below; everything else — the two flags, where the
 description and preview come from, dependency resolution — is
 `docs/publishing.md`.
 
+A mod that has been on mod.io for a while arrives on the Workshop with a change
+history one entry long. `utils/steam_backfill.py` mirrors the rest of it —
+one entry per published version, oldest first, each with that version's own
+build downloaded from mod.io and its own notes from `CHANGELOG.md`. It sends
+nothing without `--execute`, keeps its progress on the Workshop item itself
+rather than in a local file, and is written up in `docs/publishing.md`.
+
 A new mod.io profile is created **hidden**; review it on the website and
 switch it to visible manually. The real mod ID is stored in the SDK-native
 `<mod-name>/unity/<MOD_NAME>/Editor/<MOD_NAME>_modio.asset` — versioned in

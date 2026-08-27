@@ -260,6 +260,74 @@ Unity starts, so the run publishes to mod.io and skips Steam with exit 8. It
 costs a mod.io release that gains nothing, which is reason enough to check
 first.
 
+### Backfilling the Workshop change history
+
+A mod that has been published to mod.io for a year arrives on the Workshop with
+a change history one entry long. `utils/steam_backfill.py` puts the rest of them
+in: one entry per published version, oldest first, each carrying that version's
+own build — fetched from mod.io, since [every modfile a mod ever published stays downloadable with the read-only game key](ck/publishing.md#profile-and-modfile-are-different-things)
+— and that version's own notes from `CHANGELOG.md`.
+
+**It is a tool of its own rather than a flag on `upload.sh`, because it runs
+once per mod and then never again.** A permanent second mode in the publish path
+is permanent surface; the shapes are opposite anyway, since a publish ships the
+build it was just handed and this ships one it downloads.
+
+**Order is the whole problem.** The Workshop's change history is [append-only to every API](ck/steam-workshop.md#the-change-history-is-append-only-to-every-api-and-editable-in-the-browser),
+so the sequence of submits *is* the history, and a wrong or duplicated entry is
+corrected by hand in the web UI, one form at a time. Three properties follow:
+versions go out oldest first and a failure stops that mod instead of skipping
+ahead; every pending submit is built and validated through `ck-workshop
+--dry-run` **before the first one is sent**; and nothing is guessed.
+
+**The progress record lives on the Workshop item, not in a local file.** An item
+carries [a publisher-only Metadata string](ck/steam-workshop.md#an-item-can-carry-publisher-side-state-and-it-is-the-right-place-for-it), and the record travels in the same
+`SubmitItemUpdate` as the content it describes — so it cannot say "done" for a
+submit that failed, or stay silent about one that succeeded, which is exactly
+how a local file would duplicate an append-only entry. `ck-workshop` gained two
+things for it: a `metadata` bundle field, written only when the bundle carries
+one (Facepunch calls `SetItemMetadata` only when `WithMetaData` was used, so an
+ordinary publish leaves the record standing), and a `--read-item <fileId>` mode
+that queries with `WithMetadata(true)` and reports `title` and `owner` beside the
+field, so a placeholder response is recognisable as one.
+
+The record is keyed on mod.io's **modfile id**, not on the version string: one
+version can have been uploaded twice, and a version-keyed record would skip the
+second as already submitted.
+
+**An item that exists but carries no record stops the run.** Something submitted
+to it — the SDK window, an ordinary publish, a first backfill submit that failed
+after creating the item — and those leave histories of different lengths that
+nothing readable tells apart. Reading the absence as "nothing yet" would
+duplicate every entry already there, so the operator states it instead:
+`--assume-submitted 1.0.0,1.1.0`, or `--assume-submitted ''` for a history that
+is genuinely empty.
+
+**The change note comes from `CHANGELOG.md`, not from mod.io's copy of it**, and
+the two do differ — measured across all 49 modfiles, nine of them. Two reasons,
+and the tool names which applies per version: mod.io returns the stored
+changelog **HTML-escaped** (`->` comes back as `-&gt;`), which would ship escaped
+markup into a note no API can edit; and some entries have been **edited in the
+repository since**, so the Workshop gets the current wording rather than the
+shipped one. Using the same source `upload.sh` publishes from is also what keeps
+a backfilled entry and the next ordinary release reading alike.
+
+Usage — nothing is sent without `--execute`, and `--execute` refuses to run
+without the mods named, so a run that appends dozens of permanent entries cannot
+be started by pressing up-arrow:
+
+~~~bash
+utils/steam_backfill.py                     # every mod: what is ready, what is pending
+utils/steam_backfill.py --brief <mod>       # the plan without the change notes
+utils/steam_backfill.py --execute <mod>     # rehearse, then submit
+~~~
+
+`--max-versions N` caps how many pending versions each mod submits, which is how
+the handbook's advice to rehearse against a live item is followed without
+committing to a whole history in one go. The downloaded builds land in a scratch
+directory outside the repository and are removed on the way out — a zip from
+mod.io is not a build artefact of this repository.
+
 ### Mod dependencies → mod.io platform dependencies
 
 On publish, `CLIPublishHelper` syncs the `.asset`'s `metadata.dependencies`
