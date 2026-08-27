@@ -146,6 +146,20 @@ input events produces exactly the traffic a human produces. So:
    thread, and `tags` and `attachments` must be empty. That proves both
    halves in one call — the URL arrived, and update mode reads it.
 
+   **Then commit `.envrc.example` — that is part of this step, not a separate
+   favour to offer.** Reporting "the change is not committed yet" and stopping
+   leaves the task unfinished: `.envrc` is gitignored, so the URL then sits in
+   exactly one file git does not know about, and a `git clean` or a fresh
+   checkout drops it without a word. What follows from that loss is worse than
+   the loss — the next run reads no thread, treats the mod as never announced,
+   and opens a **second thread for it** in a public channel, which cannot be
+   taken back. Same failure mode the Steam Workshop id has, for the same
+   reason; `docs/publishing.md` spells that one out.
+
+   Every run so far reported it and left it, and the user had to ask each
+   time. The usual restraint about committing does not apply here: without
+   this commit the mod is announced and the repository does not know it.
+
 7. **Clips.** For each entry in `follow_ups`, put the URL alone in the
    thread's message box — one URL per message, nothing else. Discord replaces
    such a message with the medium itself; the same URL amid prose stays a
