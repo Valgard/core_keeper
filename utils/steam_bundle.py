@@ -40,7 +40,7 @@ def parse_changelog(text: str) -> tuple[str, str]:
         raise ValueError("CHANGELOG.md has no '## [x.y.z]' entry")
     first = matches[0]
     end = matches[1].start() if len(matches) > 1 else len(text)
-    body = text[first.end() :][: end - first.end()]
+    body = text[first.end() : end]
     # Drop the trailing date on the heading line, then the blank line under it.
     body = body.split("\n", 1)[1] if "\n" in body else ""
     return first.group(1), body.strip()
@@ -186,7 +186,7 @@ def derive_tags(metadata: Mapping[str, object], modio_type: str) -> list[str]:
     """
     tags = category_tags(modio_type)
 
-    required_on = int(metadata.get("requiredOn", 0) or 0)
+    required_on = int(metadata.get("requiredOn") or 0)
     app_types = [name for bit, name in APPLICATION_TYPE if required_on & bit]
     if not app_types:
         # Legitimate for a mod that gates neither side — and equally what an
@@ -200,10 +200,28 @@ def derive_tags(metadata: Mapping[str, object], modio_type: str) -> list[str]:
     tags += app_types
     tags.append(
         "Script (Elevated Access)"
-        if int(metadata.get("skipSafetyChecks", 0) or 0)
+        if int(metadata.get("skipSafetyChecks") or 0)
         else "Script"
     )
     return tags
+
+
+def _logo_path(repo_root: Path, mod_name: str) -> Path:
+    """Where a mod repo keeps the logo the Workshop preview is derived from.
+
+    Spelled out once because two functions here read it: the preflight checks
+    that it exists, `build_bundle` hands it to `steam_preview`. Written out
+    twice, the two could come to disagree — and the direction that costs
+    something is silent, because the preflight is the half that would still
+    pass: it would confirm a file nothing later reads, and the publish would
+    then fail deriving the preview, with that run's mod.io release already out.
+
+    Deliberately not shared with `discord_post.py`, which builds the same path
+    for its own purposes. Reaching it from there would mean importing this
+    module and, through it, PIL — a real dependency taken on for a cosmetic
+    saving.
+    """
+    return repo_root / "unity" / mod_name / "Editor" / "logo.png"
 
 
 def check_prerequisites(repo_root: Path, env: Mapping[str, str]) -> list[dict] | None:
@@ -262,12 +280,11 @@ def check_prerequisites(repo_root: Path, env: Mapping[str, str]) -> list[dict] |
         raise ValueError(f"no CHANGELOG.md at {changelog_path}")
     parse_changelog(changelog_path.read_text())
 
-    logo = repo_root / "unity" / mod_name / "Editor" / "logo.png"
+    logo = _logo_path(repo_root, mod_name)
     if not logo.is_file():
         raise ValueError(f"no logo at {logo}")
 
-    identity_asset = repo_root / "unity" / mod_name / f"{mod_name}_Steam.asset"
-    steam_identity.ensure_recognizable(identity_asset)
+    steam_identity.ensure_recognizable(steam_identity.asset_path(repo_root, mod_name))
 
     return resolve_dependencies(
         parse_dependencies(asset_text),
@@ -311,11 +328,11 @@ def build_bundle(repo_root: Path, env: Mapping[str, str], preview_dest: Path) ->
     # check_prerequisites above; both are cheap, so re-deriving the paths
     # here costs nothing and keeps this function correct even if a future
     # caller ever invokes it without going through that check first.
-    logo = repo_root / "unity" / mod_name / "Editor" / "logo.png"
-    steam_preview.derive_preview(logo, preview_dest)
+    steam_preview.derive_preview(_logo_path(repo_root, mod_name), preview_dest)
 
-    identity_asset = repo_root / "unity" / mod_name / f"{mod_name}_Steam.asset"
-    file_id = steam_identity.read_file_id(identity_asset)
+    file_id = steam_identity.read_file_id(
+        steam_identity.asset_path(repo_root, mod_name)
+    )
 
     return {
         "fileId": file_id or 0,
