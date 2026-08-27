@@ -33,17 +33,38 @@ DEPENDENCY = re.compile(
 APPLICATION_TYPE = ((1, "Client"), (2, "Server"))
 
 
+def changelog_entries(text: str) -> list[tuple[str, str]]:
+    """Every '## [x.y.z]' entry as (version, body), in file order — newest first.
+
+    Split out from `parse_changelog` below, which needs only the first one, so
+    that a caller wanting a specific release's notes does not re-implement the
+    splitting. `utils/steam_backfill.py` is that caller: it submits one Workshop
+    history entry per published version, and the note on each has to be that
+    version's own, not the newest one's.
+
+    File order, deliberately not sorted: the file is the authority on which
+    entry is the current release (`parse_changelog` returns the topmost), and a
+    version sort would have to invent an ordering for `1.0.0` against
+    `1.0.0-rc1`. Everything that needs chronology has a real date to use —
+    mod.io stamps every modfile with one.
+    """
+    matches = list(CHANGELOG_ENTRY.finditer(text))
+    out = []
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        body = text[match.end() : end]
+        # Drop the trailing date on the heading line, then the blank line under it.
+        body = body.split("\n", 1)[1] if "\n" in body else ""
+        out.append((match.group(1), body.strip()))
+    return out
+
+
 def parse_changelog(text: str) -> tuple[str, str]:
     """The topmost '## [x.y.z]' entry: its version and its body."""
-    matches = list(CHANGELOG_ENTRY.finditer(text))
-    if not matches:
+    entries = changelog_entries(text)
+    if not entries:
         raise ValueError("CHANGELOG.md has no '## [x.y.z]' entry")
-    first = matches[0]
-    end = matches[1].start() if len(matches) > 1 else len(text)
-    body = text[first.end() : end]
-    # Drop the trailing date on the heading line, then the blank line under it.
-    body = body.split("\n", 1)[1] if "\n" in body else ""
-    return first.group(1), body.strip()
+    return entries[0]
 
 
 def _read_metadata(asset_text: str) -> dict:
@@ -292,7 +313,32 @@ def check_prerequisites(repo_root: Path, env: Mapping[str, str]) -> list[dict] |
     )
 
 
-def build_bundle(repo_root: Path, env: Mapping[str, str], preview_dest: Path) -> dict:
+def build_bundle(
+    repo_root: Path,
+    env: Mapping[str, str],
+    preview_dest: Path,
+    *,
+    release: tuple[str, str] | None = None,
+    item_metadata: str | None = None,
+) -> dict:
+    """The publish bundle for one Workshop submit.
+
+    `release` overrides which version and changelog text the submit carries.
+    Left at None it is the topmost CHANGELOG.md entry — the current release,
+    which is the only thing a normal publish ever ships. It exists for
+    `steam_backfill.py`, which submits one history entry per already-published
+    version and so needs an older entry's text against an older build. Passed
+    as a pair rather than two arguments because the two must not be settable
+    apart: a version with another version's notes is the one failure a Workshop
+    history cannot be corrected out of by an API.
+
+    `item_metadata` is the item's publisher-only Metadata string. **Absent from
+    the returned dict unless given**, and that absence is load-bearing rather
+    than tidiness: Facepunch's Editor only calls SetItemMetadata when
+    WithMetaData was used, so a bundle with no key leaves whatever the item
+    already carries intact — which is what every normal publish must do, since
+    the backfill's progress record lives there.
+    """
     dependencies = check_prerequisites(repo_root, env)
 
     mod_name = env["MOD_NAME"]
@@ -302,7 +348,7 @@ def build_bundle(repo_root: Path, env: Mapping[str, str], preview_dest: Path) ->
 
     description_path = repo_root / "steam-description.txt"
     changelog_path = repo_root / "CHANGELOG.md"
-    version, changelog = parse_changelog(changelog_path.read_text())
+    version, changelog = release or parse_changelog(changelog_path.read_text())
 
     # The directory mod.io was just published from, when this run published to
     # mod.io at all. CLIPublishHelper builds into a fresh temporary one per run
@@ -334,7 +380,7 @@ def build_bundle(repo_root: Path, env: Mapping[str, str], preview_dest: Path) ->
         steam_identity.asset_path(repo_root, mod_name)
     )
 
-    return {
+    bundle = {
         "fileId": file_id or 0,
         "title": metadata.get("displayName") or metadata.get("name") or mod_name,
         "description": description_path.read_text(),
@@ -350,3 +396,6 @@ def build_bundle(repo_root: Path, env: Mapping[str, str], preview_dest: Path) ->
         # see its docstring on why resolving twice warns twice.
         "dependencies": dependencies,
     }
+    if item_metadata is not None:
+        bundle["metadata"] = item_metadata
+    return bundle

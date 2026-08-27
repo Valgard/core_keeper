@@ -138,6 +138,51 @@ def test_the_topmost_changelog_entry_is_the_version():
     assert "Older, must not be picked." not in body
 
 
+def test_every_changelog_entry_is_available_in_file_order():
+    # steam_backfill submits one Workshop history entry per published version,
+    # and the note on each has to be that version's own.
+    assert steam_bundle.changelog_entries(CHANGELOG) == [
+        ("1.1.1", "### Added\n\n- A thing.\n- Another thing."),
+        ("1.1.0", "### Added\n\n- Older, must not be picked."),
+    ]
+
+
+def test_a_changelog_with_no_entry_yields_no_entries_rather_than_raising():
+    # parse_changelog owns the "there is no release" error, because it is the
+    # one that cannot answer without an entry. A backfill over a repository
+    # whose changelog is empty has nothing to submit, which is not the same
+    # failure.
+    assert steam_bundle.changelog_entries("# Changelog\n\nNothing yet.\n") == []
+
+
+def test_a_release_override_replaces_the_version_and_its_notes(tmp_path):
+    # The pair moves together on purpose: a version carrying another version's
+    # notes is the one mistake a Workshop history has no API to correct.
+    bundle = steam_bundle.build_bundle(
+        _repo(tmp_path),
+        _env(tmp_path),
+        tmp_path / "preview.png",
+        release=("1.1.0", "### Added\n\n- Older, must not be picked."),
+    )
+
+    assert bundle["version"] == "1.1.0"
+    assert bundle["changelog"] == "### Added\n\n- Older, must not be picked."
+
+
+def test_item_metadata_is_absent_from_the_bundle_unless_asked_for(tmp_path):
+    # Load-bearing, not tidiness: Facepunch only calls SetItemMetadata when
+    # WithMetaData was used, so an absent key is what leaves an item's existing
+    # record alone. A publish that sent one unconditionally would erase the
+    # backfill's progress record on the next ordinary release.
+    repo, env, preview = _repo(tmp_path), _env(tmp_path), tmp_path / "preview.png"
+
+    plain = steam_bundle.build_bundle(repo, env, preview)
+    carrying = steam_bundle.build_bundle(repo, env, preview, item_metadata="{}")
+
+    assert "metadata" not in plain
+    assert carrying["metadata"] == "{}"
+
+
 def test_the_title_is_the_display_name_not_the_internal_name(tmp_path):
     bundle = steam_bundle.build_bundle(
         _repo(tmp_path), _env(tmp_path), tmp_path / "p.png"
