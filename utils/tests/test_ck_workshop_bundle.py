@@ -344,3 +344,52 @@ class TestDependencies:
         # "Declares none, so remove anything stale" — a complete picture, and a
         # different claim from the null above.
         assert run(tool, {**golden, "dependencies": []}).returncode == 0
+
+
+class TestDependencyPlan:
+    """The severity decision — which exit code a failed sync reports.
+
+    The sync itself runs after SubmitAsync and so needs a live Steam session,
+    a published item and a real failure; none of that is reachable from a
+    test. But the DECISION is a function of the bundle alone, and the dry run
+    now states it, so these drive the very functions the live path calls —
+    SkippedSeverity and ExitCodeFor — with no Steam client anywhere.
+
+    What that does and does not buy: a change to either function shows up
+    here, because the printed code comes out of them rather than out of a
+    second copy of the rule. What it cannot see is the sync loop itself
+    deciding that a dependency failed.
+    """
+
+    def test_a_required_dependency_takes_the_louder_code(self, tool, golden):
+        # 9 rather than 7 whenever ANY declared dependency is required: the
+        # two cost a subscriber different things, and a mod that does not run
+        # is the expensive one to miss.
+        deps = [
+            {"name": "ModSettingsMenu", "fileId": 3000000002, "required": False},
+            {"name": "CoreLib", "fileId": 3000000001, "required": True},
+        ]
+        err = run(tool, {**golden, "dependencies": deps}).stderr
+        assert "exit 9" in err
+        assert "CoreLib" in err
+
+    def test_only_optional_dependencies_take_the_quieter_code(self, tool, golden):
+        deps = [{"name": "ModSettingsMenu", "fileId": 3000000002, "required": False}]
+        err = run(tool, {**golden, "dependencies": deps}).stderr
+        assert "exit 7" in err
+        assert "exit 9" not in err
+
+    def test_an_empty_list_is_still_a_sync_that_could_fail(self, tool, golden):
+        # Declaring none is an instruction to remove what is stale, so the
+        # query can still fail — and with nothing required, quietly.
+        err = run(tool, {**golden, "dependencies": []}).stderr
+        assert "exit 7" in err
+
+    def test_an_unresolved_list_plans_no_sync_at_all(self, tool, golden):
+        # null is "unknown, change nothing". There is no failure code to
+        # report because there is no sync, and saying one would invite the
+        # reader to expect an attempt.
+        err = run(tool, {**golden, "dependencies": None}).stderr
+        assert "exit 9" not in err
+        assert "exit 7" not in err
+        assert "skipped" in err.lower()

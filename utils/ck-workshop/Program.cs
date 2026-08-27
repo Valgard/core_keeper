@@ -137,6 +137,7 @@ internal static class Program
 
         if (dryRun)
         {
+            ReportDependencyPlan(bundle.Dependencies);
             Console.Error.WriteLine("  (dry run — nothing sent)");
             EmitResult(bundle.FileId, created: false, success: true);
             return 0;
@@ -263,12 +264,7 @@ internal static class Program
             var dependencySync = await SyncDependencies(fileId.Value, bundle.Dependencies);
 
             EmitResult(fileId.Value, created: creating, success: true);
-            return dependencySync switch
-            {
-                DependencySync.Ok => 0,
-                DependencySync.RequiredFailed => 9,
-                _ => 7,
-            };
+            return ExitCodeFor(dependencySync);
         }
         catch (Exception ex)
         {
@@ -429,6 +425,56 @@ internal static class Program
         RequiredFailed,
     }
 
+    // The two decisions in the dependency path that depend on nothing but the
+    // bundle, pulled out of the code that needs Steam to run.
+    //
+    // Not a tidying: everything around them is reachable only after a
+    // successful SubmitAsync, so as inline expressions they could not be
+    // exercised without publishing a real Workshop item. Named and called from
+    // the dry-run report below, they are driven by the test suite with no Steam
+    // client at all — and by the same functions the live path calls, so the two
+    // cannot drift into disagreeing about which failure is the loud one.
+
+    // What a sync that never ran reports. A skipped sync attached nothing this
+    // run, so a required dependency is missing from an item that was just
+    // created and merely unconfirmed on one that already existed. Both take the
+    // louder code: the two cannot be told apart from here, and the expensive
+    // one to miss is the brand-new item that has no hard dependency on it.
+    private static DependencySync SkippedSeverity(Bundle.Dependency[] dependencies) =>
+        dependencies.Any(dependency => dependency.Required) ? DependencySync.RequiredFailed : DependencySync.Failed;
+
+    // The enum above says why these three outcomes are kept apart; this is the
+    // only place that turns them into the numbers upload.sh and its callers
+    // read. 0 for a clean sync, and never a code that would read as one for a
+    // sync that did not complete.
+    private static int ExitCodeFor(DependencySync sync) =>
+        sync switch
+        {
+            DependencySync.Ok => 0,
+            DependencySync.RequiredFailed => 9,
+            _ => 7,
+        };
+
+    // What the sync below would do, said before anything is sent. The dry run
+    // otherwise described the item in four lines and left out the one part of a
+    // publish that can go wrong after the upload has succeeded.
+    private static void ReportDependencyPlan(Bundle.Dependency[] dependencies)
+    {
+        if (dependencies == null)
+        {
+            Console.Error.WriteLine("  Deps:    unresolved in the bundle — the sync would be skipped, changing nothing");
+            return;
+        }
+
+        var listed =
+            dependencies.Length == 0
+                ? "none declared, so the sync would remove any the item still carries"
+                : string.Join(", ", dependencies.Select(d => $"{d.Name} ({(d.Required ? "required" : "optional")})"));
+        // The code comes out of the same two functions the live path uses, so
+        // this line cannot promise one severity while the publish reports another.
+        Console.Error.WriteLine($"  Deps:    {listed} — a failed sync would report exit {ExitCodeFor(SkippedSeverity(dependencies))}");
+    }
+
     // Full sync rather than additive, so the Workshop list mirrors the .asset:
     // what is declared is added, what is not is removed. Reports any failed
     // add/remove call, so the caller can tell "published, but not fully synced"
@@ -441,13 +487,8 @@ internal static class Program
             return DependencySync.Ok;
         }
 
-        // What either "sync skipped" below reports. A skipped sync attached
-        // nothing at all this run, so a required dependency is missing from an
-        // item that was just created and merely unconfirmed on one that already
-        // existed. Both take the louder code: the two cannot be told apart from
-        // here, and the expensive one to miss is the brand-new item that has no
-        // hard dependency on it at all.
-        var skipped = dependencies.Any(dependency => dependency.Required) ? DependencySync.RequiredFailed : DependencySync.Failed;
+        // What either "sync skipped" below reports — see SkippedSeverity.
+        var skipped = SkippedSeverity(dependencies);
 
         // Item.GetAsync (see its use above) only asks for WithLongDescription,
         // never WithChildren, so it always comes back with Children == null.
