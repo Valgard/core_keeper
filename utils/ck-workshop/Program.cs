@@ -2,8 +2,16 @@
 //
 // Reads a publish bundle as JSON on stdin (assembled by utils/steam_bundle.py)
 // and performs the Steamworks calls. The split is deliberate: everything that
-// can be derived and tested lives in Python, and this half — which needs a live
-// Steam session and cannot be unit-tested — stays as small as possible.
+// can be derived lives in Python, and what needs a live Steam session stays as
+// small as possible here, because it cannot be unit-tested.
+//
+// "As small as possible" now means smaller than this file. The Steamworks calls
+// are untestable; the decisions around them are not, and DependencyDecision.cs
+// holds one that was previously made inline — which exit code a failed
+// dependency sync reports. It has no Steamworks reference and is unit-tested
+// from utils/ck-workshop-tests, driven by the existing pytest gate rather than
+// a gate of its own. Anything else in here that turns out to be a decision
+// rather than a call belongs on that side of the line too.
 //
 // Why not the SDK's own Steam Workshop tab: it never writes a change note, it
 // keys its stored File ID on the display title (CoreKeeperModSDK#11), and it
