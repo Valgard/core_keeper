@@ -38,10 +38,10 @@ GIT_TIMEOUT_SECONDS = 10
 # has the word in it is not mistaken for an identity asset.
 FILE_ID = re.compile(r"^(\s*fileId:\s*)(\d+)\s*$", re.MULTILINE)
 
-# Writing: match the key and replace whatever follows it, whatever that is.
-FILE_ID_LINE = re.compile(r"^(\s*fileId:).*$", re.MULTILINE)
-MOD_OWNER = re.compile(r"^(\s*modOwner:).*$", re.MULTILINE)
-SELECTED_PATH = re.compile(r"^(\s*selectedPath:).*$", re.MULTILINE)
+# Writing has no constants of its own: the three patterns differed only in the
+# key name, so _set_scalar builds one from the key it is given. FILE_ID above
+# stays separate — it is not a fourth spelling of the same thing, it is the
+# stricter "and the value is a number" test that recognition rests on.
 
 TEMPLATE = """%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
@@ -211,13 +211,27 @@ def warn_if_untracked(asset: Path) -> None:
     print(f"    Commit it: git add {asset}", file=sys.stderr)
 
 
-def _set_scalar(text: str, pattern: re.Pattern, value: object) -> str:
+def _set_scalar(text: str, key: str, value: object) -> str:
     """Replace a `key: value` line's value, treating it as literal text.
 
     A plain replacement string would read a backslash in `value` as a group
-    reference — and one of these values is a filesystem path.
+    reference — and one of these values is a filesystem path. `key` is escaped
+    for the same class of reason, one step earlier: every caller passes a
+    literal, but a regex built by interpolation should not depend on that
+    staying true.
+
+    Note what this does NOT do: a key that is absent leaves the text unchanged
+    and says nothing, because that is what re.sub does on a non-match. Callers
+    that need the line to exist have to establish it themselves — see
+    write_file_id.
     """
-    return pattern.sub(lambda m: f"{m.group(1)} {value}", text, count=1)
+    return re.sub(
+        rf"^(\s*{re.escape(key)}:).*$",
+        lambda m: f"{m.group(1)} {value}",
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
 
 
 def _set_tags(text: str, tags: list[str]) -> str:
@@ -288,11 +302,22 @@ def write_file_id(
                 f"{asset} exists but has no 'fileId:' line — expected a Steam Workshop asset"
             )
 
-    text = _set_scalar(text, FILE_ID_LINE, file_id)
+    # Redundant on the create path as things stand — TEMPLATE was just formatted
+    # with this very id — and kept deliberately. Without it the id would arrive
+    # by two different mechanisms depending on the branch above: TEMPLATE's
+    # {file_id} when creating, this substitution when updating. One line for
+    # both is worth a wasted regex, because re.sub says nothing on a non-match,
+    # so a create path that quietly stopped interpolating the id would produce
+    # an asset with the wrong one and report success.
+    #
+    # Its limit, so nobody expects more of it: it can only rewrite a `fileId:`
+    # line that is there. A TEMPLATE that dropped the line entirely would defeat
+    # this too — read_file_id is what would notice that.
+    text = _set_scalar(text, "fileId", file_id)
     if mod_owner is not None:
-        text = _set_scalar(text, MOD_OWNER, mod_owner)
+        text = _set_scalar(text, "modOwner", mod_owner)
     if selected_path is not None:
-        text = _set_scalar(text, SELECTED_PATH, selected_path)
+        text = _set_scalar(text, "selectedPath", selected_path)
     if tags is not None:
         text = _set_tags(text, tags)
     asset.write_text(text)

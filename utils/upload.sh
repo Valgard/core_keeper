@@ -30,11 +30,20 @@
 #
 # --no-steam publishes to mod.io only. --steam-only skips mod.io and publishes
 # to Steam only (the two contradict each other). Before mod.io even starts, a
-# preflight checks everything the Steam stage needs that does not depend on a
-# finished build: MOD_NAME, the ModBuilderSettings .asset, steam-description.txt,
-# a CHANGELOG.md whose topmost "## [x.y.z]" entry parses, Editor/logo.png, a
-# recognizable <Mod>_Steam.asset, and a Workshop id for every declared
-# dependency. On failure it SKIPS Steam and lets the mod.io release proceed
+# preflight checks the repository-side inputs a Steam publish needs: MOD_NAME,
+# the ModBuilderSettings .asset, steam-description.txt, a CHANGELOG.md whose
+# topmost "## [x.y.z]" entry parses, Editor/logo.png, a recognizable
+# <Mod>_Steam.asset, and a Workshop id for every dependency the .asset marks
+# `required` (an unresolvable OPTIONAL one only warns and is skipped).
+#
+# It is not a check of everything the stage needs, and should not be read as
+# one: libsteam_api.dylib under SDK_PATH, a working dotnet toolchain and a
+# signed-in Steam client are all independent of the build and all unchecked
+# here -- they surface from ck-workshop or its MSBuild step instead. What IS
+# excluded on purpose is the built content folder: on the normal path mod.io's
+# own build creates it, so at preflight time it genuinely cannot exist yet.
+#
+# On failure it SKIPS Steam and lets the mod.io release proceed
 # rather than aborting the run, since that release is what the invocation is
 # actually for -- but the run then ends in exit 8, so a caller reading only the
 # status still learns that Steam did not go out. (--steam-only has no mod.io
@@ -44,9 +53,21 @@
 # a Steam failure is reported and reflected in the exit code instead of being
 # treated as fatal.
 #
-# Exit codes past the usual 0 and 1:
-#   7  published everywhere, but the Steam dependency sync had failures
-#   8  the mod.io release is done; Steam was skipped because its preflight failed
+# Exit codes past the usual 0 and 1 — this script's own:
+#   7  published, but an OPTIONAL Steam dependency did not sync
+#   8  the mod.io release is done; Steam never started, its preflight failed
+#   9  published, but a REQUIRED Steam dependency may be missing from the item
+#
+# 7 and 9 both mean the item is live and something about its dependency list is
+# wrong; they are separate because the cost to a subscriber is not the same —
+# a missing optional dependency loses them a convenience, a missing required one
+# loses them a mod that does not run.
+#
+# Every other non-zero code is passed through from whatever produced it, so this
+# list is not exhaustive by design: 2-6 come from utils/ck-workshop (its own
+# header says what each means), 124 from either `timeout` in here, and 130 when
+# a Ctrl-C killed the `tee` in the Steam pipeline (see STEAM_RESULT below — the
+# publish itself survives that, and so does this script).
 #
 # Required env vars (set in the mod's .envrc):
 #   UNITY_BIN, SDK_PATH, MOD_NAME, CK_GAME_VERSION, MOD_SUMMARY
@@ -59,10 +80,19 @@
 
 set -euo pipefail
 
-# The only variable both destinations need. UNITY_BIN/SDK_PATH/CK_GAME_VERSION/
-# MOD_SUMMARY are mod.io- and Unity-specific — checked further down, and only
-# when --steam-only is not in effect, so a Steam-only publish needs none of them.
+# The two variables both destinations need. MOD_NAME identifies the mod
+# everywhere. SDK_PATH is less obvious: ck-workshop.csproj binds the Facepunch
+# assembly AND the native libsteam_api.dylib out of it and hard-errors without
+# it, so a Steam-only publish needs it exactly as much as a mod.io one. It used
+# to sit in the --steam-only-exempt block below, on the theory that it was
+# Unity-specific — so under --steam-only the check was skipped and the miss
+# surfaced as an MSBuild error inside `dotnet run`, minutes later, instead of
+# here in a second.
+#
+# UNITY_BIN/CK_GAME_VERSION/MOD_SUMMARY really are mod.io- and Unity-specific
+# and stay down there.
 : "${MOD_NAME:?must be set — see .envrc.example}"
+: "${SDK_PATH:?must be set — see .envrc.example}"
 
 REPO_ROOT="$PWD"
 DRY_RUN=0
@@ -100,48 +130,63 @@ if [ "$NO_STEAM" = "1" ] && [ "$STEAM_ONLY" = "1" ]; then
     exit 1
 fi
 
-if [ "$STEAM_ONLY" = "1" ] && [ "$CHANGELOG_ONLY" = "1" ]; then
-    echo "ERROR: --changelog-only has no Steam equivalent (see the mode comment" >&2
-    echo "       above) — --steam-only with it would just skip everything." >&2
-    exit 1
-fi
-
-if [ "$STEAM_ONLY" = "1" ] && [ "$PROFILE_ONLY" = "1" ]; then
-    echo "ERROR: --profile-only has no Steam equivalent yet (see the mode comment" >&2
+# Both narrow modes edit mod.io metadata that the Workshop's single-item model
+# has no counterpart for, so --steam-only with either would skip both
+# destinations and publish nothing at all. One guard rather than two, because
+# the reason is one reason; the distinction the two used to carry is that
+# --changelog-only can never gain a Steam equivalent (the Workshop has no
+# separate change note to edit) while --profile-only merely has none yet, and
+# that belongs in this comment rather than in a word of the error text.
+if [ "$STEAM_ONLY" = "1" ] && { [ "$CHANGELOG_ONLY" = "1" ] || [ "$PROFILE_ONLY" = "1" ]; }; then
+    if [ "$CHANGELOG_ONLY" = "1" ]; then
+        contradicting_mode="--changelog-only"
+    else
+        contradicting_mode="--profile-only"
+    fi
+    echo "ERROR: $contradicting_mode has no Steam equivalent (see the mode comment" >&2
     echo "       above) — --steam-only with it would just skip everything." >&2
     exit 1
 fi
 
 UTILS_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Whether this run will touch the Steam stage at all — --changelog-only and
-# --profile-only each already skip it further down for their own reasons (see
-# the comment on that stage), and --no-steam skips it outright. Computed once,
-# here, so the preflight below and that later stage can't drift apart on what
-# "Steam will run" means.
+# Whether the Steam preflight below has anything to check — that is this
+# variable's whole job, and the only place that reads it. The Steam stage far
+# below does NOT consult it: it re-tests the same three flags itself, one per
+# branch, so that each skip can print its own reason. That duplication is
+# deliberate and this comment used to deny it, claiming the value was computed
+# once "so the two can't drift apart"; they were never sharing it.
+#
+# What the stage must not do is INFER a reason from this variable, because a
+# fourth reason added here would then be reported down there as "preflight
+# failed". STEAM_PREFLIGHT_FAILED below exists so it does not have to.
 if [ "$NO_STEAM" = "1" ] || [ "$CHANGELOG_ONLY" = "1" ] || [ "$PROFILE_ONLY" = "1" ]; then
     STEAM_WILL_RUN=0
 else
     STEAM_WILL_RUN=1
 fi
+STEAM_PREFLIGHT_FAILED=0
+
+# Unconditional, like SDK_PATH itself: ck-workshop resolves its two Steam
+# libraries under $SDK_PATH/Assets/Plugins/, so a value that is not a Unity
+# project fails a Steam-only publish just as surely as a mod.io one.
+if [ ! -d "$SDK_PATH/Assets" ]; then
+    echo "ERROR: \$SDK_PATH does not look like a Unity project: $SDK_PATH" >&2
+    exit 1
+fi
 
 # mod.io needs a Unity batchmode build; Steam publishes whatever that build
 # produced, and under --steam-only the last local one in MOD_INSTALL_PATH,
 # so it needs no Unity of its own. --steam-only skips the whole mod.io block
-# below, so none of its requirements apply here.
+# below, so none of ITS requirements apply here — but SDK_PATH is not one of
+# them, which is why it is checked above rather than inside this guard.
 if [ "$STEAM_ONLY" != "1" ]; then
     : "${UNITY_BIN:?must be set — see .envrc.example}"
-    : "${SDK_PATH:?must be set — see .envrc.example}"
     : "${CK_GAME_VERSION:?must be set — see .envrc.example}"
     : "${MOD_SUMMARY:?must be set — see .envrc.example}"
 
     if [ ! -x "$UNITY_BIN" ]; then
         echo "ERROR: \$UNITY_BIN is not executable: $UNITY_BIN" >&2
-        exit 1
-    fi
-
-    if [ ! -d "$SDK_PATH/Assets" ]; then
-        echo "ERROR: \$SDK_PATH does not look like a Unity project: $SDK_PATH" >&2
         exit 1
     fi
 fi
@@ -214,7 +259,7 @@ PY
         echo "! Steam preflight failed (see above) — skipping the Steam Workshop stage." >&2
         echo "  The mod.io release below is unaffected. Fix the issue above, then re-run" >&2
         echo "  with --steam-only to publish to Steam without cutting another mod.io release." >&2
-        STEAM_WILL_RUN=0
+        STEAM_PREFLIGHT_FAILED=1
     fi
 fi
 
@@ -332,10 +377,11 @@ elif [ "$CHANGELOG_ONLY" = "1" ]; then
     echo "Skipping Steam (--changelog-only: no changelog-only edit on Steam)."
 elif [ "$PROFILE_ONLY" = "1" ]; then
     echo "Skipping Steam (--profile-only: no metadata-only path on Steam yet)."
-elif [ "$STEAM_WILL_RUN" != "1" ]; then
-    # Only reachable when the preflight above turned this off: none of the
-    # three flag-driven skips above fired, so STEAM_WILL_RUN started at 1 and
-    # was flipped afterward. The detailed reason already went to stderr there.
+elif [ "$STEAM_PREFLIGHT_FAILED" = "1" ]; then
+    # Set only where the preflight actually failed, rather than inferred from
+    # STEAM_WILL_RUN being 0 — which is also what all three flags above make it,
+    # so a fourth flag-driven reason added up there would have been reported
+    # here as a preflight failure. The detailed reason already went to stderr.
     echo "Skipping Steam (preflight failed — see above)."
     # Non-zero, unlike the three skips above, because those are what the
     # operator asked for and this is not: the invocation wanted Steam and did
@@ -352,9 +398,12 @@ else
 
     # A scratch directory rather than a bare mktemp file: build_bundle wants a
     # .png path for the preview, and mktemp has no portable way to hand it one
-    # directly. A trap rather than an rm at the bottom of this branch: a Ctrl-C
-    # or a killed `dotnet run` below would otherwise skip that rm and leak the
-    # directory, the same reasoning fetch_steam_lib.sh's own trap documents.
+    # directly. A trap rather than an rm at the bottom of this branch: a signal
+    # aimed at THIS script — `kill`, a closed terminal, an outer `timeout`
+    # wrapper — ends it right here, and an rm down there would never run.
+    # Specifically NOT a Ctrl-C and NOT a killed `dotnet run`, which is what
+    # this comment used to claim: neither one ends this script (measured — see
+    # STEAM_RESULT just below), so neither could have skipped the rm.
     STEAM_TMP="$(mktemp -d -t ck-workshop.XXXXXX)"
     # Replaces the earlier trap rather than adding to it, so it has to clean up
     # both — bash keeps one handler per signal.
@@ -364,19 +413,34 @@ else
     # Deliberately NOT inside $STEAM_TMP, and deliberately not on that trap.
     # This file can hold the id of a Workshop item that already exists on
     # Steam, and it is the only place that id lives until the persist step far
-    # below reads it. Of the ways a run ends, exactly one reaches that step:
-    # `timeout` firing, because it signals only its own child. Everything else
-    # ends the script itself -- a terminal Ctrl-C sends SIGINT to the whole
-    # foreground process group (measured: the script dies with the child, an
-    # earlier version of this comment claimed otherwise), and so do `kill`, a
-    # closed terminal and an outer timeout wrapper. In all of those the EXIT
-    # trap would have deleted the id along with the directory, and the next
-    # run -- finding no local id -- would create a second, public, duplicate
-    # item over the orphaned one. Surviving that is the whole point, so: its
-    # own mktemp name per run, removed on the way out of a run that got far
-    # enough to persist. A killed run therefore leaves exactly one file behind,
-    # named for its mod, holding the id to put into <Mod>_Steam.asset by hand
-    # -- and no later run can overwrite it, which a fixed path would.
+    # below reads it.
+    #
+    # Most ways a run ends still reach that step. Measured against the real
+    # pipeline shape below -- printf | timeout N <cmd> 2>&1 | tee "$STEAM_RESULT"
+    # -- with the script in its own process group and SIGINT delivered to the
+    # WHOLE group, which is what a tty does:
+    #   `timeout` firing                     -> script continues, persist runs
+    #   a terminal Ctrl-C                    -> script continues, persist runs
+    #   a signal aimed at THIS script
+    #     (`kill`, closed terminal, an
+    #      outer `timeout` wrapper)          -> EXIT trap fires, persist does NOT
+    #
+    # Ctrl-C is survivable because GNU `timeout` puts itself and its child into
+    # a process group of their own (setpgid) -- verified: the script's group
+    # holds only bash and the `tee`. So the group-wide SIGINT reaches neither
+    # `timeout` nor `dotnet`; only the `tee` dies, and bash goes on waiting for
+    # a pipeline whose other members are still running. An earlier version of
+    # this comment claimed a Ctrl-C kills the script, from a measurement whose
+    # harness had no `timeout` in it -- the one thing that makes the difference.
+    #
+    # So only the last case loses the id, and that is the case this file exists
+    # for: there the EXIT trap would have taken the id with the scratch
+    # directory, and the next run -- finding no local id -- would create a
+    # second, public, duplicate item over the orphaned one. Hence its own mktemp
+    # name per run, removed on the way out of a run that got far enough to
+    # persist. A killed run leaves exactly one file behind, named for its mod,
+    # holding the id to put into <Mod>_Steam.asset by hand -- and no later run
+    # can overwrite it, which a fixed path would.
     STEAM_RESULT="$(mktemp "${TMPDIR:-/tmp}/ck-workshop-$MOD_NAME-result.XXXXXX")"
     steam_rc=0
 
@@ -420,11 +484,12 @@ PY
         # against the process's CURRENT WORKING DIRECTORY — see the comment
         # in ck-workshop.csproj) an environment variable is inherited by a
         # child process regardless of its working directory. That matters
-        # here specifically: this script never `cd`s, so $PWD at this point
-        # is still whatever directory the operator invoked it from (a mod's
-        # own repo root, per its usage comment above) — not
-        # utils/ck-workshop/ or its build output, so the copied
-        # steam_appid.txt alone would not be found through this call.
+        # here specifically: the only `cd` this script runs is inside a command
+        # substitution (UTILS_DIR, above), which happens in a subshell and so
+        # cannot move the script's own $PWD — it is still whatever directory
+        # the operator invoked this from (a mod's own repo root, per the usage
+        # comment above), not utils/ck-workshop/ or its build output, so the
+        # copied steam_appid.txt alone would not be found through this call.
         readonly STEAM_APP_ID="1621690"
 
         # stdout+stderr share one file here on purpose: unlike the bundle build
@@ -433,17 +498,22 @@ PY
         # timeout guards against a hung upload the same way mod.io's does —
         # Facepunch's submit loop can spin indefinitely on a stalled connection.
         #
-        # `tee` rather than a plain redirect, so the operator sees the output as
-        # it happens rather than only once the tool returns. That matters for
-        # exactly one line: the id ck-workshop prints the moment CreateItem
-        # succeeds. A terminal Ctrl-C sends SIGINT to the whole foreground
-        # process group and kills this script along with the child — measured,
-        # despite what an earlier comment here claimed — so nothing after this
-        # command runs, the persist step included. Streaming is then the only
-        # way that id reaches the operator's screen at all; the result file
-        # keeps its own copy either way (see its mktemp above).
+        # `tee` rather than a plain redirect, so the operator sees the output
+        # as it happens rather than only once the tool returns. That matters
+        # for exactly one line: the id ck-workshop prints the moment CreateItem
+        # succeeds, which a plain redirect would hold back for as long as the
+        # rest of the upload takes — up to the full 600 s.
+        #
+        # A Ctrl-C does not end this script (see STEAM_RESULT above), but it
+        # does kill this `tee`. Two consequences, both measured: the terminal
+        # falls silent while the upload keeps running to completion, and
+        # $STEAM_RESULT stops growing at that instant — so an id already
+        # reported survives into the persist step, while one reported after the
+        # Ctrl-C is lost.
+        #
         # `pipefail` is already on from the top of the script, so a failing
-        # `dotnet run` still reaches steam_rc through the added `tee`.
+        # `dotnet run` still reaches steam_rc through the added `tee` — and so
+        # does that killed `tee` itself, as 130.
         printf '%s' "$bundle" | SteamAppId="$STEAM_APP_ID" timeout 600 dotnet run --project "$UTILS_DIR/ck-workshop" -- ${PUBLISH_DRY_RUN:+--dry-run} \
             2>&1 | tee "$STEAM_RESULT" >&2 || steam_rc=$?
 
@@ -484,9 +554,16 @@ PY
                 [ "$steam_rc" = "0" ] && steam_rc=$write_rc
             fi
 
+            # 7 and 9 are both "the item is live, its dependency list is not
+            # right" — ck-workshop splits them by what it costs a subscriber,
+            # and the catch-all would report either as a failed publish, which
+            # is the one thing they are not. Anything genuinely unrecognised
+            # still lands there: 2-6 from ck-workshop, 124 from `timeout`, 130
+            # from a Ctrl-C'd `tee`.
             case "$steam_rc" in
                 0) echo "✓ Steam Workshop publish complete." ;;
-                7) echo "! Steam Workshop publish complete, but dependency sync had failures (see above)." >&2 ;;
+                7) echo "! Steam Workshop publish complete, but an optional dependency did not sync (see above)." >&2 ;;
+                9) echo "! Steam Workshop publish complete, but a REQUIRED dependency may be missing from the item (see above)." >&2 ;;
                 *) echo "✗ Steam Workshop publish failed (exit $steam_rc)." >&2 ;;
             esac
         fi
