@@ -170,6 +170,11 @@ input events produces exactly the traffic a human produces. So:
    The message is the same across the family, so use it rather than inventing
    one: `docs(discord): record this mod's #available-mods thread`.
 
+   **Do not push.** Say that the commit is local and stop there — the timing
+   is the user's call, and unlike the commit nothing is at risk without it.
+   Reporting that and waiting is the finished state of this step, not an
+   omission in it.
+
 7. **Clips.** For each entry in `follow_ups`, put the URL alone in the
    thread's message box — one URL per message, nothing else. Discord replaces
    such a message with the medium itself; the same URL amid prose stays a
