@@ -58,10 +58,19 @@ input events produces exactly the traffic a human produces. So:
    in a tab you created. If Discord offers "open in app", choose
    **"Im Browser fortfahren"** — the app hand-off breaks the session.
 
-3. **Reconcile the tag list.** Open "Mehr Tags anzeigen", read every option
-   with `find` (the list is virtualised — scroll and read again), and compare
-   against `utils/ck-discord-tags.json`. On divergence, update the file and
-   report exactly what changed.
+3. **Reconcile the tag list.** Open "Mehr Tags anzeigen" — its search field
+   takes focus by itself — and read the whole list in one call:
+   `read_page` with the list's `ref_id` and `filter="interactive"`. That
+   returns all twenty in channel order regardless of scroll position, and an
+   unfiltered `read_page(filter="interactive")` additionally shows the channel
+   filter's own copy of the list beside it, so which list is which becomes
+   obvious. Compare against `utils/ck-discord-tags.json`; on divergence update
+   the file and report exactly what changed.
+
+   **Do not scroll and read repeatedly.** The list is virtualised, and the
+   mouse wheel skips: one run jumped from position 7 straight to the end, so
+   `Mining` and `Misc / Other` were never rendered at all. That reconciliation
+   would have reported itself complete while missing two tags.
 
 4. **Fill the form.**
    - Title: type it.
@@ -69,9 +78,11 @@ input events produces exactly the traffic a human produces. So:
      `pbpaste`**, click the message field, `cmd+v`, then **verify the field
      starts with the expected first line**. The clipboard is shared with the
      user, who may copy something else mid-flight; this has already happened.
-   - Tags: open the picker, **type each tag name** and click the match. This
-     is the only selection method that is independent of the view state — see
-     "Reading the form" below for why the chip row is not.
+   - Tags: open the picker, **type each tag name** and click the match — the
+     only selection method independent of the view state. Then **verify with
+     the DOM read** from "Reading the form" below, once, after all of them.
+     Do not click a tag twice because a check said it was unselected: every
+     click toggles, and the checks that look authoritative here are wrong.
    - Media: `find` the `<input type="file">` behind "Medien hinzufügen", then
      `file_upload` **all attachments in one call, in the given order**. Repo
      paths are accepted directly. Never click the "+" button: it opens the
@@ -82,7 +93,13 @@ input events produces exactly the traffic a human produces. So:
 
 6. **After the user confirms it is posted**, if `thread` was `null`: read the
    new thread URL from the tab and write it into the mod's `.envrc` **and**
-   `.envrc.example` as `CK_DISCORD_THREAD`.
+   `.envrc.example` as `CK_DISCORD_THREAD`. Then run `direnv allow` — an
+   edited `.envrc` is blocked until you do, and the next verification fails
+   with "is blocked", which reads like a broken script.
+
+   Verify with `discord_post.py --update --json`: it must now report the
+   thread, and `tags` and `attachments` must be empty. That proves both
+   halves in one call — the URL arrived, and update mode reads it.
 
 7. **Clips.** For each entry in `follow_ups`, put the URL alone in the
    thread's message box — one URL per message, nothing else. Discord replaces
@@ -91,34 +108,67 @@ input events produces exactly the traffic a human produces. So:
 
 ## Reading the form
 
-Establishing what is actually selected is the hard part of this task, and
-most of the obvious signals lie. All of the following cost a previous run
-several wrong conclusions, including one premature "done".
+Establishing which tags are selected is the hard part of this task. **There is
+exactly one reliable answer, and it is not visual.** Every signal that looks
+authoritative here has produced a wrong conclusion in a real run — including a
+premature "done", and a run that clicked the same tag three times because each
+check reported it unselected. Three clicks toggle: off → on → off → on.
 
-- **The selected tags are readable only in the dropdown.** The chip row is a
-  horizontally scrollable overflow container: it shows whichever slice of the
-  twenty tags currently fits and has been scrolled into place. A tag missing
-  from it may be selected, unselected, or simply outside the slice — the row
-  answers none of those. Open "Mehr Tags anzeigen" and read there.
+**Ask the DOM.** Discord's composer is a real `<form>`, and the channel's
+filter list — which carries `aria-pressed` too — sits in a sibling branch, not
+above it. So scoping to the form separates them without depending on any label
+text:
+
+```javascript
+(() => {
+  const all = document.querySelectorAll('form [aria-pressed]');
+  if (all.length === 0) return 'composer not open — result would be meaningless';
+  return Array.from(document.querySelectorAll('form [aria-pressed="true"]'))
+    .map(b => b.getAttribute('aria-label').replace(/^Tag | hinzufügen$/g, ''));
+})()
+```
+
+**This is a read, and the rule against `javascript_tool` above is about
+writes.** Setting field values bypasses React's state and produces a form that
+looks filled and submits empty; it also has nothing to do with the traffic
+Discord acts on. Querying the DOM sends no request and changes nothing. Reading
+is allowed; writing is not.
+
+Expect twenty buttons inside the form. **Zero means the composer is not open**,
+not that no tag is selected — the guard exists because `form` matches the
+channel's search form when the composer is closed, and "nothing selected" and
+"wrong question" would otherwise look identical.
+
+Why nothing else works:
+
+- **The button's label never changes.** Discord keeps
+  `aria-label="Tag X hinzufügen"` whether or not the tag is selected —
+  selection lives only in `aria-pressed` and a `selected_…` class, and neither
+  `find` nor `read_page` surfaces either. The state is not unreliable through
+  those tools; it is invisible to them. (An earlier version of this file called
+  it a lag in the accessibility tree. It is not a lag, and that wording invited
+  exactly the false conclusion above.)
+- **The chip row answers nothing.** It is a horizontally scrollable overflow
+  container showing whichever slice of the twenty currently fits and has been
+  scrolled into place. Nor does the leading tag icon help: it sits *outside*
+  that container and stays put while the row scrolls, so "the icon is still at
+  the left" says nothing about the scroll position.
 - **Do not use `scroll_to`.** It calls `scrollIntoView()` and moves that
   container to a position a human cannot reach with a mouse wheel. You then
   photograph a view you created yourself and mistake it for the normal state.
-  It also makes a chip clickable that would otherwise be off-screen — which
-  works, and costs exactly the reliability this section is about.
 - **A blue border is not a blue fill.** A click sets selection *and* focus.
-  Filled = selected; an outline alone may be focus only. To tell them apart,
-  click elsewhere to drop the focus, then zoom again.
-- **`find`'s accessibility tree can lag the rendered UI.** It reported "add
-  tag Tweaks" while the chip was already rendered as active. Treat a zoomed
-  screenshot as the stronger evidence when the two disagree.
-- **`find` returns two buttons per tag** — "Tag X hinzufügen" in the form and
-  "Nach Tag X filtern" in the channel filter below it. Take the form one.
+  Filled = selected; an outline alone may be focus only. Only relevant if you
+  are reading pixels at all — prefer the DOM read.
 - **Discord's red "at least one tag" warning proves nothing.** It has
-  disappeared with no tag set and returned later. Neither its presence nor
-  its absence is evidence.
+  disappeared with no tag set and returned later. Neither its presence nor its
+  absence is evidence.
 - **Never put a screenshot and a `find` in the same `browser_batch`.** The
   batch stops at the first failure, and a `find` that matches nothing discards
   the screenshot taken before it — precisely when you need the picture.
+
+One selector detail, if you ever need the title field: it is a
+`textarea[placeholder="Titel"]`, not an `input`. The `input` form of that
+selector returns `null` silently and looks like a closed composer.
 
 ## Corrections
 
