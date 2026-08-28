@@ -15,12 +15,22 @@ using System.Collections.Generic;
 
 namespace CoreKeeperModUtils;
 
-// What became of one dependency operation. SyncSkipped is not a fifth flavour
-// of failure but the absence of all four: the query that lists what the item
-// carries did not answer, so nothing was attempted at all.
+// What became of one dependency operation. Two of these describe something
+// other than a call's result. SyncSkipped is not another flavour of failure but
+// the absence of them all: the query that lists what the item carries did not
+// answer, so nothing was attempted at all. AlreadyAttached is the opposite —
+// the item was found to be in the wanted state, so no call was needed.
+//
+// AlreadyAttached exists because AddDependency reports failure for it.
+// Measured against a live item: calling it for a child the item already
+// carries returns false, the same value a genuine failure returns. Adding
+// unconditionally therefore graded a correct state as a required-dependency
+// failure on every submit after the first, which is exit 9 — and for a
+// backfill, a run that stops after every single version.
 internal enum DependencyOutcome
 {
     Attached,
+    AlreadyAttached,
     AttachFailed,
     Removed,
     RemoveFailed,
@@ -53,7 +63,7 @@ internal static class DependencyDecision
         var failed = false;
         foreach (var result in results)
         {
-            if (result.Outcome is DependencyOutcome.Attached or DependencyOutcome.Removed)
+            if (result.Outcome is DependencyOutcome.Attached or DependencyOutcome.AlreadyAttached or DependencyOutcome.Removed)
             {
                 continue;
             }

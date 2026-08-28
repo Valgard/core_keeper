@@ -39,6 +39,21 @@ public class DependencyDecisionTests
     }
 
     [Fact]
+    public void A_dependency_the_item_already_carried_is_a_clean_publish()
+    {
+        // The case that made this outcome necessary. AddDependency returns
+        // false for a child the item already carries, so a sync that called it
+        // regardless reported a required attach failure — exit 9 — for an item
+        // that was in exactly the wanted state. Every submit after the first to
+        // the same item hits it, which for a backfill is a run that stops after
+        // each version it sends. Required is set here because that is the
+        // combination that produced the wrong code.
+        var results = new[] { new DependencyResult(DependencyOutcome.AlreadyAttached, true) };
+
+        Assert.Equal(0, DependencyDecision.ExitCodeFor(results));
+    }
+
+    [Fact]
     public void An_optional_dependency_that_did_not_attach_is_the_quiet_code()
     {
         // 7: the subscriber loses a convenience, not a working mod.

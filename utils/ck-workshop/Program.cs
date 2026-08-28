@@ -695,9 +695,32 @@ internal static class Program
             // function's business, what it adds up to is DependencyDecision's.
             var results = new List<DependencyResult>();
 
+            // What the item already carries, so the loop below can tell a
+            // dependency that needs attaching from one that is already there.
+            // The removal pass needs the same list; reading it once keeps the
+            // two halves of the sync deciding from one answer.
+            var carried = new HashSet<ulong>();
+            foreach (var child in item.Children ?? Array.Empty<PublishedFileId>())
+            {
+                carried.Add(child.Value);
+            }
+
             foreach (var dep in dependencies)
             {
                 wanted.Add(dep.FileId);
+                if (carried.Contains(dep.FileId))
+                {
+                    // Skipped rather than called: AddDependency returns false
+                    // for a child the item already carries — measured against a
+                    // live item, and indistinguishable from a genuine failure.
+                    // Calling it anyway graded the wanted state as a failed
+                    // required attach, which is exit 9 on every submit after
+                    // the first. For a backfill that is a run which stops after
+                    // every version it sends.
+                    Console.Error.WriteLine($"  dependency = {dep.Name} ({dep.FileId}) already attached");
+                    results.Add(new DependencyResult(DependencyOutcome.AlreadyAttached, dep.Required));
+                    continue;
+                }
                 if (await item.AddDependency(dep.FileId))
                 {
                     Console.Error.WriteLine($"  dependency + {dep.Name} ({dep.FileId})");
@@ -713,15 +736,15 @@ internal static class Program
                 }
             }
 
-            foreach (var child in item.Children ?? Array.Empty<PublishedFileId>())
+            foreach (var child in carried)
             {
-                if (wanted.Contains(child.Value))
+                if (wanted.Contains(child))
                 {
                     continue;
                 }
-                if (await item.RemoveDependency(child.Value))
+                if (await item.RemoveDependency(child))
                 {
-                    Console.Error.WriteLine($"  dependency - {child.Value}");
+                    Console.Error.WriteLine($"  dependency - {child}");
                     results.Add(new DependencyResult(DependencyOutcome.Removed, false));
                 }
                 else
@@ -731,7 +754,7 @@ internal static class Program
                     // no `required` flag anywhere that could apply to it. That
                     // is what keeps a failed removal off the louder code; see
                     // DependencyDecision.ExitCodeFor.
-                    Console.Error.WriteLine($"  dependency - {child.Value} FAILED");
+                    Console.Error.WriteLine($"  dependency - {child} FAILED");
                     results.Add(new DependencyResult(DependencyOutcome.RemoveFailed, false));
                 }
             }
