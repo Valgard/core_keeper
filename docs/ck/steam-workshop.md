@@ -33,6 +33,37 @@ Two consequences follow, and both surprise people arriving from mod.io:
   submit time, and no API can go back and change it — see below, because that
   sentence is easy to over-read.
 
+## A history entry has no version, and no title but the one you write
+
+There is no `SetItemVersion` anywhere in `ISteamUGC`, and `SubmitItemUpdate`
+takes exactly one argument: the change note. `SetItemTitle` names the *item*, so
+using it per submit would rename the mod. A published entry therefore shows
+`Update: <date>` and the note, and nothing else — several entries submitted in
+one session are indistinguishable by their headers, because the date is all
+they have.
+
+**The note is BBCode, like the description — not Markdown.** Measured against a
+live item with both in one note:
+
+| Written | Rendered |
+|---|---|
+| `[h2]0.9.2 — a headline[/h2]` | a real heading |
+| `[b]`, `[i]` | bold, italic |
+| `[list][*]…[/list]` | a bullet list |
+| `[code]…[/code]` | a code box — **block-level, full width** |
+| `### heading`, `**bold**`, `` `code` `` | shown literally, character for character |
+
+So an `[h2]` first line is the only way to give an entry a heading of its own,
+and a version number belongs there if the history is meant to be readable.
+
+Two things follow for anything converting Markdown to a change note. `[code]`
+is a *block*: mapping inline `` `identifier` `` onto it splits the sentence
+around it, so inline code has no BBCode equivalent and is best left as the
+backticks it already is — they render literally, but literal backticks still
+delimit the identifier, which is what they were there for. And a note written
+in Markdown does not degrade gracefully: `###` and `**` appear as themselves,
+which is worse than plain prose would have been.
+
 There is also **no Game Version dimension**. mod.io carries compatibility tags per
 build; the Workshop has no equivalent, so a mod cannot advertise which game
 versions it runs on.
