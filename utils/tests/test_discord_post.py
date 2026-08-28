@@ -124,16 +124,46 @@ def test_render_opens_with_the_version_line_the_channel_rules_ask_for():
     assert post.startswith("**Compatible with Core Keeper 1.2.x**")
 
 
-def test_render_suppresses_the_embed_on_both_links():
+def test_render_suppresses_the_embed_on_every_link():
     """A bare mod.io link renders mod.io's own corporate card — the platform's
     advertisement, not the mod — as the last thing in the post. Verified in the
-    live channel on 2026-08-26."""
-    post = _render("# T\n\nBody.\n", slug="probe-mod")
+    live channel on 2026-08-26. A Steam link would render a card about the
+    actual item, which is more tempting and gets the same treatment."""
+    post = _render("# T\n\nBody.\n", slug="probe-mod", steam_id=42)
 
     assert post.endswith(
-        "**Download:** <https://mod.io/g/corekeeper/m/probe-mod>\n"
+        "**mod.io:** <https://mod.io/g/corekeeper/m/probe-mod>\n"
+        "**Steam Workshop:** "
+        "<https://steamcommunity.com/sharedfiles/filedetails/?id=42>\n"
         "**Source:** <https://github.com/Valgard/ck_probe_mod>"
     )
+
+
+def test_render_omits_the_steam_line_for_a_mod_with_no_workshop_item():
+    """Not a degraded post but the correct one: mod.io-only is a real state, and
+    it is the state every mod was in before Steam publishing existed."""
+    post = _render("# T\n\nBody.\n", slug="probe-mod")
+
+    assert "Steam Workshop" not in post
+    assert post.endswith("**Source:** <https://github.com/Valgard/ck_probe_mod>")
+
+
+def test_a_scaffolded_asset_reads_as_no_workshop_item(tmp_path):
+    """The two absences that must behave alike.
+
+    new_mod.py scaffolds the identity asset with `fileId: 0`, so a mod that has
+    never been published to Steam has the file but no item. Were that read as an
+    id, every new mod's post would link Workshop item 0.
+    """
+    import new_mod
+    import steam_identity
+
+    asset = steam_identity.asset_path(tmp_path, "ProbeMod")
+    asset.parent.mkdir(parents=True)
+    asset.write_text(new_mod.build_steam_asset_yaml("ProbeMod"))
+
+    assert dp.workshop_id(tmp_path, "ProbeMod") is None
+    assert dp.workshop_id(tmp_path, "NeverScaffolded") is None
 
 
 def test_render_rejects_a_tag_the_channel_does_not_offer():

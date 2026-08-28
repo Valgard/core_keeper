@@ -14,6 +14,8 @@ import pathlib
 import re
 import sys
 
+import steam_identity
+
 POST_FILENAME = "discord-post.md"
 
 # A distinct code for 'the post is wrong', so upload.sh can wave that through
@@ -75,7 +77,40 @@ def version_line(supported, known):
     return f"**Compatible with Core Keeper {_fmt(sup[0])} – {_fmt(sup[-1])}**"
 
 
-def render(markdown, *, supported, known, tags, slug):
+def download_links(slug, steam_id, *, source=True):
+    """The platform lines both renderers end with, in one place.
+
+    Labelled by platform rather than by action: "Download" was right while
+    mod.io was the only place to get a mod, but beside a "Steam Workshop" line
+    it labels the two destinations inconsistently -- one naming what you do,
+    the other where you are. The update comment carries the labels too, where
+    it used to end in a bare URL: one unlabelled link was self-evident from its
+    position, two would not be.
+
+    `source` is off for that comment, and NOT because the repository does not
+    change from one release to the next -- neither does the mod.io slug, and a
+    Workshop id never changes at all, so that test would drop every link. What
+    separates them is what the message is for: a release comment says "there is
+    a new version", so a way to go and get it is the next thing its reader
+    wants. Browsing the source is not, and the thread's opening post links it
+    for anyone who does.
+
+    A mod with no Workshop item simply has no Steam line. That is not a
+    fallback for a broken state: it is what a mod published to mod.io only
+    looks like, and what every mod looked like before Steam publishing existed.
+    `read_file_id` returns None for the scaffolded `fileId: 0` as well as for a
+    missing asset, so both arrive here as the same absence.
+    """
+    lines = [f"**mod.io:** <https://mod.io/g/corekeeper/m/{slug}>"]
+    if steam_id:
+        lines.append(f"**Steam Workshop:** <{steam_identity.item_url(steam_id)}>")
+    if source:
+        repo = slug.replace("-", "_")
+        lines.append(f"**Source:** <https://github.com/Valgard/ck_{repo}>")
+    return "\n".join(lines)
+
+
+def render(markdown, *, supported, known, tags, slug, steam_id=None):
     unknown = sorted(set(tags) - forum_tags())
     if unknown:
         raise ValueError(f"not offered by #available-mods: {', '.join(unknown)}")
@@ -88,21 +123,20 @@ def render(markdown, *, supported, known, tags, slug):
     # rewraps — same source format, two different consequences.
     blocks = [_unwrap(b) for b in body.split("\n\n")]
     body = "\n\n".join(b for b in blocks if b)
-    # Both links bracketed, so neither adds an embed. The bare mod.io link used
+    # Every link bracketed, so none adds an embed. The bare mod.io link used
     # to be deliberate -- it was meant to buy one preview card -- but mod.io
     # serves its own corporate card ("Cross Platform Mod Support for Games"),
-    # which says nothing about the mod and lands after the images.
-    links = (
-        f"**Download:** <https://mod.io/g/corekeeper/m/{slug}>\n"
-        f"**Source:** <https://github.com/Valgard/ck_{slug.replace('-', '_')}>"
-    )
+    # which says nothing about the mod and lands after the images. A Steam link
+    # would produce a card about the actual item, which is the more tempting
+    # case and the same answer: it would still land after the images, unasked.
+    links = download_links(slug, steam_id)
     post = version_line(supported, known) + "\n\n" + body + "\n\n" + links
     if len(post) > LIMIT:
         raise ValueError(f"post is {len(post)} characters — {LIMIT} is the limit")
     return post
 
 
-def render_update(changelog, *, supported, known, slug):
+def render_update(changelog, *, supported, known, slug, steam_id=None):
     """The comment announcing a new version in an existing thread.
 
     CHANGELOG.md is already the canonical release source -- CLIPublishHelper
@@ -132,7 +166,8 @@ def render_update(changelog, *, supported, known, slug):
     comment = (
         f"**Version {version}**\n{version_line(supported, known)}\n\n"
         + "\n\n".join(blocks)
-        + f"\n\n<https://mod.io/g/corekeeper/m/{slug}>"
+        + "\n\n"
+        + download_links(slug, steam_id, source=False)
     )
     if len(comment) > LIMIT:
         raise ValueError(f"comment is {len(comment)} characters — {LIMIT} is the limit")
@@ -208,6 +243,20 @@ def _unwrap(block):
     return "\n".join(out)
 
 
+def workshop_id(repo, mod_name):
+    """This mod's Workshop item id, or None when it has none.
+
+    Read from the identity asset rather than configured in the .envrc, for the
+    same reason a publish reads it there: the asset is the authority on which
+    item a mod is, and a second copy in a second file is a second thing to keep
+    in step. MOD_NAME rather than MOD_NAME_ID -- the asset path is built from
+    the PascalCase name, while the mod.io slug above is the kebab one.
+    """
+    return steam_identity.read_file_id(
+        steam_identity.asset_path(pathlib.Path(repo), mod_name)
+    )
+
+
 def render_repo(repo, env, known, *, update=False):
     """Render the post for one mod repo, or None when it has no `discord-post.md`.
 
@@ -274,6 +323,7 @@ def render_repo(repo, env, known, *, update=False):
             supported=env["CK_GAME_VERSION"].split(),
             known=known,
             slug=env["MOD_NAME_ID"],
+            steam_id=workshop_id(repo, env["MOD_NAME"]),
         )
         # Validated but discarded, attachments and follow_ups alike: the
         # thread's opening images already carry the logo and every clip, and
@@ -301,6 +351,7 @@ def render_repo(repo, env, known, *, update=False):
         known=known,
         tags=tags,
         slug=env["MOD_NAME_ID"],
+        steam_id=workshop_id(repo, env["MOD_NAME"]),
     )
     title = heading.group(1).strip()
     if len(title) > TITLE_LIMIT:

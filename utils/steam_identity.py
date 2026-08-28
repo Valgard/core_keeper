@@ -77,6 +77,18 @@ NativeFormatImporter:
 """
 
 
+def item_url(file_id: int) -> str:
+    """The public Workshop page for an item id.
+
+    Here rather than at the caller because this module is what knows a Workshop
+    item at all, and a URL spelled out at each consumer is a URL that gets
+    spelled differently at one of them. Steam accepts several forms for this
+    page; the query-string one is what the Workshop's own links and the SDK
+    window use, so it is the one a reader will recognise.
+    """
+    return f"https://steamcommunity.com/sharedfiles/filedetails/?id={file_id}"
+
+
 def asset_path(repo_root: Path, mod_name: str) -> Path:
     """Where a mod repo keeps its Workshop identity asset.
 
