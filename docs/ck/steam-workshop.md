@@ -270,6 +270,32 @@ points **at**. Reading *it* to find out whether children come back populated
 asks the wrong item — what is needed is one that **has** a dependency, not one
 that **is** one.
 
+## Attaching a child twice reports failure
+
+`AddDependency` returns **false** for a child the item already carries. The
+value is the same one a genuine failure returns, and nothing distinguishes
+them — measured on a live item, then reproduced by calling it a second time
+against a child known to be attached.
+
+So a sync that adds unconditionally is wrong from the second submit to the same
+item onward: it grades the wanted state as a failed attach. Read the item's
+children first and skip what is already there. The removal half of a full sync
+needs that same list anyway, so reading it once costs nothing and keeps both
+halves deciding from one answer.
+
+## Steam does prompt subscribers to install required items
+
+Subscribing to an item that carries children opens a dialogue — *Additional
+required content* — listing them by title, with buttons to subscribe to one or
+to all. The item page also shows them in its own sidebar box. Neither needs
+anything in the description.
+
+Worth stating because the opposite is easy to believe while it is still true:
+before an item has children, no prompt appears and no box is rendered, so a
+description that tells players to subscribe to the dependencies by hand looks
+correct. It stops being correct the moment the dependencies are actually
+attached — and the description does not stop saying it.
+
 ## A missing item does not come back as an empty result
 
 Querying an id that is not a Workshop item returns `ResultCount == 1`, not 0 —
