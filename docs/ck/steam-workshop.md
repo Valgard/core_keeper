@@ -23,12 +23,18 @@ and every submit updates whichever of them were set.
 
 Two consequences follow, and both surprise people arriving from mod.io:
 
-- **A submit is a visible event.** `SubmitItemUpdate` appends an entry to the
-  item's change history, so correcting a description is not a quiet edit.
-  Whether a submit carrying *no* content also appends one is unsettled: a probe
-  that submitted only a change note returned `Success = true` and produced no
-  entry on the item's history page. Either the entry is invisible or none was
-  made — do not rely on either reading.
+- **A submit that changes the content is a visible event**, so shipping a build
+  is never a quiet edit. A submit that changes *nothing* is the opposite: it
+  reports success and appends nothing at all, discarding the change note with
+  it. Measured twice on one item — the same content folder submitted again
+  returned `Success = true` and left the history at three entries; pointing at a
+  different build and submitting again produced the fourth. It is the same
+  effect an older probe saw when it submitted a note with no content, which had
+  been recorded here as an open question about *missing* content; the rule is
+  about *unchanged* content, and having no content is one way to be unchanged.
+  **`Success = true` is therefore not evidence that an entry exists** — which
+  matters to anything that records what it has published, and to anyone
+  intending to correct a note by re-submitting it.
 - **A change note belongs to that entry, not to a version.** It is written at
   submit time, and no API can go back and change it — see below, because that
   sentence is easy to over-read.
@@ -48,8 +54,11 @@ live item with both in one note:
 | Written | Rendered |
 |---|---|
 | `[h2]0.9.2 — a headline[/h2]` | a real heading |
+| `[h3]…[/h3]` | a subheading under it |
 | `[b]`, `[i]` | bold, italic |
 | `[list][*]…[/list]` | a bullet list |
+| `[olist][*]…[/olist]` | a numbered list |
+| `[url=https://…]text[/url]` | a link, with Steam's own `[domain]` appended after it |
 | `[code]…[/code]` | a code box — **block-level, full width** |
 | `### heading`, `**bold**`, `` `code` `` | shown literally, character for character |
 
