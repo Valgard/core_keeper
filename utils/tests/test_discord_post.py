@@ -615,7 +615,7 @@ Tools stop wearing down twice as slowly.
 
 def test_update_takes_the_topmost_entry_and_nothing_below_it():
     version, comment = dp.render_update(
-        _CHANGELOG, supported=["1.2.1.5"], known=["1.2.1.5"], slug="probe-mod"
+        _CHANGELOG, supported=["1.2.1.5"], known=["1.2.1.5"]
     )
 
     assert version == "1.4.0"
@@ -626,9 +626,7 @@ def test_update_takes_the_topmost_entry_and_nothing_below_it():
 def test_update_drops_the_section_headings_but_keeps_the_bullets():
     """'### Changed' is changelog scaffolding; in a chat message it reads as a
     heading with one line under it."""
-    _, comment = dp.render_update(
-        _CHANGELOG, supported=["1.2.1.5"], known=["1.2.1.5"], slug="probe-mod"
-    )
+    _, comment = dp.render_update(_CHANGELOG, supported=["1.2.1.5"], known=["1.2.1.5"])
 
     assert "### Changed" not in comment
     assert "- The toggle now applies without a restart." in comment
@@ -654,7 +652,6 @@ def test_update_keeps_the_bullets_when_the_heading_has_no_blank_line_after_it():
         _CHANGELOG_TIGHT_HEADING,
         supported=["1.2.1.5"],
         known=["1.2.1.5"],
-        slug="probe-mod",
     )
 
     assert "### Added" not in comment
@@ -666,9 +663,7 @@ def test_update_opens_by_naming_the_version():
     """The compatibility line is what the channel's posting rules ask to see
     in the first lines -- so it must actually be there, on its own line, not
     just anywhere after the version literal `startswith` alone would allow."""
-    _, comment = dp.render_update(
-        _CHANGELOG, supported=["1.2.1.5"], known=["1.2.1.5"], slug="probe-mod"
-    )
+    _, comment = dp.render_update(_CHANGELOG, supported=["1.2.1.5"], known=["1.2.1.5"])
 
     assert comment.startswith("**Version 1.4.0**")
     assert comment.split("\n")[1] == dp.version_line(["1.2.1.5"], ["1.2.1.5"])
@@ -678,9 +673,7 @@ def test_update_refuses_an_over_long_comment_instead_of_trimming_it():
     long_entry = "## [2.0.0] - 2026-08-26\n\n" + ("word " * 500)
 
     with pytest.raises(ValueError, match="characters"):
-        dp.render_update(
-            long_entry, supported=["1.2.1.5"], known=["1.2.1.5"], slug="probe-mod"
-        )
+        dp.render_update(long_entry, supported=["1.2.1.5"], known=["1.2.1.5"])
 
 
 def test_a_changelog_without_a_release_entry_says_so():
@@ -689,7 +682,6 @@ def test_a_changelog_without_a_release_entry_says_so():
             "# Changelog\n\nNothing released yet.\n",
             supported=["1.2.1.5"],
             known=["1.2.1.5"],
-            slug="probe-mod",
         )
 
 
@@ -772,15 +764,20 @@ def test_update_mode_diagnostics_do_not_call_the_version_a_thread_title(
     assert "thread       : https://discord.com/x" in err
 
 
-def test_update_suppresses_the_mod_io_link_preview():
-    """Verified in the live channel on 2026-08-26, same as the announcement
-    post's download link -- a bare mod.io link there renders the platform's
-    own corporate card as the last thing in the comment."""
-    _, comment = dp.render_update(
-        _CHANGELOG, supported=["1.2.1.5"], known=["1.2.1.5"], slug="probe-mod"
-    )
+def test_update_carries_no_platform_links_at_all():
+    """A release comment ends with its notes.
 
-    assert comment.endswith("<https://mod.io/g/corekeeper/m/probe-mod>")
+    It used to end in a bare mod.io link. None of the platform links ever
+    changes -- not the slug, not the source repository, and a Workshop id never
+    at all -- so they belong in the thread's opening post, and repeating them
+    under every release is noise. Asserting their ABSENCE rather than dropping
+    the test: without this, adding one back would go unnoticed.
+    """
+    _, comment = dp.render_update(_CHANGELOG, supported=["1.2.1.5"], known=["1.2.1.5"])
+
+    assert "mod.io" not in comment
+    assert "steamcommunity" not in comment
+    assert "github.com" not in comment
 
 
 def test_update_mode_fails_when_configured_media_is_broken(tmp_path):

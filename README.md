@@ -185,14 +185,18 @@ skill never submits: it fills the form and hands back.
 `--update` renders a version comment from the topmost `CHANGELOG.md` entry
 instead of the post, for a mod whose thread already exists.
 
-Both end in the same platform lines — mod.io, Steam Workshop, and the source
-repository in the opening post only. The Steam line is there when the mod has a
-Workshop item and absent when it has not, read from the same
+The opening post ends in its platform lines — mod.io, Steam Workshop, and the
+source repository. The Steam line is there when the mod has a Workshop item and
+absent when it has not, read from the same
 `unity/<MOD_NAME>/<MOD_NAME>_Steam.asset` a publish writes its id into, so
 there is nothing to configure and nothing to remember after a first Steam
-publish. Every link is wrapped in `<…>`: Discord builds a preview card for a
+publish. Each link is wrapped in `<…>`: Discord builds a preview card for a
 bare one, and neither platform's card is worth the space it takes after the
 images.
+
+A version comment carries none of them. Not one of those three links ever
+changes, so the thread's opening post is where they belong; repeating them
+under every release is noise in a channel people read.
 
 Two more variables live beside `CK_DISCORD_TAGS`, both in `.envrc` and
 `.envrc.example`:

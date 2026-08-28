@@ -77,23 +77,19 @@ def version_line(supported, known):
     return f"**Compatible with Core Keeper {_fmt(sup[0])} – {_fmt(sup[-1])}**"
 
 
-def download_links(slug, steam_id, *, source=True):
-    """The platform lines both renderers end with, in one place.
+def download_links(slug, steam_id):
+    """The platform lines the announcement post ends with.
 
     Labelled by platform rather than by action: "Download" was right while
     mod.io was the only place to get a mod, but beside a "Steam Workshop" line
     it labels the two destinations inconsistently -- one naming what you do,
-    the other where you are. The update comment carries the labels too, where
-    it used to end in a bare URL: one unlabelled link was self-evident from its
-    position, two would not be.
+    the other where you are.
 
-    `source` is off for that comment, and NOT because the repository does not
-    change from one release to the next -- neither does the mod.io slug, and a
-    Workshop id never changes at all, so that test would drop every link. What
-    separates them is what the message is for: a release comment says "there is
-    a new version", so a way to go and get it is the next thing its reader
-    wants. Browsing the source is not, and the thread's opening post links it
-    for anyone who does.
+    The opening post only. A release comment used to end in a bare mod.io link
+    and no longer carries any: none of these three ever changes -- not the
+    slug, not the source repository, and a Workshop id never changes at all --
+    so the thread's own opening post is where they belong, and repeating them
+    under every release is noise in a channel people read.
 
     A mod with no Workshop item simply has no Steam line. That is not a
     fallback for a broken state: it is what a mod published to mod.io only
@@ -104,9 +100,8 @@ def download_links(slug, steam_id, *, source=True):
     lines = [f"**mod.io:** <https://mod.io/g/corekeeper/m/{slug}>"]
     if steam_id:
         lines.append(f"**Steam Workshop:** <{steam_identity.item_url(steam_id)}>")
-    if source:
-        repo = slug.replace("-", "_")
-        lines.append(f"**Source:** <https://github.com/Valgard/ck_{repo}>")
+    repo = slug.replace("-", "_")
+    lines.append(f"**Source:** <https://github.com/Valgard/ck_{repo}>")
     return "\n".join(lines)
 
 
@@ -136,7 +131,7 @@ def render(markdown, *, supported, known, tags, slug, steam_id=None):
     return post
 
 
-def render_update(changelog, *, supported, known, slug, steam_id=None):
+def render_update(changelog, *, supported, known):
     """The comment announcing a new version in an existing thread.
 
     CHANGELOG.md is already the canonical release source -- CLIPublishHelper
@@ -166,8 +161,6 @@ def render_update(changelog, *, supported, known, slug, steam_id=None):
     comment = (
         f"**Version {version}**\n{version_line(supported, known)}\n\n"
         + "\n\n".join(blocks)
-        + "\n\n"
-        + download_links(slug, steam_id, source=False)
     )
     if len(comment) > LIMIT:
         raise ValueError(f"comment is {len(comment)} characters — {LIMIT} is the limit")
@@ -322,8 +315,6 @@ def render_repo(repo, env, known, *, update=False):
             changelog.read_text(),
             supported=env["CK_GAME_VERSION"].split(),
             known=known,
-            slug=env["MOD_NAME_ID"],
-            steam_id=workshop_id(repo, env["MOD_NAME"]),
         )
         # Validated but discarded, attachments and follow_ups alike: the
         # thread's opening images already carry the logo and every clip, and
