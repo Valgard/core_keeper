@@ -70,30 +70,31 @@ split, its tag groups, the preview size limit, the macOS native-library gap) is 
 this section covers only what this repository's pipeline does with it.
 
 **The Workshop item's id lives in `unity/<MOD_NAME>/<MOD_NAME>_Steam.asset`,
-and it must be committed.** `utils/steam_identity.py` reads and writes it by
-path, the same way `CLIPublishHelper` reads the mod.io id from
-`<MOD_NAME>_modio.asset` — but unlike that file, nothing scaffolds this one,
-so it is easy to leave untracked after a publish creates it. Left untracked,
-a `git clean` or a fresh checkout drops the id silently; the next publish
-then sees no id, treats the mod as never published, and creates a **second**
-Workshop item with no way to tell it apart from the first. Commit it once,
-right after the first Steam publish, the same way the mod.io asset already
-is — **together with the `.meta` beside it**, which the publish writes at the
-same time. Unity would otherwise generate that GUID carrier only when someone
-next opens the Editor, leaving the repo one file short of the rule that it
-holds every one of them. The `.meta` is written only when absent: an existing
-GUID is Unity's, and something may already reference it.
+and that asset must be in the repository.** `utils/steam_identity.py` reads and
+writes it by path, the same way `CLIPublishHelper` reads the mod.io id from
+`<MOD_NAME>_modio.asset`. Losing it is the expensive failure: a `git clean` or a
+fresh checkout drops the id silently, the next publish sees none, treats the mod
+as never published, and creates a **second** Workshop item with no way to tell
+it apart from the first.
 
-**That rule assumes a real publish, and a rehearsal is the exception.** An item
-created to try something out — a throwaway the author intends to delete —
-writes its id into the same asset, and committing it would aim every later
-publish at an item that is about to stop existing. Which is the same hazard the
-rule exists to prevent, approached from the other side: the asset is the
-authority on which item this mod *is*, so it must not name one that is not
-meant to survive. Delete the asset along with the item, and leave it untracked
-until the mod is genuinely published. A `git status` showing an untracked
-`<Mod>_Steam.asset` is therefore not enough to act on — the question is which
-kind of item created it.
+`utils/new_mod.py` therefore scaffolds it, carrying `fileId: 0` exactly as the
+mod.io asset carries `modId: 0` — so a new mod repo has the file from its first
+commit and a publish only fills a field in. It was not always so, and the
+difference is worth keeping in mind when reading an older repo's history: for
+the mods published to Steam before that, the publish created the file, which
+made it easy to leave untracked afterwards. What a publish still creates is the
+`.meta` beside it, and only when absent — an existing GUID is Unity's, and
+something may already reference it.
+
+**Committing the id assumes a real publish, and a rehearsal is the exception.**
+An item created to try something out — a throwaway the author intends to
+delete — writes its id into the same asset, and committing that would aim every
+later publish at an item about to stop existing. Which is the hazard above
+approached from the other side: the asset is the authority on which item this
+mod *is*, so it must not name one that is not meant to survive. Restore the
+`fileId: 0` the scaffold put there, rather than deleting the file. So an id
+appearing in `git diff` on this asset is not by itself something to commit — the
+question is which kind of item produced it.
 
 **The publish fills that asset in completely, not just its id.** `modOwner`,
 `selectedPath` and `tags` are read by the SDK window alone, and a publish is

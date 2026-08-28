@@ -13,6 +13,13 @@ import sys
 import uuid
 import zlib
 
+# The Workshop identity asset's shape lives with the code that reads and writes
+# it during a publish, not here. Scaffolding it from a second copy of the same
+# YAML would let the two drift, and the failure that causes is silent: a
+# publish reads the asset BY PATH, so a shape it does not recognise reads as
+# "this mod has never been published" and creates a second Workshop item.
+import steam_identity
+
 # The 14 Unity engine assemblies the wizard hardcodes into a mod's runtime
 # asmdef (ModBuilderWindow.CreateNewMod, ModBuilderWindow.cs:77-90). The game
 # DLLs are appended at scaffold time from a live filesystem scan.
@@ -257,6 +264,27 @@ MonoBehaviour:
 """
 
 
+def build_steam_asset_yaml(mod_name: str) -> str:
+    """The `<Mod>_Steam.asset` — the Workshop counterpart of `_modio.asset`.
+
+    `fileId` is 0 until the first Steam publish assigns the real one, exactly
+    as `modId` is above. Scaffolded rather than left to that publish for the
+    reason ../docs/publishing.md gives: a file the publish CREATES is easy to
+    leave untracked afterwards, and an untracked asset is one `git clean` away
+    from taking the id with it — after which the next publish creates a second
+    Workshop item indistinguishable from the first. A file already in the repo
+    only has a field filled in, which no `git status` can hide.
+
+    `modOwner` and `tags` stay empty because their values are not knowable yet:
+    the owner comes back from a live Steam session, and the tags are derived at
+    publish time. `modName` is the SDK window's lookup key, so it is the one
+    field worth writing now.
+    """
+    return steam_identity.TEMPLATE.format(
+        name=f"{mod_name}_Steam", file_id=0, mod_name=mod_name
+    )
+
+
 # --- .meta builders ---------------------------------------------------------
 
 
@@ -281,16 +309,16 @@ def build_script_meta(guid: str) -> str:
 
 def build_native_asset_meta(guid: str) -> str:
     """ScriptableObject .asset .meta — NativeFormatImporter pointing at the
-    MonoBehaviour main object (fileID 11400000)."""
-    return f"""fileFormatVersion: 2
-guid: {guid}
-NativeFormatImporter:
-  externalObjects: {{}}
-  mainObjectFileID: 11400000
-  userData:
-  assetBundleName:
-  assetBundleVariant:
-"""
+    MonoBehaviour main object (fileID 11400000).
+
+    Taken from steam_identity rather than spelled out again, because the copy
+    that used to live here dropped the trailing space Unity writes after
+    `userData:`, `assetBundleName:` and `assetBundleVariant:`. Every scaffolded
+    asset therefore carried a `.meta` Unity rewrote on the first import —
+    a diff in a brand-new repo, on a file nobody had touched. Verified against
+    a Unity-written `.meta` in an existing mod, which has the spaces.
+    """
+    return steam_identity.META_TEMPLATE.format(guid=guid)
 
 
 def build_asmdef_meta(guid: str) -> str:
@@ -813,6 +841,7 @@ def build_plan(
     editor_dir_guid = new_guid()
     editor_asmdef_guid = new_guid()
     modio_meta_guid = new_guid()
+    steam_meta_guid = new_guid()
     logo_guid = new_guid()
 
     u = "unity"
@@ -848,6 +877,13 @@ def build_plan(
             build_runtime_asmdef(mod_name, dll_names, corelib=corelib),
         ),
         (f"{md}/{mod_name}.asmdef.meta", build_asmdef_meta(runtime_asmdef_guid)),
+        # Inside the mod folder, unlike the ModBuilderSettings asset a few lines
+        # up and unlike the mod.io one under Editor/. Not a choice made here:
+        # steam_identity.asset_path computes this location and every publish
+        # addresses the file by it, so a scaffold that guessed differently would
+        # be read as "this mod has never been published".
+        (f"{md}/{mod_name}_Steam.asset", build_steam_asset_yaml(mod_name)),
+        (f"{md}/{mod_name}_Steam.asset.meta", build_native_asset_meta(steam_meta_guid)),
         (f"{md}/{mod_name}Mod.cs", build_bootstrap_cs(mod_name)),
         (f"{md}/{mod_name}Mod.cs.meta", build_script_meta(bootstrap_cs_guid)),
         (f"{md}/Editor.meta", build_folder_meta(editor_dir_guid)),

@@ -1,11 +1,13 @@
 """Unit tests for new_mod.py — the deterministic new-mod scaffold generator."""
 
 import json
+import pathlib
 import re as _re
 
 import pytest
 
 import new_mod as nm
+import steam_identity
 
 
 # --- identity derivation (the three-level naming convention) ----------------
@@ -220,6 +222,34 @@ def test_modio_asset_modid_zero_and_cross_refs_the_asset_meta():
     assert "m_Name: FasterPetTalents_modio" in y
     assert "modId: 0" in y
     assert "modSettings: {fileID: 11400000, guid: " + "c" * 32 + ", type: 2}" in y
+
+
+# --- _Steam.asset YAML (Workshop identity) ----------------------------------
+
+
+def test_steam_asset_has_no_item_id_until_the_first_publish():
+    y = nm.build_steam_asset_yaml("FasterPetTalents")
+    assert "m_Name: FasterPetTalents_Steam" in y
+    assert "fileId: 0" in y
+    assert "modName: FasterPetTalents" in y
+
+
+def test_steam_asset_is_what_a_publish_recognizes(tmp_path):
+    """The property the whole file exists for, checked with the publish's own
+    readers rather than with substrings.
+
+    A publish reads this asset BY PATH and decides from its `fileId:` line
+    whether the mod has ever been published. A scaffolded file the reader
+    rejects is worse than no file at all: `ensure_recognizable` would abort the
+    publish, and a shape it accepted but misread would look present while
+    reading as "never published", after which the next publish creates a second
+    Workshop item.
+    """
+    asset = tmp_path / "FasterPetTalents_Steam.asset"
+    asset.write_text(nm.build_steam_asset_yaml("FasterPetTalents"))
+
+    steam_identity.ensure_recognizable(asset)  # raises if a publish would balk
+    assert steam_identity.read_file_id(asset) is None  # no item yet, not a zero id
 
 
 # --- .meta builders ---------------------------------------------------------
@@ -480,6 +510,8 @@ def test_plan_contains_the_expected_file_set():
         "unity/FasterPetTalents.meta",
         "unity/FasterPetTalents/FasterPetTalents.asmdef",
         "unity/FasterPetTalents/FasterPetTalents.asmdef.meta",
+        "unity/FasterPetTalents/FasterPetTalents_Steam.asset",
+        "unity/FasterPetTalents/FasterPetTalents_Steam.asset.meta",
         "unity/FasterPetTalents/FasterPetTalentsMod.cs",
         "unity/FasterPetTalents/FasterPetTalentsMod.cs.meta",
         "unity/FasterPetTalents/Editor.meta",
@@ -732,3 +764,15 @@ def test_envrc_scaffolds_the_discord_thread_and_media_variables():
 
     assert 'export CK_DISCORD_THREAD=""' in text
     assert 'export CK_DISCORD_MEDIA=""' in text
+
+
+def test_steam_asset_lands_where_every_publish_looks_for_it():
+    """Not "the path looks right" but "the path is the one the publish computes".
+
+    steam_identity.asset_path is the single authority on this location, and a
+    reader that computes it differently from the writer does not read a
+    different file -- it reads nothing. Asserting a literal string here would
+    pass while both sides drifted together out of agreement with each other.
+    """
+    expected = steam_identity.asset_path(pathlib.Path(""), "FasterPetTalents")
+    assert expected.as_posix() in _plan_dict()
