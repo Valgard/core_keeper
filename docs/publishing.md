@@ -84,6 +84,17 @@ next opens the Editor, leaving the repo one file short of the rule that it
 holds every one of them. The `.meta` is written only when absent: an existing
 GUID is Unity's, and something may already reference it.
 
+**That rule assumes a real publish, and a rehearsal is the exception.** An item
+created to try something out — a throwaway the author intends to delete —
+writes its id into the same asset, and committing it would aim every later
+publish at an item that is about to stop existing. Which is the same hazard the
+rule exists to prevent, approached from the other side: the asset is the
+authority on which item this mod *is*, so it must not name one that is not
+meant to survive. Delete the asset along with the item, and leave it untracked
+until the mod is genuinely published. A `git status` showing an untracked
+`<Mod>_Steam.asset` is therefore not enough to act on — the question is which
+kind of item created it.
+
 **The publish fills that asset in completely, not just its id.** `modOwner`,
 `selectedPath` and `tags` are read by the SDK window alone, and a publish is
 the moment their current values are known — so the window finds a usable asset
