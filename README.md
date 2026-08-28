@@ -198,6 +198,21 @@ Two more variables live beside `CK_DISCORD_TAGS`, both in `.envrc` and
   function has nothing to show. That is the opposite of `CK_DISCORD_TAGS`,
   where empty is an omission the renderer refuses.
 
+The forum's own tag vocabulary lives in `utils/ck-discord-tags.json` rather
+than in the code, because it belongs to a channel somebody else administers.
+Its `verified` field is the day the list was last confirmed against the live
+channel, whether or not it changed; the skill skips its reconciliation step
+when that day is today, so announcing several mods in one sitting checks once
+instead of once per mod. A test asserts the date parses and is not in the
+future — a malformed value would only waste the check, but a future one would
+skip it forever and let the list go stale unnoticed.
+
+`upload.sh` prints the right text for the mod's situation after a release: the
+full announcement while `CK_DISCORD_THREAD` is empty, the version comment once
+it is set. Before that distinction existed it always printed the announcement,
+which invited pasting a mod's whole introduction into its own thread a second
+time.
+
 Three things are generated rather than written by hand:
 
 * **The compatibility line**, from `CK_GAME_VERSION`. The channel asks for it

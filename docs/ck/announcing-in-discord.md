@@ -45,6 +45,47 @@ expressly allowed but at the reader's own risk — the admins disclaim
 responsibility for anything downloaded through them — and malicious links are to
 be reported to a moderator rather than argued with.
 
+## What Discord makes of the post
+
+The rules say what a post must contain; what follows is what the client does
+with it. Everything here was measured by posting into the channel between
+2026-08-26 and 2026-08-28, not read anywhere.
+
+**Discord's Markdown is not mod.io's.** Bold, italics, `##` headings and lists
+render as expected. Image syntax does not: an `![alt]` followed by a
+parenthesised URL stays on screen as exactly those characters. A description
+written for mod.io therefore cannot be carried across unchanged, which is the
+reason a mod keeps two of them.
+
+**A message consisting of nothing but a media URL is replaced by the medium.**
+Discord drops the link text and shows the image or clip in its place. The same
+URL sitting between prose stays a visible link, with the medium rendered
+beneath it — so a 95-character raw address ends up in the middle of the
+paragraph. Where a clip should appear without its address, it needs a message
+of its own.
+
+**An external URL is not subject to the attachment ceiling.** A 38 MB GIF
+embeds from a URL although it is far past what can be uploaded as a file. The
+first viewer waits while Discord fetches and proxies it — around 18 seconds
+for that file — and everyone after that gets it from the proxy cache. The
+bytes still travel to every reader, so this buys reach past the limit, not
+cheapness.
+
+**A bare mod.io link renders mod.io's own card, not the mod's.** The preview
+carries the platform's logo and the strapline *"Cross Platform Mod Support for
+Games"* — mod.io serves no mod-specific OpenGraph data for a mod page. A link
+wrapped in `<…>` produces no preview at all, which is usually the better
+outcome: the post then ends with the author's own images.
+
+**The ceilings**, all of them per message: 2000 characters without Nitro, ten
+attachments, five embeds. The mod.io preview counts against the last of those.
+
+**The tag vocabulary is not sorted alphabetically.** In the composer's picker
+`Work In Progress` sits between `Gardening` and `Mining`. Its order looks like
+the sequence the moderators created the tags in, so a tag cannot be found by
+guessing where it should be — which is the concrete reason to read the list
+rather than recall it.
+
 ## Inactivity hides a post from the default view; it does not remove it
 
 The pin's last line before the guide link is the one that gets misread, and it
