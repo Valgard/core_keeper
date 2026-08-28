@@ -72,6 +72,7 @@ import zipfile
 from pathlib import Path
 
 import steam_bundle
+import steam_changenote
 import steam_identity
 import steam_result
 
@@ -735,7 +736,13 @@ def report(plan: ModPlan, limit: int | None, brief: bool) -> None:
             f"{_size(release.size):>9}" + (f"   (change note {note})" if note else "")
         )
         if not brief:
-            for line in release.changelog.splitlines() or [""]:
+            # The converted note, not the Markdown it came from. This listing is
+            # the last look anyone gets before a permanent history entry, so it
+            # has to show the text that is actually submitted — printing the
+            # source would hide the one class of mistake a rehearsal exists to
+            # catch, which is precisely how Markdown got sent in the first place.
+            note = steam_changenote.render(release.version, release.changelog)
+            for line in note.splitlines() or [""]:
                 print(f"       | {line}")
 
 

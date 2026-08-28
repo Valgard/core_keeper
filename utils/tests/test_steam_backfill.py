@@ -8,6 +8,7 @@ to guess — far more than about what it produces.
 """
 
 import json
+import pathlib
 
 import pytest
 import steam_backfill
@@ -340,3 +341,34 @@ def test_the_game_key_joins_a_url_that_already_has_a_query():
         steam_backfill.download_url("https://x.invalid/download?a=1", "KEY")
         == "https://x.invalid/download?a=1&api_key=KEY"
     )
+
+
+# --- the plan listing --------------------------------------------------------
+
+
+def test_the_plan_shows_the_bbcode_note_that_will_be_submitted(capsys):
+    """What the operator reads before an irreversible run is what goes out.
+
+    A listing that showed the Markdown source would hide exactly the class of
+    mistake a rehearsal exists to catch — and did: both publishing paths sent
+    Markdown to a platform that renders BBCode, and every rehearsal of them
+    looked right.
+    """
+    plan = steam_backfill.ModPlan(
+        repo=pathlib.Path("/nowhere/some-mod"),
+        mod_name="SomeMod",
+        mod_id=1,
+        env={},
+        releases=_releases(),
+        unpublished=[],
+        file_id=None,
+        done=set(),
+        todo=_releases(),
+    )
+
+    steam_backfill.report(plan, None, brief=False)
+    printed = capsys.readouterr().out
+
+    assert "       | [h2]1.0.0[/h2]" in printed
+    assert "       | [list]" in printed
+    assert "- The first thing." not in printed

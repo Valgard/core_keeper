@@ -207,6 +207,32 @@ so the two descriptions are separate files in separate dialects rather than
 one derived from the other. `new_mod.py` scaffolds a BBCode template for the
 same reason.
 
+**The change note is BBCode too, and it is converted rather than authored.**
+`CHANGELOG.md` is the source for both platforms, so it stays Markdown and
+`utils/steam_changenote.py` translates one entry on the way out — headings to
+`[h3]`, `**bold**` to `[b]`, bullets to `[list][*]…[/list]`, a Markdown link to
+`[url=…]`. It runs inside `steam_bundle.build_bundle`, which is the one point
+both publishing paths pass through, so an ordinary release and a backfilled
+history entry read alike. Three of its decisions look like omissions and are
+not: inline `` `code` `` keeps its backticks, because `[code]` on Steam is
+block-level and would split the sentence around every identifier; a `[` that
+is not a link is left exactly as written, because Steam's BBCode has no
+documented escape and a guessed one turns text that renders correctly into
+visible mangle; and `_underscores_` are never emphasis, because that dialect
+collides with the identifiers these changelogs are full of.
+
+Hard-wrapped lines are joined into one, which is also how mod.io renders the
+same source — a note that kept its eighty-column breaks would ragged-edge in a
+browser column several times that wide, and the two platforms would show the
+same release differently.
+
+**The version is the note's first line, `[h2]<version>[/h2]`, because there is
+nowhere else it can go.** Steam has no version field: `SubmitItemUpdate` takes
+the change note and nothing else, and `SetItemTitle` would rename the item, so
+a published entry otherwise shows `Update: <date>` and its body ([`docs/ck/steam-workshop.md`](ck/steam-workshop.md)).
+Without that heading, the dozens of entries a backfill submits in one session
+are indistinguishable by their headers.
+
 **The preview image is derived from the mod's logo, not authored by hand.**
 `utils/steam_preview.py` downsizes `Editor/logo.png` down a fixed resolution
 ladder — and, failing that, quantises it — until it clears the Workshop's

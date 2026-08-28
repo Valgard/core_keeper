@@ -19,6 +19,7 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
+import steam_changenote
 import steam_identity
 import steam_preview
 
@@ -385,7 +386,15 @@ def build_bundle(
         "title": metadata.get("displayName") or metadata.get("name") or mod_name,
         "description": description_path.read_text(),
         "tags": derive_tags(metadata, env.get("CK_MODIO_TYPE", "")),
-        "changelog": changelog,
+        # Converted here rather than at either caller, because this is the one
+        # place both publishing paths pass through — `utils/upload.sh` for an
+        # ordinary release and `utils/steam_backfill.py` for a mirrored one —
+        # and both used to send the Markdown verbatim. A Workshop change note is
+        # BBCode, so `###` and `**` rendered as themselves, and no API can edit
+        # a published entry afterwards. The version rides in the note's own
+        # `[h2]` line because there is nowhere else it can go: SubmitItemUpdate
+        # takes the note and nothing else.
+        "changelog": steam_changenote.render(version, changelog),
         "version": version,
         "contentPath": str(content),
         "previewPath": str(preview_dest),

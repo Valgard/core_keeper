@@ -157,7 +157,10 @@ def test_a_changelog_with_no_entry_yields_no_entries_rather_than_raising():
 
 def test_a_release_override_replaces_the_version_and_its_notes(tmp_path):
     # The pair moves together on purpose: a version carrying another version's
-    # notes is the one mistake a Workshop history has no API to correct.
+    # notes is the one mistake a Workshop history has no API to correct. The
+    # override's version has to reach the note's own heading too — that heading
+    # is the only thing telling two entries in the history apart, so a stale one
+    # would label a whole backfill with the current release's number.
     bundle = steam_bundle.build_bundle(
         _repo(tmp_path),
         _env(tmp_path),
@@ -166,7 +169,9 @@ def test_a_release_override_replaces_the_version_and_its_notes(tmp_path):
     )
 
     assert bundle["version"] == "1.1.0"
-    assert bundle["changelog"] == "### Added\n\n- Older, must not be picked."
+    assert bundle["changelog"] == (
+        "[h2]1.1.0[/h2]\n\n[h3]Added[/h3]\n\n[list]\n[*] Older, must not be picked.\n[/list]"
+    )
 
 
 def test_item_metadata_is_absent_from_the_bundle_unless_asked_for(tmp_path):
@@ -516,6 +521,10 @@ def test_the_bundle_is_exactly_these_values(tmp_path):
     # from CHANGELOG.md, version and changelog swapped, or a contentPath at the
     # install ROOT — which would upload every mod in the family into one
     # Workshop item. All five survived the per-key tests; none survives this.
+    #
+    # `changelog` is BBCode here and Markdown nowhere: a Workshop change note is
+    # BBCode, and this bundle is the last place the two dialects could still be
+    # confused. steam_changenote owns what the conversion produces.
     repo = _repo(tmp_path)
     env = _env(tmp_path)
     preview = tmp_path / "preview.png"
@@ -527,7 +536,10 @@ def test_the_bundle_is_exactly_these_values(tmp_path):
         "title": "Disable Durability",
         "description": "[b]Bold[/b]",
         "tags": ["Item", "Overhaul", "Quality of Life", "Client", "Server", "Script"],
-        "changelog": "### Added\n\n- A thing.\n- Another thing.",
+        "changelog": (
+            "[h2]1.1.1[/h2]\n\n[h3]Added[/h3]\n\n"
+            "[list]\n[*] A thing.\n[*] Another thing.\n[/list]"
+        ),
         "version": "1.1.1",
         "contentPath": str(tmp_path / "build" / "DisableDurability"),
         "previewPath": str(preview),

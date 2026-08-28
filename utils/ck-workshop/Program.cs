@@ -72,6 +72,11 @@ internal sealed class Bundle
     [JsonPropertyName("changelog")]
     public string Changelog { get; set; }
 
+    // Operator-facing only — it is logged and never sent. Steam has no field
+    // for a version: SubmitItemUpdate takes the change note and nothing else,
+    // and SetItemTitle would rename the item. The version a reader sees is the
+    // "[h2]" line steam_changenote.render puts at the top of Changelog, so this
+    // is a second copy of it that exists to name the run in the log.
     [JsonPropertyName("version")]
     public string Version { get; set; }
 
