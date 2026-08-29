@@ -1366,17 +1366,64 @@ To move a *sub-element* rather than swallow input, copy the player list
 (`:331681`): ask `GetAdjacentUIElement` on the currently selected child and call
 `Select()` on the result.
 
-**Which child takes focus when the option is entered is a question CK asks
-itself.** `GetInternalOption()` (`:331672`) is a virtual that the same player
-list overrides to return its cached `lastSelectedPlayerButton`, falling back to
-the base answer when it has none. So "remember which sub-element I was on" needs
-no invention — override that method and answer from wherever the memory lives.
+**Redirecting focus onto a remembered child is something you do yourself, in
+`OnSelected()`.** The player list keeps a `lastSelectedPlayerButton` and calls
+`Select()` on it from its own `OnSelected()` override. There is no framework
+hook that asks an option "who should get focus now?" on the way in.
 
-Where that memory *can* live is the part worth planning: the player list caches
-on the option itself, which only works because its rows survive. A screen that
-tears its rows down and rebuilds them (see § "Long lists: CK ships no recycler")
-has to keep the value one level up, on the screen, and seed the fresh option
-from there — the row is gone by the time it could remember anything.
+> **`GetInternalOption()` is not that hook**, and it reads exactly as if it
+> were. It has one production call site in the whole game
+> (`RadicalMenu.SelectOptionIndex`, `:342826`), and it is asked of the option
+> being **left**, not the one being entered:
+>
+> ```csharp
+> previousInternalOption = menuOptions[selectedIndex].GetInternalOption();  // leaving
+> ...
+> menuOptions[index].OnPreSelected(previousInternalOption);                 // entering
+> ```
+>
+> `RadicalMenuOption.OnPreSelected` (`:343221`) is an empty virtual, so unless
+> the entering option overrides it the value is computed and thrown away. Its
+> real purpose is positional: the player list uses the previous element's
+> `transform.position` to enter at the nearest row. Override
+> `GetInternalOption()` expecting it to steer focus on entry and you get code
+> that runs, looks reasonable and does nothing.
+
+**`SelectOptionIndex` runs `OnSelected()` before `OnSelectedOptionChanged()`**
+(`:342813-342833`), which decides where per-transition state can live. Anything
+`OnSelected()` clears is gone before the screen-level hook sees it; anything the
+screen wants an entering row to know has to be handed over **before** `Select()`
+is called on it, not afterwards.
+
+Where a "which child was I on" memory *can* live is the other half: the player
+list caches on the option itself, which works only because its rows survive. A
+screen that tears its rows down and rebuilds them (see § "Long lists: CK ships
+no recycler") has to keep the value one level up, on the screen, and write it
+onto the fresh option **before** selecting it — the row is gone by the time it
+could remember anything.
+
+### A sub-element must not be a `RadicalMenuOption`
+
+The vanilla sub-elements this pattern comes from are `ButtonUIElement`s
+(`:334860`) — plain `UIelement`s. That is load-bearing, because `UIelement.Select()`
+routes on one property:
+
+```csharp
+if (!currentSelectedUIElement.isMenuOption) currentSelectedUIElement.OnSelected();
+if (currentSelectedUIElement.isMenuOption)  Manager.menu.SelectOption(currentSelectedUIElement);
+```
+
+`UIelement.isMenuOption` is `false` (`:357841`); `RadicalMenuOption` overrides it
+to `true` (`:343070`), and it is the only override in the game.
+`MenuManager.SelectOption` (`:269846`) looks the element up in the **top menu's**
+`menuOptions` and, when it is not there, does nothing at all — silently, no log.
+
+So a `RadicalMenuOption` used as a child of a row, never registered in
+`menuOptions`, can be `Select()`ed all day: `currentSelectedUIElement` moves to
+it, and **`OnSelected()` never fires**. Selection markers stay hidden and any
+state that override was meant to record is never written, while navigation looks
+like it is working. Either derive such a child from `UIelement`, or override
+`isMenuOption => false` on it and say in a comment why.
 
 > ⚠️ **This path is only reachable when the menu has
 > `useUIElementsForNavigation: 1`.** `SelectNextIndex`/`SelectPrevIndex` consult
