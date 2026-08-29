@@ -157,6 +157,53 @@ One mechanic solves two problems with it: **click-outside-to-close** (a naive
 Note the direction: screen → uiCamera world is fine and useful; the dead end
 that [prefabs and rendering](prefabs-and-rendering.md) warns about is the opposite projection, world → HUD.
 
+### A menu option's own collider is derived from its text
+
+`RadicalMenuOption` builds its click target out of the rendered label, and it
+does so in three places that have to be read together:
+
+```csharp
+protected UnityEngine.BoxCollider clickCollider;   // no [SerializeField]
+
+protected virtual void InitClickCollider()         // from Awake
+{
+    if (labelText == null)
+        labelText = gameObject.GetComponent<PugText>();
+    if (clickCollider == null && (labelText != null || valueText != null))
+    {
+        clickCollider = gameObject.AddComponent<BoxCollider>();
+        clickCollider.isTrigger = true;
+    }
+}
+
+protected virtual void UpdateClickCollider()       // from Update, every frame
+{
+    // sizes from labelText/valueText dimensions, then:
+    clickCollider.enabled = GetActiveStateInCurrentScene() == ACTIVE;
+}
+```
+
+Three consequences for anything that is **not** a text row:
+
+- **The field cannot be authored in a prefab.** It is `protected` with no
+  `[SerializeField]`, so Unity does not serialize it — adding a `BoxCollider` in
+  the Editor gives you a component the option never looks at. The reference
+  exists only at runtime.
+- **An icon-only option gets no collider at all**, because `InitClickCollider`
+  creates one only when a text is present. It renders fine and is dead to the
+  mouse. Such an option must create its own in an `InitClickCollider` override.
+- **`base.UpdateClickCollider` dereferences null on it.** With `labelText` null
+  the branch reaches for `valueText`, so with both null it throws — today
+  unreachable only because no collider exists in that case, which the previous
+  point has just changed. Override it, do **not** call `base`, size from
+  whatever the option actually draws, and set `clickCollider.enabled` yourself
+  (that assignment lives in the base body you are skipping).
+
+Vanilla does the same thing for its own graphical options: `SaveSlotPlayOption`,
+`WorldSlotFromModOption` and `WorldSlotNewWorldOption` override **both** methods
+with empty bodies and carry their collider in the prefab, hit-tested by other
+means.
+
 ## Mounting a standalone window
 
 There are two established routes. Pick A unless you need something it cannot
@@ -612,6 +659,31 @@ the way into the main menu. An Editor build does not show this — only the game
 does. CK itself sidesteps it with `Invoke("RestartToApplyModChanges", 0.1f)`;
 the delay is the whole point, and a frame countdown out of `IMod.Update` does
 the same job.
+
+### The confirm dialog has two independent hardening levels
+
+`StartNewDisplaySequence` guards a destructive answer twice over, and the two
+are easy to confuse because both read as "make it harder to confirm":
+
+- **`accidentalInputBlockDuration`**, default **1 second**, applies to *every*
+  dialog. The yes-option reports `CanBeActivated() == false` while it runs, so
+  the momentum of the click that opened the dialog cannot confirm it. Free, and
+  the reason a dialog that appears under the cursor is not a hazard.
+- **`holdToConfirm`**, default `false`, changes what the yes-option's
+  `OnActivated` does: instead of firing, it starts a **one-second hold** with a
+  progress bar (`_exitContainer` becomes visible, `_exitMaskBarPivot` scales
+  from 0 to 1). Releasing runs the bar back down. It is **not** device-specific:
+  the poll accepts `IsMenuInteractButtonPressed() || IsMenuMouseInteractButtonPressed()`,
+  so keyboard, controller and mouse all hold the same way.
+
+`holdToConfirm` does **not** replace the dialog — the popup still appears with
+both options, and the flag only affects the yes-option behind it.
+
+**Where vanilla draws the line is worth copying.** CK passes `true` in exactly
+two places, both unrecoverable losses of playtime: deleting a character
+(`SaveSlotDeleteOption`) and deleting a world. Its own settings reset
+(`Menu/ResetToDefaultsDialog`) passes `false`. A destructive action that the
+player can redo in a minute belongs in the second group.
 
 ### Localising menu strings
 
@@ -1294,6 +1366,18 @@ To move a *sub-element* rather than swallow input, copy the player list
 (`:331681`): ask `GetAdjacentUIElement` on the currently selected child and call
 `Select()` on the result.
 
+**Which child takes focus when the option is entered is a question CK asks
+itself.** `GetInternalOption()` (`:331672`) is a virtual that the same player
+list overrides to return its cached `lastSelectedPlayerButton`, falling back to
+the base answer when it has none. So "remember which sub-element I was on" needs
+no invention — override that method and answer from wherever the memory lives.
+
+Where that memory *can* live is the part worth planning: the player list caches
+on the option itself, which only works because its rows survive. A screen that
+tears its rows down and rebuilds them (see § "Long lists: CK ships no recycler")
+has to keep the value one level up, on the screen, and seed the fresh option
+from there — the row is gone by the time it could remember anything.
+
 > ⚠️ **This path is only reachable when the menu has
 > `useUIElementsForNavigation: 1`.** `SelectNextIndex`/`SelectPrevIndex` consult
 > `SelectIndexInDirection` only then; on the index-based path the flag is never
@@ -1334,6 +1418,48 @@ only; giving it a mouse equivalent means a **second, separate path** — read th
 held state, read CK's hover selection as the target, act on release — that
 meets the first one at the operation, not at the input. Budget for two paths,
 not one.
+
+## A `RadicalMenu` positions its own options — switch that off
+
+`RadicalMenu.Activate()` ends with:
+
+```csharp
+if (autoPositioning)
+    UpdatePosition();
+RenderUIComponent();
+```
+
+`UpdatePosition()` walks `GetAllCurrentlyActiveMenuOptions()` and **writes
+`transform.localPosition` on every one of them**, stacking them at
+`menuEntryVirtualHeight` per entry from `menuEntryStartPositionY`. It is CK's
+layout for a plain vertical list of menu entries, and `autoPositioning`
+defaults to **`1`** on the component.
+
+**A screen that lays itself out — a `LinearLayoutUIComponent`, a hand-written
+`RenderContent` — must set `autoPositioning: 0` in its prefab.** Otherwise two
+layouts write the same transforms in the same frame, CK's first and yours
+second.
+
+**Why that stays invisible for a long time.** While every option is a top-level
+row, both layouts order the same set in the same sequence, and yours simply
+overwrites CK's — the bug is present and has no symptom. It surfaces the moment
+a row contains options **of its own**, because CK's stack treats those as
+further entries of the same list while your layout only knows about rows. The
+tell is a fixed offset per option: the children of row *n* sit at a multiple of
+`menuEntryVirtualHeight`, and the step between rows is that value times the
+number of options each row contains.
+
+Two details make it hard to catch:
+
+- **Only the first activation misbehaves**, if the options list is rebuilt per
+  open. `Awake` collects everything under the screen, including the options
+  inside freshly created rows; a later `menuOptions.Clear()` plus a rebuild
+  leaves only the rows behind, and from the second open the stack is harmless.
+  "Wrong once, then right" is the signature.
+- **The prefab, the bundle and the asset all read `y = 0`.** The write happens
+  at activation, so every static check of the artefact says the geometry is
+  correct. Measure inside the running screen — and after the layout has run, not
+  in the code that creates the rows.
 
 ## Scrolling
 
@@ -1662,12 +1788,37 @@ with the lock.
 
 ### `INACTIVE` and the phantom row
 
-**Trap: a deactivated GameObject is still a menu row.** `RadicalMenu` collects
-its options with `includeInactive`, so a disabled prefab **template** row is
-registered like any other and is reachable by D-pad — an invisible entry the
-player can navigate onto. The remedy is to override
-`GetActiveStateInCurrentScene()` and return `gameObject.activeSelf ? ACTIVE :
-INACTIVE`.
+**Trap: a deactivated GameObject is still a menu row.** `RadicalMenu.Awake`
+collects its options with `GetComponentsInChildren(includeInactive: true,
+menuOptions)`, so a disabled prefab **template** row is registered like any
+other and is reachable by D-pad — an invisible entry the player can navigate
+onto. The remedy is to override `GetActiveStateInCurrentScene()` and report the
+row's real visibility.
+
+**Which test you use decides whether the remedy works.** `activeSelf` is right
+only when the option *is* the object being switched off — a template row that
+disables itself. It is wrong for any option that sits **inside** something else
+that gets switched off: a child keeps its own `activeSelf == true` while its
+parent is disabled, so it reports `ACTIVE` while being nowhere on screen.
+`activeInHierarchy` is the test that holds in both cases:
+
+```csharp
+public override OptionActiveState GetActiveStateInCurrentScene() =>
+    gameObject.activeInHierarchy ? OptionActiveState.ACTIVE : OptionActiveState.INACTIVE;
+```
+
+The difference only surfaces once a row contains options of its own — per-row
+buttons beside a field, say. Until then both tests agree, which is exactly why
+the weaker one gets copied into the case where it breaks. What it costs there is
+not a stray navigation target but a **moved** one: `Activate()` hands every
+option it considers active to the auto-positioner (below), so a phantom option
+is repositioned along with the real rows.
+
+One caveat when switching a whole screen over: `activeInHierarchy` is false
+while the screen itself is inactive. Anything that queries the state *before*
+`Activate()` has run `SetActive(true)` — a `Populate()`-style build step, for
+instance — then sees every row as `INACTIVE`. Query it after activation, or keep
+that path from asking.
 
 The mirror case: an option cloned from an **in-game-only** entry reports
 `INACTIVE` on the title screen. A mod widget that should work there has to return
