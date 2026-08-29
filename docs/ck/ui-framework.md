@@ -106,6 +106,31 @@ Moving the mouse into empty space calls
 regardless of any override of yours. What that does to a field the player is
 editing is in [text rendering and text input](#text-rendering-and-text-input).
 
+**The two halves of `TrySelectNewElement` (`:356110`) run at different rates,
+and the difference explains most hover oddities:**
+
+```csharp
+if (selectedUIElement == null || selectedUIElement != Manager.ui.currentSelectedUIElement)
+    Manager.ui.DeselectAnySelectedUIElement();   // only on a CHANGE — clears selectedIndex to -1
+if (selectedUIElement != null)
+    selectedUIElement.Select();                   // EVERY frame the pointer rests on it
+```
+
+So the clear is an edge and the select is a level. Two things follow. A menu
+option under a resting pointer is re-selected continuously, which is audible
+because `MenuManager.SelectOption` (`:269846`) plays its sound on **every
+attempt** — the call is not guarded by `SelectOptionIndex`'s return value, so a
+selection that changes nothing still sounds, throttled only by the 50 ms
+cooldown. And any per-`OnSelected` work you attach to an element runs every
+frame, not once; if that work re-selects something else, the two fight for the
+pointer for as long as it rests there.
+
+`SelectOptionIndex` (`:342813`) itself is the well-behaved half: it returns
+`false` when the index is unchanged and plays nothing. CK's own directional
+navigation pairs the two correctly — `if (SelectNextIndex()) …Sfx…` — so the
+sound follows a real change. Copy that pairing rather than calling
+`SelectOption`, which cannot express it.
+
 **Clicking a *different* element is a second, separate path — and it discards.**
 `TrySelectNewElement` opens with a hardcoded
 `Manager.input.activeInputField.Deactivate(commit: false)`, but that line is
@@ -472,10 +497,22 @@ vanilla's own menu objects with Harmony. Three classes matter:
 | `RadicalOptionsMenu` | the options screen specifically |
 | `RadicalMenuOption` | one row; subclass it for your own widgets |
 
-`RadicalMenu.Awake()` collects rows with
+`RadicalMenu.Awake()` (`:342601`) collects rows with
 `GetComponentsInChildren(includeInactive, menuOptions)`, so any
 `RadicalMenuOption` sitting under the menu at `Awake` time is registered
-automatically. That single fact dictates *when* you must inject.
+automatically. That single fact dictates *when* you must inject. Note that this
+**overwrites** whatever the prefab serialized into `menuOptions`, and that it
+takes inactive children too — a template you keep switched off is collected
+like a live row.
+
+**Collection and routing are two different mechanisms; do not reason from one
+to the other.** `menuOptions` decides what gets positioned and what an index
+can reach; `isMenuOption` decides who receives selection. A control that
+overrides `isMenuOption => false` is still collected here, so it is still
+subject to the auto-layout pass — which is the usual reason such a button ends
+up stacked somewhere unexpected (see [§ auto-positioning](#a-radicalmenu-positions-its-own-options--switch-that-off)). Note the
+call uses the list overload, so grepping for `GetComponentsInChildren<RadicalMenuOption>`
+finds nothing: the type appears only in the parameter.
 
 **A row already has a second text field.** `RadicalMenuOption`
 (`Pug.Other:343031`) declares `labelText` (`:343056`) **and** `public PugText
@@ -1466,6 +1503,33 @@ held state, read CK's hover selection as the target, act on release — that
 meets the first one at the operation, not at the input. Budget for two paths,
 not one.
 
+**Count the whole bill before choosing this shape.** Opting a control out of
+CK's routing is one decision with a long tail, and the items arrive one at a
+time — each looking like an isolated bug rather than the next instalment.
+Measured on one drill-in screen with three icon buttons per row, in the order
+they surfaced: `OnSelected` never fires (the `isMenuOption` override itself);
+the click collider must be built by hand (no text to derive one from); keyboard
+activation must be forwarded from the row; directional input must be
+intercepted (`handleNavigationInternally`); which control has focus becomes
+state you own and must not let leak; the hover clears `selectedIndex`, which
+silently disables CK's activation sound *and* makes the next arrow press start
+from the first or last option; and finally that state needs a "did this come
+from the pointer or the keyboard?" test, for which no reliable flag exists (see
+`SystemIsUsingMouse` below).
+
+The trap inside the trap: restoring the focused control from your own state
+inside `OnSelected` looks like the obvious fix and is **unstable**, because of
+the every-frame `Select()` above — the row is selected (sound), your code
+redirects to the button, the next frame the pointer is over the row again
+(sound), and so on for as long as the mouse rests there.
+
+None of these is unsolvable, and together they are a re-implementation of
+CK's selection model. **When a control needs to be navigable in its own right,
+`useUIElementsForNavigation` is the cheaper answer** — neighbour wiring instead
+of remembered state, with hover, sound and activation coming from CK. Reserve
+the non-`menuOption` shape for elements that are genuinely *not* navigation
+targets, which is what CK uses it for.
+
 ### Two menu sounds share one `SfxID`, and neither belongs to the click
 
 The game has a single menu sound effect, `SfxID.FIXME_menu_select`, played from
@@ -1794,6 +1858,20 @@ page under the player's cursor. Keyboard and controller navigation leave the
 flag false. `MoveScrollToIncludePosition` self-gates internally to keyboard
 menu-up/down and controller input, but a direct `MoveScroll` does not — gate it
 explicitly.
+
+**But know what that flag actually answers.** It reports the input *mode* the
+system is currently in — a sticky state that changes on device events — not
+whether the thing happening right now came from the pointer. Moving the mouse
+after a key press does not necessarily flip it, so a hover can arrive while the
+flag still says keyboard. For scroll-follow that is harmless and even correct:
+the question there really is "which mode is the player in". It is the wrong
+instrument for "was this particular `OnSelected` caused by a hover?", and using
+it that way produces a bug that only appears *after* the player has touched the
+keyboard — the worst kind to reproduce, because the obvious test (move the
+mouse, watch what happens) passes from a cold start. When you need that
+distinction, carry it yourself: set a flag around your own
+`SelectNextIndex`/`SelectPrevIndex`/`Skim*` overrides, where the calling path is
+known for certain, instead of asking the input system to guess.
 
 ### Rows taller than the window
 
