@@ -1880,6 +1880,21 @@ flag false. `MoveScrollToIncludePosition` self-gates internally to keyboard
 menu-up/down and controller input, but a direct `MoveScroll` does not — gate it
 explicitly.
 
+**Read that self-gate before relying on it, because it is narrower than its
+name.** The full condition (`:357681`) is
+
+```csharp
+if (!SystemPrefersKeyboardAndMouse() || (SystemIsUsingKeyboard() && (IsMenuDownButtonPressed() || IsMenuUpButtonPressed())))
+```
+
+so on a keyboard-and-mouse system it acts only while the input mode is keyboard
+**and** an up/down button is **held** — `IsMenuDownButtonPressed` is
+`GetButton`, the held state, not the edge. Every CK caller runs from directional
+navigation, where all of that is true by construction. Call it from anywhere
+else — a selection restored after a rebuild, a jump to a search hit, anything a
+frame after a confirmation — and it returns having done nothing, with no error.
+Outside that one context, do the arithmetic and call `MoveScroll` yourself.
+
 **But know what that flag actually answers.** It reports the input *mode* the
 system is currently in — a sticky state that changes on device events — not
 whether the thing happening right now came from the pointer. Moving the mouse
