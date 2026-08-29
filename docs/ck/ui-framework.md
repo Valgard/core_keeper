@@ -1771,6 +1771,27 @@ was never built.
   render time (`Pug.Other:350652`, with `maskInteraction` on the next line), and
   a style asset shared between prefabs makes the serialized value a poor witness.
 
+The fourth trap is the opposite one, and it fails loudly somewhere else instead
+of silently here. **Bound the range above as tightly as below: a mask reaching
+to `32767` reveals other people's art.** A custom range is not scoped to the
+prefab that declares it — it governs every renderer in that band, and Core
+Keeper's own UI sits in the same band. Since masks combine as OR, one mask that
+reaches too far is enough to reveal something CK meant to keep hidden, and CK's
+own mask over it then decides nothing.
+
+The failure looks like a bug in the vanilla element rather than in your prefab.
+Measured on 2026-08-30: the confirmation dialogue's hold-to-confirm bar showed
+as already full while the hold still had to be completed. That bar is a mask
+reveal, not a fill — `PopUpOption.Update` (`:341824`) scales `_exitMaskBarPivot`
+— so a foreign mask covering it simply showed all of it.
+
+Two properties made it hard to read. The mask belonged to a **row template**, so
+a list of twenty rows was twenty such masks, and the odds of one lying over the
+dialogue grew with the list. And masks have gaps between them, so the fault
+appeared at four entries, vanished at five and returned at six: the bar landed
+alternately on a mask and in a gap. A defect that switches on and off with a
+count is worth suspecting as geometry rather than logic.
+
 **A mask parented to a scrolling row scrolls with it**, and keeps clipping after
 the row has left the viewport. That shows up as text standing outside the list
 with no frame around it — the frame is still governed by the outer mask, the
