@@ -1499,10 +1499,24 @@ anything.
 
 Two consequences when building controls of your own:
 
-- **A sub-element that is not a `menuOption` gets no selection sound**, because
-  `SelectOption` cannot find it in `menuOptions` and returns silently (previous
-  section). What reads as "the click sound" on a vanilla button is usually the
-  *hover* one step earlier, selecting a real menu option.
+- **Hovering a sub-element that is not a `menuOption` disarms the activation
+  sound for the click that follows.** `UIMouse.TrySelectNewElement` calls
+  `DeselectAnySelectedUIElement` (`:273433`) before every hover change, and that
+  unconditionally runs `MenuManager.DeselectAnyCurrentOption` → `selectedIndex
+  = -1` (`:342844`). The `Select()` that follows only restores the index for a
+  real menu option, through `SelectOption`; for anything else it merely calls
+  `OnSelected()`. So the pointer leaves the menu with **no selected option**,
+  `CanActivateCurrentOption()` is false, and neither the selection sound nor the
+  activation receipt can fire. A keyboard activation of the same control still
+  sounds, because no hover change happened and the index still names whatever
+  was selected — which is how a control ends up audible on Enter and silent on
+  click. CK's own dropdown open button behaves exactly this way.
+
+  Two things beyond sound ride on that same false: `GetHelpButtonsToShow`
+  (`:343024`) drops the SELECT hint from the footer while the pointer rests on
+  such an element, and `ActivateSelectedOption` has nothing to act on — which is
+  why a non-`menuOption` needs its own click path (`OnLeftClicked`) rather than
+  CK's activation.
 - **`AttemptToPlayMenuSfx` (`:269300`) discards calls inside a 50 ms unscaled
   cooldown** (`:269113`) and reports nothing. Two sounds triggered by one
   gesture collapse into one, so the same control can sound one time and not the
