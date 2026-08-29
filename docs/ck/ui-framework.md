@@ -1512,11 +1512,18 @@ Two consequences when building controls of your own:
   was selected — which is how a control ends up audible on Enter and silent on
   click. CK's own dropdown open button behaves exactly this way.
 
-  Two things beyond sound ride on that same false: `GetHelpButtonsToShow`
-  (`:343024`) drops the SELECT hint from the footer while the pointer rests on
-  such an element, and `ActivateSelectedOption` has nothing to act on — which is
-  why a non-`menuOption` needs its own click path (`OnLeftClicked`) rather than
-  CK's activation.
+  `ActivateSelectedOption` has nothing to act on either, which is why such an
+  element needs its own click path (`OnLeftClicked`) rather than CK's
+  activation.
+
+  **The hint bar does not report this state, and cannot be used to diagnose
+  it.** `RadicalMenu.GetHelpButtonsToShow` does consult
+  `CanActivateCurrentOption()` (`:343024`), but `MenuManager.UpdateHelperButtons`
+  (`:269473`) only calls that method when an option is actually selected — or
+  when the menu sets `UseCustomHelpButtons`. With no selection and without that
+  flag, the footer falls back to `defaultHelpButtons`, which carry SELECT. So a
+  menu whose selection the pointer just cleared shows an unchanged footer,
+  hint included. Tested in game after predicting the opposite.
 - **`AttemptToPlayMenuSfx` (`:269300`) discards calls inside a 50 ms unscaled
   cooldown** (`:269113`) and reports nothing. Two sounds triggered by one
   gesture collapse into one, so the same control can sound one time and not the
