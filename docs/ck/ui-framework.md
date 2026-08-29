@@ -1466,6 +1466,49 @@ held state, read CK's hover selection as the target, act on release — that
 meets the first one at the operation, not at the input. Budget for two paths,
 not one.
 
+### Two menu sounds share one `SfxID`, and neither belongs to the click
+
+The game has a single menu sound effect, `SfxID.FIXME_menu_select`, played from
+eight call sites. Pitch is what separates the two things it means:
+
+- **Selection**, pitch 1.0 — `MenuManager.SelectOption` (`:269855`) and the four
+  directional-navigation branches (`:269920`, `:269927`, `:269934`, `:269941`).
+- **Activation**, pitch **0.6** with `reuse: false` — `:269883`, inside
+  `UpdateInputAndApplyToCurrentMenu` (`:269869`), and `RadicalMenu.Activate`
+  for a menu that sets `playSoundOnActivate` (`:342679`).
+
+The activation branch is the one worth reading closely:
+
+```csharp
+bool flag = Manager.input.IsMenuInteractButtonDown();
+if (topMenu.CanActivateCurrentOption())
+{
+    if (flag || Manager.input.IsMenuMouseInteractButtonDown())
+        AttemptToPlayMenuSfx(SfxID.FIXME_menu_select, 0.6f, 0f, reuse: false);
+    if (flag) { ActivateSelectedOption(); return true; }
+}
+```
+
+**The mouse activates nothing here** — that runs through `UIMouse` and the
+element's own `OnLeftClicked`. It appears in this block solely in the sound
+branch. The sound is therefore a receipt for the *button press*, and its one
+condition is `CanActivateCurrentOption()` (`:343013`): whether
+`menuOptions[selectedIndex]` is activatable (`:342531`). It says nothing about
+what the pointer was over, and nothing about whether the click reached
+anything.
+
+Two consequences when building controls of your own:
+
+- **A sub-element that is not a `menuOption` gets no selection sound**, because
+  `SelectOption` cannot find it in `menuOptions` and returns silently (previous
+  section). What reads as "the click sound" on a vanilla button is usually the
+  *hover* one step earlier, selecting a real menu option.
+- **`AttemptToPlayMenuSfx` (`:269300`) discards calls inside a 50 ms unscaled
+  cooldown** (`:269113`) and reports nothing. Two sounds triggered by one
+  gesture collapse into one, so the same control can sound one time and not the
+  next without anything about it having changed — which makes "it made no
+  sound" a weak single observation.
+
 ## A `RadicalMenu` positions its own options — switch that off
 
 `RadicalMenu.Activate()` ends with:
