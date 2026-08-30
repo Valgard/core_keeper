@@ -125,7 +125,22 @@ cooldown. And any per-`OnSelected` work you attach to an element runs every
 frame, not once; if that work re-selects something else, the two fight for the
 pointer for as long as it rests there.
 
-`SelectOptionIndex` (`:342813`) itself is the well-behaved half: it returns
+**`SelectOptionIndex` never asks whether the option can be selected.** Its only
+guards are `CanChangeIndex()` and "the index is already that" (`:342815`,
+`:342819`); it then sets `selectedIndex` and calls `OnSelected()` on whatever
+sits there — inactive, invisible or `GRAYED_OUT` alike. Only
+`SelectIndexInDirection` filters on `IsSelectionEnabled()`. That asymmetry is a
+trap for any menu whose `menuOptions` contains entries that are not always
+reachable: put something unselectable at either end of the list, and the entry
+points that address the list **by index** — `SelectOptionIndex(0)`,
+`SelectOptionIndex(menuOptions.Count - 1)`, or your own "enter the list"
+override — will land on it. From then on `GetSelectedMenuOption()` reports it
+as the selection, directional navigation asks *its* neighbour lists, and if
+those are empty the menu is stuck with nothing visibly selected and no error
+anywhere. Keep unreachable entries out of `menuOptions`, or make the
+index-based entry points walk to the first `IsSelectionEnabled()`.
+
+`SelectOptionIndex` is otherwise the well-behaved half: it returns
 `false` when the index is unchanged and plays nothing. CK's own directional
 navigation pairs the two correctly — `if (SelectNextIndex()) …Sfx…` — so the
 sound follows a real change. Copy that pairing rather than calling
@@ -697,6 +712,27 @@ does. CK itself sidesteps it with `Invoke("RestartToApplyModChanges", 0.1f)`;
 the delay is the whole point, and a frame countdown out of `IMod.Update` does
 the same job.
 
+**Trap: the call can be refused, and it returns `void`.**
+`StartNewDisplaySequence` opens with
+
+```csharp
+if (_priority > priority && textBackground.gameObject.activeSelf) return;
+```
+
+(`:342075`), so a dialog already on screen with a higher priority swallows yours
+whole — no dialog, no callback, no log line, and nothing at the call site that
+could notice. Passing `priority: 0`, as most mod code does, loses every such
+race. In a menu this is rare but not impossible: world events raise popups while
+the options screen is open, and in multiplayer another player can trigger one.
+Treat a dialog as something that *may not appear*, and never make it the only
+route to an action the player has already asked for.
+
+The same single `centerPopUpText` is shared by every popup in the game, which is
+the other half of this: a second sequence started while yours is live replaces
+its text without touching the buttons already on screen. That produces a dialog
+reading one thing and acting as another — the failure is invisible until someone
+presses the button.
+
 ### The confirm dialog has two independent hardening levels
 
 `StartNewDisplaySequence` guards a destructive answer twice over, and the two
@@ -706,6 +742,17 @@ are easy to confuse because both read as "make it harder to confirm":
   dialog. The yes-option reports `CanBeActivated() == false` while it runs, so
   the momentum of the click that opened the dialog cannot confirm it. Free, and
   the reason a dialog that appears under the cursor is not a hazard.
+
+  > ⚠️ **`CanBeActivated()` does not gate the mouse.** It is consulted by the
+  > input poll (`MenuManager.UpdateInputAndApplyToCurrentMenu`, `:269879`), which
+  > is what keyboard and controller activation runs through. A click takes the
+  > other path: `UIMouse` → `UIelement.LeftClick` (`:357895`) →
+  > `RadicalMenuOption.OnLeftClicked` (`:343297`), whose entire body is
+  > `OnActivated();` — no `CanBeActivated()` anywhere. So overriding it to false
+  > silences the sound and drops the footer hint, and the control still fires
+  > when clicked. Anything that must not happen needs its own guard **inside**
+  > `OnActivated`. CK gets away with it here because the dialog is modal and its
+  > own timer is short.
 - **`holdToConfirm`**, default `false`, changes what the yes-option's
   `OnActivated` does: instead of firing, it starts a **one-second hold** with a
   progress bar (`_exitContainer` becomes visible, `_exitMaskBarPivot` scales
