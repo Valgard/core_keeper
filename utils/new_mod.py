@@ -725,9 +725,13 @@ def build_csharpierignore() -> str:
 
 
 def build_precommit_config() -> str:
-    """The formatting-gate pre-commit hook. Runs `csharpier check` — it
-    blocks, it does not rewrite — at both the `pre-commit` and `pre-push`
-    stages, matching every existing mod repo."""
+    """The repo's two gates, both at `pre-commit` and `pre-push`, matching
+    every existing mod repo.
+
+    `csharpier check` blocks, it does not rewrite. `docs-links` runs the
+    parent repo's checker over this repo — a dead relative link or an
+    `#anchor` with no matching heading is the quietest documentation defect
+    there is, since the file still renders and the link is still blue."""
     return """repos:
     - repo: local
       hooks:
@@ -736,6 +740,19 @@ def build_precommit_config() -> str:
             entry: dotnet csharpier check
             language: system
             files: \\.cs$
+            stages:
+                - pre-commit
+                - pre-push
+
+          # The checker lives in the parent repo, not here: this mod repo sits
+          # inside it and already reaches for ../utils/ to build and link. It
+          # takes this repo's root, so the scope is `git ls-files` here.
+          - id: docs-links
+            name: docs links
+            entry: uv run --frozen --project .. ../utils/check_docs_links.py .
+            language: system
+            pass_filenames: false
+            files: \\.md$
             stages:
                 - pre-commit
                 - pre-push

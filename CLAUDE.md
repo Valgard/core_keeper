@@ -366,12 +366,17 @@ human-facing setup; what matters when editing code here:
   repos, so a bare `csharpier format .` would rewrite them all. The parent's
   `.csharpierignore` is an allowlist (`/*` + `!/utils/`) for exactly that
   reason; `ruff` needs no counterpart because it honours `.gitignore`.
-- **A staged `.md` also runs the documentation link gate** in `core_keeper`
-  (`utils/check_docs_links.py`, `pre-commit` + `pre-push`): a dead relative
-  link, an `#anchor` with no matching heading, or a `docs/ck/` chapter that
-  `docs/ck/index.md` does not link blocks the commit. Practical
-  consequence: **renaming a heading in `docs/ck/` breaks every link into it**,
-  and the gate will say so — fix the links in the same commit.
+- **A staged `.md` also runs the documentation link gate** — in `core_keeper`
+  *and in every mod repo* (`utils/check_docs_links.py`, `pre-commit` +
+  `pre-push`): a dead relative link, an `#anchor` with no matching heading, or
+  a `docs/ck/` chapter that `docs/ck/index.md` does not link blocks the
+  commit. Practical consequence: **renaming a heading in `docs/ck/` breaks
+  every link into it**, and the gate will say so — fix the links in the same
+  commit. A mod repo has no checker of its own: its hook runs the parent's
+  over the mod repo's own root, the same way its build reaches for
+  `../utils/build.sh`. One rule bends for it — the duplicate-anchor check
+  skips `CHANGELOG.md`, because Keep a Changelog repeats `### Added` once per
+  release, which is the format and not a defect.
 - **A staged `.md` runs the wrapping gate as well**
   (`utils/check_docs_wrapping.py`, the same two stages): a paragraph whose line
   breaks no longer fit the width that file is written at blocks the commit.

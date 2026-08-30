@@ -359,13 +359,25 @@ a heading is reworded — which is why `docs/ck/` carries the rule that headings
 are never renamed, and why that rule is now enforced rather than merely
 written down.
 
+One rule steps aside for `CHANGELOG.md`: the duplicate-anchor check. Keep a
+Changelog repeats `### Added` / `### Fixed` once per release, so the
+repetition there is the format rather than a defect, and nothing links into a
+changelog by anchor. Every other check still applies to it.
+
 Scope comes from `git ls-files`, not from a directory walk, for the same
 reason `.csharpierignore` is an allowlist: the SDK clone and every mod repo sit
 inside this one as separate repositories.
 
 ```bash
 uv run utils/check_docs_links.py     # prints the file and link count when clean
+uv run utils/check_docs_links.py <mod>   # or any repo: it takes a root
 ```
+
+**Every mod repo runs it too**, on the same two stages. They carry no copy of
+the checker — their hook invokes this repo's over their own root
+(`uv run --frozen --project .. ../utils/check_docs_links.py .`), the way their
+builds already reach for `../utils/build.sh`. `utils/new_mod.py` scaffolds
+that hook, so a new mod repo has the gate from its first commit.
 
 ## Documentation wrapping gate
 
