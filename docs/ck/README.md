@@ -6,8 +6,15 @@ without falling into the traps that make correct-looking code do nothing.
 This is a reference work, not a tutorial. It is distilled from building and
 shipping mods against Pugstorm's `CoreKeeperModSDK` — so it is **empirical**:
 it records what the game was observed to do and what the decompiled assemblies
-show, not what any specification promises. Where something was verified only
-for a specific case, the text says so rather than generalising.
+show, not what any specification promises.
+
+That cuts both ways. Each finding was made in one mod, at one call site, and
+what the text states is the generalisation drawn from it. Where the evidence
+behind a passage is narrow the text aims to say so, but that is an intention and
+not a guarantee: a claim that generalised too far reads exactly like one that did
+not. Chapters are therefore worth reading first and worth verifying second —
+against the decompile or the running game — and the index's preamble says what
+to do when the two disagree.
 
 That also means it is **bound to a game version**: a fact read out of a
 decompile is true for the build it was read from, and an update can quietly

@@ -7,6 +7,29 @@ Everything here was read off a running game or out of decompiled assemblies
 rather than from documentation, so a game update can invalidate any statement in
 it without warning, and nothing announces that it has.
 
+Every statement also began somewhere narrower than it now reads. A finding
+arrives while building one particular mod, at one call site, on one host; what
+gets written down is the generalisation of it — "this is how Core Keeper
+behaves" — and that step is a derivation, not the observation it resembles.
+Usually it holds, which is why reading the relevant chapter first saves the most
+time. Where it does not, the failure takes one of four shapes: the claim is true
+only of the situation it was found in; or it is simply wrong; or it is incomplete,
+because the case that would have contradicted it never came up; or it is
+backwards, cause and effect having been read the wrong way round in the one case
+available. The chapters try to say so where the evidence is narrow, but that is
+an intention rather than a guarantee — an overreaching claim reads exactly like a
+well-supported one, and nothing in the text distinguishes them.
+
+Which makes this a place to start rather than an authority to cite. Take a
+chapter as the best available hypothesis plus a record of what has already been
+ruled out, and check it against the decompile or the running game before
+building something expensive on it — and before repeating it outside your own
+work. Where the game disagrees with a chapter, the game is right: correct the
+chapter there, visibly, so a reader who remembers the old claim learns that it
+changed. [Reverse engineering](reverse-engineering.md) has the checks that make a generalisation safe, and
+the four ways a correct reading of the source still describes something other
+than what runs.
+
 It covers the game and the SDK — nothing about any individual mod, and no
 script, path or command belonging to a particular workspace. How you build,
 publish or run a server is yours to arrange; what the chapters describe is the

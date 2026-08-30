@@ -7,21 +7,33 @@ true for *all* mods built against Pugstorm's `CoreKeeperModSDK` on this
 machine — change it only when an insight is genuinely mod-agnostic.
 
 **Game and SDK reference — `docs/ck/`.** Deliberately NOT an `@`-reference: it
-is ~7,000 lines and most sessions need none of it. Open `docs/ck/index.md` when
-a question is about the game rather than about this repo — it routes by symptom
-and by task, so one read usually lands on the right chapter. Triggers: getting a
-build to run at all — Unity version, modules, wizard steps, the project lock,
-the macOS Steamworks fix (`toolchain.md`); the load-time sandbox and
-`CompileFailed`; Harmony or ECS patching that binds but never fires; the object
-database and bake-time edits; UI, prefabs, sprites, fonts; world geometry,
-tiles, placement, creatures; multiplayer and dedicated-server differences;
-localisation; save file formats; decompiling and asset extraction.
+is many times the size of this file and most sessions need none of it. Open
+`docs/ck/index.md` when a question is about the game rather than about this repo
+— it routes by symptom and by task, so one read usually lands on the right
+chapter. Triggers: getting a build to run at all — Unity version, modules,
+wizard steps, the project lock, the macOS Steamworks fix (`toolchain.md`); the
+load-time sandbox and `CompileFailed`; Harmony or ECS patching that binds but
+never fires; the object database and bake-time edits; UI, prefabs, sprites,
+fonts; world geometry, tiles, placement, creatures; multiplayer and
+dedicated-server differences; localisation; save file formats; decompiling and
+asset extraction.
 
 The split: **this file holds the working rules for this repo** (setup,
 conventions, what must stay in step with what), **the handbook holds the game
 knowledge**. Check the handbook before investigating game behaviour from
-scratch — it very likely answers it already, and it records what has already
-been ruled out.
+scratch: it records what has already been ruled out, so it either answers the
+question or sharpens it.
+
+**But it is a witness, not a judge.** Every chapter was written out of what
+developing one particular mod turned up, and what the sentence states is the
+generalisation drawn from that one case — which can hold only there, be wrong,
+be incomplete because the contradicting case never came up, or be inverted.
+Nothing in the text marks which. So take a passage as the strongest available
+hypothesis, and verify it against the decompile or the running game before a
+design decision, an "it cannot be done" verdict, or anything published rests on
+it. When the game contradicts a chapter, the game wins and the chapter is
+corrected in the same pass. The handbook stands to the game as a memory stands
+to reality: worth consulting first, never quoted as proof.
 
 ## Directory layout
 
