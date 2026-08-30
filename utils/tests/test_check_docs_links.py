@@ -111,6 +111,29 @@ class TestCheck:
         (problem,) = mod.check([a], tmp_path)
         assert "duplicate heading anchor" in problem
 
+    def test_a_changelog_may_repeat_its_category_headings(self, tmp_path):
+        # Keep a Changelog repeats "### Added" once per release. That is the
+        # format rather than a defect, and it is what every mod repo does.
+        a = write(
+            tmp_path,
+            "CHANGELOG.md",
+            "## [1.1.0]\n\n### Added\n\nx\n\n## [1.0.0]\n\n### Added\n\ny\n",
+        )
+        assert mod.check([a], tmp_path) == []
+
+    def test_a_changelog_still_has_its_own_links_checked(self, tmp_path):
+        # Only the duplicate rule steps aside; the file is not exempt.
+        a = write(tmp_path, "CHANGELOG.md", "## [1.0.0]\n\n[x](gone.md)\n")
+        (problem,) = mod.check([a], tmp_path)
+        assert "gone.md" in problem
+
+    def test_an_anchor_into_a_changelog_still_resolves(self, tmp_path):
+        # The anchors are still collected, so a link into one is checked as
+        # usual — it lands on the first heading, which is what a browser does.
+        write(tmp_path, "CHANGELOG.md", "## [1.1.0]\n\n### Added\n")
+        a = write(tmp_path, "a.md", "[x](CHANGELOG.md#added)\n")
+        assert mod.check([a, tmp_path / "CHANGELOG.md"], tmp_path) == []
+
     def test_reports_an_unclosed_fence(self, tmp_path):
         a = write(tmp_path, "a.md", "# H\n\n```\nstill open\n")
         (problem,) = mod.check([a], tmp_path)

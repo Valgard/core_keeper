@@ -18,6 +18,12 @@ fences are balanced. Plus one rule for the handbook: every chapter under docs/ck
 is linked from its index.md, so a new chapter cannot be added and left
 unreachable.
 
+The duplicate-anchor rule skips CHANGELOG.md. Keep a Changelog repeats
+`### Added` / `### Fixed` once per release, so the repetition there is the
+format rather than a defect — it is what every mod repo's changelog does, and
+nothing links into a changelog by anchor. Every other check still applies to
+it, including that its own links resolve.
+
 Three link forms it does not recognise, all absent from the tracked docs when
 this was written and left unhandled rather than guessed at: reference-style
 links (`[text][ref]` and the shortcut form), Setext headings and HTML anchors
@@ -124,7 +130,10 @@ def check(files, root):
             if not match:
                 continue
             slug = anchor(match.group(1))
-            if slug in seen:
+            # A changelog repeats its category headings once per release; that
+            # is the format, not a defect. Collect the anchor either way, so a
+            # link into the file still resolves.
+            if slug in seen and path.name != "CHANGELOG.md":
                 problems.append(
                     f"{path.relative_to(root)}:{number}  duplicate heading "
                     f"anchor '{slug}' (also line {seen[slug]})"
