@@ -1311,15 +1311,43 @@ enum HelpButtonTypes { NAVIGATE, SELECT, BACK, REFRESH, OPENPROFILE, RESET_DEFAU
 Each of the seven maps to a serialized GameObject slot carrying a **baked
 per-platform glyph**. There is no clean way to add an eighth.
 
-**But one of the seven is unclaimed.** `RESET_DEFAULTS` is fully wired and never
-used: `MenuHelperButtons.Awake` registers it in `helpButtonToGameObject`
+**One of the seven is all but unclaimed.** `RESET_DEFAULTS` is fully wired:
+`MenuHelperButtons.Awake` registers it in `helpButtonToGameObject`
 (`Pug.Other` ~338892) with a complete `HelpButton` — a `root` GameObject, an
 `InputDependentSprite` and a `description` `PugText` carrying `textString:
-Menu/Reset` with `localize: 1`, a term that exists in `I2Languages.asset`. No
-vanilla menu ever asks for it: the only two mentions of `RESET_DEFAULTS` in the
-whole of `Pug.Other` are the enum member and that registration, and no other
-assembly names it either. So if your prompt *means* what the slot is named,
-request it and take the per-platform glyphs and the translation for free.
+Menu/Reset` with `localize: 1`, a term that exists in `I2Languages.asset`. So if
+your prompt *means* what the slot is named, request it and take the per-platform
+glyphs and the translation for free.
+
+**Exactly one vanilla menu requests it, and no C# file says so.** The only two
+mentions of `RESET_DEFAULTS` in any assembly are the enum member and that
+registration — which is why this passage used to call the slot unused. It is
+not: `ControlMappingMenu` returns it from `GetHelpButtonsToShow()`
+(`Pug.ControlMapping:916-924`), which hands back two `[SerializeField]` lists
+verbatim, and the values live in the prefab
+(`ControlMappingMenu.prefab:2456-2457`):
+
+```
+_helpButtonList:           0600000005000000000000000100000002000000
+_helpButtonListNoJoystick: 05000000000000000100000002000000
+```
+
+As little-endian int32 that is `[6,5,0,1,2]` and `[5,0,1,2]` — CALIBRATE,
+**RESET_DEFAULTS**, NAVIGATE, SELECT, BACK. The Controls screen really does show
+a reset prompt, and it acts on it (`Pug.ControlMapping:386-389`).
+
+**The general lesson is worth more than the correction.** A grep across every
+decompiled assembly is the right test for "is there a code path?" and still does
+not answer "is this used?" — anything reaching the engine through
+`[SerializeField]` is invisible in a decompile and lives only in prefab YAML.
+The same shape appears elsewhere in this chapter: `DropdownUIElement`'s
+`ToggleDropdownList()` has no C# caller either and is reached solely through a
+prefab `onLeftClick` UnityEvent. When a decompile says "nobody calls this",
+check the prefabs before believing it.
+
+Using the slot in your own menu remains fine — the two screens are separate, and
+`GetHelpButtonsToShow()` is per-menu. What the correction removes is only the
+idea that the slot is free real estate.
 
 When no slot fits your prompt — "[Y] Toggle view" and the like — **roll your
 own hint object**: a `PugText` plus a sprite, parented under your own menu,
@@ -1381,6 +1409,21 @@ Every `system` category — `Menu`, `Debug`, `ControlMapperUI` — is effectivel
 read-only for mods and hidden from the Controls screen. You *can* write a
 keyboard default onto 221 directly through Rewired's `UserData`, but the result
 is invisible, non-rebindable, global and of uncertain persistence.
+
+**Do not pick an action id because its name fits — pick it by category.**
+`RewiredConsts.Action` carries a `categoryName` on every constant
+(`Pug.Other:386480` ff.), and the category, not the name, decides whether your
+poll ever sees anything: each one has its own controller maps, enabled and
+disabled as a set. The trap has a concrete shape. A settings screen wanting a
+"reset to defaults" prompt will find `ResetDefaults = 300` and read it as the
+obvious answer, but 300 sits in `ControlMapperUI` ("UI for control mapper",
+`_id: 4`) together with `Calibrate = 301` and `SelectNextCategory` /
+`SelectPreviousCategory` = 298/299 — a closed set belonging to the Controls
+screen, which is the only place that polls them
+(`Pug.ControlMapping:302-320`). The `Menu` category (`_id: 1`) is the one that
+applies while any menu is open, and 221/223 above are its members. Both
+categories are `_tag: system` and `_userAssignable: 0`, so accessibility does
+not tell them apart — only membership does.
 
 **The clean keyboard path is therefore a CoreLib action** (see above): a new
 action in a mod-owned `player` category, visible and rebindable in Controls.
