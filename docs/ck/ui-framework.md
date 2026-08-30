@@ -1368,6 +1368,40 @@ reference it is handed and compares the next frame's list against it with
 `SequenceEqual`, so an in-place edit is invisible to that check and the bar
 stops refreshing as well.
 
+### Never hand `GetHelpButtonsToShow()` a list you keep
+
+The bar is refreshed every frame, so returning a freshly allocated `List` from
+that override looks wasteful and the obvious fix is a reused field. **That fix
+silently disables the bar.**
+
+`MenuHelperButtons.UpdateShowingButtons` (`Pug.Other:338896`) keeps the list it
+is handed **by reference** — `currentButtonsToShowing = buttonsToShow`
+(`:338903`) — and its early-out asks:
+
+```csharp
+if (… && currentButtonsToShowing.SequenceEqual(buttonsToShow) && …)
+    return;
+```
+
+Hand back the same instance and that comparison asks whether a list equals
+itself, which it does however much was written into it meanwhile. The footer
+then keeps whatever it drew the first time, for the life of the screen. Two
+buffers used alternately fail the same way for a subtler reason: CK stores only
+the list it actually *redraws* from, so after a skipped frame it is still
+holding the buffer the next call is about to overwrite.
+
+So allocate. It is a handful of enum values, and `UpdateShowingButtons` builds
+its own `List<HelpButton>` on every real update anyway (`:338915`).
+
+**Why this hides so well:** the same early-out also compares
+`systemPrefersKeyboard`. Switching between keyboard and mouse changes it, forces
+a redraw, and makes the bar briefly correct itself — so a frozen bar looks like
+it is tracking the mouse rather than being stuck. It was diagnosed twice wrongly
+on that basis (2026-08-30) before the buffering was ruled out, and it only
+becomes visible at all once two rows of one menu produce *different* prompts;
+while every row asks for the same set, a frozen bar is indistinguishable from a
+working one.
+
 ## Which input actions you can use inside a menu
 
 **Take `OpenProfile`, Rewired action id `223`.** Of the menu face-button
@@ -2060,6 +2094,52 @@ template. `ItemSlotsUIContainer.InstantiateItemSlots` builds a *fixed* pool of
 bails out at `num >= itemSlots.Count`, and scrolling just slides the entire pool
 under the clip mask. Nothing is ever recycled. That is fine up to a few hundred
 entries and useless for tens of thousands. Virtualisation is yours to build.
+
+## A menu with no options is a crash, not an empty screen
+
+A `RadicalMenu` whose `menuOptions` is empty is not a degenerate-but-safe state.
+CK indexes that list unguarded in three separate places, and only one of them
+can be intercepted from a subclass. This matters for any menu built from data —
+a list that filters to nothing, a screen whose rows all failed to wire.
+
+**1. `Activate()` itself, before any input.** With `rememberSelectedIndex` set
+on the prefab (`Pug.Other:342703-342715`):
+
+```csharp
+if (selectedIndex != MathUtilities.Clamp(selectedIndex, 0, menuOptions.Count - 1))
+    SelectOptionIndex(num);
+else if (menuOptions[selectedIndex].GetActiveStateInCurrentScene() == …)
+```
+
+The guard reads like a range check and is not one here. **`MathUtilities.Clamp`
+is not `Mathf.Clamp`** (`Pug.UnityExtensions:5349`): it is two *sequential* ifs,
+
+```csharp
+if (x < low)  x = low;
+if (x > high) x = high;
+```
+
+so with an empty list (`high = -1`) `Clamp(-1, 0, -1)` walks `-1` up to `0` and
+back down to `-1` and returns **-1** — equal to `selectedIndex`, so the "in
+range" branch runs and dereferences `menuOptions[-1]`. This fires on keyboard
+too, not just on a gamepad: `SystemIsUsingMouse` (`Pug.Other:267323`) compares
+the *last active* controller, and opening a menu with Enter makes that the
+keyboard.
+
+**2. Left/right, through `SkimLeft`/`SkimRight`** (`Pug.Other:342977`, `:342995`)
+when the menu has `placeOptionsHorizontally: 0`. Both are `internal` **and
+non-virtual**, so no override reaches them; both route into
+`SelectIndexInDirection` (`:342744`), which on a non-keyboard-first system calls
+`SelectOptionIndex(DefaultOptionIndex = 0)` with no count check.
+
+**3. Up/down, through `SelectNextIndex`/`SelectPrevIndex`** — the only two that
+*are* virtual, and the only ones a subclass can guard.
+
+**So guard the entry, not the symptoms.** Refuse to push the menu when it would
+have nothing to show, rather than defending each path: two of the three cannot
+be defended from your own class at all. `RadicalMenu.SelectNextIndex` does carry
+its own `menuOptions.Count <= 0` check (`:342779`), which is why up/down alone
+can look safe while the screen still dies on open.
 
 ## Options that exist but cannot be changed right now
 
