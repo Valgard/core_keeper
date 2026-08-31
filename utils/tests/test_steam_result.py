@@ -9,6 +9,7 @@ nothing", because doing nothing is only correct when nothing was created.
 """
 
 import json
+import os
 import shutil
 import subprocess
 
@@ -17,6 +18,15 @@ import steam_identity
 import steam_result
 
 MOD = "DisableDurability"
+
+# `git init <path>` obeys an inherited GIT_DIR over its own argument, so under
+# the pre-commit hook — which sets GIT_DIR and GIT_INDEX_FILE — the throwaway
+# repository these tests build is never created, is_tracked reads 128 ("not a
+# repository") and returns None, and the untracked-asset warning it is checking
+# for never fires. The test then fails exactly where it matters most: in the
+# hook. Same defence as test_steam_identity.GIT_ENV and the one
+# steam_identity.is_tracked already applies to its own call.
+GIT_ENV = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
 
 ASSET = """%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
@@ -251,7 +261,7 @@ def test_an_asset_created_by_this_run_is_flagged_as_untracked(tmp_path, capsys):
     # after the first Steam publish." check_prerequisites cannot cover this —
     # it ran before the file existed — so the warning has to happen here or
     # nowhere, and here the file holds a brand-new public item's only id.
-    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True, env=GIT_ENV)
     asset = steam_identity.asset_path(tmp_path, MOD)
     asset.parent.mkdir(parents=True)
     result = tmp_path / "result.txt"
@@ -273,7 +283,7 @@ def test_an_asset_created_by_this_run_is_flagged_as_untracked(tmp_path, capsys):
 def test_an_asset_that_already_existed_is_not_flagged_again(tmp_path, capsys):
     # check_prerequisites already said it this run, before the mod.io release.
     # Saying it twice per publish is how it stops being read at all.
-    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True, env=GIT_ENV)
     asset = steam_identity.asset_path(tmp_path, MOD)
     asset.parent.mkdir(parents=True)
     asset.write_text(ASSET)
