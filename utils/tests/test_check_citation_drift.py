@@ -83,10 +83,11 @@ def test_collects_every_citation_keyed_as_written(tmp_path):
     tree = make_decompile(tmp_path, "Pug.Other", ["a", "b", "c", "d"])
     write_chapter(tmp_path, "one.md", "see `Pug.Other:2` and `Pug.Other:3-4`\n")
 
-    corpus, problems = mod.collect(tmp_path, tree)
+    corpus, problems, cited = mod.collect(tmp_path, tree)
 
     assert corpus == {"Pug.Other:2": ["b"], "Pug.Other:3-4": ["c", "d"]}
     assert problems == []
+    assert cited == {"Pug.Other:2", "Pug.Other:3-4"}
 
 
 def test_reports_an_unresolvable_citation_with_its_location(tmp_path):
@@ -95,13 +96,16 @@ def test_reports_an_unresolvable_citation_with_its_location(tmp_path):
         tmp_path, "ui.md", "line one\nsee `ControlMappingMenu.prefab:2456-2457`\n"
     )
 
-    corpus, problems = mod.collect(tmp_path, tree)
+    corpus, problems, cited = mod.collect(tmp_path, tree)
 
     assert corpus == {}
     assert len(problems) == 1
     assert "ui.md:2" in problems[0]
     assert "ControlMappingMenu.prefab:2456-2457" in problems[0]
     assert "no decompiled assembly" in problems[0]
+    # Unresolvable, but still seen — this is what lets compare() tell a
+    # citation that vanished apart from one that merely broke.
+    assert cited == {"ControlMappingMenu.prefab:2456-2457"}
 
 
 def test_the_same_citation_twice_collapses_to_one_entry(tmp_path):
@@ -111,25 +115,31 @@ def test_the_same_citation_twice_collapses_to_one_entry(tmp_path):
     write_chapter(tmp_path, "one.md", "`Pug.Base:2`\n")
     write_chapter(tmp_path, "two.md", "also `Pug.Base:2`\n")
 
-    corpus, problems = mod.collect(tmp_path, tree)
+    corpus, problems, cited = mod.collect(tmp_path, tree)
 
     assert corpus == {"Pug.Base:2": ["b"]}
     assert problems == []
+    assert cited == {"Pug.Base:2"}
 
 
 def test_no_drift_reports_nothing():
-    assert mod.compare({"Pug.Other:2": ["b"]}, {"Pug.Other:2": ["b"]}) == []
+    assert (
+        mod.compare({"Pug.Other:2": ["b"]}, {"Pug.Other:2": ["b"]}, {"Pug.Other:2"})
+        == []
+    )
 
 
 def test_a_changed_line_is_reported_with_both_texts():
-    problems = mod.compare({"Pug.Other:2": ["now()"]}, {"Pug.Other:2": ["then()"]})
+    problems = mod.compare(
+        {"Pug.Other:2": ["now()"]}, {"Pug.Other:2": ["then()"]}, {"Pug.Other:2"}
+    )
     assert len(problems) == 1
     assert "Pug.Other:2" in problems[0]
     assert "then()" in problems[0] and "now()" in problems[0]
 
 
 def test_a_citation_missing_from_the_snapshot_is_reported_as_unrecorded():
-    problems = mod.compare({"Pug.Base:9": ["x"]}, {})
+    problems = mod.compare({"Pug.Base:9": ["x"]}, {}, {"Pug.Base:9"})
     assert len(problems) == 1
     assert "not in the snapshot" in problems[0]
 
@@ -137,13 +147,29 @@ def test_a_citation_missing_from_the_snapshot_is_reported_as_unrecorded():
 def test_a_snapshot_entry_no_longer_cited_is_reported_as_stale():
     # Not an error in the handbook — a sentence was removed or reworded. It is
     # reported so --capture is a deliberate act rather than silent bookkeeping.
-    problems = mod.compare({}, {"Pug.Base:9": ["x"]})
+    # `cited` is empty: the key is genuinely absent, not merely unresolvable.
+    problems = mod.compare({}, {"Pug.Base:9": ["x"]}, set())
     assert len(problems) == 1
     assert "no longer cited" in problems[0]
 
 
+def test_an_unresolvable_citation_is_not_also_reported_as_uncited():
+    # The case compare() used to get wrong: an assembly that disappears makes
+    # its citation unresolvable (so it never enters `corpus`), but the
+    # citation is still sitting right there in the handbook (so it is in
+    # `cited`). Reporting it as "no longer cited anywhere" would read as
+    # "stale snapshot entry, delete it" — which would erase the recorded text,
+    # the only thing left saying what the line used to hold.
+    problems = mod.compare(
+        {}, {"PugMod.Platform:2": ["old text"]}, {"PugMod.Platform:2"}
+    )
+    assert problems == []
+
+
 def test_a_line_that_vanished_reports_the_empty_side_readably():
-    problems = mod.compare({"Pug.Other:900": []}, {"Pug.Other:900": ["gone()"]})
+    problems = mod.compare(
+        {"Pug.Other:900": []}, {"Pug.Other:900": ["gone()"]}, {"Pug.Other:900"}
+    )
     assert len(problems) == 1
     assert "past end of file" in problems[0]
 
@@ -228,3 +254,25 @@ def test_an_unresolvable_citation_fails_even_when_nothing_drifted(tmp_path, caps
 
     assert code == 1
     assert "no decompiled assembly" in capsys.readouterr().out
+
+
+def test_an_assembly_that_disappears_is_not_also_reported_as_uncited(tmp_path, capsys):
+    # Reproduces what a real game update produced: an assembly renamed out
+    # from under a citation makes it unresolvable, but the citation is still
+    # sitting right there in the handbook — it must not ALSO be reported as
+    # "no longer cited anywhere", which reads as "stale snapshot entry, clean
+    # it up with --capture" and would delete the only remaining record of
+    # what the line used to say.
+    tree = make_decompile(tmp_path, "Pug.Other", ["a"])
+    write_chapter(tmp_path, "one.md", "`PugMod.Platform:2`\n")
+    snapshot = tmp_path / "snap.json"
+    snapshot.write_text(json.dumps({"citations": {"PugMod.Platform:2": ["old text"]}}))
+
+    code = mod.main(
+        ["x", "--decompile", str(tree), "--snapshot", str(snapshot), str(tmp_path)]
+    )
+    out = capsys.readouterr().out
+
+    assert code == 1
+    assert "no decompiled assembly" in out
+    assert "no longer cited anywhere" not in out

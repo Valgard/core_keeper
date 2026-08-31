@@ -70,18 +70,25 @@ def key_of(assembly, first, last):
 
 
 def collect(root, decompile):
-    """Resolve every citation in docs/ck/, returning the corpus and the failures.
+    """Resolve every citation in docs/ck/, returning the corpus, the failures,
+    and the set of every citation key seen — resolvable or not.
+
+    That third set is what lets a caller tell "unresolvable right now" apart
+    from "not cited anywhere any more": a citation whose assembly disappeared
+    is still sitting in the handbook, so it belongs in `seen` even though it
+    never makes it into `corpus`.
 
     Chapters are read directly from docs/ck rather than from `git ls-files`,
     unlike check_docs_links: the handbook is one directory of tracked files,
     and reaching for git here would buy nothing while making the function need
     a repository to run at all.
     """
-    corpus, problems = {}, []
+    corpus, problems, seen = {}, [], set()
     for chapter in sorted((Path(root) / "docs" / "ck").glob("*.md")):
         for number, line in enumerate(chapter.read_text().splitlines(), start=1):
             for assembly, first, last in extract(line):
                 key = key_of(assembly, first, last)
+                seen.add(key)
                 lines = resolve(assembly, first, last, decompile)
                 if lines is None:
                     problems.append(
@@ -89,7 +96,7 @@ def collect(root, decompile):
                     )
                 else:
                     corpus[key] = lines
-    return corpus, sorted(problems)
+    return corpus, sorted(problems), seen
 
 
 def render(lines):
@@ -97,8 +104,19 @@ def render(lines):
     return " / ".join(lines) if lines else "(past end of file)"
 
 
-def compare(corpus, snapshot):
-    """Report every citation whose line text differs from what was recorded."""
+def compare(corpus, snapshot, cited):
+    """Report drift between the corpus and the snapshot, in three distinct shapes:
+    a citation whose recorded line text no longer matches what is there now, a
+    citation the snapshot has never seen, and a snapshot entry for a citation
+    that has genuinely dropped out of the handbook.
+
+    That last shape is judged against `cited` — every citation key collect()
+    saw, resolvable or not — rather than against `corpus`. A citation whose
+    assembly disappeared is unresolvable, so it is absent from `corpus`, but
+    it is still sitting in the handbook and must not also be reported as
+    stale: that reads as "delete this snapshot entry", which would erase the
+    one thing still recording what the line used to say.
+    """
     problems = []
     for key, lines in corpus.items():
         if key not in snapshot:
@@ -108,7 +126,7 @@ def compare(corpus, snapshot):
                 f"{key}  was: {render(snapshot[key])}  now: {render(lines)}"
             )
     problems += [
-        f"{key}  no longer cited anywhere" for key in snapshot if key not in corpus
+        f"{key}  no longer cited anywhere" for key in snapshot if key not in cited
     ]
     return sorted(problems)
 
@@ -130,7 +148,7 @@ def main(argv):
         print(f"decompile tree not found: {decompile}")
         return 1
 
-    corpus, problems = collect(Path(args.root), decompile)
+    corpus, problems, cited = collect(Path(args.root), decompile)
 
     if args.capture:
         Path(args.snapshot).write_text(
@@ -148,7 +166,9 @@ def main(argv):
     if not snapshot_file.is_file():
         print(f"no snapshot at {snapshot_file} — run with --capture first")
         return 1
-    problems += compare(corpus, json.loads(snapshot_file.read_text())["citations"])
+    problems += compare(
+        corpus, json.loads(snapshot_file.read_text())["citations"], cited
+    )
 
     if problems:
         print(f"{len(problems)} problem(s):")
