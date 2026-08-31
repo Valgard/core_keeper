@@ -402,6 +402,25 @@ a flat 80 and reported 763 findings, essentially none of them real.
 `docs/specs/` is excluded: a design spec records what was decided at a point in
 time, and reformatting one rewrites history for no reader's benefit.
 
+## Citation drift check
+
+`utils/check_citation_drift.py` records what every `` `Assembly:NNNN` ``
+citation in `docs/ck/` cites — the *text* of that source line, not just its
+number — into a tracked snapshot, `utils/ck-citation-snapshot.json`. After a
+Core Keeper update, re-running it reports every citation whose line now reads
+differently, so a drift check is a comparison instead of a re-read of the
+whole handbook. It does not judge whether a statement is true, only whether
+the ground under it moved.
+
+```bash
+uv run utils/check_citation_drift.py --capture   # record the current snapshot
+uv run utils/check_citation_drift.py              # compare against it
+```
+
+Neither mode is wired into `pre-commit`: capturing is a deliberate act after
+verifying a citation, not something a routine commit should trigger. Run the
+comparison after a game update and before trusting `docs/ck/` again.
+
 ## Python tooling and its tests
 
 The shared scripts in `utils/` are a **uv project**: `pyproject.toml` plus

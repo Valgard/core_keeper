@@ -96,6 +96,13 @@ measured update, and only at the fourth version component; nothing here says
 anything about a minor or major one. The point of the version stamp is not that
 drift is large; it is that you cannot tell without it.
 
+Line numbers still appear in this handbook, because a class name alone does
+not locate a statement inside a 441,000-line file. What makes that affordable
+is recording what each cited line *says*, so that after a game update the
+question "which citations now point at something else" is answered by
+comparison rather than by re-reading all of them. A citation whose text is
+unchanged is not thereby correct — it is merely undisturbed.
+
 **Trap: decompile from stock DLLs.** If the installation carries locally applied
 IL patches — on macOS/CrossOver hosts it does, see [platforms and hosts](platforms.md)
 — the decompile bakes those patches in and presents them as the game's own code.
