@@ -45,3 +45,18 @@ def extract(text):
         (m.group(1), int(m.group(2)), int(m.group(3) or m.group(2)))
         for m in CITATION.finditer(text)
     ]
+
+
+def resolve(assembly, first, last, decompile):
+    """Return the stripped text of lines first..last, or None if unresolvable.
+
+    Stripped, because leading whitespace is the one part of a decompiled line
+    that changes for reasons having nothing to do with the code — a nesting
+    level added around it moves every line inside without altering what any of
+    them says. Comparing stripped text keeps the report about the statement.
+    """
+    source = Path(decompile) / f"{assembly}.decompiled.cs"
+    if not source.is_file():
+        return None
+    lines = source.read_text(errors="replace").splitlines()
+    return [line.strip() for line in lines[first - 1 : last]]

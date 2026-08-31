@@ -37,3 +37,35 @@ def test_ignores_unity_fileid_which_is_not_a_citation():
 
 def test_ignores_a_bare_number_in_prose():
     assert mod.extract("roughly 124940 lines in") == []
+
+
+def make_decompile(tmp_path, name, lines):
+    tree = tmp_path / "decompile"
+    tree.mkdir(exist_ok=True)
+    (tree / f"{name}.decompiled.cs").write_text("\n".join(lines) + "\n")
+    return tree
+
+
+def test_resolves_a_single_line_to_its_stripped_text(tmp_path):
+    tree = make_decompile(tmp_path, "Pug.Other", ["zero", "  public void Foo()", "two"])
+    assert mod.resolve("Pug.Other", 2, 2, tree) == ["public void Foo()"]
+
+
+def test_resolves_a_range_inclusive_of_both_ends(tmp_path):
+    tree = make_decompile(tmp_path, "WorldGen", ["a", "b", "c", "d", "e"])
+    assert mod.resolve("WorldGen", 2, 4, tree) == ["b", "c", "d"]
+
+
+def test_an_unknown_assembly_resolves_to_none(tmp_path):
+    # The real cases: a prefab citation and one naming the server tree. Both
+    # must be reportable, so they are distinguishable from an empty file.
+    tree = make_decompile(tmp_path, "Pug.Other", ["a"])
+    assert mod.resolve("ControlMappingMenu.prefab", 2456, 2457, tree) is None
+    assert mod.resolve("DedicatedServer", 263259, 263262, tree) is None
+
+
+def test_a_line_past_the_end_yields_an_empty_list_not_a_crash(tmp_path):
+    # A citation surviving a shrinking file is drift, not a crash: the compare
+    # step has to see "nothing there now" as a difference it can report.
+    tree = make_decompile(tmp_path, "Pug.Other", ["a", "b"])
+    assert mod.resolve("Pug.Other", 900, 900, tree) == []
