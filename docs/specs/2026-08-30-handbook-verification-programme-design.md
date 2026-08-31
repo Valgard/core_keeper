@@ -360,7 +360,7 @@ taken together.
   `unverified` are working names; what matters is that they read as prose, not
   as tags.
 - **Whether one session really holds one chapter** is unknown for the largest
-  ones. `ui-framework.md` at 2126 lines and roughly 100 core assertions may
+  ones. `ui-framework.md` at 2249 lines and roughly 100 core assertions may
   need splitting; the pilot gives the first real rate.
 - **The marker has to be prose and greppable at once**, and that is a real
   tension rather than a detail. Dropping the pool file only works if the open
