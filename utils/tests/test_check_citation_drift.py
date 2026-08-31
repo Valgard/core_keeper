@@ -1,9 +1,11 @@
 """Tests for check_citation_drift.
 
-The cases are the citation forms the handbook actually contains, counted on
-2026-08-31, not invented ones: the single-line majority, the range form, the
-prefab citation that names no assembly, and the DedicatedServer citation that
-names a tree instead of one.
+The cases are the citation forms the handbook actually contains, not invented
+ones: the single-line majority, the range form, and — as of 2026-08-31 — the
+three ways a citation resolves to nothing: a prefab citation that names no
+assembly, a DedicatedServer citation that names a tree instead of one, and a
+PugSprite.decompiled.cs citation that names the decompile file itself rather
+than the assembly within it.
 """
 
 import json
