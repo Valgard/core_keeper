@@ -385,6 +385,14 @@ has nobody to ask in either, and a round trip there is a round trip to itself.
 The distinction that matters is not "am I in multiplayer" but "does someone else
 decide".
 
+Two neighbouring signals on `Manager.networking` (a `NetworkingManager`,
+`Pug.Other:263198`) answer narrower questions and are not substitutes for the
+one above: `isConnected` is a plain settable `bool` property, and
+`currentSessionIsDedicatedServer` asks the platform layer
+(`impl.ConnectedToDedicatedServer`) and returns `false` whenever there is no
+network at all. Neither distinguishes hosting from joining, which is precisely
+what `ServerWorld` does.
+
 ### A mod-set mismatch reports a version error
 
 The client shows **"Game version mismatch"** — the English text of the
