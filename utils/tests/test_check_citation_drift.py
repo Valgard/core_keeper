@@ -113,3 +113,34 @@ def test_the_same_citation_twice_collapses_to_one_entry(tmp_path):
 
     assert corpus == {"Pug.Base:2": ["b"]}
     assert problems == []
+
+
+def test_no_drift_reports_nothing():
+    assert mod.compare({"Pug.Other:2": ["b"]}, {"Pug.Other:2": ["b"]}) == []
+
+
+def test_a_changed_line_is_reported_with_both_texts():
+    problems = mod.compare({"Pug.Other:2": ["now()"]}, {"Pug.Other:2": ["then()"]})
+    assert len(problems) == 1
+    assert "Pug.Other:2" in problems[0]
+    assert "then()" in problems[0] and "now()" in problems[0]
+
+
+def test_a_citation_missing_from_the_snapshot_is_reported_as_unrecorded():
+    problems = mod.compare({"Pug.Base:9": ["x"]}, {})
+    assert len(problems) == 1
+    assert "not in the snapshot" in problems[0]
+
+
+def test_a_snapshot_entry_no_longer_cited_is_reported_as_stale():
+    # Not an error in the handbook — a sentence was removed or reworded. It is
+    # reported so --capture is a deliberate act rather than silent bookkeeping.
+    problems = mod.compare({}, {"Pug.Base:9": ["x"]})
+    assert len(problems) == 1
+    assert "no longer cited" in problems[0]
+
+
+def test_a_line_that_vanished_reports_the_empty_side_readably():
+    problems = mod.compare({"Pug.Other:900": []}, {"Pug.Other:900": ["gone()"]})
+    assert len(problems) == 1
+    assert "past end of file" in problems[0]

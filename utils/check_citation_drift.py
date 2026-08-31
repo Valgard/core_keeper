@@ -89,3 +89,24 @@ def collect(root, decompile):
                 else:
                     corpus[key] = lines
     return corpus, sorted(problems)
+
+
+def render(lines):
+    """One readable form for a resolved citation, including the empty case."""
+    return " / ".join(lines) if lines else "(past end of file)"
+
+
+def compare(corpus, snapshot):
+    """Report every citation whose line text differs from what was recorded."""
+    problems = []
+    for key, lines in corpus.items():
+        if key not in snapshot:
+            problems.append(f"{key}  not in the snapshot — run --capture")
+        elif snapshot[key] != lines:
+            problems.append(
+                f"{key}  was: {render(snapshot[key])}  now: {render(lines)}"
+            )
+    problems += [
+        f"{key}  no longer cited anywhere" for key in snapshot if key not in corpus
+    ]
+    return sorted(problems)
