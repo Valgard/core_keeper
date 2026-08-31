@@ -169,6 +169,46 @@ if (Manager.main == null || Manager.main.player == null)
     return; // no player yet — do not ask whether the entry is changeable
 ```
 
+**Trap: the two ways to set a scope have opposite defaults.** Both of these
+compile, and they do not mean the same thing:
+
+```csharp
+file.Bind(section, key, def, new ConfigDescription(key));                    // -> Server
+file.Bind(section, key, def, "desc", ConfigAccessLevel.Client);              // -> Client
+```
+
+The first passes no scope at all, so `ConfigEntryBase` falls back to
+`ConfigScope.Empty`, which is `new()` — and the `ConfigScope` constructor
+defaults to `ConfigAccessLevel.Server`. The overload that takes the level
+directly defaults to `Client`. **Omitting the scope is therefore not neutral: it
+declares a server-authoritative setting.** For a purely client-side mod that is
+the wrong claim, and it stays invisible until something actually reads the level.
+
+**`ShouldSync` is `accessLevel > 0`**, so `ViewOnly` (`-1`) and `Client` (`0`)
+are excluded and `Server`/`Admin` included. A consumer of the scopes uses it to
+decide what crosses a process boundary at all.
+
+**The vocabulary exists for a consumer, and nothing enforces it.** The doc
+comment above `ConfigScope` reads *"Necessary information to ensure the normal
+operation of the General Config Menu"* — CoreLib supplies the levels and
+`Changeable()`, and leaves every consequence to whoever reads them. An entry's
+scope is a declaration, not a lock: nothing in CoreLib prevents a write to a
+`ViewOnly` entry.
+
+**A dedicated server binds client-scoped entries too, and they mean nothing
+there.** The server loads mods the same way the client does, so every `Bind` runs
+and every entry lands in the server's own config file — including the ones
+describing a HUD that does not exist in that process. They are artifacts, not an
+authoritative copy: the client's entry of the same name is a separate instance,
+and reconciling the two would overwrite something nobody asked about.
+
+**Change notification and reloading are both there.** `ConfigFile.SettingChanged`
+and the per-entry `ConfigEntryBase.SettingChanged` fire on every write, and
+`ConfigFile.Reload()` re-reads the file from disk. Together they allow a split
+that is otherwise awkward to build: the file as the user's stored preference,
+the in-memory entry as what is in effect right now, and `Reload()` as the way
+back when the temporary authority goes away.
+
 ### 3. `skipSafetyChecks: true` — last resort
 
 Setting `skipSafetyChecks: true` in the ModBuilderSettings `.asset` disables

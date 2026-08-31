@@ -50,7 +50,7 @@ machinery those arrangements sit on.
 | [UI framework](ui-framework.md) | Sprite UI instead of uGUI, mounting windows, options-menu entries, rebindable keybinds, the hint bar, text input, redirecting menu input, scrolling, and disabled-but-visible options |
 | [Prefabs and rendering](prefabs-and-rendering.md) | When a prefab may be edited by script, nested prefabs and variants, sprite import, masking, Z-sorting, PugText and the font system, HUD versus world space |
 | [World and mechanics](world-and-mechanics.md) | World geometry and the origin, tile layers and the `AddTile` queue, the placement permission model, map markers, entity radii, ore boulders, livestock and pets, cooked food |
-| [Multiplayer and server](multiplayer-and-server.md) | The NetCode/ghost protocol and what changes its hashes, the mod set as a second compatibility layer, how the dedicated server build differs |
+| [Multiplayer and server](multiplayer-and-server.md) | The NetCode/ghost protocol and what changes its hashes, declaring an RPC and what it costs, admin level and guest mode, the mod set as a second compatibility layer, how the dedicated server build differs |
 | [Localisation](localisation.md) | The game-wide table, first-write-wins and its consequences, the ways localisation has shipped broken, term-key conventions |
 | [Publishing to mod.io](publishing.md) | Profile versus modfile and why a changelog cannot be edited, which manifest field becomes which tag, the silent tag drop, dependencies existing twice |
 | [Publishing to the Steam Workshop](steam-workshop.md) | One item instead of a profile and a modfile, tags grouped by the platform, the 1 MB preview cap, what the SDK tab does behind its fields, and the native library macOS needs |
@@ -130,7 +130,7 @@ symptom, not the topic.
 | Typing inserts at the wrong position in a text field | [UI framework](ui-framework.md#glyph-positions-are-not-string-positions) — glyph positions are not string positions |
 | A held key repeats for the game and fires once for your patch | [UI framework](ui-framework.md#the-typing-path-repeats-keys-on-a-timer-of-its-own) — the typing path has a repeat timer of its own |
 | Players are blocked from joining your server | [Multiplayer and server](multiplayer-and-server.md), [Mod anatomy](mod-anatomy.md) — `requiredOn` |
-| "Game version mismatch" between client and server | [Multiplayer and server](multiplayer-and-server.md) — it is a mod-set mismatch |
+| "Game version mismatch" between client and server | [Multiplayer and server](multiplayer-and-server.md) — a mod-set mismatch, or a protocol hash moved by a new ECS component or `IRpcCommand`; neither names a mod |
 | Dedicated server fails to generate a world | [Multiplayer and server](multiplayer-and-server.md) — the server renders, so `-nographics` breaks it |
 | A call works in single-player but not on a server | [Multiplayer and server](multiplayer-and-server.md) — some subsystems are compiled out server-side |
 
@@ -151,6 +151,7 @@ symptom, not the topic.
 | Place tiles, or understand where things may be built | [World and mechanics](world-and-mechanics.md) |
 | Read or place map markers | [World and mechanics](world-and-mechanics.md) — at runtime; [Savegame formats](savegame-formats.md) — out of a world file |
 | Ship a mod that works in multiplayer | [Multiplayer and server](multiplayer-and-server.md) |
+| Send something to the server, or gate on admin rights | [Multiplayer and server](multiplayer-and-server.md) |
 | Translate your mod's text | [Localisation](localisation.md) |
 | Read data out of a save | [Savegame formats](savegame-formats.md) |
 | Publish a mod, or fix what its listing says | [Publishing to mod.io](publishing.md), [Publishing to the Steam Workshop](steam-workshop.md) |

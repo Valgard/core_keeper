@@ -49,12 +49,50 @@ For a mod this splits cleanly:
 | Harmony patches on managed systems | unchanged |
 | Bake-time property edits, changed values, recipe/database tweaks | unchanged |
 | **New ECS components, or new ghost prefabs** | **changed** |
+| **A new `IRpcCommand` type** | **changed** — see below |
 
 The first two are the overwhelming majority of mods, and they pass NetCode's
 check untouched — their compatibility problem is entirely the mod-set layer
 below. Registering a new replicated component is the case to think twice about:
 it alters the component/ghost collection, so the NetCode check fires **on top of**
 whatever `requiredOn` says, and `requiredOn` cannot excuse it.
+
+### Declaring one RPC moves the protocol hash for everyone
+
+A mod that wants to talk to the server declares an `IRpcCommand`. That is
+sandbox-legal — `Unity.NetCode.dll` is in the load-time compiler's own reference
+list (`RoslynCSharpSettings.asset`) — and it costs a fourth protocol value:
+
+```csharp
+// Unity.NetCode, RpcCollection.CalculateVersionHash()
+ulong num = m_RpcData[0].TypeHash;
+for (int k = 0; k < m_RpcData.Length; k++)
+    num = TypeHash.CombineFNV1A64(num, m_RpcData[k].TypeHash);
+```
+
+Every registered RPC type's `StableTypeHash` is folded into one value, which
+becomes `NetworkProtocolVersion.RpcCollectionVersion`. `RpcSystem` compares all
+four values — NetCode version, game version, RPC collection, component
+collection — and rejects the connection if **any** of them differs.
+
+**The one escape is not taken.** `CalculateVersionHash` returns `0` instead of
+the fold when `DynamicAssemblyList` is set, which would make the RPC set
+negotiable. That flag is set **nowhere** in the 122 decompiled assemblies, so
+the fold always applies.
+
+Two consequences worth knowing before declaring an RPC:
+
+- **The rejection names no mod.** It happens in the NetCode layer, *before* the
+  mod-set check below, and surfaces as `Error/BadProtocolVersion` — "Game version
+  mismatch". The dialogue that names a mod and offers to disable it belongs to
+  the layer that never runs.
+- **A dependency can have moved the hash already.** CoreLib's Command submodule
+  declares two `IRpcCommand` structs and registers them through a generated
+  `ISystem` whose `OnCreate` runs unconditionally — no `[WorldSystemFilter]`, no
+  submodule gate. Whether those systems reach the worlds is the same open
+  question as any mod system's registration path, so treat this as **plausible,
+  not established**: one attempt with a CoreLib client against an unmodded
+  server settles it.
 
 ### Why there is no third-party server
 
@@ -166,6 +204,44 @@ instance:
 if (!__instance.isLocal)
     return;
 ```
+
+### Who is allowed to change things: admin level and guest mode
+
+A mod that gates anything on "may this player do that" does not need to invent a
+rule — the game ships one, and CoreLib's config scopes already delegate to it.
+
+**`adminPrivileges` is an `int` on the player, and its levels are not
+interchangeable.** `PlayerController.adminPrivileges` reads it off the
+`PlayerGhost` component and returns `0` when there is none (`Pug.Other:298371`):
+
+| Value | Meaning |
+|---|---|
+| `0` | no admin |
+| `1` | granted through the admin list, and revocable |
+| `2` | host or first player — `RemoveAdminInternal` only matches entries with `privileges <= 1`, so this one cannot be taken away |
+| `int.MaxValue` | **offline or uninitialised networking** — `GetAdminPrivileges` short-circuits on `!impl.isInitialized \|\| OfflineSession` |
+
+That last row is what makes singleplayer look like it has no permission model at
+all: everyone is a full admin there, so every admin-gated branch is taken and
+nothing ever locks. A permission feature therefore **cannot be tested in
+singleplayer** — it needs a second player who is not the host.
+
+**`guestMode` is not a world flag alone.** `WorldInfoCD.guestMode` is the world's
+setting, but `PlayerController.guestMode` (`:298432`) answers the useful
+question — it returns true only when the world flag is set **and**
+`adminPrivileges < 1`. An admin in a guest-mode world is not a guest.
+
+**Both change during a session.** `NetworkCommand` carries `AddOrUpdateAdmin`,
+`RemoveAdmin` and `SetGuestMode`, handled by `NetworkCommandServerSystem` behind
+an admin check of its own. So a value read once when a screen opens can be stale
+by the time the player acts on it — a UI that gates on either has to re-read or
+poll. There is no change event for either: `adminPrivileges` is a property over a
+component and `guestMode` a field in a singleton, and nothing announces a write
+to them.
+
+**There are no chat commands for this.** A search for a command dispatcher —
+`ChatCommand`, `StartsWith("/")` — comes up empty across client and server
+assemblies; admin rights are granted through the UI and travel as the RPC above.
 
 ### Check `[GhostField]` before assuming a write replicates
 
@@ -284,6 +360,30 @@ no `ServerWorld` in the process. Anything server-authoritative is decided
 entirely in the server process, and a client-side patch on a server-authoritative
 system will at best win for a few ticks before the next ghost snapshot overwrites
 its value.
+
+**That absence is the topology test.** `Manager.ecs.ServerWorld` is a public
+property (`Pug.Other:2381`) assigned only where the process creates a server
+world (`:2837`) and nulled on teardown (`:2936`); vanilla itself branches on it
+in at least eight places (`:2152`, `:2487`, `:2517`, …), and the SDK exposes the
+same object as `API.Server.World` (`ModAPIServer.World`, `:392317`). So a mod
+that needs to know whether it *is* the authority asks one question:
+
+```csharp
+bool iAmTheAuthority = Manager.ecs.ServerWorld != null;
+```
+
+| Situation | `ServerWorld` | `ClientWorld` |
+|---|---|---|
+| Singleplayer | ✓ | ✓ |
+| Hosting a session | ✓ | ✓ |
+| Joined a host, or a dedicated server | ✗ | ✓ |
+| Dedicated server process | ✓ | ✗ |
+
+**Singleplayer and hosting are the same case, not two.** Both own the server
+world, so both *are* the authority — a mod that asks the server for permission
+has nobody to ask in either, and a round trip there is a round trip to itself.
+The distinction that matters is not "am I in multiplayer" but "does someone else
+decide".
 
 ### A mod-set mismatch reports a version error
 
