@@ -172,18 +172,21 @@ dependent statements on a guess. The rare case.
 build, grouped by game state. One round per state the chapter needs, not one
 round per chapter.
 
-**The pool** — everything this session does not settle: a question whose game
-state does not arise here, a question belonging to another chapter, a question
-needing a world state too expensive to arrange for one answer. The pool carries
-each question with its origin chapter and the state it needs, and every future
-measurement round takes along whatever matches its state — a server round for
-chapter twelve carries the server questions left over from chapter four.
+**Left standing** — everything this session does not settle: a question whose
+game state does not arise here, a question belonging to another chapter, a
+question needing a world state too expensive to arrange for one answer. It is
+marked `unverified` in the chapter and stays there, which is both the honest
+answer to the reader and the record that the question is open. Every future
+measurement round then takes along whatever its state can settle — a server
+round for chapter twelve carries the server questions left standing in chapter
+four.
 
-**The pool is the hazard the research identified, made visible.** Marking is
-cheap and settling is expensive, which is how 536 pages of open doubt
-accumulate. The pool has a number: if it grows across sessions that is visible
-immediately, and the rounds are what shrink it. It is a working stock, not a
-verdict.
+**That standing set is the hazard the research identified.** Marking is cheap
+and settling is expensive, which is how 536 pages of open doubt accumulate.
+What keeps it honest is that it is countable — `grep -rc unverified docs/ck/`
+against the history says whether it grows or shrinks — and that the measurement
+rounds exist to shrink it. An `unverified` that no round is ever aimed at is a
+backlog wearing the clothes of a result.
 
 Two rules make the batch survivable. Each probe point is independent, so
 bundling does not violate the one-variable rule — that rule constrains a single
@@ -225,48 +228,72 @@ correcting a claim there is its own commit; the handbook edit and the derived
 correction cannot share one, and the sweep has to name both rather than assume
 a single commit closes it.
 
-## The register
+## No register file, and no pool file
 
-A file outside the chapters, holding the state as a number rather than an
-editorial note. It distinguishes the two CATZOC states:
+An earlier draft of this design gave the programme a tracked register and a
+tracked pool. Both are dropped, because both restate something that already
+exists somewhere better.
 
-- **unassessed** — the chapter, or a statement in it, has not been examined
-- **examined, open** — examined, and marked `unverified` in the text
+**The chapter is the pool.** A question that was examined and stayed open is
+marked `unverified` in the text — that is the whole point of the form chosen
+above. So `grep -rn unverified docs/ck/` enumerates every open question, and a
+separate list would be a second copy that can disagree with the first. This
+repository already treats working artefacts as slop (`docs/superpowers/` is
+ignored for exactly that reason), and the distillation rule it applies asks for
+"result, not route": a list of ticked-off questions is route.
 
-Per chapter it records: the game version examined against, the date, how many
-statements were examined, how many stayed open, and how many pool questions the
-chapter contributed. Per pool question: the question, its origin chapter, the
-game state it needs, and its status.
+**Git is the register.** Whether a chapter has been examined is answered by its
+commit history; which game version it was examined against belongs in the
+commit message. That reproduces the CATZOC distinction at no cost —
+`unassessed` means no verification commit exists, `examined, open` means one
+exists and the text carries `unverified`. The backlog trend is then computable
+after the fact rather than maintained by hand: `git log` plus a count of
+`unverified` per revision says whether the open statements are growing or
+shrinking, and it cannot drift from the chapters, because it is derived from
+them.
 
-The point of the numbers is the pool trend. A programme whose pool grows faster
-than it shrinks is producing a backlog and calling it verification.
+What this gives up is small and deliberate: the game state an open question
+needs is written nowhere. Recording it would put process metadata into the
+product, and it is cheap to recover — before a measurement round, read the
+`unverified` passages and see which ones that round's state can settle.
 
 ## Artefacts and where they live
 
 | Artefact | Location | Tracked |
 |---|---|---|
 | This spec | `docs/specs/` | yes |
-| Register and pool | `docs/ck-verification/` | yes |
+| `ck-docs-review` skill | `.claude/skills/` | yes, in this repo |
 | Chapter session skill | `.claude/skills/` | yes, in this repo |
-| The new lane | `~/.claude/agents/` | yes, in the `~/.claude` repo |
+| The three existing lanes | `.claude/agents/` | yes, in this repo |
+| The new corpus lane | `.claude/agents/` | yes, in this repo |
 | Citation drift snapshot | `utils/` plus its data file | yes |
 | Probe mods | a mod repository, throwaway | no |
+| Register, pool | — | they do not exist |
 
-The lane goes beside its three siblings rather than into this repository,
-because `.gitignore` here tracks only `.claude/skills` and the siblings are
-already versioned in the `~/.claude` repository.
+**The review machinery moves out of the machine's global config and into this
+repository.** The `ck-docs-review` skill and its three lanes are entirely Core
+Keeper specific — they check this handbook and pull requests into
+`CoreKeeperModDocs`, which is itself a checkout under this directory. They
+belong beside the thing they check, versioned with it, so that a change to a
+lane and the chapter that motivated it can be read together.
 
-**`docs/ck-verification/` needs a `.gitignore` entry before it can exist.**
-This repository ignores everything by default (`/*`) and un-ignores named paths;
-`/docs/*` then re-ignores everything under `docs/` except the listed entries. A
-register written without adding `!/docs/ck-verification/` would be invisible to
-git — and invisible in the way that costs most, because `git status` stays
-clean and nothing reports the omission. Whole directory rather than file by
-file, for the same reason `docs/ck/` and `docs/specs/` are: otherwise every new
-file needs a `.gitignore` edit, and the ones that do not get it disappear
-silently. Verify with a trailing slash — `git check-ignore -q docs/ck-verification/`
-— because the negation is directory-only and reports a false positive on a path
-git cannot confirm as a directory.
+This required one `.gitignore` change: the repository ignores everything by
+default (`/*`) and un-ignores named paths, and `.claude/` used a three-line
+idiom that re-allowed `skills` alone. `agents` is now re-allowed beside it,
+while `settings.json` stays local as before.
+
+**Nothing breaks in the review gate, and that was worth checking before
+moving.** `hooks/pr-create-review-guard.sh` and `hooks/pr-review-marker.sh`
+identify the lanes purely by **name** — `CKDOCS_REQUIRED="ckdocs-source-verifier
+ckdocs-wording-attacker ckdocs-repo-fit"` and the pattern `ckdocs-*` — never by
+path. The hooks themselves stay in `~/.claude/hooks/`, because they are wired
+into that machine's settings and are not repository content.
+
+One consequence to be aware of: a session started **inside a mod
+subdirectory** no longer sees these lanes, where the global location made them
+visible everywhere. That is acceptable because both consumers — the handbook
+and the `CoreKeeperModDocs` checkout — live at this level, but a session that
+needs a lane must be started here rather than in a mod.
 
 ## Tools: now versus after the pilot
 
@@ -290,11 +317,16 @@ rather than experience.
   verifiers across 175 references to find six errors, and the same cost falls
   due at the next update with nobody knowing which references are affected.
 
+**Also now, because it is a move rather than a build:** the `ck-docs-review`
+skill and its three lanes come out of the machine's global config into this
+repository, per the artefact table above.
+
 **After the pilot chapter, from what actually recurred:** a probe scaffold, a
-log evaluator, register and pool maintenance scripts, a concordance for the
-cross-chapter sweep. Each depends on facts the first real chapter produces —
-what a probe for this handbook looks like, how many questions a chapter raises,
-whether grouping by game state is even the right cut.
+log evaluator, a concordance for the cross-chapter sweep, and — if counting the
+standing `unverified` set by hand turns out to be tedious — a one-line report
+over the history. Each depends on facts the first real chapter produces: what a
+probe for this handbook looks like, how many questions a chapter raises, whether
+grouping by game state is even the right cut.
 
 ## Chapter order
 
@@ -330,5 +362,12 @@ taken together.
 - **Whether one session really holds one chapter** is unknown for the largest
   ones. `ui-framework.md` at 2126 lines and roughly 100 core assertions may
   need splitting; the pilot gives the first real rate.
-- **Whether the pool needs a script** depends on how many questions accumulate.
-  It starts as a plain file.
+- **The marker has to be prose and greppable at once**, and that is a real
+  tension rather than a detail. Dropping the pool file only works if the open
+  questions can be enumerated from the chapters, which requires the word to
+  appear literally — "this remains **unverified**: …" reads as prose and is
+  still found by a search, whereas "nothing settles this either way" reads
+  better and is invisible to one. The pilot decides the exact phrasing, under
+  the constraint that a search must find every instance. If that constraint
+  cannot be met without the text turning into tags, the pool file comes back —
+  as the fallback, not as the default.
