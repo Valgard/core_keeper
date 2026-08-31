@@ -1245,5 +1245,6 @@
     "modio.UnityPlugin:39208": [
       "Directory.Delete(path, recursive: true);"
     ]
-  }
+  },
+  "game_version": "1.2.1.5-8be0"
 }

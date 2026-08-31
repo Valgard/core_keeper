@@ -8,6 +8,8 @@ names a tree instead of one.
 
 import json
 
+import pytest
+
 import check_citation_drift as mod
 
 
@@ -183,6 +185,8 @@ def test_capture_writes_a_snapshot_and_succeeds(tmp_path, capsys):
         [
             "x",
             "--capture",
+            "--game-version",
+            "1.2.1.5-8be0",
             "--decompile",
             str(tree),
             "--snapshot",
@@ -196,6 +200,85 @@ def test_capture_writes_a_snapshot_and_succeeds(tmp_path, capsys):
     assert "captured" in capsys.readouterr().out
 
 
+def test_capture_stores_the_game_version(tmp_path, capsys):
+    tree = make_decompile(tmp_path, "Pug.Other", ["a", "b"])
+    write_chapter(tmp_path, "one.md", "`Pug.Other:2`\n")
+    snapshot = tmp_path / "snap.json"
+
+    code = mod.main(
+        [
+            "x",
+            "--capture",
+            "--game-version",
+            "1.2.1.5-8be0",
+            "--decompile",
+            str(tree),
+            "--snapshot",
+            str(snapshot),
+            str(tmp_path),
+        ]
+    )
+
+    assert code == 0
+    assert json.loads(snapshot.read_text())["game_version"] == "1.2.1.5-8be0"
+    assert "1.2.1.5-8be0" in capsys.readouterr().out
+
+
+def test_capture_without_game_version_is_rejected(tmp_path):
+    # Required, not optional: a capture that silently records no version
+    # reproduces the exact defect --game-version exists to close.
+    tree = make_decompile(tmp_path, "Pug.Other", ["a"])
+    write_chapter(tmp_path, "one.md", "`Pug.Other:1`\n")
+    snapshot = tmp_path / "snap.json"
+
+    with pytest.raises(SystemExit):
+        mod.main(
+            [
+                "x",
+                "--capture",
+                "--decompile",
+                str(tree),
+                "--snapshot",
+                str(snapshot),
+                str(tmp_path),
+            ]
+        )
+
+
+def test_compare_prints_the_recorded_game_version(tmp_path, capsys):
+    tree = make_decompile(tmp_path, "Pug.Other", ["a", "b"])
+    write_chapter(tmp_path, "one.md", "`Pug.Other:2`\n")
+    snapshot = tmp_path / "snap.json"
+    snapshot.write_text(
+        json.dumps(
+            {"citations": {"Pug.Other:2": ["b"]}, "game_version": "1.2.1.5-8be0"}
+        )
+    )
+
+    code = mod.main(
+        ["x", "--decompile", str(tree), "--snapshot", str(snapshot), str(tmp_path)]
+    )
+
+    assert code == 0
+    assert "1.2.1.5-8be0" in capsys.readouterr().out
+
+
+def test_a_versionless_snapshot_is_handled_not_crashed(tmp_path, capsys):
+    # A snapshot captured before --game-version existed. It must be usable,
+    # not fatal — the fix is a recapture, not a traceback.
+    tree = make_decompile(tmp_path, "Pug.Other", ["a", "b"])
+    write_chapter(tmp_path, "one.md", "`Pug.Other:2`\n")
+    snapshot = tmp_path / "snap.json"
+    snapshot.write_text(json.dumps({"citations": {"Pug.Other:2": ["b"]}}))
+
+    code = mod.main(
+        ["x", "--decompile", str(tree), "--snapshot", str(snapshot), str(tmp_path)]
+    )
+
+    assert code == 0
+    assert "no recorded game version" in capsys.readouterr().out
+
+
 def test_a_changed_line_makes_the_default_mode_fail(tmp_path, capsys):
     tree = make_decompile(tmp_path, "Pug.Other", ["a", "b"])
     write_chapter(tmp_path, "one.md", "`Pug.Other:2`\n")
@@ -204,6 +287,8 @@ def test_a_changed_line_makes_the_default_mode_fail(tmp_path, capsys):
         [
             "x",
             "--capture",
+            "--game-version",
+            "1.2.1.5-8be0",
             "--decompile",
             str(tree),
             "--snapshot",

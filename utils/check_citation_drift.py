@@ -26,7 +26,8 @@ resolve (`PugSprite.decompiled.cs:42`). These are documentation defects
 this surfaces rather than papers over, and are expected to shrink.
 
 Usage:
-    uv run utils/check_citation_drift.py [--capture] [--decompile PATH] [repo-root]
+    uv run utils/check_citation_drift.py --capture --game-version VERSION [--decompile PATH] [repo-root]
+    uv run utils/check_citation_drift.py [--decompile PATH] [repo-root]
 """
 
 import argparse
@@ -139,9 +140,18 @@ def main(argv):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("root", nargs="?", default=".")
     parser.add_argument("--capture", action="store_true", help="record, do not compare")
+    parser.add_argument(
+        "--game-version",
+        help="game version this capture reflects, e.g. 1.2.1.5-8be0 (required with --capture)",
+    )
     parser.add_argument("--decompile", default=str(DEFAULT_DECOMPILE))
     parser.add_argument("--snapshot", default=str(DEFAULT_SNAPSHOT))
     args = parser.parse_args(argv[1:])
+
+    if args.capture and not args.game_version:
+        # Required rather than optional: a capture that silently records no
+        # version reproduces the exact defect this argument exists to close.
+        parser.error("--capture requires --game-version (e.g. 1.2.1.5-8be0)")
 
     decompile = Path(args.decompile).expanduser()
     if not decompile.is_dir():
@@ -152,9 +162,17 @@ def main(argv):
 
     if args.capture:
         Path(args.snapshot).write_text(
-            json.dumps({"citations": corpus}, indent=2, sort_keys=True) + "\n"
+            json.dumps(
+                {"citations": corpus, "game_version": args.game_version},
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n"
         )
-        print(f"captured {len(corpus)} citation(s) to {args.snapshot}")
+        print(
+            f"captured {len(corpus)} citation(s) at game version "
+            f"{args.game_version} to {args.snapshot}"
+        )
         # Unresolvable citations are still reported, but capture succeeds: they
         # are a handbook defect to fix, not a reason to refuse to record what
         # did resolve.
@@ -166,9 +184,18 @@ def main(argv):
     if not snapshot_file.is_file():
         print(f"no snapshot at {snapshot_file} — run with --capture first")
         return 1
-    problems += compare(
-        corpus, json.loads(snapshot_file.read_text())["citations"], cited
-    )
+    snapshot_data = json.loads(snapshot_file.read_text())
+    game_version = snapshot_data.get("game_version")
+    if game_version:
+        print(f"comparing against snapshot captured at game version {game_version}")
+    else:
+        # A snapshot captured before this flag existed. Say so rather than
+        # crashing on a missing key — the fix is a recapture, not a traceback.
+        print(
+            "snapshot has no recorded game version "
+            "(captured before --game-version was required) — recapture to add one"
+        )
+    problems += compare(corpus, snapshot_data["citations"], cited)
 
     if problems:
         print(f"{len(problems)} problem(s):")
