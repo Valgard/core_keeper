@@ -355,8 +355,12 @@ def process(path, fix):
 
 
 # Frozen by intent: a design spec records what was decided at a point in time.
-# Reformatting one rewrites history for no reader's benefit.
-FROZEN = ("docs/specs/",)
+# Reformatting one rewrites history for no reader's benefit. The review
+# fixtures are frozen for a stronger reason — they are verbatim diffs with
+# planted errors, calibration material whose line breaks are part of what is
+# being tested. Rewrapping one silently invalidates the calibration the lanes
+# were measured against, which is the opposite of a formatting improvement.
+FROZEN = ("docs/specs/", ".claude/skills/ck-docs-review/fixtures/")
 
 
 def display(path):

@@ -35,13 +35,16 @@ __pycache__
 # needs a gitignore edit, and the ones that do not get it stay invisible to git.
 !/docs/specs/
 !/docs/adrs/
-# Track ONLY .claude/skills (shared agent skills). The parent dir must be
-# un-ignored so git descends into it, then everything inside is re-ignored,
-# then skills alone is re-allowed — so settings.json etc. stay local. Same
-# three-line idiom as docs/ above.
+# Track ONLY .claude/skills and .claude/agents — the shared skills and the
+# review lanes they dispatch, which are Core Keeper specific and belong with
+# the handbook they check rather than in the machine's global config. The
+# parent dir must be un-ignored so git descends into it, then everything
+# inside is re-ignored, then those two alone are re-allowed — so
+# settings.json etc. stay local. Same idiom as docs/ above.
 !/.claude/
 /.claude/*
 !/.claude/skills
+!/.claude/agents
 # Track ONLY the dotnet tool manifest inside .config/ (CSharpier version pin)
 # — same three-line idiom as docs/ and .claude/ above.
 !/.config/
