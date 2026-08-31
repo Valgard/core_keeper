@@ -69,3 +69,47 @@ def test_a_line_past_the_end_yields_an_empty_list_not_a_crash(tmp_path):
     # step has to see "nothing there now" as a difference it can report.
     tree = make_decompile(tmp_path, "Pug.Other", ["a", "b"])
     assert mod.resolve("Pug.Other", 900, 900, tree) == []
+
+
+def write_chapter(root, name, text):
+    docs = root / "docs" / "ck"
+    docs.mkdir(parents=True, exist_ok=True)
+    (docs / name).write_text(text)
+
+
+def test_collects_every_citation_keyed_as_written(tmp_path):
+    tree = make_decompile(tmp_path, "Pug.Other", ["a", "b", "c", "d"])
+    write_chapter(tmp_path, "one.md", "see `Pug.Other:2` and `Pug.Other:3-4`\n")
+
+    corpus, problems = mod.collect(tmp_path, tree)
+
+    assert corpus == {"Pug.Other:2": ["b"], "Pug.Other:3-4": ["c", "d"]}
+    assert problems == []
+
+
+def test_reports_an_unresolvable_citation_with_its_location(tmp_path):
+    tree = make_decompile(tmp_path, "Pug.Other", ["a"])
+    write_chapter(
+        tmp_path, "ui.md", "line one\nsee `ControlMappingMenu.prefab:2456-2457`\n"
+    )
+
+    corpus, problems = mod.collect(tmp_path, tree)
+
+    assert corpus == {}
+    assert len(problems) == 1
+    assert "ui.md:2" in problems[0]
+    assert "ControlMappingMenu.prefab:2456-2457" in problems[0]
+    assert "no decompiled assembly" in problems[0]
+
+
+def test_the_same_citation_twice_collapses_to_one_entry(tmp_path):
+    # Two sentences may cite the same line; the snapshot is keyed by citation,
+    # so this is one entry, not a conflict.
+    tree = make_decompile(tmp_path, "Pug.Base", ["a", "b"])
+    write_chapter(tmp_path, "one.md", "`Pug.Base:2`\n")
+    write_chapter(tmp_path, "two.md", "also `Pug.Base:2`\n")
+
+    corpus, problems = mod.collect(tmp_path, tree)
+
+    assert corpus == {"Pug.Base:2": ["b"]}
+    assert problems == []

@@ -17,11 +17,12 @@ Capture deliberately requires a flag, so a drift run can never silently record
 the drift as the new truth.
 
 What it does not resolve, and reports instead of guessing at:
-citations naming something other than a decompiled assembly. Two exist today —
-one into prefab YAML (`ControlMappingMenu.prefab:2456-2457`) and one naming the
+citations naming something other than a decompiled assembly. Three exist today —
+one into prefab YAML (`ControlMappingMenu.prefab:2456-2457`), one naming the
 dedicated-server *tree* rather than an assembly in it
-(`DedicatedServer:263259-263262`), which is a documentation defect this surfaces
-rather than papers over.
+(`DedicatedServer:263259-263262`), and one naming the decompile file instead of
+the assembly (`PugSprite.decompiled.cs:42`), each a documentation defect this
+tool surfaces rather than papers over.
 
 Usage:
     uv run utils/check_citation_drift.py [--capture] [--decompile PATH] [repo-root]
@@ -36,7 +37,7 @@ from pathlib import Path
 # Backtick-delimited, because that is how every real citation is written and it
 # is what separates `Pug.Other:441234` from prose like "roughly 124940". The
 # assembly part allows dots (Pug.ECS.Components) but not spaces or colons.
-CITATION = re.compile(r"`([A-Za-z][A-Za-z0-9_.]*):(\d{3,})(?:-(\d{3,}))?`")
+CITATION = re.compile(r"`([A-Za-z][A-Za-z0-9_.]*):(\d+)(?:-(\d+))?`")
 
 
 def extract(text):
@@ -60,3 +61,31 @@ def resolve(assembly, first, last, decompile):
         return None
     lines = source.read_text(errors="replace").splitlines()
     return [line.strip() for line in lines[first - 1 : last]]
+
+
+def key_of(assembly, first, last):
+    """Render a citation the way the prose writes it, so a report is greppable."""
+    return f"{assembly}:{first}" if first == last else f"{assembly}:{first}-{last}"
+
+
+def collect(root, decompile):
+    """Resolve every citation in docs/ck/, returning the corpus and the failures.
+
+    Chapters are read directly from docs/ck rather than from `git ls-files`,
+    unlike check_docs_links: the handbook is one directory of tracked files,
+    and reaching for git here would buy nothing while making the function need
+    a repository to run at all.
+    """
+    corpus, problems = {}, []
+    for chapter in sorted((Path(root) / "docs" / "ck").glob("*.md")):
+        for number, line in enumerate(chapter.read_text().splitlines(), start=1):
+            for assembly, first, last in extract(line):
+                key = key_of(assembly, first, last)
+                lines = resolve(assembly, first, last, decompile)
+                if lines is None:
+                    problems.append(
+                        f"{chapter.name}:{number}  {key}  no decompiled assembly"
+                    )
+                else:
+                    corpus[key] = lines
+    return corpus, sorted(problems)
