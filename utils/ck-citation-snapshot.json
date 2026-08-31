@@ -1,0 +1,1249 @@
+{
+  "citations": {
+    "Pug.Base:13190": [
+      "public const int defaultSimulationTickRate = 20;"
+    ],
+    "Pug.Base:17781": [
+      "public static bool IsWalkableTile(this TileType t)"
+    ],
+    "Pug.Base:18111": [
+      "public static void GetNeededTile(this TileType t, ref NativeList<TileType> neededTile)"
+    ],
+    "Pug.Base:2644": [
+      "YellowFirefly = 3500,"
+    ],
+    "Pug.Base:2755-2799": [
+      "WoodBridge = 4703,",
+      "StoneFloor = 4704,",
+      "StoneFenceGate = 4705,",
+      "StoneFence = 4706,",
+      "StoneBridge = 4707,",
+      "PaintableFloor = 4708,",
+      "ScarletFloor = 4709,",
+      "ScarletFenceGate = 4710,",
+      "ScarletFence = 4711,",
+      "ScarletBridge = 4712,",
+      "PaintableLitFloor = 4713,",
+      "CoralFloor = 4714,",
+      "CoralFenceGate = 4715,",
+      "CoralFence = 4716,",
+      "CoralBridge = 4717,",
+      "GalaxiteFloor = 4718,",
+      "GalaxiteFenceGate = 4719,",
+      "GalaxiteFence = 4720,",
+      "GalaxiteBridge = 4721,",
+      "GlassFloor = 4722,",
+      "ThinWallGlass = 4723,",
+      "GlassBridge = 4724,",
+      "WovenStrawFloor = 4725,",
+      "GleamWoodFloor = 4726,",
+      "GleamWoodFenceGate = 4727,",
+      "GleamWoodFence = 4728,",
+      "GleamWoodBridge = 4729,",
+      "Rug = 4750,",
+      "WovenMat = 4751,",
+      "LooseFlooring = 4752,",
+      "ValentineFloorPetals = 4753,",
+      "Bed = 4760,",
+      "WoodDoor = 4770,",
+      "StoneDoor = 4771,",
+      "ScarletDoor = 4772,",
+      "MetalGrateBridge = 4773,",
+      "GleamWoodDoor = 4774,",
+      "CoralDoor = 4775,",
+      "GalaxiteDoor = 4776,",
+      "Tapestry = 4777,",
+      "Banner = 4778,",
+      "LampPost = 4779,",
+      "SirenLamp = 4800,",
+      "WallLightBulb = 4801,",
+      "ExcavationBridge = 4802,"
+    ],
+    "Pug.Base:3357": [
+      "Rail = 6550,"
+    ],
+    "Pug.Base:4541": [
+      "public class CraftingObject"
+    ],
+    "Pug.Base:4696": [
+      "PlaceablePrefab = 800,"
+    ],
+    "Pug.ControlMapping:302-320": [
+      "private void PollForInput()",
+      "{",
+      "if (_inputEnabled && !_mappingController.IsBusy)",
+      "{",
+      "if (_systemPlayer.GetButtonDown(301))",
+      "{",
+      "OpenCalibrationMenu();",
+      "_inputEnabled = false;",
+      "}",
+      "if (_systemPlayer.GetButtonDown(300))",
+      "{",
+      "ResetDefaults();",
+      "}",
+      "if (_systemPlayer.GetButtonDown(298))",
+      "{",
+      "SelectNextOrPreviousCategory(next: true);",
+      "}",
+      "else if (_systemPlayer.GetButtonDown(299))",
+      "{"
+    ],
+    "Pug.ControlMapping:386-389": [
+      "private void ResetDefaults()",
+      "{",
+      "_inputEnabled = false;",
+      "_mappingController.StartResetDefaults();"
+    ],
+    "Pug.ControlMapping:916-924": [
+      "public override List<MenuHelperButtons.HelpButtonTypes> GetHelpButtonsToShow()",
+      "{",
+      "InputManager.ControllerPlatformType activeControllerPlatformType = Manager.input.GetActiveControllerPlatformType(checkSystemInput: true);",
+      "bool flag = activeControllerPlatformType == InputManager.ControllerPlatformType.Keyboard || activeControllerPlatformType == InputManager.ControllerPlatformType.Mouse;",
+      "if (_player.controllers.joystickCount <= 0 || flag)",
+      "{",
+      "return _helpButtonListNoJoystick;",
+      "}",
+      "return _helpButtonList;"
+    ],
+    "Pug.ECS.Authoring:2848": [
+      "public struct CraftingObject"
+    ],
+    "Pug.ECS.Authoring:2971": [
+      "foreach (InventoryItemAuthoring.CraftingObject item in component2.requiredObjectsToCraft)"
+    ],
+    "Pug.ECS.Authoring:3150": [
+      "public List<ObjectID> canBePlacedOnObjects;"
+    ],
+    "Pug.ECS.Components:1390": [
+      "public struct TheCoreCD : IComponentData, IQueryTypeParameter"
+    ],
+    "Pug.ECS.Components:3444": [
+      "public struct ClientInputData : IInputComponentData, IComponentData, IQueryTypeParameter"
+    ],
+    "Pug.ECS.Components:3628": [
+      "public ulong ghostCollectionHash;"
+    ],
+    "Pug.ECS.Components:3681": [
+      "public struct ModInfoRPC : IRpcCommand, IComponentData, IQueryTypeParameter"
+    ],
+    "Pug.ECS.Components:42160": [
+      "public struct PlacementCDGhostComponentSerializer : IGhostSerializer"
+    ],
+    "Pug.ECS.Components:4298-4316": [
+      "public bool canPlaceOnWalkableTiles;",
+      "",
+      "public bool isWalkableTile;",
+      "",
+      "public bool canPlaceOnWater;",
+      "",
+      "public bool canBePlacedOnLava;",
+      "",
+      "public bool canPlaceOnPit;",
+      "",
+      "public bool canPlaceOnSideOfWall;",
+      "",
+      "public bool canBePlacedOnPlayer;",
+      "",
+      "public bool canBePlacedOnBlockingObjects;",
+      "",
+      "public bool canBePlacedOnLowColliders;",
+      "",
+      "public bool blockedByObjectsOnWalls;"
+    ],
+    "Pug.ECS.Conversion:1146-1156": [
+      "public class DestructibleObjectConverter : SingleAuthoringComponentConverter<DestructibleObjectAuthoring>",
+      "{",
+      "protected override void Convert(DestructibleObjectAuthoring authoring)",
+      "{",
+      "EnsureHasComponent<DestructibleObjectCD>();",
+      "if (authoring.requiresDrill)",
+      "{",
+      "EnsureHasComponent<RequiresDrillCD>();",
+      "}",
+      "}",
+      "}"
+    ],
+    "Pug.ECS.Conversion:2761": [
+      "int maxSkins = PetInfosTable.GetTable().GetPetSkinInfo((ObjectID)base.ObjectIndex)?.skins.Count ?? 0;"
+    ],
+    "Pug.ECS.Conversion:2825": [
+      "public class PlaceableObjectConverter : SingleAuthoringComponentConverter<PlaceableObjectAuthoring>"
+    ],
+    "Pug.ECS.Conversion:2893": [
+      "SetPropertyList(\"PlaceableObject/canBePlacedOnObjects\", authoring.canBePlacedOnObjects.ToArray());"
+    ],
+    "Pug.ECS.Conversion:5808": [
+      "protected override void Convert(EntityMonoBehaviourData authoring)"
+    ],
+    "Pug.Other:124547": [
+      "private struct NetworkClientStartSystem_33002849_LambdaJob_0_Job : IJobChunk"
+    ],
+    "Pug.Other:124570": [
+      "if ((__this.localMods[num].modId != 0L && __this.localMods[num].modId == modInfo.modId) || (__this.localMods[num].modGuid.IsValid && __this.localMods[num].modGuid == modInfo.modGuid))"
+    ],
+    "Pug.Other:124905": [
+      "protected override void OnUpdate()"
+    ],
+    "Pug.Other:124927": [
+      "localMod.name = loadedMod.Metadata.name;"
+    ],
+    "Pug.Other:125064-125083": [
+      "if (mod.modId > 0)",
+      "{",
+      "ModIOUnity.GetMod(new ModId(mod.modId), delegate(ResultAnd<ModProfile> result)",
+      "{",
+      "string modName;",
+      "if (!result.result.Succeeded())",
+      "{",
+      "UnityEngine.Debug.LogError($\"Failed to fetch mod {mod.modId}: {result.result.message}\");",
+      "modName = \"Unknown\";",
+      "}",
+      "else",
+      "{",
+      "modName = result.value.name;",
+      "}",
+      "Callback(mod.modId, mod.modGuid, modName);",
+      "});",
+      "}",
+      "else",
+      "{",
+      "Callback(mod.modId, mod.modGuid, mod.modName);"
+    ],
+    "Pug.Other:125498": [
+      "[BurstCompile]"
+    ],
+    "Pug.Other:125928": [
+      "modName = loadedMod.Metadata.name.Substring(0, math.min(FixedString32Bytes.UTF8MaxLengthInBytes / 2, loadedMod.Metadata.name.Length)),"
+    ],
+    "Pug.Other:126187": [
+      "if (localVersionHash != 0 && req.serverVersion != 0 && localVersionHash != req.serverVersion)"
+    ],
+    "Pug.Other:135800": [
+      "private static readonly float2 SpawnRect = new float2(22f, 14f);"
+    ],
+    "Pug.Other:179834-180412": [
+      "public struct UnloadToSerializeWorldSystem : ISystem, ISystemCompilerGenerated",
+      "{",
+      "[BurstCompile]",
+      "private struct CalculateMinMaxPositionJob : IJobChunk",
+      "{",
+      "[Unity.Collections.ReadOnly]",
+      "public ComponentTypeHandle<LocalTransform> LocalTransform;",
+      "",
+      "public ComponentTypeHandle<SerializedChunkMinMaxPosition> SerializedChunkMinMaxPosition;",
+      "",
+      "public uint LastSystemVersion;",
+      "",
+      "public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)",
+      "{",
+      "SerializedChunkMinMaxPosition chunkComponentData = chunk.GetChunkComponentData(ref SerializedChunkMinMaxPosition);",
+      "if (chunk.DidChange(LocalTransform, LastSystemVersion) || chunk.DidOrderChange(LastSystemVersion) || math.all((chunkComponentData.Max == 0) & (chunkComponentData.Min == 0)))",
+      "{",
+      "int2 int5 = new int2(int.MaxValue, int.MaxValue);",
+      "int2 int6 = new int2(int.MinValue, int.MinValue);",
+      "NativeArray<LocalTransform> nativeArray = chunk.GetNativeArray(LocalTransform);",
+      "for (int i = 0; i < chunk.Count; i++)",
+      "{",
+      "int2 y = (int2)nativeArray[i].Position.xz;",
+      "int5 = math.min(int5, y);",
+      "int6 = math.max(int6, y);",
+      "}",
+      "chunk.SetChunkComponentData(ref SerializedChunkMinMaxPosition, new SerializedChunkMinMaxPosition",
+      "{",
+      "Min = int5,",
+      "Max = int6",
+      "});",
+      "}",
+      "}",
+      "",
+      "void IJobChunk.Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)",
+      "{",
+      "Execute(in chunk, unfilteredChunkIndex, useEnabledMask, in chunkEnabledMask);",
+      "}",
+      "}",
+      "",
+      "[BurstCompile]",
+      "[WithAll(new Type[]",
+      "{",
+      "typeof(KeepAreaLoadedCD),",
+      "typeof(LocalTransform)",
+      "})]",
+      "[CompilerGenerated]",
+      "private struct FindEnabledPositions : IJobEntity, IJobChunk",
+      "{",
+      "public struct InternalCompilerQueryAndHandleData",
+      "{",
+      "public struct TypeHandle",
+      "{",
+      "[Unity.Collections.ReadOnly]",
+      "public ComponentTypeHandle<LocalTransform> __Unity_Transforms_LocalTransform_RO_ComponentTypeHandle;",
+      "",
+      "[Unity.Collections.ReadOnly]",
+      "public ComponentTypeHandle<KeepAreaLoadedCD> __KeepAreaLoadedCD_RO_ComponentTypeHandle;",
+      "",
+      "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+      "public void __AssignHandles(ref SystemState state)",
+      "{",
+      "__Unity_Transforms_LocalTransform_RO_ComponentTypeHandle = state.GetComponentTypeHandle<LocalTransform>(isReadOnly: true);",
+      "__KeepAreaLoadedCD_RO_ComponentTypeHandle = state.GetComponentTypeHandle<KeepAreaLoadedCD>(isReadOnly: true);",
+      "}",
+      "",
+      "public void Update(ref SystemState state)",
+      "{",
+      "__Unity_Transforms_LocalTransform_RO_ComponentTypeHandle.Update(ref state);",
+      "__KeepAreaLoadedCD_RO_ComponentTypeHandle.Update(ref state);",
+      "}",
+      "}",
+      "",
+      "public TypeHandle __TypeHandle;",
+      "",
+      "public EntityQuery DefaultQuery;",
+      "",
+      "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+      "private void __AssignQueries(ref SystemState state)",
+      "{",
+      "EntityQueryBuilder entityQueryBuilder = new EntityQueryBuilder(Allocator.Temp);",
+      "EntityQueryBuilder entityQueryBuilder2 = entityQueryBuilder.WithAll<LocalTransform>();",
+      "entityQueryBuilder2 = entityQueryBuilder2.WithAll<KeepAreaLoadedCD>();",
+      "DefaultQuery = entityQueryBuilder2.Build(ref state);",
+      "entityQueryBuilder.Reset();",
+      "entityQueryBuilder.Dispose();",
+      "}",
+      "",
+      "public void Init(ref SystemState state, bool assignDefaultQuery)",
+      "{",
+      "if (assignDefaultQuery)",
+      "{",
+      "__AssignQueries(ref state);",
+      "}",
+      "__TypeHandle.__AssignHandles(ref state);",
+      "}",
+      "",
+      "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+      "public void Run(ref FindEnabledPositions job, EntityQuery query)",
+      "{",
+      "job.__TypeHandle = __TypeHandle;",
+      "JobChunkExtensions.RunByRef(ref job, query);",
+      "}",
+      "",
+      "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+      "public JobHandle Schedule(ref FindEnabledPositions job, EntityQuery query, JobHandle dependency)",
+      "{",
+      "job.__TypeHandle = __TypeHandle;",
+      "return JobChunkExtensions.ScheduleByRef(ref job, query, dependency);",
+      "}",
+      "",
+      "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+      "public JobHandle ScheduleParallel(ref FindEnabledPositions job, EntityQuery query, JobHandle dependency)",
+      "{",
+      "job.__TypeHandle = __TypeHandle;",
+      "return JobChunkExtensions.ScheduleParallelByRef(ref job, query, dependency);",
+      "}",
+      "",
+      "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+      "public void UpdateBaseEntityIndexArray(ref FindEnabledPositions job, EntityQuery query, ref SystemState state)",
+      "{",
+      "}",
+      "",
+      "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+      "public JobHandle UpdateBaseEntityIndexArray(ref FindEnabledPositions job, EntityQuery query, JobHandle dependency, ref SystemState state)",
+      "{",
+      "return dependency;",
+      "}",
+      "",
+      "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+      "public void AssignEntityManager(ref FindEnabledPositions job, EntityManager entityManager)",
+      "{",
+      "}",
+      "}",
+      "",
+      "[StructLayout(LayoutKind.Sequential, Size = 1)]",
+      "public struct InternalCompiler",
+      "{",
+      "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+      "[Conditional(\"ENABLE_UNITY_COLLECTIONS_CHECKS\")]",
+      "public static void CheckForErrors(int scheduleType)",
+      "{",
+      "}",
+      "}",
+      "",
+      "public NativeList<PugGeometry.Circle> KeepAreaLoaded;",
+      "",
+      "public NativeList<PugGeometry.Circle> LoadArea;",
+      "",
+      "public NativeList<PugGeometry.Circle> LoadAreaImmediately;",
+      "",
+      "private InternalCompilerQueryAndHandleData.TypeHandle __TypeHandle;",
+      "",
+      "public void Execute(in LocalTransform localTransform, in KeepAreaLoadedCD keepAreaLoaded)",
+      "{",
+      "int2 int5 = localTransform.Position.RoundToInt2();",
+      "KeepAreaLoaded.Add(PugGeometry.Circle.FromCenterRadius(int5, keepAreaLoaded.KeepLoadedRadius));",
+      "LoadArea.Add(PugGeometry.Circle.FromCenterRadius(int5, keepAreaLoaded.StartLoadRadius));",
+      "LoadAreaImmediately.Add(PugGeometry.Circle.FromCenterRadius(int5, keepAreaLoaded.ImmediateLoadRadius));",
+      "}",
+      "",
+      "[CompilerGenerated]",
+      "public void Execute(in ArchetypeChunk chunk, int chunkIndexInQuery, bool useEnabledMask, in v128 chunkEnabledMask)",
+      "{",
+      "IntPtr nativeArrayPtr = InternalCompilerInterface.UnsafeGetChunkNativeArrayReadOnlyIntPtr(chunk, ref __TypeHandle.__Unity_Transforms_LocalTransform_RO_ComponentTypeHandle);",
+      "IntPtr nativeArrayPtr2 = InternalCompilerInterface.UnsafeGetChunkNativeArrayReadOnlyIntPtr(chunk, ref __TypeHandle.__KeepAreaLoadedCD_RO_ComponentTypeHandle);",
+      "int count = chunk.Count;",
+      "int num = 0;",
+      "if (!useEnabledMask)",
+      "{",
+      "for (int i = 0; i < count; i++)",
+      "{",
+      "Execute(in InternalCompilerInterface.UnsafeGetRefToNativeArrayPtrElement<LocalTransform>(nativeArrayPtr, i), in InternalCompilerInterface.UnsafeGetRefToNativeArrayPtrElement<KeepAreaLoadedCD>(nativeArrayPtr2, i));",
+      "num++;",
+      "}",
+      "return;",
+      "}",
+      "if (math.countbits(chunkEnabledMask.ULong0 ^ (chunkEnabledMask.ULong0 << 1)) + math.countbits(chunkEnabledMask.ULong1 ^ (chunkEnabledMask.ULong1 << 1)) - 1 <= 4)",
+      "{",
+      "int nextRangeBegin = 0;",
+      "int nextRangeEnd = 0;",
+      "while (InternalCompilerInterface.UnsafeTryGetNextEnabledBitRange(chunkEnabledMask, nextRangeEnd, out nextRangeBegin, out nextRangeEnd))",
+      "{",
+      "while (nextRangeBegin < nextRangeEnd)",
+      "{",
+      "Execute(in InternalCompilerInterface.UnsafeGetRefToNativeArrayPtrElement<LocalTransform>(nativeArrayPtr, nextRangeBegin), in InternalCompilerInterface.UnsafeGetRefToNativeArrayPtrElement<KeepAreaLoadedCD>(nativeArrayPtr2, nextRangeBegin));",
+      "nextRangeBegin++;",
+      "num++;",
+      "}",
+      "}",
+      "return;",
+      "}",
+      "ulong num2 = chunkEnabledMask.ULong0;",
+      "int num3 = math.min(64, count);",
+      "for (int j = 0; j < num3; j++)",
+      "{",
+      "if ((num2 & 1) != 0L)",
+      "{",
+      "Execute(in InternalCompilerInterface.UnsafeGetRefToNativeArrayPtrElement<LocalTransform>(nativeArrayPtr, j), in InternalCompilerInterface.UnsafeGetRefToNativeArrayPtrElement<KeepAreaLoadedCD>(nativeArrayPtr2, j));",
+      "num++;",
+      "}",
+      "num2 >>= 1;",
+      "}",
+      "num2 = chunkEnabledMask.ULong1;",
+      "for (int k = 64; k < count; k++)",
+      "{",
+      "if ((num2 & 1) != 0L)",
+      "{",
+      "Execute(in InternalCompilerInterface.UnsafeGetRefToNativeArrayPtrElement<LocalTransform>(nativeArrayPtr, k), in InternalCompilerInterface.UnsafeGetRefToNativeArrayPtrElement<KeepAreaLoadedCD>(nativeArrayPtr2, k));",
+      "num++;",
+      "}",
+      "num2 >>= 1;",
+      "}",
+      "}",
+      "",
+      "private JobHandle __ThrowCodeGenException()",
+      "{",
+      "throw new Exception(\"This method should have been replaced by source gen.\");",
+      "}",
+      "",
+      "public void Run()",
+      "{",
+      "__ThrowCodeGenException();",
+      "}",
+      "",
+      "public void RunByRef()",
+      "{",
+      "__ThrowCodeGenException();",
+      "}",
+      "",
+      "public void Run(EntityQuery query)",
+      "{",
+      "__ThrowCodeGenException();",
+      "}",
+      "",
+      "public void RunByRef(EntityQuery query)",
+      "{",
+      "__ThrowCodeGenException();",
+      "}",
+      "",
+      "public JobHandle Schedule(JobHandle dependsOn)",
+      "{",
+      "return __ThrowCodeGenException();",
+      "}",
+      "",
+      "public JobHandle ScheduleByRef(JobHandle dependsOn)",
+      "{",
+      "return __ThrowCodeGenException();",
+      "}",
+      "",
+      "public JobHandle Schedule(EntityQuery query, JobHandle dependsOn)",
+      "{",
+      "return __ThrowCodeGenException();",
+      "}",
+      "",
+      "public JobHandle ScheduleByRef(EntityQuery query, JobHandle dependsOn)",
+      "{",
+      "return __ThrowCodeGenException();",
+      "}",
+      "",
+      "public void Schedule()",
+      "{",
+      "__ThrowCodeGenException();",
+      "}",
+      "",
+      "public void ScheduleByRef()",
+      "{",
+      "__ThrowCodeGenException();",
+      "}",
+      "",
+      "public void Schedule(EntityQuery query)",
+      "{",
+      "__ThrowCodeGenException();",
+      "}",
+      "",
+      "public void ScheduleByRef(EntityQuery query)",
+      "{",
+      "__ThrowCodeGenException();",
+      "}",
+      "",
+      "public JobHandle ScheduleParallel(JobHandle dependsOn)",
+      "{",
+      "return __ThrowCodeGenException();",
+      "}",
+      "",
+      "public JobHandle ScheduleParallelByRef(JobHandle dependsOn)",
+      "{",
+      "return __ThrowCodeGenException();",
+      "}",
+      "",
+      "public JobHandle ScheduleParallel(EntityQuery query, JobHandle dependsOn)",
+      "{",
+      "return __ThrowCodeGenException();",
+      "}",
+      "",
+      "public JobHandle ScheduleParallelByRef(EntityQuery query, JobHandle dependsOn)",
+      "{",
+      "return __ThrowCodeGenException();",
+      "}",
+      "",
+      "public JobHandle ScheduleParallel(EntityQuery query, JobHandle dependsOn, NativeArray<int> chunkBaseEntityIndices)",
+      "{",
+      "return __ThrowCodeGenException();",
+      "}",
+      "",
+      "public JobHandle ScheduleParallelByRef(EntityQuery query, JobHandle dependsOn, NativeArray<int> chunkBaseEntityIndices)",
+      "{",
+      "return __ThrowCodeGenException();",
+      "}",
+      "",
+      "public void ScheduleParallel()",
+      "{",
+      "__ThrowCodeGenException();",
+      "}",
+      "",
+      "public void ScheduleParallelByRef()",
+      "{",
+      "__ThrowCodeGenException();",
+      "}",
+      "",
+      "public void ScheduleParallel(EntityQuery query)",
+      "{",
+      "__ThrowCodeGenException();",
+      "}",
+      "",
+      "public void ScheduleParallelByRef(EntityQuery query)",
+      "{",
+      "__ThrowCodeGenException();",
+      "}",
+      "",
+      "void IJobChunk.Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)",
+      "{",
+      "Execute(in chunk, unfilteredChunkIndex, useEnabledMask, in chunkEnabledMask);",
+      "}",
+      "}",
+      "",
+      "[BurstCompile]",
+      "private struct UnloadChunksTooFarAway : IJobChunk",
+      "{",
+      "public EntityCommandBuffer ECB;",
+      "",
+      "[Unity.Collections.ReadOnly]",
+      "public NativeList<PugGeometry.Circle> KeepAreaLoaded;",
+      "",
+      "public NativeList<SerializedChunkData> Chunks;",
+      "",
+      "[Unity.Collections.ReadOnly]",
+      "public EntityTypeHandle EntityTypeHandle;",
+      "",
+      "[Unity.Collections.ReadOnly]",
+      "public ComponentTypeHandle<SerializedChunkMinMaxPosition> SerializedMinMaxPositionHandle;",
+      "",
+      "[Unity.Collections.ReadOnly]",
+      "public ComponentTypeHandle<SerializedChunkData> SerializedChunkHandle;",
+      "",
+      "public EntityArchetype UnloadedChunkArchetype;",
+      "",
+      "[Unity.Collections.ReadOnly]",
+      "public ComponentTypeHandle<LocalTransform> LocalTransformTypeHandle;",
+      "",
+      "[Unity.Collections.ReadOnly]",
+      "public ComponentTypeHandle<ObjectDataCD> ObjectDataTypeHandle;",
+      "",
+      "[Unity.Collections.ReadOnly]",
+      "public ComponentTypeHandle<DirectionCD> DirectionTypeHandle;",
+      "",
+      "public ObjectLookupWriterCD ObjectLookupWriter;",
+      "",
+      "public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)",
+      "{",
+      "SerializedChunkData chunkComponentData = chunk.GetChunkComponentData(SerializedChunkHandle);",
+      "if (chunkComponentData.ChunkListIndex < 0 || chunkComponentData.StartIndex == 0)",
+      "{",
+      "return;",
+      "}",
+      "SerializedChunkMinMaxPosition chunkComponentData2 = chunk.GetChunkComponentData(SerializedMinMaxPositionHandle);",
+      "if (math.all((chunkComponentData2.Min == int2.zero) & (chunkComponentData2.Max == int2.zero)))",
+      "{",
+      "return;",
+      "}",
+      "PugGeometry.AxisAlignedBoundingBox aabb = new PugGeometry.AxisAlignedBoundingBox",
+      "{",
+      "Low = chunkComponentData2.Min,",
+      "High = chunkComponentData2.Max",
+      "};",
+      "foreach (PugGeometry.Circle item in KeepAreaLoaded)",
+      "{",
+      "if (item.Overlaps(aabb))",
+      "{",
+      "return;",
+      "}",
+      "}",
+      "int chunkListIndex = chunkComponentData.ChunkListIndex;",
+      "chunkComponentData.ChunkListIndex = -2;",
+      "Chunks[chunkListIndex] = chunkComponentData;",
+      "Entity e = ECB.CreateEntity(UnloadedChunkArchetype);",
+      "ECB.SetComponent(e, new UnloadedChunkCD",
+      "{",
+      "ChunkListIndex = chunkListIndex,",
+      "MinPosition = chunkComponentData2.Min,",
+      "MaxPosition = chunkComponentData2.Max",
+      "});",
+      "NativeArray<Entity> nativeArray = chunk.GetNativeArray(EntityTypeHandle);",
+      "ECB.DestroyEntity(nativeArray);",
+      "NativeArray<LocalTransform> nativeArray2 = chunk.GetNativeArray(ref LocalTransformTypeHandle);",
+      "NativeArray<ObjectDataCD> nativeArray3 = chunk.GetNativeArray(ref ObjectDataTypeHandle);",
+      "if (!nativeArray2.IsCreated || !nativeArray3.IsCreated)",
+      "{",
+      "return;",
+      "}",
+      "NativeArray<DirectionCD> nativeArray4 = chunk.GetNativeArray(ref DirectionTypeHandle);",
+      "if (nativeArray4.IsCreated)",
+      "{",
+      "for (int i = 0; i < chunk.Count; i++)",
+      "{",
+      "ObjectLookupWriter.Add(ECB, nativeArray3[i].objectID, nativeArray3[i].variation, nativeArray2[i].Position, hasDirection: true, nativeArray4[i]);",
+      "}",
+      "}",
+      "else",
+      "{",
+      "for (int j = 0; j < chunk.Count; j++)",
+      "{",
+      "ObjectLookupWriter.Add(ECB, nativeArray3[j].objectID, nativeArray3[j].variation, nativeArray2[j].Position, hasDirection: false, default(DirectionCD));",
+      "}",
+      "}",
+      "}",
+      "",
+      "void IJobChunk.Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)",
+      "{",
+      "Execute(in chunk, unfilteredChunkIndex, useEnabledMask, in chunkEnabledMask);",
+      "}",
+      "}",
+      "",
+      "[BurstCompile]",
+      "[CompilerGenerated]",
+      "private struct FindUnloadedChunksToLoad : IJobEntity, IJobChunk",
+      "{",
+      "public struct InternalCompilerQueryAndHandleData",
+      "{",
+      "public struct TypeHandle",
+      "{",
+      "[Unity.Collections.ReadOnly]",
+      "public EntityTypeHandle __Unity_Entities_Entity_TypeHandle;",
+      "",
+      "[Unity.Collections.ReadOnly]",
+      "public ComponentTypeHandle<UnloadedChunkCD> __UnloadedChunkCD_RO_ComponentTypeHandle;",
+      "",
+      "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+      "public void __AssignHandles(ref SystemState state)",
+      "{",
+      "__Unity_Entities_Entity_TypeHandle = state.GetEntityTypeHandle();",
+      "__UnloadedChunkCD_RO_ComponentTypeHandle = state.GetComponentTypeHandle<UnloadedChunkCD>(isReadOnly: true);",
+      "}",
+      "",
+      "public void Update(ref SystemState state)",
+      "{",
+      "__Unity_Entities_Entity_TypeHandle.Update(ref state);",
+      "__UnloadedChunkCD_RO_ComponentTypeHandle.Update(ref state);",
+      "}",
+      "}",
+      "",
+      "public TypeHandle __TypeHandle;",
+      "",
+      "public EntityQuery DefaultQuery;",
+      "",
+      "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+      "private void __AssignQueries(ref SystemState state)",
+      "{",
+      "EntityQueryBuilder entityQueryBuilder = new EntityQueryBuilder(Allocator.Temp);",
+      "DefaultQuery = entityQueryBuilder.WithAll<UnloadedChunkCD>().Build(ref state);",
+      "entityQueryBuilder.Reset();",
+      "entityQueryBuilder.Dispose();",
+      "}",
+      "",
+      "public void Init(ref SystemState state, bool assignDefaultQuery)",
+      "{",
+      "if (assignDefaultQuery)",
+      "{",
+      "__AssignQueries(ref state);",
+      "}",
+      "__TypeHandle.__AssignHandles(ref state);",
+      "}",
+      "",
+      "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+      "public void Run(ref FindUnloadedChunksToLoad job, EntityQuery query)",
+      "{",
+      "job.__TypeHandle = __TypeHandle;",
+      "JobChunkExtensions.RunByRef(ref job, query);",
+      "}",
+      "",
+      "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+      "public JobHandle Schedule(ref FindUnloadedChunksToLoad job, EntityQuery query, JobHandle dependency)",
+      "{",
+      "job.__TypeHandle = __TypeHandle;",
+      "return JobChunkExtensions.ScheduleByRef(ref job, query, dependency);",
+      "}",
+      "",
+      "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+      "public JobHandle ScheduleParallel(ref FindUnloadedChunksToLoad job, EntityQuery query, JobHandle dependency)",
+      "{",
+      "job.__TypeHandle = __TypeHandle;",
+      "return JobChunkExtensions.ScheduleParallelByRef(ref job, query, dependency);",
+      "}",
+      "",
+      "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+      "public void UpdateBaseEntityIndexArray(ref FindUnloadedChunksToLoad job, EntityQuery query, ref SystemState state)",
+      "{",
+      "}",
+      "",
+      "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+      "public JobHandle UpdateBaseEntityIndexArray(ref FindUnloadedChunksToLoad job, EntityQuery query, JobHandle dependency, ref SystemState state)",
+      "{",
+      "return dependency;",
+      "}",
+      "",
+      "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+      "public void AssignEntityManager(ref FindUnloadedChunksToLoad job, EntityManager entityManager)",
+      "{",
+      "}",
+      "}",
+      "",
+      "[StructLayout(LayoutKind.Sequential, Size = 1)]",
+      "public struct InternalCompiler",
+      "{",
+      "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+      "[Conditional(\"ENABLE_UNITY_COLLECTIONS_CHECKS\")]",
+      "public static void CheckForErrors(int scheduleType)",
+      "{",
+      "}",
+      "}",
+      "",
+      "public EntityCommandBuffer ECB;",
+      "",
+      "public ExclusiveEntityTransaction EntityTransactionSerializedWorld;",
+      "",
+      "[Unity.Collections.ReadOnly]",
+      "public NativeList<PugGeometry.Circle> LoadArea;",
+      "",
+      "[Unity.Collections.ReadOnly]",
+      "public NativeList<PugGeometry.Circle> LoadAreaImmediately;",
+      "",
+      "public NativeList<Entity> SerializedEntities;",
+      "",
+      "public NativeList<SerializeWorldDataCD.FreeEntityRange> FreeSerializedEntities;",
+      "",
+      "public NativeList<SerializedChunkData> Chunks;",
+      "",
+      "public NativeList<int> FreeChunks;",
+      "",
+      "private int _chunksLoadedThisTick;",
+      "",
+      "private InternalCompilerQueryAndHandleData.TypeHandle __TypeHandle;",
+      "",
+      "public void Execute(Entity entity, in UnloadedChunkCD unloadedChunk)",
+      "{",
+      "if (OverlapsAny(new PugGeometry.AxisAlignedBoundingBox",
+      "{",
+      "Low = unloadedChunk.MinPosition,",
+      "High = unloadedChunk.MaxPosition",
+      "}, (_chunksLoadedThisTick >= 10) ? LoadAreaImmediately : LoadArea))",
+      "{",
+      "_chunksLoadedThisTick++;",
+      "ECB.DestroyEntity(entity);",
+      "SerializedChunkData serializedChunkData = Chunks[unloadedChunk.ChunkListIndex];",
+      "Chunks[unloadedChunk.ChunkListIndex] = default(SerializedChunkData);",
+      "FreeChunks.Add(in unloadedChunk.ChunkListIndex);",
+      "ref NativeList<SerializeWorldDataCD.FreeEntityRange> reference = ref FreeSerializedEntities;",
+      "SerializeWorldDataCD.FreeEntityRange value = new SerializeWorldDataCD.FreeEntityRange",
+      "{",
+      "StartIndex = serializedChunkData.StartIndex,",
+      "Capacity = serializedChunkData.Capacity",
+      "};",
+      "reference.Add(in value);",
+      "for (int i = 0; i < serializedChunkData.Count; i++)",
+      "{",
+      "Entity entity2 = SerializedEntities[serializedChunkData.StartIndex + i];",
+      "EntityTransactionSerializedWorld.AddComponent(entity2, ComponentType.ReadOnly<SerializedEntityPendingLoadCD>());",
+      "}",
+      "}"
+    ],
+    "Pug.Other:181795": [
+      "using (EntityQuery entityQuery3 = base.EntityManager.CreateEntityQuery(typeof(TheCoreCD)))"
+    ],
+    "Pug.Other:181802": [
+      "SetComponent(nativeArray[0], LocalTransform.FromPosition(new float3(0f, 0f, 4f)));"
+    ],
+    "Pug.Other:240546": [
+      "for (int num = tileUpdates.Length - 1; num >= 0; num--)"
+    ],
+    "Pug.Other:241602": [
+      "for (int num = tileUpdates.Length - 1; num >= 0; num--)"
+    ],
+    "Pug.Other:241661": [
+      "EntityUtility.DropNewEntity(ecb, new ContainedObjectsBuffer"
+    ],
+    "Pug.Other:256440": [
+      "public static void AddTile(int tileSet, PugTilemap.TileType tileType, int2 position, bool isWorldModeCreative, DynamicBuffer<TileUpdateBuffer> tileUpdateBuffer)"
+    ],
+    "Pug.Other:263316-263325": [
+      "_modLoaders.Add(new SideLoader());",
+      "}",
+      "string userIdentifier;",
+      "if (!num)",
+      "{",
+      "userIdentifier = ((_platformInterface == null) ? Environment.UserName : (_platformInterface.Name + \":\" + _platformInterface.GetAccountId()));",
+      "_modLoaders.Add(new ModIOLoader(userIdentifier));",
+      "}",
+      "userIdentifier = Environment.UserName;",
+      "_modLoaders.Add(new SteamWorkshopLoader(userIdentifier));"
+    ],
+    "Pug.Other:263334": [
+      "Integration.Instance.Update();"
+    ],
+    "Pug.Other:2654": [
+      "_allWorlds.Add(CreateServerWorld(\"ServerWorld\", worldId));"
+    ],
+    "Pug.Other:267323": [
+      "public bool SystemIsUsingMouse()"
+    ],
+    "Pug.Other:2675": [
+      "BurstDisabler.AddWorld(allWorld);"
+    ],
+    "Pug.Other:269675": [
+      "return true;"
+    ],
+    "Pug.Other:269678": [
+      "private void TrySetInputText(bool success, string input)"
+    ],
+    "Pug.Other:269693-269702": [
+      "private bool IsKeyDown(KeyCode keyCode, bool checkOnlyOnPressedDown = false)",
+      "{",
+      "typingActionWasClicked = Input.GetKeyUp(keyCode) || Input.GetKeyDown(keyCode) || Input.GetKey(keyCode) || typingActionWasClicked;",
+      "if (Input.GetKeyDown(keyCode) || (!checkOnlyOnPressedDown && Input.GetKey(keyCode) && (typingInputCooldown.isTimerElapsed || !typingInputCooldown.isRunning)))",
+      "{",
+      "typingInputCooldown.Start(Input.GetKeyDown(keyCode) ? 0.3f : 0.05f);",
+      "return true;",
+      "}",
+      "return false;",
+      "}"
+    ],
+    "Pug.Other:269869": [
+      "public bool UpdateInputAndApplyToCurrentMenu()"
+    ],
+    "Pug.Other:273173": [
+      "if (_creativeModeUIShouldBeOn && Manager.saves.IsCreativeModeWorld() && !flag && !flag2)"
+    ],
+    "Pug.Other:273386": [
+      "if (Manager.input.textInputIsActive)"
+    ],
+    "Pug.Other:279626": [
+      "string s = JsonUtility.ToJson(modConfigFile, prettyPrint: true);"
+    ],
+    "Pug.Other:285322": [
+      "public void InitWorld(World world)"
+    ],
+    "Pug.Other:2938": [
+      "BurstDisabler.ResetWorlds();"
+    ],
+    "Pug.Other:295381": [
+      "public static void UpdatePlaceablePosition(Entity placementPrefab, ref NativeList<EntityAndInfoFromPlacement> diggableEntityAndInfos, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData)"
+    ],
+    "Pug.Other:295720": [
+      "public static bool ShouldCheckPlaceObjectOnTile(Entity placementPrefab, ref PlacementCD placementCD, ref int3 pos, ref int totalTilesOK, in float3 playerPosition, ref TileCD prevTile, ref PugDatabase.EntityObjectInfo infoAboutObjectToPlace, in ObjectPropertiesCD objectProperties, NativeHashMap<int3, bool> tilesChecked, NativeArray<ObjectID> canBePlacedOnObjects, NativeArray<ObjectID> canNotBePlaceOnObjects, out bool isPlacingElectronic, out bool foundValidTileToPlaceOn, out TileCD tileData, in CanPlaceSharedData canPlaceSharedData)"
+    ],
+    "Pug.Other:295735": [
+      "bool flag5 = placementCD.canPlaceOnPit && tileData.tileType == PugTilemap.TileType.pit;"
+    ],
+    "Pug.Other:296438": [
+      "bool flag8 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
+    ],
+    "Pug.Other:311322": [
+      "if (!valueRW.canPlaceObject)"
+    ],
+    "Pug.Other:311379": [
+      "EntityUtility.AddTile(entityObjectInfo.tileset, tileTypeToPlace, new int2(int5.x, int5.z), equipmentUpdateSharedData.worldInfoCD.IsWorldModeEnabled(WorldMode.Creative), tileUpdateBuffer);"
+    ],
+    "Pug.Other:311561-311568": [
+      "private static PugTilemap.TileType GetTileTypeToPlace(int3 pos, ref PugDatabase.EntityObjectInfo objectToPlaceInfo, in TileAccessor tileAccessor, in TileWithTilesetToObjectDataMapCD tileWithTilesetToObjectDataMapCD)",
+      "{",
+      "int2 worldPosition = pos.ToInt2();",
+      "if (objectToPlaceInfo.tileType == PugTilemap.TileType.wall && !tileAccessor.HasType(worldPosition, PugTilemap.TileType.ground) && !tileAccessor.HasType(worldPosition, PugTilemap.TileType.bridge) && PugDatabase.TryGetTileItemInfo(PugTilemap.TileType.ground, (Tileset)objectToPlaceInfo.tileset, in tileWithTilesetToObjectDataMapCD).objectID != ObjectID.None)",
+      "{",
+      "return PugTilemap.TileType.ground;",
+      "}",
+      "return objectToPlaceInfo.tileType;"
+    ],
+    "Pug.Other:318520-318528": [
+      "private void LateUpdate()",
+      "{",
+      "int2 x = (int2)math.floor(mapUI.GetCursorWorldPosition());",
+      "string text = x.x.ToString(\"F0\") + \", \" + x.y.ToString(\"F0\");",
+      "coordinateText.Render(text);",
+      "coordinateTextOutline.Render(text);",
+      "string text2 = \"(\" + math.length(x.ToFloat2()).ToString(\"F0\") + \")\";",
+      "distanceText.Render(text2);",
+      "distanceTextOutline.Render(text2);"
+    ],
+    "Pug.Other:324033-324034": [
+      "float num = (float)EntityUtility.GetConditionEffectValue(ConditionEffect.ChanceToGainExtraCookedFood, player.entity, player.world) / 1000f;",
+      "float num2 = (float)EntityUtility.GetConditionValue(ConditionID.ChanceForExtraCookedFoodToBeRare, player.entity, player.world) / 100f;"
+    ],
+    "Pug.Other:324037-324077": [
+      "bool flag = false;",
+      "if (PugDatabase.HasComponent<FlowerCD>(primaryIngredientFromVariation))",
+      "{",
+      "flag = PugDatabase.GetObjectInfo(primaryIngredientFromVariation).rarity == Rarity.Rare;",
+      "}",
+      "if (!flag && PugDatabase.HasComponent<FlowerCD>(secondaryIngredientFromVariation))",
+      "{",
+      "flag = PugDatabase.GetObjectInfo(secondaryIngredientFromVariation).rarity == Rarity.Rare;",
+      "}",
+      "if (!flag && (PugDatabase.GetObjectInfo(primaryIngredientFromVariation).rarity == Rarity.Legendary || PugDatabase.GetObjectInfo(secondaryIngredientFromVariation).rarity == Rarity.Legendary))",
+      "{",
+      "flag = true;",
+      "}",
+      "int num3 = 0;",
+      "int num4 = 0;",
+      "int num5 = 0;",
+      "for (int i = 0; i < amount; i++)",
+      "{",
+      "if (!(UnityEngine.Random.value < num))",
+      "{",
+      "continue;",
+      "}",
+      "if (UnityEngine.Random.value < num2)",
+      "{",
+      "if (flag)",
+      "{",
+      "num5++;",
+      "}",
+      "else",
+      "{",
+      "num4++;",
+      "}",
+      "}",
+      "else if (flag)",
+      "{",
+      "num4++;",
+      "}",
+      "else",
+      "{",
+      "num3++;",
+      "}"
+    ],
+    "Pug.Other:333982": [
+      "public float2 GetCursorScreenPosition()"
+    ],
+    "Pug.Other:338594": [
+      "Mods.OnModManagementEvent = (ModManagementEventDelegate)Delegate.Combine(Mods.OnModManagementEvent, new ModManagementEventDelegate(ModManagementEventCallback));"
+    ],
+    "Pug.Other:338896": [
+      "public void UpdateShowingButtons(List<HelpButtonTypes> buttonsToShow, SelectButtonVariation selectButtonVariation)"
+    ],
+    "Pug.Other:342703-342715": [
+      "{",
+      "if (selectedIndex != MathUtilities.Clamp(selectedIndex, 0, menuOptions.Count - 1))",
+      "{",
+      "SelectOptionIndex(num);",
+      "}",
+      "else if (menuOptions[selectedIndex].GetActiveStateInCurrentScene() == OptionActiveState.ACTIVE)",
+      "{",
+      "SelectOptionIndex(selectedIndex);",
+      "}",
+      "else",
+      "{",
+      "SelectOptionIndex(num);",
+      "}"
+    ],
+    "Pug.Other:342977": [
+      "internal bool SkimRight()"
+    ],
+    "Pug.Other:343031": [
+      "public abstract class RadicalMenuOption : UIelement"
+    ],
+    "Pug.Other:343386": [
+      "float num = pugText.transform.position.x + pugText.dimensions.xMin + 1f / 32f;"
+    ],
+    "Pug.Other:343398": [
+      "while (maxWidth > 0f && pugText.dimensions.width > maxWidth)"
+    ],
+    "Pug.Other:343542": [
+      "public void Deactivate(bool commit)"
+    ],
+    "Pug.Other:3474": [
+      "public class PugDatabasePostConverter : PostConverter"
+    ],
+    "Pug.Other:348885": [
+      "_text = GetComponent<PugText>();"
+    ],
+    "Pug.Other:350400": [
+      "public string charset"
+    ],
+    "Pug.Other:350652": [
+      "spriteRenderer.sortingOrder = style.orderInLayer;"
+    ],
+    "Pug.Other:350767": [
+      "pooledObj.dimensions = dimensions;"
+    ],
+    "Pug.Other:350905-350917": [
+      "int num12 = gd.rect.width - num11;",
+      "num10 += (float)num11 / pixelsPerUnit;",
+      "if (enableKerning && num6 > 0)",
+      "{",
+      "byte[] kerning = glyphData[num5].kerning;",
+      "if (kerning != null && kerning.Length != 0)",
+      "{",
+      "float num13 = (int)kerning[cp];",
+      "if (num4 > Mathf.Epsilon)",
+      "{",
+      "num13 = Mathf.Round(num13 / num4 + 0.001f);",
+      "}",
+      "num10 -= num13 / pixelsPerUnit;"
+    ],
+    "Pug.Other:351285": [
+      "public List<Vector2> localCharacterEndPositions = new List<Vector2>();"
+    ],
+    "Pug.Other:351466": [
+      "if (freeResourcesOnDisable)"
+    ],
+    "Pug.Other:351862": [
+      "if (string.IsNullOrEmpty(textString))"
+    ],
+    "Pug.Other:357633": [
+      "ScrollHeight = math.max(0f, _scrollable.GetCurrentWindowHeight() - windowHeight);"
+    ],
+    "Pug.Other:361075": [
+      "}"
+    ],
+    "Pug.Other:361103": [
+      "if (data.triggerEffects != value)"
+    ],
+    "Pug.Other:365349": [
+      "Manager.ecs.StartEcs(startClient: true, Manager.saves.GetWorldId(), frameWorkloadTimer, delegate(bool result)"
+    ],
+    "Pug.Other:386480": [
+      ""
+    ],
+    "Pug.Other:386497": [
+      "public const int OpenProfile = 223;"
+    ],
+    "Pug.Other:404656": [
+      "private static bool CageCattle(StateUpdateAspect stateUpdateAspect, SharedStateUpdateData sharedStateUpdateData, LookupStateUpdateData lookupStateUpdateData)"
+    ],
+    "Pug.Other:407732": [
+      "public static InventoryChangeData ConsumeEntityAt(Entity inventory, int index, int amount, bool destroy, bool dontConsume, float3 positionToSet = default(float3), int variationToInstatiate = -1, float3 direction = default(float3), ObjectID optionalTargetObjectID = ObjectID.None)"
+    ],
+    "Pug.Other:408486": [
+      "[BurstCompile]"
+    ],
+    "Pug.Other:409858": [
+      "public static bool ConsumeEntityAt(in InventoryHandlerShared inventoryHandlerShared, Entity inventory, int index, int amount, bool destroy, float3 position, int variationToInstatiate = -1, float3 direction = default(float3), ObjectID optionalTargetObjectID = ObjectID.None)"
+    ],
+    "Pug.Other:418856": [
+      "[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation | WorldSystemFilterFlags.ClientSimulation, WorldSystemFilterFlags.ServerSimulation | WorldSystemFilterFlags.ClientSimulation)]"
+    ],
+    "Pug.Other:419083": [
+      "public BufferLookup<ContainedObjectsBuffer> containedObjectsBufferLookup;"
+    ],
+    "Pug.Other:419765": [
+      "public struct EquipmentUpdateSystem : ISystem, ISystemStartStop, ISystemCompilerGenerated"
+    ],
+    "Pug.Other:419886": [
+      "bool flag3 = lookupEquipmentUpdateData.containedObjectsBufferLookup.TryGetBuffer(equipmentUpdateAspect.entity, out bufferData) && lookupEquipmentUpdateData.craftingLookup.TryGetComponent(equipmentUpdateAspect.entity, out componentData) && bufferData.Length > componentData.outputSlotIndex && bufferData[componentData.outputSlotIndex].objectID != ObjectID.None;"
+    ],
+    "Pug.Other:420556": [
+      "public void OnUpdate(ref SystemState state)"
+    ],
+    "Pug.Other:427122": [
+      "private struct EquippedSlotChangeJob : IJobEntity, IJobChunk"
+    ],
+    "Pug.Other:435029": [
+      "Directory.Delete(Rel2Abs(path), recursive: true);"
+    ],
+    "Pug.Other:88826": [
+      "[BurstCompile]"
+    ],
+    "Pug.UnityExtensions:5349": [
+      "public static int Clamp(int x, int low, int high)"
+    ],
+    "PugConversion:632-650": [
+      "",
+      "public static List<Type> FindAllConvertersInCurrentAssembly()",
+      "{",
+      "using (_reflectionMarker.Auto())",
+      "{",
+      "Assembly executingAssembly = Assembly.GetExecutingAssembly();",
+      "string name = Assembly.GetExecutingAssembly().GetName().Name;",
+      "List<Type> list = new List<Type>();",
+      "FindAllConverters(executingAssembly, list);",
+      "Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();",
+      "foreach (Assembly assembly in assemblies)",
+      "{",
+      "if (ReferencesAssembly(assembly, name))",
+      "{",
+      "FindAllConverters(assembly, list);",
+      "}",
+      "}",
+      "return list;",
+      "}"
+    ],
+    "PugConversion:751-790": [
+      "public IEnumerator ConvertEnqueuedObjects(CancellationTokenSource tokenSource, WallClockTimer frameWorkloadTimer, bool runPostConverters = true)",
+      "{",
+      "CheckState(State.Initialized);",
+      "UnityEngine.Debug.Log($\"Converting {_rootObjects.Count} root objects for {_targetWorld.Name} with \" + $\"{_converters.Count} converters, \" + $\"{_stagingWorldPostConverters.Count} post-converters in staging world, and \" + $\"{_finalWorldPostConverters.Count} post-converters in final world.\");",
+      "_state = State.Converting;",
+      "IEnumerator finishConversionQueue = FinishConversionQueue(tokenSource, frameWorkloadTimer);",
+      "while (finishConversionQueue.MoveNext())",
+      "{",
+      "yield return finishConversionQueue.Current;",
+      "}",
+      "if (tokenSource != null && tokenSource.IsCancellationRequested)",
+      "{",
+      "yield return Entity.Null;",
+      "yield break;",
+      "}",
+      "_state = State.PostConverting;",
+      "if (runPostConverters)",
+      "{",
+      "IEnumerator postConversion = RunPostConverters(_stagingWorldPostConverters, tokenSource, frameWorkloadTimer);",
+      "while (postConversion.MoveNext())",
+      "{",
+      "yield return postConversion.Current;",
+      "}",
+      "if (tokenSource != null && tokenSource.IsCancellationRequested)",
+      "{",
+      "yield return Entity.Null;",
+      "yield break;",
+      "}",
+      "}",
+      "ConsolidateLinkedEntitiesToRoot();",
+      "MoveEntities(_stagingWorld.EntityManager, _targetWorld.EntityManager);",
+      "EntityManager = _targetWorld.EntityManager;",
+      "if (runPostConverters)",
+      "{",
+      "IEnumerator postConversion = RunPostConverters(_finalWorldPostConverters, tokenSource, frameWorkloadTimer);",
+      "while (postConversion.MoveNext())",
+      "{",
+      "yield return postConversion.Current;",
+      "}",
+      "if (tokenSource != null && tokenSource.IsCancellationRequested)"
+    ],
+    "PugConversion:981-992": [
+      "private void RunConverters(List<int> converterIndices, GameObject gameObject, int objectIndex, int uniqueObjectIndex, Entity entity)",
+      "{",
+      "foreach (int converterIndex in converterIndices)",
+      "{",
+      "Converter converter = _converters[converterIndex];",
+      "converter.PropertiesBuilder = _objectIdPropertyBuilder;",
+      "converter.ObjectIndex = objectIndex;",
+      "converter.UniqueObjectIndex = uniqueObjectIndex;",
+      "converter.PrimaryEntity = entity;",
+      "converter.Convert(gameObject);",
+      "}",
+      "}"
+    ],
+    "PugMod.Loader:1157": [
+      "public void Update()"
+    ],
+    "PugMod.Loader:1175": [
+      "UnityEngine.Debug.Log(\"not loading incompatible mod \" + metadata.name);"
+    ],
+    "PugMod.Loader:1418-1427": [
+      "if (!harmony.Patch(mod.Metadata.name, assembly.SystemAssembly, !mod.Metadata.skipSafetyChecks, checker))",
+      "{",
+      "UnityEngine.Debug.Log(\"mod \" + mod.Metadata.name + \": patching failed\");",
+      "}",
+      "}",
+      "catch (Exception exception)",
+      "{",
+      "UnityEngine.Debug.Log(\"failed to patch mod \" + mod.Metadata.name + \", got exception\");",
+      "UnityEngine.Debug.LogException(exception);",
+      "}"
+    ],
+    "PugMod.Loader:156": [
+      "bool flag2 = ModVersion.IsCompatible(Application.version, entry.Tags);"
+    ],
+    "PugMod.Loader:2173": [
+      "if (!Integration.Instance.AddMod(metadata, text2, value.ModId, supportsCurrentVersion: true))"
+    ],
+    "PugMod.Loader:2178": [
+      "UnityEngine.Debug.Log(\"loaded mod \" + metadata.name + \" at \" + text2);"
+    ],
+    "PugMod.Loader:462": [
+      "value.PatchAll(assembly);"
+    ],
+    "PugMod.Platform:70": [
+      "bool flag2 = ModVersion.IsCompatible(Application.version, subscribedMod.modProfile.tags);"
+    ],
+    "PugMod.Platform:97": [
+      "UnityEngine.Debug.Log(\"loaded mod \" + metadata.name + \" from mod.io (\" + subscribedMod.modProfile.name + \")\");"
+    ],
+    "PugMod.SDK.Runtime:702": [
+      "public byte[] GetFile(string path)"
+    ],
+    "PugMod.SDK.Runtime:783": [
+      "public static void DisableBurstForSystemAndJobs<T>(bool burstEnabled = false)"
+    ],
+    "PugMod.SDK.Runtime:798": [
+      "internal static void DisableBurstForSystemInternal(Type systemType, bool burstEnabled, bool addCompleteDependencyPatch)"
+    ],
+    "PugMod.SDK.Runtime:841": [
+      "public static void ResetWorlds()"
+    ],
+    "RoslynCSharp:3866": [
+      "RoslynCSharp.LogError(securityResult.GetAllText(reportAllOccurences: true));"
+    ],
+    "ScriptableData:1563": [
+      "public abstract class ScriptableDataBlock : ScriptableObject"
+    ],
+    "Unity.Entities:67217": [
+      "public unsafe static void Invoke(void* pSystemState)"
+    ],
+    "WorldGen:2836-2839": [
+      "[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation, WorldSystemFilterFlags.Default)]",
+      "[UpdateInGroup(typeof(RunSimulationSystemGroup))]",
+      "[CompilerGenerated]",
+      "public struct SpawnEnvironmentObjectsInNewAreaSystem : ISystem, ISystemStartStop, ISystemCompilerGenerated"
+    ],
+    "modio.UnityPlugin:39208": [
+      "Directory.Delete(path, recursive: true);"
+    ]
+  }
+}

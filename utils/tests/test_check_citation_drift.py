@@ -6,6 +6,8 @@ prefab citation that names no assembly, and the DedicatedServer citation that
 names a tree instead of one.
 """
 
+import json
+
 import check_citation_drift as mod
 
 
@@ -144,3 +146,85 @@ def test_a_line_that_vanished_reports_the_empty_side_readably():
     problems = mod.compare({"Pug.Other:900": []}, {"Pug.Other:900": ["gone()"]})
     assert len(problems) == 1
     assert "past end of file" in problems[0]
+
+
+def test_capture_writes_a_snapshot_and_succeeds(tmp_path, capsys):
+    tree = make_decompile(tmp_path, "Pug.Other", ["a", "b"])
+    write_chapter(tmp_path, "one.md", "`Pug.Other:2`\n")
+    snapshot = tmp_path / "snap.json"
+
+    code = mod.main(
+        [
+            "x",
+            "--capture",
+            "--decompile",
+            str(tree),
+            "--snapshot",
+            str(snapshot),
+            str(tmp_path),
+        ]
+    )
+
+    assert code == 0
+    assert json.loads(snapshot.read_text())["citations"] == {"Pug.Other:2": ["b"]}
+    assert "captured" in capsys.readouterr().out
+
+
+def test_a_changed_line_makes_the_default_mode_fail(tmp_path, capsys):
+    tree = make_decompile(tmp_path, "Pug.Other", ["a", "b"])
+    write_chapter(tmp_path, "one.md", "`Pug.Other:2`\n")
+    snapshot = tmp_path / "snap.json"
+    mod.main(
+        [
+            "x",
+            "--capture",
+            "--decompile",
+            str(tree),
+            "--snapshot",
+            str(snapshot),
+            str(tmp_path),
+        ]
+    )
+
+    (tree / "Pug.Other.decompiled.cs").write_text("a\nCHANGED\n")
+    code = mod.main(
+        ["x", "--decompile", str(tree), "--snapshot", str(snapshot), str(tmp_path)]
+    )
+
+    assert code == 1
+    assert "CHANGED" in capsys.readouterr().out
+
+
+def test_a_missing_snapshot_says_what_to_run_rather_than_crashing(tmp_path, capsys):
+    tree = make_decompile(tmp_path, "Pug.Other", ["a", "b"])
+    write_chapter(tmp_path, "one.md", "`Pug.Other:2`\n")
+
+    code = mod.main(
+        [
+            "x",
+            "--decompile",
+            str(tree),
+            "--snapshot",
+            str(tmp_path / "nope.json"),
+            str(tmp_path),
+        ]
+    )
+
+    assert code == 1
+    assert "--capture" in capsys.readouterr().out
+
+
+def test_an_unresolvable_citation_fails_even_when_nothing_drifted(tmp_path, capsys):
+    # Otherwise the DedicatedServer citation stays invisible forever: it never
+    # drifts, because it never resolved in the first place.
+    tree = make_decompile(tmp_path, "Pug.Other", ["a"])
+    write_chapter(tmp_path, "m.md", "`DedicatedServer:263259-263262`\n")
+    snapshot = tmp_path / "snap.json"
+    snapshot.write_text(json.dumps({"citations": {}}))
+
+    code = mod.main(
+        ["x", "--decompile", str(tree), "--snapshot", str(snapshot), str(tmp_path)]
+    )
+
+    assert code == 1
+    assert "no decompiled assembly" in capsys.readouterr().out

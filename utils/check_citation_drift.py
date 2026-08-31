@@ -17,12 +17,13 @@ Capture deliberately requires a flag, so a drift run can never silently record
 the drift as the new truth.
 
 What it does not resolve, and reports instead of guessing at:
-citations naming something other than a decompiled assembly. Three exist today —
-one into prefab YAML (`ControlMappingMenu.prefab:2456-2457`), one naming the
-dedicated-server *tree* rather than an assembly in it
-(`DedicatedServer:263259-263262`), and one naming the decompile file instead of
-the assembly (`PugSprite.decompiled.cs:42`), each a documentation defect this
-tool surfaces rather than papers over.
+citations naming something other than a decompiled assembly. As of
+2026-08-31 there were three — one into prefab YAML
+(`ControlMappingMenu.prefab:2456-2457`), one naming the dedicated-server
+*tree* rather than an assembly in it (`DedicatedServer:263259-263262`),
+and one naming the decompile *file* where the assembly `PugSprite` would
+resolve (`PugSprite.decompiled.cs:42`). These are documentation defects
+this surfaces rather than papers over, and are expected to shrink.
 
 Usage:
     uv run utils/check_citation_drift.py [--capture] [--decompile PATH] [repo-root]
@@ -110,3 +111,53 @@ def compare(corpus, snapshot):
         f"{key}  no longer cited anywhere" for key in snapshot if key not in corpus
     ]
     return sorted(problems)
+
+
+DEFAULT_DECOMPILE = Path.home() / "Projects/checkouts/CoreKeeperDecompile"
+DEFAULT_SNAPSHOT = Path(__file__).resolve().parent / "ck-citation-snapshot.json"
+
+
+def main(argv):
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("root", nargs="?", default=".")
+    parser.add_argument("--capture", action="store_true", help="record, do not compare")
+    parser.add_argument("--decompile", default=str(DEFAULT_DECOMPILE))
+    parser.add_argument("--snapshot", default=str(DEFAULT_SNAPSHOT))
+    args = parser.parse_args(argv[1:])
+
+    decompile = Path(args.decompile).expanduser()
+    if not decompile.is_dir():
+        print(f"decompile tree not found: {decompile}")
+        return 1
+
+    corpus, problems = collect(Path(args.root), decompile)
+
+    if args.capture:
+        Path(args.snapshot).write_text(
+            json.dumps({"citations": corpus}, indent=2, sort_keys=True) + "\n"
+        )
+        print(f"captured {len(corpus)} citation(s) to {args.snapshot}")
+        # Unresolvable citations are still reported, but capture succeeds: they
+        # are a handbook defect to fix, not a reason to refuse to record what
+        # did resolve.
+        for problem in problems:
+            print(f"  {problem}")
+        return 0
+
+    snapshot_file = Path(args.snapshot)
+    if not snapshot_file.is_file():
+        print(f"no snapshot at {snapshot_file} — run with --capture first")
+        return 1
+    problems += compare(corpus, json.loads(snapshot_file.read_text())["citations"])
+
+    if problems:
+        print(f"{len(problems)} problem(s):")
+        for problem in problems:
+            print(f"  {problem}")
+        return 1
+    print(f"OK — {len(corpus)} citation(s), every cited line unchanged")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
