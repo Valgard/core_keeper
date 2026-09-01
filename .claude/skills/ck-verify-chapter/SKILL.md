@@ -200,3 +200,68 @@ while it is pending. It is a handover, not a note in passing — there is
 nothing left in this chapter to verify until the result comes back, and
 drifting into other work is how a returned result meets a session that has
 moved on.
+
+## Sweep outward before committing
+
+The handbook is deliberately redundant: `harmony-and-ecs.md` and
+`multiplayer-and-server.md` both speak about the dedicated server — one pair
+among several that do, `persistence.md` and `platforms.md` no less than these
+two — and `mod-anatomy.md` and `publishing.md` both about `requiredOn`, itself
+asserted well beyond that pair, in `index.md` and `troubleshooting.md` among
+others. Correcting one chapter and leaving its siblings standing is **worse
+than the original** — chapters that contradict each other, with nothing
+saying which one is right.
+
+This is documented experience, not a hypothetical. Both known errors were
+corrected in two documents each. `harmony-and-ecs.md` said `BurstDisabler`
+"does nothing in multiplayer" until 2026-08-24
+(`docs/ck/harmony-and-ecs.md:186`), and the same wrong scope sat in
+`CLAUDE.md`'s own bullet until the same day (`CLAUDE.md:220-222`); a
+`SystemBase` precedent that never existed ran the other way, originating in
+`CLAUDE.md` and propagating into the chapter before both were corrected
+together (`CLAUDE.md:208-210`). Neither correction reached a third instance
+of the multiplayer claim: `docs/ck/index.md`'s own symptom table names the
+same wrong scope, and as of 2026-09-01 it still does (`docs/ck/index.md:109`).
+
+For every statement changed, find where the same thing is asserted:
+
+1. the other chapters of `docs/ck/`
+2. the parent `CLAUDE.md` — the `SystemBase` precedent that never existed lived
+   there, not in a chapter
+3. each mod's own `CLAUDE.md` and `docs/`
+4. this repository's `docs/` outside the handbook
+
+Searching 3 and 4 needs `command grep`: the mod repositories are invisible to a
+root-relative search here.
+
+A mod repository is a separate repository, so a correction there is its own
+commit. The sweep names both rather than assuming one commit closes it.
+
+## Commit
+
+    docs(ck): verify <chapter> against <game version>
+
+The version is not decoration. There is no register file: whether a chapter
+was examined is its commit history, and against which build is this line. A
+commit without it makes the chapter's state unreadable a year later.
+
+Write it in the exact-version-string shape the handbook itself already asks
+for, and for the same reason — not the bare four-part game version
+(`docs/ck/reverse-engineering.md:85-89`, "record the build the checkout came
+from"): `1.2.1.5-8be0`, for example, is the current `game_version` in
+`utils/ck-citation-snapshot.json`. Read the current value from there, or from
+the decompile checkout itself — the example is a shape to match, not a value
+to copy forward.
+
+## Red flags
+
+Thoughts that mean stop, in the shape `ck-docs-review` uses:
+
+| Thought | Reality |
+|---|---|
+| "The citation checks out, so the sentence is right" | Citation accuracy is not sentence accuracy; a correctly-cited line can support the wrong scope |
+| "Two lanes agree" | The lanes are non-overlapping by design; agreement is not verification |
+| "This sentence is true, so leave it" | A true sentence with no scope is what the next finding overturns |
+| "`unverified` feels like giving up" | It is the correct answer when nothing settles the question; rounding it up is the failure being prevented |
+| "I'll phrase the open question more elegantly" | If a search cannot find it, it is lost — there is no pool file |
+| "Fixed the chapter, done" | The claim may live in `CLAUDE.md` or a mod repo too |
