@@ -325,22 +325,26 @@ world switch would hand it.
 
 ### The pass is load-bearing — measured, not assumed
 
-A counter placed in `IMod.Init()`, reporting how many of the worlds `World.All`
-saw at that point actually got armed by the manual pass above, read:
+A counter placed in `IMod.Init()`, walking `World.All` and counting how many of
+the worlds it hands to `AddWorld` actually contain the system whose bypass the
+mod needs, read:
 
 ```text
 Client            armed by this pass in  0/6  live world(s)
 Dedicated Server  armed by this pass in  1/12 live world(s)
 ```
 
-The client line is **measured** on a 1.2.1.5 client and recorded beside the
-counter in `reusable-cattle-box`. The server line is a measurement too, but its
-setup — build, date, world count — was never written down anywhere, so treat the
-figure as illustrative and the shape (`1/N` rather than `0/N`) as the claim.
+Both lines are **measured**, on game version `1.2.1.5-8be0`: the client one is
+recorded beside the counter in `reusable-cattle-box`, the server one re-taken on
+2026-09-02 from a local dedicated server's own log with thirty mods loaded. The
+mod count does not colour the result — the counter tests
+`world.GetExistingSystem(typeof(EquipmentUpdateSystem)) != SystemHandle.Null`,
+which is a property of the world rather than of anyone's Burst registration, so
+another mod un-Bursting the same system cannot inflate it.
 
-On the server, that one armed world is the manual pass's own doing: `StartEcs`'s
-own call to `AddWorld` (above) had already taken its snapshot before `Init()`
-ran, so without the `foreach` loop the count would read `0/N` instead. This
+On the server, that one world is the manual pass's own doing: `StartEcs`'s own
+call to `AddWorld` (above) had already taken its snapshot before `Init()` ran,
+so without the `foreach` loop nothing in that world would be armed at all. This
 turns "the manual pass matters on the server" from a derivation into a
 measurement.
 
