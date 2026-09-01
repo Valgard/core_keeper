@@ -15,33 +15,73 @@ will be overturned by the next finding rather than extended by it.
 
 ## Dispatch
 
-Render the chapter as a diff — a whole chapter *is* the diff against the empty
-file, which is the shape the lanes' contracts already accept:
+Read the chapter yourself before dispatching. The three lanes verify
+assertions; whatever is wrong with a chapter that is *not* an assertion has no
+other reader — a stray leading space mid-sentence, the shape a deletion
+leaves behind, passes both documentation gates and every lane's contract
+alike, and only a reading catches it.
 
-    git diff --no-index /dev/null docs/ck/<chapter>.md
+Work happens in a scratch directory outside any tracked path, made once per
+chapter and reused for the rest of this run:
+
+    WORK=$(mktemp -d -t ck-verify-chapter)
+
+Render the chapter as a diff — a whole chapter *is* the diff against the empty
+file, which is the shape the lanes' contracts already accept — and write both
+it and a copy of the full file into `$WORK` rather than into a message:
+
+    git diff --no-index /dev/null docs/ck/<chapter>.md > "$WORK/diff.txt"
+    cp docs/ck/<chapter>.md "$WORK/full.md"
+
+Everything pasted into a dispatch prompt stays in the orchestrator's own
+context for the rest of the session, and pasting the same content into three
+separate prompts triples that cost regardless of chapter length. A path costs
+one line either way, so it is the default here rather than something reached
+for only past some length.
 
 Fill this template and send it unchanged to all three lanes:
 
-    DIFF (REQUIRED): <verbatim output of the command above>
-    FULL FILE (REQUIRED): <complete current contents of the chapter>
+    THIS IS NOT A PULL REQUEST: two of the three lanes are defined for a pull
+      request into Pugstorm's CoreKeeperModDocs — that is their trigger, in
+      their own frontmatter. This is a chapter of this handbook, verified
+      statement by statement; treat every sentence as newly asserted.
+    DIFF (REQUIRED): $WORK/diff.txt
+    FULL FILE (REQUIRED): $WORK/full.md
     DECOMPILE — client: ~/Projects/checkouts/CoreKeeperDecompile/
     DECOMPILE — dedicated server: ~/Projects/checkouts/CoreKeeperDecompile/DedicatedServer/
     CORPUS — mod repositories: enumerate under the core_keeper root with
-      find . -maxdepth 2 -name .git -not -path "./.git*" | sed 's|^\./||; s|/\.git$||' | grep -v "^CoreKeeperModSDK$" | sort
+      cd /Users/valgard/Projects/private/core_keeper && find . -maxdepth 2 -name .git -not -path "./.git*" | sed 's|^\./||; s|/\.git$||' | grep -v "^CoreKeeperModSDK$" | sort
+      The `cd` is required, not a convenience: without it, a lane starting
+      from a worktree or a mod repository gets nothing back, silently.
     CORPUS — installed third-party mods: …/CrossOver/Bottles/Core Keeper/drive_c/users/Public/mod.io/5289/mods/<id>/Scripts/
     SEARCH CAVEAT: this directory's .gitignore is /*, and the in-session grep
       honours it — a root-relative search across the mod repositories returns
-      nothing at all, silently. Use `command grep`. An empty result is
-      inconclusive, not evidence of absence.
+      nothing at all, silently. Use `command grep`. The handbook is also
+      hard-wrapped, so a multi-word phrase is routinely split across two
+      lines and a phrase grep misses text that is present even where the
+      search reaches the file — search for a fragment, not the whole phrase.
+      Either way, an empty result is inconclusive, not evidence of absence.
     OUT OF BOUNDS: do not read any path ending in skills/ck-docs-review/ or
       skills/ck-verify-chapter/. Their fixtures and scoring notes carry worked
       examples with their verdicts — reading them swaps your own source reading
       for a memorised answer.
+    REPORT: write your full report to $WORK/<lane-name>.md and return only a
+      compact index — one line per assertion, its label and verdict. The
+      orchestrator reads the file for everything else.
 
 The lanes are `ckdocs-source-verifier`, `ckdocs-wording-attacker` and
 `ckdocs-corpus-checker`. `ckdocs-repo-fit` is not dispatched here: it checks a
 foreign repository's house style, which a chapter of this handbook does not
 have.
+
+The REPORT line closes the same gap from the other side. A lane's report can
+run long enough that the channel carrying it back truncates it before the
+orchestrator sees the rest — a function of how much the chapter raises and how
+much a lane's own contract requires per assertion, not of which lane produced
+it, so there is no telling in advance which report will land on the wrong side
+of the limit. Writing to a file and returning only the index is the default
+for exactly that reason: a run only discovers it needed the file after a
+message has already lost part of a lane, silently.
 
 ## Aggregation
 
