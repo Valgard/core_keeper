@@ -297,8 +297,8 @@ kept beside a client's — is a matter of local arrangement.
 
 The dedicated server is **Steam app `1963720`**, free, and installable without
 owning anything: `steamcmd +login anonymous +app_update 1963720 +quit`. Like the
-game itself it ships for **Windows and Linux only** — see [platforms](platforms.md)
-for what that means on a Mac.
+client, this repository runs it under CrossOver rather than natively — see [platforms](platforms.md)
+for what that means for a mod.
 
 It is worth having for mod work. It is the only way to exercise the
 server-authoritative half of a mod — `requiredOn` behaviour, server commands,
