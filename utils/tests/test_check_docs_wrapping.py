@@ -56,6 +56,20 @@ class TestTargetWidth:
         lines = ["x" * 76 for _ in range(9)] + ["y" * 200]
         assert mod.target_width(lines) == 80
 
+    def test_a_bullet_heavy_file_is_measured_by_its_bullets(self):
+        # item-checklist/docs/roadmap.md is 831 lines wrapped at 88 and has six
+        # paragraphs. Sampling prose alone let those six decide, the width came
+        # out eight columns short, and every bullet in the file read as too long
+        lines = ["One paragraph of prose."] + ["- " + "x" * 85 for _ in range(30)]
+        assert mod.target_width(lines) == 88
+
+    def test_a_fenced_block_does_not_vote_on_the_width(self):
+        # a code line rarely looks like a heading or a table, so the prose-only
+        # sample counted it — and admitting list items would newly admit every
+        # "- id: foo" in a YAML example
+        lines = ["```yaml"] + ["- id: " + "x" * 90 for _ in range(30)] + ["```"]
+        assert mod.target_width(lines) == 80
+
     def test_front_matter_does_not_count_as_prose(self):
         lines = ["---", "description: " + "x" * 200, "---"] + ["y" * 76] * 20
         assert mod.target_width(lines) == 80

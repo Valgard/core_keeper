@@ -203,6 +203,34 @@ def list_items(lines):
         i = j
 
 
+def width_sample(lines):
+    """Every line whose length is evidence of the width this file is written at.
+
+    The sample used to be is_prose alone, and is_prose excludes list items — so
+    a file made mostly of bullets was measured by whatever few paragraphs it
+    happened to carry. item-checklist's roadmap has six of them and 831 lines
+    wrapped at 88: the six decided, the width came out eight columns short, and
+    240 correctly wrapped bullets were reported as too long. A bullet's first
+    line is wrapped text like any other and belongs in the sample.
+
+    Its continuations are too, in principle, and are left out because measuring
+    across every repository here they changed no file's answer — so they are
+    sample size without information, at the cost of admitting indented code.
+
+    Fences are skipped, which the prose-only sample never bothered with: a code
+    line rarely looks like a heading or a table, so it counted as prose all
+    along. Admitting list items would newly admit every "- id: foo" in a YAML
+    example, which is the point at which ignoring fences stops being harmless.
+    """
+    fence = False
+    for line in lines[body_start(lines) :]:
+        if FENCE.match(line):
+            fence = not fence
+            continue
+        if not fence and (is_prose(line) or BULLET.match(line)):
+            yield visible_len(line)
+
+
 def target_width(lines):
     """The width this file already uses, so a fix does not restyle it.
 
@@ -211,7 +239,7 @@ def target_width(lines):
     are measured against. In a short file that is circular — one 200-column
     line would declare the file "wide" and be left alone.
     """
-    lengths = sorted(visible_len(l) for l in lines[body_start(lines) :] if is_prose(l))
+    lengths = sorted(width_sample(lines))
     # too few lines to infer anything: keep the default rather than let two
     # lines vote on a house style
     if len(lengths) < MIN_SAMPLE:
