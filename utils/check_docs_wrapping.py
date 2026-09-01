@@ -52,6 +52,10 @@ LINK_TOKEN_START = re.compile(r"\[[^\]]*\]\([^)\s]+\)[.,;:!?)\]]*", re.S)
 WIDE_WIDTH, NARROW_WIDTH = 88, 80
 MIN_SAMPLE = 10  # prose lines needed before a file's own width is believed
 OVERSHOOT = 12  # columns past target before a long line counts as a defect
+# A file changes its own measured width by being fixed, so one pass can leave
+# work behind. Two suffice in practice; the cap is what turns a fixer and a
+# checker that genuinely disagree into a reported failure instead of a hang.
+FIX_PASSES = 5
 SLACK = 18  # how far below target a line may sit before it looks broken
 
 
@@ -453,15 +457,37 @@ def main(argv):
     root = Path(__file__).resolve().parent.parent
     files = expand(args) if args else markdown_files(root)
 
+    # Fixing is a loop, because a file's width is measured once per pass — from
+    # the lines that pass finds on entry — and the pass then changes those
+    # lines. Rewrapping long paragraphs adds a short tail to each, the median
+    # falls, and a file measured at 88 becomes one measured at 80, with lines
+    # the first pass was right to leave alone. One repository committed clean
+    # and was rejected by the gate it had just installed.
     problems, rewrapped, checked = [], 0, 0
-    for f in sorted(files):
-        p, r = process(f, fix)
-        problems += p
-        rewrapped += r
-        checked += 1
+    for _ in range(FIX_PASSES if fix else 1):
+        problems, moved, checked = [], 0, 0
+        for f in sorted(files):
+            p, r = process(f, fix)
+            problems += p
+            moved += r
+            checked += 1
+        rewrapped += moved
+        if not fix or not moved:
+            break
 
     if fix:
         print(f"rewrapped {rewrapped} paragraph(s) across {checked} file(s)")
+        # Only reachable if the passes ran out while still finding defects,
+        # which means the fixer and the checker disagree about something rather
+        # than that the file needs one more turn. Silence there would be the
+        # original defect again, one layer up.
+        if problems:
+            print(
+                f"{len(problems)} line(s) still mis-wrapped after {FIX_PASSES} passes:"
+            )
+            for p in problems:
+                print(f"  {p}")
+            return 1
         return 0
     if problems:
         print(f"{len(problems)} mis-wrapped line(s):")

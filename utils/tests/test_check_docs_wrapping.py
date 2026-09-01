@@ -420,6 +420,23 @@ class TestFixpoint:
                 wrapped = mod.wrap_tokens(text, width)
                 assert mod.defects(wrapped, width) == [], (text[:40], width, wrapped)
 
+    def test_fix_mode_leaves_a_file_the_checker_accepts(self, tmp_path):
+        # A file's width is measured once, from the lines the run finds on
+        # entry — and the run then changes those lines. Rewrapping six long
+        # paragraphs adds a short tail to each, the median falls, and the file
+        # measured at 88 is now a file measured at 80, with lines the first
+        # pass was right to leave alone. caveling-divining-rod committed clean
+        # and was rejected by the gate it had just installed.
+        def line(n):
+            words = ("word " * (n // 5 + 2))[:n]
+            return words.rstrip() + "x" * (n - len(words.rstrip()))
+
+        body = [line(150)] * 6 + [line(70)] * 5 + [line(95)]
+        p = write(tmp_path, "a.md", "# T\n\n" + "\n\n".join(body) + "\n")
+        assert mod.main(["prog", str(p)]) == 1, "input was meant to be defective"
+        assert mod.main(["prog", "--fix", str(p)]) == 0
+        assert mod.main(["prog", str(p)]) == 0
+
     def test_wrapping_is_idempotent(self):
         for text in self.CASES:
             once = mod.wrap_tokens(text, 80)
