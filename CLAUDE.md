@@ -80,9 +80,11 @@ Read it rather than reproducing it here; what follows is what this file adds.
   `CultureInfo.DefaultThreadCurrentUICulture = InvariantCulture` so Roslyn
   doesn't fail compiles by chasing the missing `de-DE` satellite assembly. In
   `Pug.Other.dll`: (Patch 3) a direct-write fallback for the Wine initial-save
-  regression, (Patches 4–5) rewrite `StandaloneFilesystem.DeleteDirectory` /
-  `Delete` to a Wine-safe iterate-and-delete. In `modio.UnityPlugin.dll`:
-  (Patch 6) the same delete rewrite for `SystemIOWrapper.DeleteDirectory`.
+  regression, (Patch 4) rewrites `StandaloneFilesystem.DeleteDirectory` to a
+  Wine-safe iterate-and-delete, (Patch 5) replaces `Delete`'s soft delete
+  (rename to `.pugbackup`) with a hard delete — it is not a directory
+  deletion and not an iterate-and-delete. In `modio.UnityPlugin.dll`:
+  (Patch 6) the same directory-delete rewrite for `SystemIOWrapper.DeleteDirectory`.
   Every Core Keeper update reverts all three DLLs to stock — re-apply after
   each update. The patcher lives at `utils/corekeeper-patch.cs` (a .NET
   file-based script; `~/local/bin/corekeeper-patch` is a symlink onto it). It
