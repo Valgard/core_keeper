@@ -276,7 +276,7 @@ component:
 | `PlacementCD`'s placement-permission flags — `canPlaceOnWalkableTiles` through `blockedByObjectsOnWalls` (`Pug.ECS.Components:4298-4316`) | no — the tail of the struct carries no `[GhostField]` and none of those fields appears in the generated snapshot, so they are world-local state. The rest of `PlacementCD` *is* replicated, `canPlaceGround` (`:4287`) and `canPlaceRoofHole` (`:4290`) included — this is a per-field answer, not a per-component one |
 
 What the client then *does* with a replicated value is a separate question: for
-`HealthCD` it is unverified whether a damage-stage sprite or a progress bar
+`HealthCD` it is **unverified** whether a damage-stage sprite or a progress bar
 refreshes on its own.
 
 For those flags the consequence runs the other way — writing them on one side

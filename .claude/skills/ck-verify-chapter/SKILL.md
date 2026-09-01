@@ -138,8 +138,10 @@ Being grounded in the decompile is this handbook's normal case, and the
 preamble says so. A marker on most sentences carries no information. Two
 classes are marked:
 
-- **measured** — observed in the running game, not forced by the code; the
-  wording names the setup that produced it.
+- **measured** — evidence gathered outside the source, not forced by the code;
+  the wording names the setup that produced it (the running game, or an
+  external endpoint such as the Steam store API or `steamcmd`, with the date
+  and what was queried).
 - **unverified** — examined, and neither the decompile, the corpus, nor a
   measurement settled it.
 
@@ -147,11 +149,13 @@ classes are marked:
 whenever the investigation finds nothing either way, and rounding it up to a
 flat statement is the failure this whole programme exists to prevent.
 
-**The word appears literally.** "This remains **unverified**: …" reads as prose
-and is found by a search; "nothing settles this either way" reads better and is
-invisible to one. There is no pool file — `grep -rn unverified docs/ck/` *is*
-the list of open questions, and wording that hides from that search silently
-loses them.
+**The marker is the bold form.** "This remains **unverified**: …" reads as
+prose and is found by a search for that form; "nothing settles this either
+way" reads better and is invisible to one, and so is a bare `unverified` used
+as ordinary sandbox vocabulary rather than as the marker. There is no pool
+file — `grep -rn '\*\*unverified\*\*' docs/ck/` *is* the list of open
+questions, and wording that hides from that search, or a stray unmarked use
+of the word, silently loses or pollutes it.
 
 A third state never appears in the text: **unassessed**, meaning nobody has
 examined it. That is the absence of a verification commit, not a mark on a
