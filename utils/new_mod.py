@@ -725,13 +725,17 @@ def build_csharpierignore() -> str:
 
 
 def build_precommit_config() -> str:
-    """The repo's two gates, both at `pre-commit` and `pre-push`, matching
+    """The repo's three gates, all at `pre-commit` and `pre-push`, matching
     every existing mod repo.
 
     `csharpier check` blocks, it does not rewrite. `docs-links` runs the
     parent repo's checker over this repo — a dead relative link or an
     `#anchor` with no matching heading is the quietest documentation defect
-    there is, since the file still renders and the link is still blue."""
+    there is, since the file still renders and the link is still blue.
+    `docs-wrapping` is its sibling and arrived a year later, not because
+    nobody wanted it but because that checker took file arguments and died on
+    the `.` this entry passes; a mod repo therefore could not run it, and an
+    edit that left a 143-column line in one of them committed unopposed."""
     return """repos:
     - repo: local
       hooks:
@@ -744,12 +748,22 @@ def build_precommit_config() -> str:
                 - pre-commit
                 - pre-push
 
-          # The checker lives in the parent repo, not here: this mod repo sits
-          # inside it and already reaches for ../utils/ to build and link. It
+          # Both checkers live in the parent repo, not here: this mod repo sits
+          # inside it and already reaches for ../utils/ to build and link. Each
           # takes this repo's root, so the scope is `git ls-files` here.
           - id: docs-links
             name: docs links
             entry: uv run --frozen --project .. ../utils/check_docs_links.py .
+            language: system
+            pass_filenames: false
+            files: \\.md$
+            stages:
+                - pre-commit
+                - pre-push
+
+          - id: docs-wrapping
+            name: docs wrapping
+            entry: uv run --frozen --project .. ../utils/check_docs_wrapping.py .
             language: system
             pass_filenames: false
             files: \\.md$
