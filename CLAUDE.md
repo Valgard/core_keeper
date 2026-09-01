@@ -397,8 +397,25 @@ human-facing setup; what matters when editing code here:
   `Edit` into the middle of a paragraph leaves exactly this defect**, a replaced
   line ending short or long while the rest of the paragraph keeps its old
   breaks. Run `uv run utils/check_docs_wrapping.py --fix <file>` after such an
-  edit rather than discovering it when the commit is rejected. `docs/specs/` is
-  excluded on purpose: reformatting a spec edits a record of what was decided.
+  edit rather than discovering it when the commit is rejected. Frozen on
+  purpose: `docs/specs/`, because reformatting a spec edits a record of what was
+  decided, and the `ck-docs-review` skill's fixtures and scoring keys, which are
+  the two halves of one calibration instrument.
+- **Unlike the link gate, the wrapping gate runs in `core_keeper` only.** Both
+  bullets above once claimed otherwise, and the mod repos went unchecked — which
+  is how an edit left a 143-column line in `mod-settings-menu/docs/roadmap.md`
+  and reached a commit unopposed. There was no way to wire it: the script took
+  file arguments and died on the `.` a mod repo's hook passes, where its sibling
+  has always taken a root. It now accepts one, so the hook is a three-line
+  addition per repo. What is not done is the reason it is worth knowing about:
+  the mod repos carry a backlog of roughly seven hundred lines the gate has
+  never seen, so adding the hook without rewrapping them first installs a gate
+  that blocks every `.md` commit on its first day.
+- **Both gates check the whole repository, not the staged files.** Each hook is
+  configured `pass_filenames: false` and a staged `.md` merely triggers it — so
+  a defect anywhere blocks a commit that touches documentation nowhere near it.
+  Deliberate for the link gate, whose targets cross files; the consequence for
+  wrapping is that a backlog is never latent.
 - `pre-commit` itself is pinned once in the parent `.tool-versions`; asdf
   resolves it for the mod subdirectories by walking up.
 - **`utils/new_mod.py` scaffolds the gate too.** A freshly generated mod repo
