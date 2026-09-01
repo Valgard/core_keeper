@@ -461,6 +461,16 @@ class TestMarkdownFiles:
         git(repo, "add", "docs/specs/plan.md")
         assert mod.markdown_files(repo) == []
 
+    def test_excludes_a_frozen_review_answer_key(self, tmp_path):
+        # the scoring keys sit beside the fixtures they grade and are the same
+        # kind of object: a record a run is compared against. Freezing one half
+        # of an instrument and reformatting the other is the worst of both
+        repo = git_repo(tmp_path)
+        key = ".claude/skills/ck-docs-review/scoring/planted-errors.md"
+        write(repo, key, "# T\n\n" + "word " * 40 + "\nend.\n")
+        git(repo, "add", key)
+        assert mod.markdown_files(repo) == []
+
     def test_a_prefix_adjacent_directory_is_not_frozen(self, tmp_path):
         # FROZEN checks startswith("docs/specs/") with the trailing slash —
         # a naive prefix match without it would also catch this sibling

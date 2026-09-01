@@ -357,7 +357,15 @@ def process(path, fix):
 # planted errors, calibration material whose line breaks are part of what is
 # being tested. Rewrapping one silently invalidates the calibration the lanes
 # were measured against, which is the opposite of a formatting improvement.
-FROZEN = ("docs/specs/", ".claude/skills/ck-docs-review/fixtures/")
+# The scoring keys are the other half of that same instrument — they say which
+# errors were planted in those fixtures and are what a run is graded against —
+# so freezing the fixtures while reformatting their answer key would leave the
+# calibration half-preserved, which is worse than not freezing either.
+FROZEN = (
+    "docs/specs/",
+    ".claude/skills/ck-docs-review/fixtures/",
+    ".claude/skills/ck-docs-review/scoring/",
+)
 
 
 def display(path):
