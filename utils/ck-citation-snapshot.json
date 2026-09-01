@@ -809,6 +809,9 @@
     "Pug.Other:181802": [
       "SetComponent(nativeArray[0], LocalTransform.FromPosition(new float3(0f, 0f, 4f)));"
     ],
+    "Pug.Other:2381": [
+      "public World ServerWorld { get; private set; }"
+    ],
     "Pug.Other:240546": [
       "for (int num = tileUpdates.Length - 1; num >= 0; num--)"
     ],
@@ -820,6 +823,9 @@
     ],
     "Pug.Other:256440": [
       "public static void AddTile(int tileSet, PugTilemap.TileType tileType, int2 position, bool isWorldModeCreative, DynamicBuffer<TileUpdateBuffer> tileUpdateBuffer)"
+    ],
+    "Pug.Other:263198": [
+      "public static NetworkingManager networking => main._networkingManager;"
     ],
     "Pug.Other:263316-263325": [
       "_modLoaders.Add(new SideLoader());",
@@ -892,6 +898,9 @@
     ],
     "Pug.Other:296438": [
       "bool flag8 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
+    ],
+    "Pug.Other:298371": [
+      "public int adminPrivileges"
     ],
     "Pug.Other:311322": [
       "if (!valueRW.canPlaceObject)"
