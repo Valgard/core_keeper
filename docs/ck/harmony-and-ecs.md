@@ -763,10 +763,18 @@ callers, and neither is covered by a prefix on `PetHandlerSystem`:
   componentData.xp`, which is XP with no damage anywhere in it.
 
 Whether a mod wants that second route depends on what it is scaling; the point
-is that patching the Burst consumer is not the whole surface. Whether
-`faster-pet-talents`' effect is visibly partial in play is **unverified** — it
-follows from the code that the two routes above go unscaled, but nobody has
-measured what that amounts to at the table.
+is that patching the Burst consumer is not the whole surface.
+
+**Measured in play, and the bypassed XP arrives unscaled.** On 2026-09-02, game
+version `1.2.1.5-8be0`, a probe logged every buffer element
+`faster-pet-talents`' prefix touched while a fresh pet fought with the
+multiplier at 50×. The prefix accounted for eleven grants totalling 3500 XP; the
+pet's own total, read back through `GetTotalTalentPoints`, was **3550**. The
+missing 50 never passed the prefix — and had they, the same multiplier would
+have made them 2500. So the second route is not a theoretical branch: it
+delivers XP that a consumer-side patch neither sees nor scales. (The session
+mixed player damage and pet candy, so the 50 cannot be attributed to one of the
+two callers; that they bypass the consumer is what the measurement settles.)
 
 Every skill funnels through `AddSkill` — Mining, Melee and Range via the combat
 `skillMultiplier`, Fishing, Crafting, Cooking, Gardening, Running, Vitality,
