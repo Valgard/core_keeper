@@ -99,6 +99,6 @@ A confirmed finding is fixed in both places: the PR text and the
 step — a wrong-scope multiplayer claim once survived two verification
 rounds inside the handbook and reached `harmony-and-ecs.md`, `CLAUDE.md`,
 and `docs/ck/index.md`'s own symptom table. A same-day pass corrected the
-first two on 2026-08-24; the third was never caught — as of 2026-09-01
-`docs/ck/index.md:109` still names the same wrong scope. Fixing only the
-PR leaves that source for the next PR.
+first two on 2026-08-24 and missed the third, which stood until 2026-09-01,
+when a pass that was looking for it found it (`docs/ck/index.md:109`).
+Fixing only the PR leaves that source for the next PR.

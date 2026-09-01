@@ -264,8 +264,9 @@ corrected in two documents each. `harmony-and-ecs.md` said `BurstDisabler`
 `SystemBase` precedent that never existed ran the other way, originating in
 `CLAUDE.md` and propagating into the chapter before both were corrected
 together (`CLAUDE.md:210-212`). Neither correction reached a third instance
-of the multiplayer claim: `docs/ck/index.md`'s own symptom table names the
-same wrong scope, and as of 2026-09-01 it still does (`docs/ck/index.md:109`).
+of the multiplayer claim: `docs/ck/index.md`'s own symptom table used the same
+wrong scope as its routing key, and kept it until a pass on 2026-09-01 went
+looking for it (`docs/ck/index.md:109`).
 
 For every statement changed, find where the same thing is asserted:
 

@@ -106,7 +106,7 @@ symptom, not the topic.
 | What you are seeing | Go to |
 |---|---|
 | Patch loads cleanly, prefix never fires | [Harmony and ECS](harmony-and-ecs.md) — the target is Burst-compiled |
-| Works in single-player, does nothing in multiplayer | [Harmony and ECS](harmony-and-ecs.md) — the dedicated-server trap |
+| Works in single-player and when you host, does nothing on a dedicated server | [Harmony and ECS](harmony-and-ecs.md) — the dedicated-server trap |
 | `Undefined target method for patch method …` | [Harmony and ECS](harmony-and-ecs.md) — `in`/`ref` parameter binding |
 | Every source mod fails to compile, on a non-English machine | [Platforms and hosts](platforms.md) — the Roslyn satellite lookup |
 | A mod that loaded yesterday does not load today | [Troubleshooting](troubleshooting.md) — a stale game-version tag, the commonest cause; [Multiplayer and server](multiplayer-and-server.md) if it is a join that broke; [Platforms and hosts](platforms.md) on a Wine host |
