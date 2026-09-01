@@ -5,10 +5,28 @@ description: Use when a documentation change is bound for Pugstorm/CoreKeeperMod
 
 # ck-docs-review
 
-A review gate for pull requests into Pugstorm's Core Keeper docs. Three lanes —
-`ckdocs-source-verifier`, `ckdocs-wording-attacker`, `ckdocs-repo-fit` — read
-the diff independently. Dispatch them, verify findings against the source, and
-fix what's confirmed.
+A review gate for a Core Keeper documentation change. Independent lanes read
+the diff, the orchestrator verifies each finding against the source, and fixes
+what's confirmed. Which lanes depends on where the change is going.
+
+## Which lanes, for which audience
+
+| Target | Lanes |
+|---|---|
+| A pull request into `Pugstorm/CoreKeeperModDocs` | `ckdocs-source-verifier`, `ckdocs-wording-attacker`, `ckdocs-repo-fit` |
+| A chapter of this repository's own `docs/ck/` handbook | `ckdocs-source-verifier`, `ckdocs-wording-attacker`, `ckdocs-corpus-checker` |
+
+`ckdocs-repo-fit` checks a *foreign* repository's house style — attribution,
+scope, build-environment neutrality against `CoreKeeperModDocs` itself — and
+has nothing to say about a chapter of this handbook, which is not that
+repository. `ckdocs-corpus-checker` reads the mod corpus in this workspace as
+its evidence, which a PR into a foreign repo has no counterpart for.
+`ckdocs-source-verifier` and `ckdocs-wording-attacker` read the diff and the
+decompile the same way regardless of target, so both sets keep them.
+
+The review gate (`~/.claude/hooks/pr-create-review-guard.sh`) requires the
+first set by name before a PR into `CoreKeeperModDocs` can be created; nothing
+here changes that.
 
 ## Dispatch
 
@@ -38,6 +56,16 @@ against the source. None is discarded for lack of corroboration — the lanes
 are deliberately non-overlapping, and one error class (a negative or
 exclusivity claim) is closed by `ckdocs-source-verifier` alone, where a
 matching NO OBJECTION from `ckdocs-wording-attacker` is expected, not weak.
+The same holds for a handbook chapter's counter-case — a claim that something
+cannot be done, refuted by a mod in this workspace that does it — which is
+closed by `ckdocs-corpus-checker` alone; the other two lanes' silence about it
+is structural, not corroboration, since neither reads the corpus.
+
+`ckdocs-corpus-checker` names its verdicts `CONFIRMED-BY-CORPUS` /
+`REFUTED-BY-CORPUS` / `CORPUS-SILENT`, deliberately distinct from
+`ckdocs-source-verifier`'s `CONFIRMED` / `REFUTED` / `UNSUPPORTED-BY-SOURCE`,
+so an aggregated report can never blur which lane said what.
+
 An UNSUPPORTED-BY-SOURCE verdict is reworded as an honest observation, never
 dropped for lack of confirmation. Corroboration is not the filter.
 Verification is.
