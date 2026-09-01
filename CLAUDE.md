@@ -401,21 +401,26 @@ human-facing setup; what matters when editing code here:
   purpose: `docs/specs/`, because reformatting a spec edits a record of what was
   decided, and the `ck-docs-review` skill's fixtures and scoring keys, which are
   the two halves of one calibration instrument.
-- **Unlike the link gate, the wrapping gate runs in `core_keeper` only.** Both
-  bullets above once claimed otherwise, and the mod repos went unchecked — which
-  is how an edit left a 143-column line in `mod-settings-menu/docs/roadmap.md`
-  and reached a commit unopposed. There was no way to wire it: the script took
-  file arguments and died on the `.` a mod repo's hook passes, where its sibling
-  has always taken a root. It now accepts one, so the hook is a three-line
-  addition per repo. What is not done is the reason it is worth knowing about:
-  the mod repos carry a backlog of roughly seven hundred lines the gate has
-  never seen, so adding the hook without rewrapping them first installs a gate
-  that blocks every `.md` commit on its first day.
+- **The wrapping gate runs in every mod repo too, since 2026-09-01.** For a long
+  while it did not, while this file claimed it did, and the mod repos went
+  unchecked — which is how an edit left a 143-column line in
+  `mod-settings-menu/docs/roadmap.md` and reached a commit unopposed. The reason
+  was not neglect: the script took file arguments and died on the `.` a mod
+  repo's hook passes, where its sibling has always taken a root. Wiring it in
+  cost a rewrap of about 700 lines across twelve repos first, because of the
+  next bullet.
 - **Both gates check the whole repository, not the staged files.** Each hook is
   configured `pass_filenames: false` and a staged `.md` merely triggers it — so
   a defect anywhere blocks a commit that touches documentation nowhere near it.
   Deliberate for the link gate, whose targets cross files; the consequence for
-  wrapping is that a backlog is never latent.
+  wrapping is that a backlog is never latent, which is why one had to be cleared
+  before the hook could go in anywhere.
+- **`--fix` can need a second run, and says nothing about it.** Each file's width
+  is measured once, from the lines the run finds on entry — and the run then
+  changes those lines, so a file can cross the 80/88 boundary while being fixed
+  and come out with defects measured against its new width. Fix mode prints what
+  it rewrapped and exits 0 either way. If a commit is still rejected after a
+  `--fix`, run it again rather than looking for the cause.
 - `pre-commit` itself is pinned once in the parent `.tool-versions`; asdf
   resolves it for the mod subdirectories by walking up.
 - **`utils/new_mod.py` scaffolds the gate too.** A freshly generated mod repo
