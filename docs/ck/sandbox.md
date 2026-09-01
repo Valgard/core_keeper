@@ -93,6 +93,14 @@ Two consequences the list makes obvious and a bisection would not:
   not those types. That is why declarative patching works while every
   programmatic entry point is closed.
 
+**Read the count as one finding, not three.** A single inherited member access
+produces exactly `1 namespace + 1 type + 1 member` — the namespace, the
+declaring type, and the member itself, all of the one symbol. `Type.Name`
+does this on its own, verified. So that triplet is the signature of one
+expression to find, not evidence of three separate problems, and the log names
+the file, line and column of the offending IL instruction — start there rather
+than auditing the deny lists.
+
 The following were observed to fail and are *not* on the list — the reason lies
 in what the expression resolves to, not in a listed symbol:
 
