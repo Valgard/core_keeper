@@ -1072,6 +1072,12 @@
     "Pug.Other:386497": [
       "public const int OpenProfile = 223;"
     ],
+    "Pug.Other:392596": [
+      "private InvokeChecker _checker = new InvokeChecker();"
+    ],
+    "Pug.Other:392659": [
+      "throw new InvalidOperationException(\"Not allowed to access \" + memberInfo.Name);"
+    ],
     "Pug.Other:404656": [
       "private static bool CageCattle(StateUpdateAspect stateUpdateAspect, SharedStateUpdateData sharedStateUpdateData, LookupStateUpdateData lookupStateUpdateData)"
     ],
@@ -1194,6 +1200,9 @@
     "PugMod.Loader:1175": [
       "UnityEngine.Debug.Log(\"not loading incompatible mod \" + metadata.name);"
     ],
+    "PugMod.Loader:1316": [
+      "scriptDomain.RoslynCompilerService.OutputName = mod.Metadata.name + \".dll\";"
+    ],
     "PugMod.Loader:1418-1427": [
       "if (!harmony.Patch(mod.Metadata.name, assembly.SystemAssembly, !mod.Metadata.skipSafetyChecks, checker))",
       "{",
@@ -1218,11 +1227,39 @@
     "PugMod.Loader:462": [
       "value.PatchAll(assembly);"
     ],
+    "PugMod.Loader:541-548": [
+      "private void LazyInit()",
+      "{",
+      "if (_disallowedTypes == null)",
+      "{",
+      "IEnumerable<Type> collection = from p in AppDomain.CurrentDomain.GetAssemblies().SelectMany((Assembly s) => s.GetTypes())",
+      "where p.GetCustomAttribute<DisallowPatching>() != null",
+      "select p;",
+      "_disallowedTypes = new HashSet<Type>(collection);"
+    ],
+    "PugMod.Loader:552": [
+      "public bool CheckType(Type type)"
+    ],
+    "PugMod.Loader:561": [
+      "UnityEngine.Debug.Log($\"Trying to patch disallowed type {type}\");"
+    ],
     "PugMod.Platform:70": [
       "bool flag2 = ModVersion.IsCompatible(Application.version, subscribedMod.modProfile.tags);"
     ],
     "PugMod.Platform:97": [
       "UnityEngine.Debug.Log(\"loaded mod \" + metadata.name + \" from mod.io (\" + subscribedMod.modProfile.name + \")\");"
+    ],
+    "PugMod.SDK.Runtime:644": [
+      "System.Reflection.MemberInfo[] members = type.GetMembers(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);"
+    ],
+    "PugMod.SDK.Runtime:644-650": [
+      "System.Reflection.MemberInfo[] members = type.GetMembers(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);",
+      "MemberInfo[] array = new MemberInfo[members.Length];",
+      "for (int i = 0; i < array.Length; i++)",
+      "{",
+      "array[i] = members[i];",
+      "}",
+      "return array;"
     ],
     "PugMod.SDK.Runtime:702": [
       "public byte[] GetFile(string path)"
