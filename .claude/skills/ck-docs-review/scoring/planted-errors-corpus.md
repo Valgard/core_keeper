@@ -91,3 +91,47 @@ that objects to every sentence naming a mod:
   `reusable-cattle-box/unity/ReusableCattleBox.asset` reads
   `skipSafetyChecks: 0`; `3400322_7742541/ModManifest.json` and
   `5088296_8112340/ModManifest.json` both carry `"skipSafetyChecks": false`.
+
+## One calibration round (recorded 2026-09-01)
+
+The following scores are what one calibration round measured against this
+fixture. They are a record of that round, not a property of the lane —
+a re-run, especially after the fixture or the lane definition changes, could
+score differently and would supersede this entry rather than average with it.
+
+**Baseline — two independent general-purpose reviewers, sonnet tier,** each
+dispatched with the fixture only: no error classes named, no answer key, and
+the corpus context supplied by hand in the prompt (the mod-repository
+enumeration command, the mod.io cache path, and the `command grep` caveat
+above). Run 1 found 4 of 4 planted errors, 0 false positives on the true
+sentences. Run 2, a fresh reviewer given the identical prompt, also found 4
+of 4 with 0 false positives, and went further than run 1: it cited the
+handbook's own `docs/ck/harmony-and-ecs.md` against two of the errors on its
+own initiative.
+
+**Lane — `ckdocs-corpus-checker`, same model tier,** dispatched with the
+standard dispatch envelope only (the diff, the full file, the decompile
+paths, the out-of-bounds clause) and **none** of the hand-written corpus
+context the baseline runs received. It also found 4 of 4 planted errors with
+0 false positives. It reached the corpus using its own enumeration command
+and filled the `reached the files` field substantively — 9 hits across 7 mod
+repositories, noted explicitly as "not empty" — and it ran in a session
+where the `.gitignore`-honouring `grep` shim described above was active,
+i.e. under the condition where a root-relative search genuinely returns
+nothing.
+
+**Equal scores do not mean the lane adds nothing.** The baseline reviewers
+were handed the corpus context by a human and happened to run while the
+shim was inert; the lane was given none of that context and ran with the
+filter active. What the equality establishes is that the lane definition
+carries the context a human otherwise has to supply by hand — that is the
+claim this round tested, and it is a claim that could have failed.
+
+**One fact from the same round that nearly went the other way.** The lane's
+enumeration command is prefixed with `cd` into the repository root before
+enumerating. The version without that prefix — which is what an earlier
+draft of the lane specified — produces zero output when run from a
+worktree, and a worktree is a realistic dispatch context. Had that version
+been copied in unchanged, the lane would have found no mods at all and
+reported corpus-silence on every assertion, with nothing in its output
+distinguishing that from a genuinely silent corpus.
