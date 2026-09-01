@@ -7,9 +7,9 @@ an Editor that hangs, a build that produces nothing. Each entry names what you
 observe, then the mechanism, then the fix. Where a symptom has more than one
 cause, the cheapest check comes first.
 
-Most in-game diagnosis happens in `Player.log`, and every recipe below greps
-it directly — on every installation checked, including under Wine, it is plain
-UTF-8 text with no NUL bytes. The host path is in [platforms and hosts](platforms.md).
+Most in-game diagnosis happens in `Player.log`, and every recipe below greps it
+directly — under Wine it is plain UTF-8 text with no NUL bytes, confirmed there.
+The host path, and how far that check reaches beyond a Wine host, are in [platforms and hosts](platforms.md).
 
 ## The mod loads, but its scripts are never compiled
 
