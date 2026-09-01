@@ -1,5 +1,34 @@
 {
   "citations": {
+    "ControlMappingMenu.prefab:2456-2457": [
+      "_helpButtonList: 0600000005000000000000000100000002000000",
+      "_helpButtonListNoJoystick: 05000000000000000100000002000000"
+    ],
+    "DedicatedServer/Pug.Other:263259-263262": [
+      "_modLoaders.Add(new SideLoader());",
+      "}",
+      "string userName = Environment.UserName;",
+      "_modLoaders.Add(new SteamWorkshopLoader(userName));"
+    ],
+    "DedicatedServer/Pug.Other:430189-430205": [
+      "public StandaloneFilesystem(string partition, PlatformInterface platformInterface)",
+      "{",
+      "_persistentPath = CommandLineArgs.GetParam(\"-datapath\");",
+      "if (string.IsNullOrEmpty(_persistentPath))",
+      "{",
+      "_persistentPath = Application.persistentDataPath;",
+      "if (!string.IsNullOrEmpty(partition))",
+      "{",
+      "_persistentPath = _persistentPath + \"/\" + partition;",
+      "}",
+      "_persistentPath += \"/DedicatedServer\";",
+      "}",
+      "DirectoryInfo directoryInfo = new DirectoryInfo(_persistentPath);",
+      "_persistentPath = directoryInfo.FullName;",
+      "_persistentPath = _persistentPath.Replace('\\\\', '/');",
+      "CreateDirectory(directoryInfo);",
+      "}"
+    ],
     "Pug.Base:13190": [
       "public const int defaultSimulationTickRate = 20;"
     ],
@@ -1272,6 +1301,12 @@
     ],
     "PugMod.SDK.Runtime:841": [
       "public static void ResetWorlds()"
+    ],
+    "PugSprite:42": [
+      "public class GradientMapDataBlock : ScriptableDataBlock"
+    ],
+    "RoslynCSharp.Compiler:581": [
+      "message = diagnostic.GetMessage();"
     ],
     "RoslynCSharp:3866": [
       "RoslynCSharp.LogError(securityResult.GetAllText(reportAllOccurences: true));"
