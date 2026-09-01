@@ -175,7 +175,7 @@ statement stood, with the true fact spelled out immediately below it.
 > ("Not in multiplayer" is the wrong scope and stood here until 2026-08-24;
 > `docs/ck/harmony-and-ecs.md` has the evidence.)
 
-A dated aside (`CLAUDE.md:221`) folded into the paragraph it corrects, naming
+A dated aside (`CLAUDE.md:222-224`) folded into the paragraph it corrects, naming
 the wrong wording and the date it stopped holding. No instance of this shape
 exists inside `docs/ck/` itself.
 
@@ -209,7 +209,7 @@ round in a matching state takes it along.
   fine; one probe point changing two things is not.
 - **Measurement hygiene is the real cost.** A measurement counts only with the
   probe and its dependencies loaded. `DisableBurstForSystem*` registers a
-  *type* (`CLAUDE.md:222-223`), so any other mod un-Bursting the same system
+  *type* (`CLAUDE.md:224-225`), so any other mod un-Bursting the same system
   carries the probe silently and the result is worthless.
 - **Smoke-check before the measurement round.** Start the game once and read
   the log for whether the probe loaded and registered its points. A probe that
@@ -256,10 +256,10 @@ This is documented experience, not a hypothetical. Both known errors were
 corrected in two documents each. `harmony-and-ecs.md` said `BurstDisabler`
 "does nothing in multiplayer" until 2026-08-24
 (`docs/ck/harmony-and-ecs.md:186`), and the same wrong scope sat in
-`CLAUDE.md`'s own bullet until the same day (`CLAUDE.md:220-222`); a
+`CLAUDE.md`'s own bullet until the same day (`CLAUDE.md:222-224`); a
 `SystemBase` precedent that never existed ran the other way, originating in
 `CLAUDE.md` and propagating into the chapter before both were corrected
-together (`CLAUDE.md:208-210`). Neither correction reached a third instance
+together (`CLAUDE.md:210-212`). Neither correction reached a third instance
 of the multiplayer claim: `docs/ck/index.md`'s own symptom table names the
 same wrong scope, and as of 2026-09-01 it still does (`docs/ck/index.md:109`).
 
@@ -276,6 +276,19 @@ root-relative search here.
 
 A mod repository is a separate repository, so a correction there is its own
 commit. The sweep names both rather than assuming one commit closes it.
+
+**A line-number citation is a state reference, not a fact reference, and
+sweeping for it is a different search than sweeping for the same claim.** An
+insertion anywhere above a cited line shifts it silently — including from a
+file the citing document never mentions and asserts nothing about. That is
+not the same failure as citing the wrong line to begin with: the citation was
+correct when written, and it is the file around it that moved.
+`utils/check_citation_drift.py` does not catch it either — it resolves
+`docs/ck/` citations against the decompile, so a `.claude/skills/` file citing
+`CLAUDE.md` sits outside its scope on both axes. So after changing a file,
+also find what cites *into* it by line — open every one and confirm the line
+still says what the citing sentence claims, the same way a citation is
+checked on first use.
 
 ## Commit
 
