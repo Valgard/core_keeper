@@ -4,12 +4,16 @@ Core Keeper is a DOTS game whose simulation systems are Burst-compiled, and mods
 are Harmony patches compiled at load time inside a sandbox. That combination
 produces failure modes that look nothing like a normal Harmony problem: a patch
 that loads cleanly and never fires, a system whose body is not in the file you
-are reading, and a fix that works in single-player and is inert on a dedicated
-server. This chapter covers how to make a patch bind, how to make it fire, and
-how to read and write the live ECS world once it does.
+are reading, and a fix that works whenever a player hosts and is inert on a
+dedicated server. This chapter covers how to make a patch bind, how to make it
+fire, and how to read and write the live ECS world once it does.
 
 Line numbers quoted below (`Pug.Other:295735`) are offsets into the decompiled
 game assemblies — see [reverse-engineering](reverse-engineering.md) for how to produce that decompile.
+**An unmarked citation is the client build.** The two builds' offsets differ for
+the same code — `BurstDisabler.AddWorld` is `Pug.Other:2675` on the client and
+`:2656` on the server — so a server citation says so, and resolving an unmarked
+one in the server checkout lands on unrelated code.
 
 ## Three failure modes, three different causes
 
@@ -21,7 +25,7 @@ except that your code does not run.
 | `ArgumentException: Undefined target method for patch method …` at load | Harmony cannot resolve the target signature — typically an `in`/`ref` parameter | `argumentVariations` (below) |
 | Mod loads, `safetyCheck=True`, patch binds, prefix never fires | The target is Burst-compiled; the managed IL you patched is never executed | `BurstDisabler` (below) |
 | Works when a player hosts, dead on a dedicated server | `BurstDisabler` registered too late on the dedicated server | manual `AddWorld` pass (below) |
-| Mod does not compile at all (`CompileFailed`) | Sandbox rejection, not a patching problem | [sandbox rules](sandbox.md) |
+| Mod does not compile at all (`CompileFailed`) | Not a patching problem — an ordinary compile error, or a sandbox rejection | [sandbox rules](sandbox.md) tells the two apart |
 
 ## Why a Burst-compiled `OnUpdate` cannot be intercepted
 
@@ -56,19 +60,27 @@ public void Init()
 `TypeManager.IsSystemType` — the check that throws a `NullReferenceException`
 when `TypeManager` is not yet initialised, which is why this cannot run in
 `EarlyInit` — and then branches on `TypeManager.IsSystemManaged`, **returning
-early** for a managed system. The two paths share nothing beyond the entry
-point:
+early** for a managed system. Between those two checks it does work that belongs
+to both paths: it creates the shared `_harmony` instance on first use and runs
+`PatchAll(typeof(DisableBurstForSystemPatch))` (`:805-809`). What the branch
+selects is which system gets patched how:
 
 | System shape | What actually happens |
 |---|---|
 | **`ISystem` struct** (unmanaged) | the two-halves mechanism below |
 | **`SystemBase` class** (managed) | `PatchManagedSystem` Harmony-patches the system's own `OnCreate`/`OnStartRunning`/`OnUpdate`/`OnStopRunning`/`OnDestroy` with prefixes and postfixes that toggle `BurstCompiler.Options.EnableBurstCompilation` around each call — immediately, globally, with no world registry involved |
 
-**Everything that follows in this section — the two halves, the per-world
-snapshot, and the dedicated-server trap built on it — applies to the `ISystem`
-path only.** A managed `SystemBase` never reaches
-`SystemTypesToDisableBurstFor`, so `AddWorld` has nothing to arm for it and the
-server trap does not arise.
+**The two halves below, the per-world snapshot, and the dedicated-server trap
+built on it apply to the `ISystem` path only.** A managed `SystemBase` never
+reaches `SystemTypesToDisableBurstFor`, so `AddWorld` has nothing to arm for it
+and the server trap does not arise.
+
+**The `AndJobs` variant is the exception — it is not `ISystem`-only.** Both
+branches end in `CreateCompleteDependencyPatch` (`PugMod.SDK.Runtime:924`),
+called from `PatchSystem` (`:867`, `isManaged: false`) and from
+`PatchManagedSystem` (`:885`, `isManaged: true`). A managed system therefore
+gets the same dependency-completing postfix from the same flag; only the
+route to it differs.
 
 Which shape you are looking at is worth checking before reasoning about any of
 it: in the decompile it is `public struct X : ISystem` versus `public class X :
@@ -113,8 +125,9 @@ burstEnabled, addCompleteDependencyPatch: false)` (`:780`);
 `ISystem`, `PatchSystem` (`:862-870`) does nothing with that flag off — it
 builds an empty method list and stops. With the flag on, it adds exactly one
 more thing: a postfix on `OnUpdate(ref SystemState)` that calls
-`state.Dependency.Complete()`. That one postfix is the entire difference
-between the two calls.
+`state.Dependency.Complete()`. There, that one postfix is the entire difference
+between the two calls — a managed system is patched either way, and the flag
+only adds the same postfix on top.
 
 It is also why `EquipmentUpdateSystem` needs it. Its `OnUpdate`
 (`Pug.Other:420556`) ends `state.Dependency =
@@ -155,15 +168,21 @@ system is an open question, and this handbook cannot answer it.
 
 What exists is a single anecdote, recorded here because the question comes up
 immediately and because knowing the evidence is thin is better than guessing:
-one mod Burst-disables `EquipmentUpdateSystem` and its author noticed no frame
-drop while laying rails with bridges auto-placed beneath them, with several of
-his own mods holding systems un-Bursted at the same time.
+`auto-rail-bridges` Burst-disables `EquipmentUpdateSystem` and its author
+noticed no frame drop while laying rails with bridges auto-placed beneath them
+(observed 2026-08-11, never profiled). PlacementPlus — a foreign mod — un-Bursts
+the same system with the same call, and running both at once was equally
+unremarkable.
 
-**Read that for exactly what it is.** One person, one mod, one system, one
-activity, judged by eye with no profiler. It does not establish that
-Burst-disabling is cheap in general — and there is reason to think this
-particular case sits at the *favourable* end: the observation covers a burst of
-player-driven activity, not a system grinding large entity sets every frame.
+**Read that for exactly what it is.** One person, one system, one activity,
+judged by eye with no profiler. It does not establish that Burst-disabling is
+cheap in general — and the recorded note names two properties of *this* system
+that keep it cheap, both of which have to be re-checked before assuming the same
+anywhere else: the query iterates player entities only (`EquipmentUpdateAspect`
+requires `ClientInput`, `PlayerStateCD`, `PlayerGhost` — `Pug.Other:419114`),
+and the job is scheduled with `Schedule()`, not `ScheduleParallel()`
+(`:420660`), so it was single-threaded anyway and `Complete()` costs only the
+frame overlap.
 
 It also came with an attribution problem worth repeating: the one place that
 did feel slower was a large base, which is also where an unrelated
@@ -185,12 +204,14 @@ whenever a player hosts and does nothing on a dedicated server.
 
 **"Does nothing in multiplayer" is the wrong scope, and this file said it until
 2026-08-24.** A hosting client is not affected: `StartEcs` creates the
-ServerWorld in that same process (`Pug.Other:2654`, taken whenever the process
-is not a pure client), adds it to `_allWorlds`, and arms both worlds at
-`:2673-2675` — all of it after `Init()` on the client ordering. So host-based
-multiplayer works, and the defect belongs to the dedicated-server binary alone.
-The distinction matters when reading a bug report: "works for me in
-multiplayer" from a host neither reproduces nor refutes it.
+ServerWorld in that same process (`Pug.Other:2654`, guarded at `:2652` by
+`worldId != -1 && requestedPlayType != PlayType.Client` — **both** conditions,
+which is why the menu path below creates none despite not being a pure client),
+adds it to `_allWorlds`, and arms both worlds at `:2673-2675` — all of it after
+`Init()` on the client ordering. So host-based multiplayer works, and the defect
+belongs to the dedicated-server binary alone. The distinction matters when
+reading a bug report: "works for me in multiplayer" from a host neither
+reproduces nor refutes it.
 
 The cause is an inverted lifecycle. `BurstDisabler.AddWorld` is called from
 exactly one place, `ECSManager.StartEcs` (`Pug.Other:2675` in the client build,
@@ -231,11 +252,16 @@ tried and was wrong.** The tempting mechanism is: `StartEcs` is reached from
 `SceneHandler.Awake` (`Pug.Other:361075`, calls at `:361114`/`:361119` in the
 server build) while `IMod.Init()` comes from `Loader.Update`
 (`PugMod.Loader:1157`, `:1159`), so Unity's rule that every `Awake` precedes
-every `Update` fixes the order. **It does not.** `Loader.Update` has a second
-caller: `Manager.EarlyInit` (`Pug.Other:263334`), which is a
+every `Update` fixes the order. **It does not.** `Loader.Update` is reached from
+two places, not one. Both go through `Integration.Instance.Update()` — an
+`IIntegration` interface call that lands on `Loader` only because
+`Loader : IIntegration` — and one of them sits in `Manager.EarlyInit`
+(`Pug.Other:263334`, client build; server `:263271`), which is a
 `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]`
-(`:263245`) and therefore runs *before* any scene `Awake`. The lifecycle rule
-never applies to that path, so it cannot settle the ordering. Nor is the hosting
+(`:263245` client, `:263187` server) and therefore runs *before* any scene
+`Awake`. The other, the MonoBehaviour `Update()` the derivation actually means,
+is at `:270347` (server `:270188`). The lifecycle rule never applies to the
+first path, so it cannot settle the ordering. Nor is the hosting
 side "menu-triggered" as a contrast: the client's own world-creating `StartEcs`
 (`Pug.Other:365349`) sits in `SceneHandler` too, and the menu path
 (`RadicalJoinGameMenu.Join`, `:337913`) passes `worldId: -1` and creates no
@@ -307,9 +333,14 @@ Client            armed by this pass in  0/6  live world(s)
 Dedicated Server  armed by this pass in  1/12 live world(s)
 ```
 
+The client line is **measured** on a 1.2.1.5 client and recorded beside the
+counter in `reusable-cattle-box`. The server line is a measurement too, but its
+setup — build, date, world count — was never written down anywhere, so treat the
+figure as illustrative and the shape (`1/N` rather than `0/N`) as the claim.
+
 On the server, that one armed world is the manual pass's own doing: `StartEcs`'s
 own call to `AddWorld` (above) had already taken its snapshot before `Init()`
-ran, so without the `foreach` loop the count would read `0/12` instead. This
+ran, so without the `foreach` loop the count would read `0/N` instead. This
 turns "the manual pass matters on the server" from a derivation into a
 measurement.
 
@@ -379,11 +410,20 @@ See [multiplayer and server](multiplayer-and-server.md) — for version and prot
 Not every hook has to be a patch. Some extension points are plain public
 multicast delegate **fields** — not `event`s — which any assembly can assign to
 or combine onto. `Mods.OnModManagementEvent` is one: it is declared
-`public static ModManagementEventDelegate` in `modio.UI` (`ModIOBrowser.Mods`), and the
-game's own `RadicalMainMenuOption_OpenMods.Awake` combines its handler onto it
-via `Delegate.Combine` at `Pug.Other:338594`. A field rather than an event
-matters, because an `event` would only let you `+=` from inside its declaring
-type.
+`public static ModManagementEventDelegate` in `modio.UI` (`ModIOBrowser.Mods`,
+`:2906`), and the game's own `RadicalMainMenuOption_OpenMods.Awake` combines its
+handler onto it via `Delegate.Combine` at `Pug.Other:338594`.
+
+**Correction: the field-versus-event distinction does not gate your access.**
+This paragraph used to justify itself with "an `event` would only let you `+=`
+from inside its declaring type", which inverts the C# rule: `+=` and `-=` from
+outside are exactly what an `event` permits. What it withholds from outside is
+assignment and invocation — and assignment is what the game itself does here
+(`Mods.OnModManagementEvent = Delegate.Combine(…)`). So a `+=` would work
+against either shape, and the thing a plain field additionally allows is
+replacing or clearing the whole invocation list, which is a hazard rather than
+a convenience: two mods that assign instead of combining can silently drop each
+other's handler.
 
 **Untested: whether a mod's reference to it survives the sandbox.** The field
 lives in `modio.UI`, and no load here has referenced that assembly from mod code
@@ -447,28 +487,48 @@ without firing is the failure this chapter opens with.
 **Trap when picking the overload:** `PlaceObjectSlot` (decompile lines
 311283–311632) declares exactly *one* `PlaceItem`, the three-argument
 `(in EquipmentUpdateAspect, EquipmentUpdateSharedData, LookupEquipmentUpdateData)`
-at `:311319`. Identical-looking overloads at `:310177` and `:311118` belong to
-**other classes** — patching by shape rather than by owning type binds the wrong
-method.
+at `:311319`. Identical-looking ones at `:310177` and `:311118` belong to
+`BucketSlot` (`:310153`) and `PaintToolSlot` (`:311097`) — patching by shape
+rather than by owning type binds the wrong method.
+
+**Those are subclasses, and that costs you coverage rather than merely risking a
+mis-bind.** `BucketSlot`, `PaintToolSlot` and `WaterCanSlot` (`:312626`) all
+derive from `PlaceObjectSlot` and shadow both `UpdateEquipment` and `PlaceItem`
+with `public new static` members of their own (`:310161`, `:311101`, `:312634`).
+Because these are statics there is no virtual dispatch to carry a patch across
+— the caller names the class outright, one branch per slot type
+(`:419896-419902`) — so the "sole caller" relation above holds for each class
+separately. A patch on `PlaceObjectSlot.PlaceItem` therefore covers neither
+bucket, paint-tool nor watering-can placement. Patch each class you actually
+mean to cover.
 
 **The audit question is what you patch, not what Burst touches.** `[BurstCompile]`
 on the systems that *write* the components you read is irrelevant. `BurstDisabler`
 is needed only when the **patch target itself** is executed by Burst. Read-only
 access needs it not at all: an `EntityQuery.ToEntityArray` plus `GetComponentData`
 out of a managed coroutine or `Update` requires nothing, even though Burst jobs —
-`DropSelfJob` (`Pug.Other:88826`), for instance — match the very same components.
+`DropSelfJob` (`Pug.Other:88847`), for instance — match the very same components.
 `BurstDisabler` is not a precondition for touching ECS from a mod, and a
 needless `DisableBurstForSystemAndJobs` is not free.
 
 ### A postfix on an input-driven method fires per input tick
 
 `PlaceItem`'s postfix runs after *every* call, including every early return — no
-valid placement spot, cooldown, and so on. While the player merely holds a
-placeable item, that is roughly one call per input tick.
+valid placement spot, cooldown, and so on. While the player **holds the place
+button down** on a placeable item, that is roughly one call per input tick.
 
-The reason is that the method protects itself **internally**: the guards are
-early returns inside the body, not conditions at the call site. A prefix runs
-ahead of all five of them.
+**Correction: it is not called while the item is merely equipped.** The call
+site guards it twice before entering (`:311307`, `:311311`):
+
+```csharp
+if (!secondInteractHeld) return false;
+if (hasItemInMouse)      return false;
+```
+
+so the button, not the equipped item, is what drives the rate. What the method
+does protect **internally** is everything past that: five further guards are
+early returns inside the body rather than conditions at the call site, and a
+prefix runs ahead of all five.
 
 | Guard | Location |
 |---|---|
@@ -478,9 +538,13 @@ ahead of all five of them.
 | `PlayerController.CanConsumeEntityInSlot` | `:311349` |
 | Creative / `ObjectType.PlaceablePrefab` check | `:311353` |
 
-The **first unconditional commit point past all five** is
+The first point past all five that commits the placement **as player state** is
 `playerStateCD.ValueRW.PushState(PlayerStateEnum.PlaceObject)` (`:311368`),
-immediately followed by `StartCooldownForItem` (`:311370`).
+immediately followed by `StartCooldownForItem` (`:311370`). That is a semantic
+choice rather than the literally first unconditional statement: `:311367`
+already writes `placeObjectStateCD.positionToPlaceAt` unconditionally. It is the
+better signal because it is what the rest of the game reads as "a placement is
+happening".
 
 `EntityUtility.AddTile` (`:311379`) comes later and is **not universal**: it
 sits inside `if (…tileLookup.HasComponent(equipmentPrefab))`, so it is reached
@@ -510,9 +574,11 @@ point that looks like the consume.
 population your mod actually runs beside, and *measure* the interaction rather
 than reasoning about it: with PlacementPlus active, a prefix on
 `PlaceObjectSlot.PlaceItem` fired **zero** times while laying rails. To test a
-suspected conflict, toggle the foreign mod through the loader's `disabledMods`
-list in `state.json` ([the loader's two disable lists](troubleshooting.md#the-loaders-two-disable-lists-are-opposites)) and count your own patch's
-invocations in both states.
+suspected conflict, toggle the foreign mod through the `disabledMods` set in
+`state.json` — which belongs to the mod.io plugin's `Registry`
+(`modio.UnityPlugin:34712`), not to `PugMod.Loader`, whose own list is
+`unsupportedModsToLoad` and does the opposite ([the two disable lists](troubleshooting.md#the-loaders-two-disable-lists-are-opposites)) — and
+count your own patch's invocations in both states.
 
 **A log line's count is not an event count.** A client connected to a
 dedicated server can log the same postfix more than once for a single release
@@ -659,8 +725,9 @@ Instead:
 2. Harmony `Prefix` on the consumer's `OnUpdate(ref SystemState state)`. Via
    `state.GetEntityQuery(ComponentType.ReadWrite<T>())` and
    `state.EntityManager` (`GetComponentData` / `SetComponentData` /
-   `GetBuffer`), **rewrite the pending value before returning `true`** so the
-   original system applies your inflated number.
+   `GetBuffer`), **rewrite the pending value and let the original run** so it
+   applies your inflated number. A `void` prefix is the shape both mods here
+   use; a `bool` one returning `true` behaves identically.
 
 This is robust regardless of whether the consumer's inner *job* stays Burst: you
 are mutating the shared component memory that job then reads. It also leaves the
@@ -670,12 +737,32 @@ prefix are sandbox-safe.
 
 ### Worked example — XP grants
 
-CK's XP grants have exactly two choke points, and both fit this shape.
+Two XP choke points fit this shape:
 
 | Track | Producer | Component | Burst consumer |
 |---|---|---|---|
 | Player skill XP | `PlayerController.AddSkill(Entity, SkillID, int amount, EntityCommandBuffer, bool isServer)` — the sole creator of the component, only `if (isServer)` | `AddSkillValueCD : IComponentData` | `AddSkillValueSystem` (`SkillBuffer.Value += amount`, guarded `levelFromSkill < maxSkillLevel`) |
-| Pet XP | `PetExtensions.GetExperienceFromDamage(dmg) = clamp(dmg / 20, 1, 250)` — pets level only from dealt damage | `AddPetExperienceBuffer : IBufferElementData` | `PetHandlerSystem` (`pet.objectData.amount += amount`, guarded `!IsAtMaxLevel`) |
+| Pet XP, when the **pet** lands the hit | `PetExtensions.GetExperienceFromDamage(dmg) = clamp(dmg / 20, 1, 250)`, appended by `AttackSystem.CheckForHit` (`Pug.Other:12591`) | `AddPetExperienceBuffer : IBufferElementData` | `PetHandlerSystem` (`pet.objectData.amount += amount`, guarded `!IsAtMaxLevel`) |
+
+**Correction: pet XP has a second route, and "pets level only from dealt damage"
+is wrong.** This section said there were exactly two choke points and that pets
+gain XP from damage alone; both statements survived into `faster-pet-talents`,
+which scales the buffer above and therefore reaches only the row in that table.
+`PlayerController.IncreasePetXp` (`:302241`) raises the pet's `amount` by
+writing an `InventoryChangeBuffer` entry directly (`Create.AddAmount`),
+bypassing `AddPetExperienceBuffer` and `PetHandlerSystem` entirely. It has two
+callers, and neither is covered by a prefix on `PetHandlerSystem`:
+
+- `PlayerController.AttemptToDealDamageToEnemy` (`:303958`) — XP for damage the
+  **player** deals, using the same `GetExperienceFromDamage` formula.
+- `:92814` — **pet candy**, `xpIncrease = petCandyGivesMuchXp ? 100000 :
+  componentData.xp`, which is XP with no damage anywhere in it.
+
+Whether a mod wants that second route depends on what it is scaling; the point
+is that patching the Burst consumer is not the whole surface. Whether
+`faster-pet-talents`' effect is visibly partial in play is **unverified** — it
+follows from the code that the two routes above go unscaled, but nobody has
+measured what that amounts to at the table.
 
 Every skill funnels through `AddSkill` — Mining, Melee and Range via the combat
 `skillMultiplier`, Fishing, Crafting, Cooking, Gardening, Running, Vitality,
@@ -733,11 +820,15 @@ helper methods can be added freely.
   `ToComponentDataArray<T>(Allocator.TempJob)` plus `UnityEngine.Debug.Log` are
   generator-free and sandbox-legal.
 
-**Procedure.** Edit the `.g.cs` inside the mod.io cache
+**Procedure — client only.** Edit the `.g.cs` inside the mod.io cache
 (`…/Public/mod.io/5289/mods/<modId>_<modfileId>/Scripts/Generated/`), delete the
 loader's extraction at `…/Temp/Pugstorm/Core Keeper/ModLoader/<ModName>/`, then
-restart the game. Leave the ZIP under `…/Temp/Pugstorm/Core Keeper/5289/` alone —
-mod.io tracks integrity and downloads through it.
+restart the game. The deletion step has no target on a dedicated server: the
+same line (`PugMod.Loader:1742` in both builds) extracts to `ModLoader/<mod
+name>` on the client but to `ModLoader/DedicatedServer/<fresh GUID>` on the
+server, a new directory per start, so there is nothing stable to delete and
+nothing stale to clear. Leave the ZIP under `…/Temp/Pugstorm/Core Keeper/5289/`
+alone — mod.io tracks integrity and downloads through it.
 
 **Syntax-check without Unity.** Copy the file into a scratch directory *without
 `.g` in the name* and run `dotnet csharpier check` on it. CSharpier silently
@@ -863,6 +954,16 @@ To persist mod state in lockstep with CK's own save, Harmony-postfix
 **`SaveManager.WriteCharacter(int saveId)`**. It is patchable despite the
 `Manager.saves` verification failure observed above, for the same reason: the
 patch attribute never goes through `Manager.saves` at all.
+
+**Name the overload — `nameof` alone is ambiguous here.** `SaveManager` declares
+both `WriteCharacter()` (`Pug.Other:363867`) and `WriteCharacter(int)`
+(`:363872`), so the attribute needs the argument-type array; the parameterless
+one delegates to the `int` overload, which is why patching that one covers both
+call paths:
+
+```csharp
+[HarmonyPatch(typeof(SaveManager), nameof(SaveManager.WriteCharacter), new[] { typeof(int) })]
+```
 
 What the hook fires on, its symmetric load point, the trap that loses a save
 silently, and the cost of writing on that thread are all in [writing in lockstep with the game's save](persistence.md#writing-in-lockstep-with-the-games-save).

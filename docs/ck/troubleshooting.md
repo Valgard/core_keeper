@@ -271,7 +271,7 @@ two lists below.
 
 | File | Key | Meaning |
 |---|---|---|
-| `…/Public/mod.io/5289/state.json` | `existingUsers["<userId>"].disabledMods` | *skip this mod* — the loader drops it before the compile step, with no warning dialog |
+| `…/Public/mod.io/5289/state.json` | `existingUsers["<userId>"].disabledMods` | *skip this mod* — it never reaches the loader's compile step at all, with no warning dialog |
 | `…/LocalLow/Pugstorm/Core Keeper/Steam/<account>/modloader/config.json` | `unsupportedModsToLoad` | *load this incompatible mod anyway* — a force-load override |
 
 `disabledMods` takes mod.io IDs as **strings** (not GUIDs); the game itself
@@ -280,13 +280,19 @@ writes the file as minified JSON, but that is not load-bearing — an indented
 get rid of a stuck incompatible mod cleanly, remove its GUID from
 `unsupportedModsToLoad` *and* add its mod.io ID to `disabledMods`.
 
-Both files belong to the loader itself, not to any one host — only the root of
-the path above changes with the platform. `unsupportedModsToLoad` is not
-save-game state and uses no PlayerPrefs, but it does not survive a game update
-either: the loader compares the first three components of `config.version`
-against the running version on startup and clears the whole list when they
-differ, so a mod you confirmed once is silently dropped again after most game
-updates (see [multiplayer and server](multiplayer-and-server.md)).
+**Only one of the two is the loader's own.** `unsupportedModsToLoad` is
+`PugMod.Loader`'s config list (`:1070`); `disabledMods` is a `HashSet<ModId>` on
+the **mod.io plugin's** `Registry` (`modio.UnityPlugin:34712`), which the loader
+never reads — mods switched off there simply do not reach it. The heading calls
+them the loader's two lists because that is where both land in practice, not
+because the loader owns both.
+
+Neither file is host-specific — only the root of the path above changes with the
+platform. `unsupportedModsToLoad` is not save-game state and uses no
+PlayerPrefs, but it does not survive a game update either: the loader compares
+the first three components of `config.version` against the running version on
+startup and clears the whole list when they differ, so a mod you confirmed once
+is silently dropped again after most game updates (see [multiplayer and server](multiplayer-and-server.md)).
 
 ### "Loading screen hangs forever" is usually a quit deadlock
 

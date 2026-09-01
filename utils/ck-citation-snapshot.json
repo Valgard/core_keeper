@@ -242,6 +242,9 @@
     "Pug.Other:125498": [
       "[BurstCompile]"
     ],
+    "Pug.Other:12591": [
+      "ecb.AppendToBuffer(entity6, new AddPetExperienceBuffer"
+    ],
     "Pug.Other:125928": [
       "modName = loadedMod.Metadata.name.Substring(0, math.min(FixedString32Bytes.UTF8MaxLengthInBytes / 2, loadedMod.Metadata.name.Length)),"
     ],
@@ -1092,6 +1095,9 @@
     "Pug.Other:361103": [
       "if (data.triggerEffects != value)"
     ],
+    "Pug.Other:363867": [
+      "public void WriteCharacter()"
+    ],
     "Pug.Other:365349": [
       "Manager.ecs.StartEcs(startClient: true, Manager.saves.GetWorldId(), frameWorkloadTimer, delegate(bool result)"
     ],
@@ -1125,6 +1131,9 @@
     "Pug.Other:419083": [
       "public BufferLookup<ContainedObjectsBuffer> containedObjectsBufferLookup;"
     ],
+    "Pug.Other:419114": [
+      "public readonly struct EquipmentUpdateAspect(DynamicBuffer<AnimationBuffer> equipmentupdateaspect_animationbufferDb, RefRW<AnimationBufferPointer> equipmentupdateaspect_animationbufferpointerRef, RefRO<AnimationOrientationCD> equipmentupdateaspect_animationorientationcdRef, RefRO<CharacterTypeCD> equipmentupdateaspect_charactertypeRef, RefRO<ClientInput> equipmentupdateaspect_clientinputRef, RefRW<CritterDamageFromPlacingCD> equipmentupdateaspect_critterdamagefromplacingcdRef, DynamicBuffer<DealDamageToEntityBuffer> equipmentupdateaspect_dealdamagetoentitybufferDb, RefRO<EquipmentCD> equipmentupdateaspect_equipmentcdRef, RefRO<EquippedObjectCD> equipmentupdateaspect_equippedobjectcdRef, DynamicBuffer<GhostEffectEventBuffer> equipmentupdateaspect_ghosteffecteventbufferDb, RefRW<GhostEffectEventBufferPointerCD> equipmentupdateaspect_ghosteffecteventbufferpointercdRef, RefRW<HungerCD> equipmentupdateaspect_hungercdRef, RefRO<ManaCD> equipmentupdateaspect_manacdRef, RefRO<PetOwnerCD> equipmentupdateaspect_petownercdRef, RefRW<PlacementCD> equipmentupdateaspect_placementcdRef, DynamicBuffer<PlacementSizeByEquipmentTypeBuffer> equipmentupdateaspect_placementsizebyequipmenttypebufferDb, RefRW<PlayerAimPositionCD> equipmentupdateaspect_playeraimpositioncdRef, RefRW<PlayerAttackCooldownCD> equipmentupdateaspect_playerattackcooldowncdRef, RefRW<EquipmentSlotCD> equipmentupdateaspect_equipmentslotcdRef, RefRO<EquipmentSlotConstantCD> equipmentupdateaspect_equipmentslotconstantcdRef, RefRO<PlayerGhost> equipmentupdateaspect_playerghostRef, RefRW<DigStateCD> equipmentupdateaspect_digstatecdRef, RefRW<FishingMiniGameStateCD> equipmentupdateaspect_fishingminigamestatecdRef, RefRW<FishingStateCD> equipmentupdateaspect_fishingstatecdRef, RefRW<FlattenStateCD> equipmentupdateaspect_flattenstatecdRef, RefRW<PlaceObjectPlayerStateCD> equipmentupdateaspect_placeobjectstatecdRef, RefRW<PlaceWaterStateCD> equipmentupdateaspect_placewaterstatecdRef, RefRO<PlayerSleepStateCD> equipmentupdateaspect_playersleepstatecdRef, RefRW<PlayerStateCD> equipmentupdateaspect_playerstatecdRef, RefRW<RefillWaterStateCD> equipmentupdateaspect_refillwaterstatecdRef, RefRW<RandomCD> equipmentupdateaspect_randomcdRef, DynamicBuffer<SyncedPlayerSharedCooldownTimersCD> equipmentupdateaspect_syncedsharedcooldowntimersDb, Entity equipmentupdateaspect_entityE) : IAspect, IQueryTypeParameter, IAspectCreate<EquipmentUpdateAspect>"
+    ],
     "Pug.Other:419765": [
       "public struct EquipmentUpdateSystem : ISystem, ISystemStartStop, ISystemCompilerGenerated"
     ],
@@ -1140,8 +1149,8 @@
     "Pug.Other:435029": [
       "Directory.Delete(Rel2Abs(path), recursive: true);"
     ],
-    "Pug.Other:88826": [
-      "[BurstCompile]"
+    "Pug.Other:88847": [
+      "private struct DropSelfJob : IJobEntity, IJobChunk"
     ],
     "Pug.UnityExtensions:5349": [
       "public static int Clamp(int x, int low, int high)"
@@ -1247,6 +1256,9 @@
     "PugMod.Loader:156": [
       "bool flag2 = ModVersion.IsCompatible(Application.version, entry.Tags);"
     ],
+    "PugMod.Loader:1742": [
+      "text = Path.Combine(Application.temporaryCachePath, \"ModLoader\", mod.Metadata.name);"
+    ],
     "PugMod.Loader:2173": [
       "if (!Integration.Instance.AddMod(metadata, text2, value.ModId, supportsCurrentVersion: true))"
     ],
@@ -1302,6 +1314,9 @@
     "PugMod.SDK.Runtime:841": [
       "public static void ResetWorlds()"
     ],
+    "PugMod.SDK.Runtime:924": [
+      "private static void CreateCompleteDependencyPatch(Type systemType, Harmony harmony, List<MethodInfo> patchedMethods, bool isManaged)"
+    ],
     "PugSprite:42": [
       "public class GradientMapDataBlock : ScriptableDataBlock"
     ],
@@ -1322,6 +1337,9 @@
       "[UpdateInGroup(typeof(RunSimulationSystemGroup))]",
       "[CompilerGenerated]",
       "public struct SpawnEnvironmentObjectsInNewAreaSystem : ISystem, ISystemStartStop, ISystemCompilerGenerated"
+    ],
+    "modio.UnityPlugin:34712": [
+      "public HashSet<ModId> disabledMods = new HashSet<ModId>();"
     ],
     "modio.UnityPlugin:39208": [
       "Directory.Delete(path, recursive: true);"

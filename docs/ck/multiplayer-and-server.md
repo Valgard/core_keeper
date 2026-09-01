@@ -521,12 +521,18 @@ mod <name> because of missing dependency` (`:990`) and `failed to load mod
 
 `IMod.Init()` runs at a different point relative to ECS startup on the two
 processes — **before** the worlds are built on the client, **after** them on the
-dedicated server. Anything that registers itself during `Init()` and is consumed
-by a snapshot taken at ECS startup therefore works in singleplayer and is a
-silent no-op on the server, with no error and no log line. `BurstDisabler` is
+dedicated server. The ordering is **measured** in the logs of both builds; no
+derivation replaces it, and one that was tried turned out wrong ([Harmony and ECS](harmony-and-ecs.md) carries
+the evidence and the failed derivation). Anything that registers itself during
+`Init()` and is consumed by a snapshot taken at ECS startup therefore works
+**whenever a player hosts** — singleplayer and host-based multiplayer alike,
+since that process builds its own ServerWorld after `Init()` — and is a silent
+no-op on a dedicated server, with no error and no log line. `BurstDisabler` is
 the case this bites in practice; the mechanism and the fix belong to [Harmony and ECS](harmony-and-ecs.md).
-If your mod is server-authoritative and works alone but not in multiplayer,
-start there.
+
+If your mod is server-authoritative and works when you host but not against a
+dedicated server, start there. "Works for me in multiplayer" from someone
+hosting neither reproduces nor refutes it.
 
 ## How the server build actually differs
 
