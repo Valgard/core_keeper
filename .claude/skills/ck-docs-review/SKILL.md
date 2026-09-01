@@ -30,7 +30,7 @@ here changes that.
 
 ## Dispatch
 
-Fill this template and send it unchanged to all three lanes:
+Fill this template and send it unchanged to every lane in the set above:
 
 ```
 DIFF (REQUIRED): <verbatim output of `git diff <base>...HEAD`, unedited>
