@@ -127,7 +127,7 @@ statement rather than overturning it — it was never more than it says.
 
 Three patterns already in the handbook, worth using deliberately: scope by
 provenance ("every mod in this family points it at a child GameObject named
-`root`", `docs/ck/ui-framework.md:278`), by extent of measurement ("measured
+`root`", `docs/ck/ui-framework.md:278-279`), by extent of measurement ("measured
 across four built bundles", `docs/ck/steam-workshop.md:216`), by extent of
 verification ("this is verified for the equipment/durability case",
 `docs/ck/database-and-baking.md:313`).
@@ -224,11 +224,11 @@ round in a matching state takes it along.
 - **A dedicated server needs a connected player.** An idle one sits at
   `timescale = 0` and never simulates (`docs/ck/harmony-and-ecs.md:368`; the
   mechanism — `ECSManager` pausing on no connection rather than a heuristic —
-  is `docs/ck/multiplayer-and-server.md:553-554`), so a probe there logs
+  is `docs/ck/multiplayer-and-server.md:554-555`), so a probe there logs
   nothing.
   To prove a patch is live server-side, log from the `[HarmonyPatch]` class's
   static constructor (`docs/ck/harmony-and-ecs.md:361`,
-  `docs/ck/multiplayer-and-server.md:500`) and read the log after a session
+  `docs/ck/multiplayer-and-server.md:501`) and read the log after a session
   with a player connected.
 
 ### Requesting the round
