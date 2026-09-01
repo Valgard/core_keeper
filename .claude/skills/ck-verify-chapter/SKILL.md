@@ -68,3 +68,77 @@ Verification is.
 ## Orchestrator discipline
 
 A lane's verdict informs your check; it never substitutes for it.
+
+## Put the scope in the sentence
+
+Every statement says what it covers. Not in a marker beside it — in the
+wording, the way a dictionary writes "the earliest **known** attestation"
+rather than "the earliest".
+
+> A DOTS system whose `OnUpdate` is Burst-compiled cannot be intercepted by
+> Harmony.
+
+Unbounded. Any case showing an exception makes this false.
+
+> Every system this repo's mods disable Burst for is an `ISystem` struct.
+
+Carries its scope. A mod that un-Bursts a `SystemBase` tomorrow *extends* this
+statement rather than overturning it — it was never more than it says.
+
+Three patterns already in the handbook, worth using deliberately: scope by
+provenance ("every mod in this family points it at a child GameObject named
+`root`", `docs/ck/ui-framework.md:278`), by extent of measurement ("measured
+across four built bundles", `docs/ck/steam-workshop.md:216`), by extent of
+verification ("this is verified for the equipment/durability case",
+`docs/ck/database-and-baking.md:313`).
+
+## Mark the evidence class only where its absence misleads
+
+Being grounded in the decompile is this handbook's normal case, and the
+preamble says so. A marker on most sentences carries no information. Two
+classes are marked:
+
+- **measured** — observed in the running game, not forced by the code; the
+  wording names the setup that produced it.
+- **unverified** — examined, and neither the decompile, the corpus, nor a
+  measurement settled it.
+
+`unverified` is not a hedge and not a soft refutation. It is the correct answer
+whenever the investigation finds nothing either way, and rounding it up to a
+flat statement is the failure this whole programme exists to prevent.
+
+**The word appears literally.** "This remains **unverified**: …" reads as prose
+and is found by a search; "nothing settles this either way" reads better and is
+invisible to one. There is no pool file — `grep -rn unverified docs/ck/` *is*
+the list of open questions, and wording that hides from that search silently
+loses them.
+
+A third state never appears in the text: **unassessed**, meaning nobody has
+examined it. That is the absence of a verification commit, not a mark on a
+sentence — writing it into the chapters would paint the whole handbook with
+markers that say nothing about their subject.
+
+## Keep a correction visible
+
+Overwriting a wrong sentence with the right one erases the one thing a reader
+who remembers the old claim is looking for: whether it changed. A correction
+needs to read as a correction, not merely land as one.
+
+Two shapes for that exist in this project already — neither is a settled
+convention yet, so treat either as available and neither as mandatory:
+
+> ### Correction: thinTiny does not render damage numbers
+
+A heading (`docs/ck/prefabs-and-rendering.md:750`) standing where the wrong
+statement stood, with the true fact spelled out immediately below it.
+
+> ("Not in multiplayer" is the wrong scope and stood here until 2026-08-24;
+> `docs/ck/harmony-and-ecs.md` has the evidence.)
+
+A dated aside (`CLAUDE.md:221`) folded into the paragraph it corrects, naming
+the wrong wording and the date it stopped holding. No instance of this shape
+exists inside `docs/ck/` itself.
+
+**There is no `> **Correction (…):**` blockquote form.** That has been claimed
+as this project's convention before, and it was wrong — the same `grep` that
+finds `unverified` finds this claim has no instances to stand on either.
