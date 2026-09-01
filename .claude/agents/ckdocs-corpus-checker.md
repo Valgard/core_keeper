@@ -57,11 +57,12 @@ command find "$M" -maxdepth 2 -name ModManifest.json -print0 \
   | xargs -0 command grep -o '"name": *"[^"]*"'
 ```
 
-Keep the filename in the output — no `-h`. Two mods here have more than one
-cache directory, and the filename is the only thing that tells them apart:
-`AutoPlant3` is installed twice (`6007069_7665418`, `6163009_7887057`), and
-`DisableDurability` exists both as a mod.io build (`6065466_8079348`) and as
-a fake-ID dev build (`9999999_1`).
+Keep the filename in the output — no `-h`. Some mods here have more than one
+cache directory, and the filename is the only thing that tells them apart —
+for example: `AutoPlant3` is installed twice (`6007069_7665418`,
+`6163009_7887057`), and `DisableDurability` and `ModSettingsMenu` each exist
+both as a mod.io build (`6065466_8079348`, `6211950_7958010`) and as a
+fake-ID dev build (`9999999_1`, `9999991_1`).
 
 These carry more weight than their number suggests: they are the work of
 other authors against the same API, which is the only place a claim about
