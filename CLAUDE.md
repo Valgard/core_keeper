@@ -415,12 +415,15 @@ human-facing setup; what matters when editing code here:
   Deliberate for the link gate, whose targets cross files; the consequence for
   wrapping is that a backlog is never latent, which is why one had to be cleared
   before the hook could go in anywhere.
-- **`--fix` can need a second run, and says nothing about it.** Each file's width
-  is measured once, from the lines the run finds on entry — and the run then
-  changes those lines, so a file can cross the 80/88 boundary while being fixed
-  and come out with defects measured against its new width. Fix mode prints what
-  it rewrapped and exits 0 either way. If a commit is still rejected after a
-  `--fix`, run it again rather than looking for the cause.
+- **`--fix` repeats itself, because fixing a file changes the width it is
+  measured against.** Each pass takes that width from the lines it finds on
+  entry, and then rewrites them — rewrapping long paragraphs adds a short tail
+  to each, so a file measured at 88 can come out measured at 80, with lines the
+  pass was right to leave alone. One pass therefore used to leave work behind
+  while reporting success, and a repo committed clean was rejected by the gate it
+  had just installed. Fix mode now loops until nothing moves, and reports a
+  non-zero exit if it runs out of passes — which would mean the fixer and the
+  checker disagree, not that one more turn was needed.
 - `pre-commit` itself is pinned once in the parent `.tool-versions`; asdf
   resolves it for the mod subdirectories by walking up.
 - **`utils/new_mod.py` scaffolds the gate too.** A freshly generated mod repo
