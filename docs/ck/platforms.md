@@ -21,10 +21,16 @@ that is close but not identical. Most of the failures later in this chapter
 live in that gap; one does not, and says so where it appears.
 
 The dedicated server is a different Steam app, `1963720` (see [multiplayer and server](multiplayer-and-server.md)),
-and it has no store entry at all, so the same check says nothing about it. What
-is actually known is narrower: this repository runs the dedicated server under
-CrossOver too, in the same bottle as the client — evidence that it needs the
-same translation layer, not a platform-support guarantee from Valve.
+and it has no store entry at all, so the store-API check above says nothing
+about it. Its own manifest does: **measured** 2026-09-01 via `steamcmd +login
+anonymous +app_info_print 1963720` — the same `steamcmd` that installs the
+server itself (see [multiplayer and server](multiplayer-and-server.md)) — whose `common.oslist` field lists
+`windows,linux` only, and whose only two *own* content depots are tagged windows
+and linux. A third depot is tagged macos, but it is a zero-size mounted Steam
+redistributable, not game content. There is no macOS build of the dedicated
+server either. This repository happens to run it under CrossOver too, in the
+same bottle as the client, but that is local practice, not the reason it needs
+to: the manifest above is.
 
 The Unity Editor, by contrast, runs natively on macOS. Building a mod and
 running the game are therefore two different worlds on the same machine, which
