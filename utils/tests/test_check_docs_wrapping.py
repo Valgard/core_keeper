@@ -177,6 +177,31 @@ class TestProcess:
         problems, rewrapped = mod.process(p, fix=False)
         assert problems == [] and rewrapped == 0
 
+    def test_check_mode_reports_an_overlong_single_line_paragraph(self, tmp_path):
+        # a substitution that joins two lines leaves a paragraph one line long,
+        # and the "shorter than two lines" skip then hid the longest line in
+        # the file — which is the very defect this check was written for
+        original = "# T\n\n" + "word " * 40 + "\n"
+        p = write(tmp_path, "a.md", original)
+        problems, rewrapped = mod.process(p, fix=False)
+        assert rewrapped == 0
+        assert any("a.md:3" in why for why in problems)
+
+    def test_fix_rewraps_a_single_line_paragraph(self, tmp_path):
+        original = "# T\n\n" + "word " * 40 + "\n"
+        p = write(tmp_path, "a.md", original)
+        problems, rewrapped = mod.process(p, fix=True)
+        assert rewrapped == 1
+        assert max(len(l) for l in p.read_text().splitlines()) <= 80
+
+    def test_a_lone_short_paragraph_stays_untouched(self, tmp_path):
+        # one line is not by itself a defect — only an over-long one is
+        original = "# T\n\nA single tidy line that says all it needs to.\n"
+        p = write(tmp_path, "a.md", original)
+        problems, rewrapped = mod.process(p, fix=True)
+        assert problems == [] and rewrapped == 0
+        assert p.read_text() == original
+
 
 class TestLinks:
     """A link split across lines is the defect this check exists for."""
@@ -283,6 +308,33 @@ class TestListItems:
             + "](target-file-name.md)"
         )
         original = "# T\n\n- some lead-in words before the " + link + ".\n"
+        p = write(tmp_path, "a.md", original)
+        problems, rewrapped = mod.process(p, fix=False)
+        assert problems == [] and rewrapped == 0
+
+    def test_check_mode_reports_a_list_item_that_breaks_far_too_early(self, tmp_path):
+        # a substitution that *shortens* a line leaves the break in the wrong
+        # place. Prose has been checked for that all along; the list path only
+        # ever looked for lines that were too long, so a bullet left at 26
+        # columns beside 78-column neighbours read as correctly wrapped
+        original = "# T\n\n- a short lead\n  " + "word " * 12 + "end.\n"
+        p = write(tmp_path, "a.md", original)
+        problems, rewrapped = mod.process(p, fix=False)
+        assert rewrapped == 0
+        assert p.read_text() == original
+        assert any("a.md:3" in why and "list item" in why for why in problems)
+
+    def test_fix_rejoins_a_list_item_that_broke_too_early(self, tmp_path):
+        original = "# T\n\n- a short lead\n  " + "word " * 12 + "end.\n"
+        p = write(tmp_path, "a.md", original)
+        problems, rewrapped = mod.process(p, fix=True)
+        assert rewrapped == 1
+        assert p.read_text().splitlines()[2].startswith("- a short lead word")
+
+    def test_check_mode_is_silent_on_a_list_item_that_ends_a_thought(self, tmp_path):
+        # the exemptions prose already has must come along, or every bullet
+        # introducing a block would be reported
+        original = "# T\n\n- Consider the following:\n  " + "word " * 12 + "end.\n"
         p = write(tmp_path, "a.md", original)
         problems, rewrapped = mod.process(p, fix=False)
         assert problems == [] and rewrapped == 0

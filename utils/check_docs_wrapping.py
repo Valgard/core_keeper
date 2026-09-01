@@ -292,8 +292,10 @@ def process(path, fix):
 
     for start, end in paragraphs(lines):
         para = lines[start:end]
-        if len(para) < 2:
-            continue
+        # A one-line paragraph was skipped here, reasoning that a single line
+        # has no break to get wrong. It has a length, though, and a substitution
+        # that joins two lines produces exactly that shape — so the skip hid the
+        # longest line in the file, which is the defect this check exists for.
         found = defects(para, width)
         if not found:
             continue
@@ -315,22 +317,17 @@ def process(path, fix):
     out, last, listed = [], 0, 0
     for first, end, cont, prefix in list_items(lines):
         item = lines[first:end]
-        splits = split_links(item)
-        overlong = [
-            (k, x)
-            for k, x in enumerate(item)
-            if visible_len(x) > width + OVERSHOOT and not LINK_TOKEN.search(x)
-        ]
-        if not splits and not overlong:
+        # The same rules as prose, deliberately. This path used to carry its own
+        # pair of checks — too long, and a split link — and so never asked the
+        # question prose has been asked all along: whether the next word would
+        # have fit on the line before. A substitution that shortens a line leaves
+        # exactly that defect, and a bullet reading 26 columns wide beside
+        # 78-column neighbours passed as correctly wrapped.
+        found = defects(item, width)
+        if not found:
             continue
-        for k, x in overlong:
-            problems.append(
-                f"{display(path)}:{first + k + 1}  list item: {visible_len(x)} visible columns, target {width}"
-            )
-        for link in splits:
-            problems.append(
-                f"{display(path)}:{first + 1}  list item: {' '.join(link.split())[:60]}"
-            )
+        for offset, why in found:
+            problems.append(f"{display(path)}:{first + offset + 1}  list item: {why}")
         if not fix:
             continue
         # the bullet comes back via initial_indent; leaving it in the body
