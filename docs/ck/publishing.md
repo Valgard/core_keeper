@@ -187,11 +187,26 @@ through a REST client of your own. Two properties of it shape any automation:
 The loader deduplicates by `metadata.name`: `SortMods` builds a dictionary
 keyed on it, last write wins, and returns only the values. A local development
 build and a subscription of the same mod share that name, so **exactly one of
-them runs and nothing says which**. Which one survives depends on the order the
-loader platforms registered.
+them runs**. Which one survives depends on the order the loader platforms
+registered.
 
 The hazard is therefore the opposite of doubling: you fix something, relaunch,
-and are still testing the other copy. Nothing in the log distinguishes the two.
+and are still testing the other copy.
+
+**The log names the winner, in a different line than you would look in.** Two
+lines are written per mod and they count differently: `loaded mod <name> from
+mod.io (<displayName>)` lists **both** copies, while `Loading mod with ID
+<modId>` lists only the one that survived `SortMods`. So the id is the tell, and
+a fake id (`9999xxx`) stands out against a real one at a glance. ("Nothing in
+the log distinguishes the two" stood here until 2026-09-02, which is why the
+line that hides the answer is named above alongside the one that gives it.)
+
+Measured 2026-09-02 on a client carrying two such pairs: 32 `loaded mod` lines
+against 30 `Loading mod with ID`, the two subscription ids appearing **nowhere**
+in the log, and 30 `Successfully compiled`. In both pairs the fake-ID dev build
+won — two pairs in one launch, so an observation rather than a rule, since the
+platform registration order named above is what decides it and nothing here pins
+that down.
 
 Before testing a published build the way a player receives it, remove the local
 one. The reverse case is the quieter one: subscribing to your own mod for a

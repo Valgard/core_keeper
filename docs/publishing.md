@@ -473,9 +473,11 @@ Three distinct uses of a "mod.io ID", deliberately kept separate:
 
 **Dev/Prod coexistence:** never have both the fake-ID dev install and a real
 subscription of the same mod active. The loader deduplicates by name — only one
-copy ever runs, and nothing in the log says which ([`docs/ck/publishing.md`](ck/publishing.md#never-run-a-dev-build-and-a-subscription-of-the-same-mod)) — so
-the hazard is not double-patching but silently testing the wrong copy: fix
-something, relaunch, and the surviving copy may still be the other one. The mod
+copy ever runs ([`docs/ck/publishing.md`](ck/publishing.md#never-run-a-dev-build-and-a-subscription-of-the-same-mod)) — so the hazard is not double-patching but
+silently testing the wrong copy: fix something, relaunch, and the surviving copy
+may still be the other one. The log does say which one won, in the
+`Loading mod with ID <modId>` line rather than the `loaded mod <name>` line that
+lists both; a fake id (`9999xxx`) is recognisable there at a glance. The mod
 author runs only the fake-ID dev install and does not subscribe to their own
 mod. To test the published build as an end user, run `utils/uninstall-macos.sh`
 first.
