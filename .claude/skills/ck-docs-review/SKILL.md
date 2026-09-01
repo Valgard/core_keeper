@@ -1,6 +1,6 @@
 ---
 name: ck-docs-review
-description: Use when a documentation change is bound for Pugstorm/CoreKeeperModDocs, or when any claim about Core Keeper internals is about to be published outside this machine.
+description: Use when a documentation change is bound for Pugstorm/CoreKeeperModDocs, when editing or verifying a chapter of this repository's own docs/ck/ handbook, or when any claim about Core Keeper internals is about to be published outside this machine.
 ---
 
 # ck-docs-review
