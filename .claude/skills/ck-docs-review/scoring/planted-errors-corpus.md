@@ -36,8 +36,17 @@ Established on 2026-09-01 by reading the corpus directly, then planted. Five
 mod repositories call `BurstDisabler` — `disable-durability`, `faster-talents`,
 `faster-pet-talents`, `auto-rail-bridges` and `reusable-cattle-box` — and all
 five follow the call with the `AddWorld` pass. Re-run that enumeration before
-scoring — a mod added since then changes what row 4 is worth, and a mod
+scoring row 4 — a mod added since then changes what it is worth, and a mod
 removed could retire it entirely.
+
+Rows 1 and 3 rest on paths that can go stale too, in a different way: an
+installed third-party mod's cache directory is `<modId>_<fileId>`, and a mod.io
+update to that mod mints a new `fileId` without removing the old directory —
+`3177992_7710097` is exactly that today, an empty CoreLib leftover with no
+`ModManifest.json` sitting beside the live `3177992_7845185`. If a cited cache
+path no longer resolves, that is not evidence the key is wrong: find the mod's
+current directory by name with the id→name mapping command in the lane, and
+re-check the cited line there before concluding anything.
 
 | Sentence | Class | Evidence |
 |---|---|---|
