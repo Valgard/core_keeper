@@ -144,21 +144,32 @@ Five things to know before writing against that registry:
 - **Enums survive the serialized round trip.** TOML writes an enum as its
   *name*, so `GetSerializedValue` / `SetSerializedValue` carry enum tokens
   losslessly without a per-type code path.
-- **A string does not, and that is the trap the enum case sets.** The same pair
-  runs a `string` through `Escape` / `Unescape`, so what comes back is the
-  on-disk form — a value carrying a backslash or a control character returns
-  visibly altered, and writing that back through `SetSerializedValue` re-reads
-  the escapes. `BoxedValue` is the raw value and the right one to display or
-  compare. The reason this bites is that both types reach the same code: a
-  routine written and verified against enum entries looks correct until a
-  string entry arrives.
-- **`AcceptableValueList<T>` cannot hold an enum.** Its constraint is
-  `where T : IEquatable<T>`, which no enum satisfies — `AcceptableValueList<SomeEnum>`
-  fails to compile with CS0315 (verified, with `<int>` and `<string>` as
-  controls). So an author cannot restrict an enum setting to a subset of its
-  members this way, and code reading a constrained entry never has to consider
-  that combination. `AcceptableValueRange<T>` constrains to `IComparable`
-  instead, which enums do satisfy.
+- **A string does not, and the asymmetry runs the opposite way to the obvious
+  one.** The same pair puts a `string` through `Escape` / `Unescape`, so what
+  `GetSerializedValue` returns is the on-disk form. A quote or a control
+  character is visibly altered on the way out (`"` → `\"`, a newline → `\n`)
+  and restored exactly on the way back — those round trip losslessly. A
+  **backslash** does neither: CoreLib's `Escape` emits it unchanged (a single
+  `@"\"`, where upstream BepInEx doubles it) while `Unescape` still consumes
+  it, so feeding `a\b` back through `SetSerializedValue` stores `a` + U+0008.
+  Silent corruption, not a re-read, and nothing throws. For display or
+  comparison use `BoxedValue`, which is unescaped; for a write it is not simply
+  "the raw one" — its setter clamps against `AcceptableValues`, fires
+  `SettingChanged` and, by default, saves the file. The reason any of this
+  bites is that both types reach the same code: a routine written and verified
+  against enum entries looks correct until a string entry arrives.
+- **`AcceptableValueList<T>` cannot hold an enum — which does not mean an enum
+  entry is unconstrained.** Its constraint is `where T : IEquatable<T>`, which
+  no enum satisfies: `AcceptableValueList<SomeEnum>` fails to compile with
+  CS0315 (verified, with `<int>` and `<string>` as controls). So a *member
+  subset* cannot be declared this way. But `AcceptableValueRange<T>` constrains
+  to `IComparable`, which enums do satisfy, and `AcceptableValueRange<SomeEnum>`
+  compiles and constructs (verified) — an ordinal interval over the declared
+  values, clamping silently rather than rejecting. `AcceptableValueBase` is
+  public and abstract, so a third party's own subclass is a second route. Code
+  reading a *foreign* constrained entry therefore has to expect an enum with a
+  non-null `AcceptableValues`, and cannot tell which subclass it is without the
+  reflection the sandbox denies.
 - **The owning mod's display name is not part of the public surface, and
   `ConfigFilePath` is not derived from it.** `ConfigFile`'s constructor takes
   the path as a literal argument — CoreLib itself passes

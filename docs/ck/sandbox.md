@@ -93,13 +93,25 @@ Two consequences the list makes obvious and a bisection would not:
   not those types. That is why declarative patching works while every
   programmatic entry point is closed.
 
-**Read the count as one finding, not three.** A single inherited member access
-produces exactly `1 namespace + 1 type + 1 member` — the namespace, the
-declaring type, and the member itself, all of the one symbol. `Type.Name`
-does this on its own, verified. So that triplet is the signature of one
-expression to find, not evidence of three separate problems, and the log names
-the file, line and column of the offending IL instruction — start there rather
-than auditing the deny lists.
+**Read the count as one finding, not three — where a namespace is what trips.**
+A member access whose declaring type falls under one of the seven denied
+*namespaces* produces `1 namespace + 1 type + 1 member`: the namespace, the
+declaring type it falls through to, and the member itself, all of one symbol.
+`Type.Name` does this on its own, verified. A denied *type* counts differently —
+`HarmonyLib` and `System` are allowed namespaces, so the namespace counter stays
+at 0 — which is worth knowing before reading a triplet as a rule.
+
+**The counters dedupe per symbol**, so the numbers bound how many distinct
+denied symbols there are and say nothing about how many places to edit: twenty
+`Type.Name` calls still report `1/1/1`. The occurrence block below the summary
+is what lists them, and it is where to start rather than the deny lists. It
+names the method and the IL instruction, and for a reference inside a method
+body it appends the source file, line and column — which is usually enough to
+go straight to the expression. Two caveats on that location: the file is the
+loader's extracted copy under `ModLoader/`, not your repository (and on a
+dedicated server, a fresh GUID directory per launch), and a reference that
+carries no instruction — a denied type in a field, property or local
+declaration — reports the file alone.
 
 The following were observed to fail and are *not* on the list — the reason lies
 in what the expression resolves to, not in a listed symbol:
@@ -335,7 +347,9 @@ A failed verification writes **two** separate error entries, back to back:
 
 1. the counts summary — the single-quoted, five-counter line shown [above](#what-the-verification-checks)
 2. a full occurrence report, one line per usage site, of the form
-   `Referenced in method body: '<Type>.<Method>()' at instruction: '<IL_…>'`
+   `Referenced in method body: '<Type>.<Method>()' at instruction: '<IL_…>'` —
+   and, for a usage that carries an instruction, a tail this template used to
+   stop short of: ` in source file: '<path>' at line: 'N', column: 'M'`
 
 The second is not conditional on any setting: `RegisterAssemblyImpl` calls
 `GetAllText(reportAllOccurences: true)` with the flag as a hardcoded literal
