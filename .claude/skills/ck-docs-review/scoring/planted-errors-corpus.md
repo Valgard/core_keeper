@@ -12,9 +12,10 @@ errors anyway: what makes each wrong is a mod this workspace contains, and the
 decompile only confirms it afterwards.
 
 **Where the paths are rooted.** Mod-repository paths are relative to
-`/Users/valgard/Projects/private/core_keeper/` (the parent of this worktree —
-the mod repositories are its siblings, not its contents), and decompile paths
-to `~/Projects/checkouts/CoreKeeperDecompile/`. A bare `<id>_<fileId>/` prefix
+`/Users/valgard/Projects/private/core_keeper/` (the grandparent of this
+worktree, which sits in `core_keeper/.worktrees/<name>/` — the mod
+repositories are `core_keeper`'s contents, not its siblings), and decompile
+paths to `~/Projects/checkouts/CoreKeeperDecompile/`. A bare `<id>_<fileId>/` prefix
 names an installed third-party mod, under:
 
 ```

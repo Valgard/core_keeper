@@ -23,9 +23,11 @@ yourself and pull the assertions out of it.
 
 ## The corpus
 
-Two locations, both outside any repository the diff belongs to.
+Two locations. Neither is part of the git repository the diff belongs to,
+though the mod repositories live physically inside its directory tree.
 
-**The mod repositories**, beside the main repo, each its own git repo.
+**The mod repositories**, nested under the main repo's own directory as its
+contents — not beside it, not its siblings — each its own separate git repo.
 Enumerate them — never work from a list, here or anywhere, because a stored
 list of these goes stale silently and has:
 
