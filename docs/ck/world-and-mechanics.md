@@ -850,9 +850,9 @@ Pet talents are structurally unlike player talents, which live in `SaveManager`.
   `PetExtensions`. Verified in game: a server accepted 7 spent points on a
   level-8 pet.
 - **The tree is 9 talents, 3 rows of 3.** Each talent costs exactly 1 point
-  (binary, `points > 0`). Row `talentIndex / 3` unlocks once
-  `spentPoints >= rowIndex`. `PetTalentBuffer` has `InternalBufferCapacity(9)`
-  and is stored in the pet's inventory aux data alongside `PetSkinCD`.
+  (binary, `points > 0`). Row `talentIndex / 3` unlocks once `spentPoints >=
+  rowIndex`. `PetTalentBuffer` has `InternalBufferCapacity(9)` and is stored in
+  the pet's inventory aux data alongside `PetSkinCD`.
 - **Level-up feedback is level-driven, not talent-driven.** `Pet.UpdateLevel`
   fires the "PetLeveledUp" chat line, the `GainTalentEffect` puff and the success
   tone on a level change, independent of the talent-point formula. Pet damage is

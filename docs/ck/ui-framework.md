@@ -330,8 +330,7 @@ friends) are **not** patched. Two consequences that pull in opposite directions:
 
 - The game now treats your window as an inventory. The keyboard-shortcuts
   panel's **S** toggle key goes live over your window and the HUD's
-  inventory-context elements stay up — see
-  [suppressing the gameplay UI](#suppressing-the-gameplay-ui-while-a-modal-window-is-open).
+  inventory-context elements stay up — see [suppressing the gameplay UI](#suppressing-the-gameplay-ui-while-a-modal-window-is-open).
 - To distinguish "a vanilla menu is open" from "my own window is open" you must
   read a per-UI getter. The aggregate cannot tell them apart, and gating on it
   makes your own window block itself.

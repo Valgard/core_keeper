@@ -169,12 +169,12 @@ local dev install**, so budget a reinstall of each.
 **Two traps while verifying the fix:**
 
 - **The AssetDatabase caches the `.asset` across the symlink.** Editing the
-  symlink target is not picked up by a rebuild. A refresh with `ForceUpdate`
-  is not enough, and a targeted `ImportAsset` of the mod directory misses it too,
+  symlink target is not picked up by a rebuild. A refresh with `ForceUpdate` is
+  not enough, and a targeted `ImportAsset` of the mod directory misses it too,
   because the `.asset` is a *sibling* of that directory, not inside it. Force
-  re-deserialisation of the ScriptableObject with
-  `rm -rf CoreKeeperModSDK/Library/{SourceAssetDB,ArtifactDB,Artifacts}`
-  (Editor closed).
+  re-deserialisation of the ScriptableObject with `rm -rf
+  CoreKeeperModSDK/Library/{SourceAssetDB,ArtifactDB,Artifacts}` (Editor
+  closed).
 - **Read the right manifest.** The publish path builds into a temporary cache
   directory and deletes it — there is no manifest left to inspect, and a
   validation-only publish run inspects nothing. Only a normal build writes
@@ -376,9 +376,8 @@ this entry gives you to go on.
   `Player.log` ends normally with `pooled N modded prefabs` — no crash trace.
   The native crash comes afterwards, at the world-list / main-menu load.
 - It reproduces across game and host restarts, and it is orthogonal to the
-  game-DLL patches ([platforms and hosts](platforms.md)) — those
-  fix directory deletion and save recovery, not the cloud-conflict backup
-  writes.
+  game-DLL patches ([platforms and hosts](platforms.md)) — those fix directory deletion and save
+  recovery, not the cloud-conflict backup writes.
 
 **Fix: disable Steam Cloud globally** (Steam → Settings → Cloud). Core Keeper
 frequently **ignores the per-game setting** under the game's properties; only
@@ -608,12 +607,11 @@ publish entry point), run it, and the run contradicts the change you just made.
 
 1. **The helper compiles into *every* linked mod's `<Mod>.Editor` assembly**,
    because the one shared source file is symlinked into each mod's editor
-   folder. So the same
-   class exists many times over, and
-   `-executeMethod <Namespace>.<Class>.<Method>` runs the **alphabetically
-   first** assembly that defines the type — regardless of which mod you are
-   building. That is harmless while all copies are identical, which is why it
-   only bites right after you edit one.
+   folder. So the same class exists many times over, and `-executeMethod
+   <Namespace>.<Class>.<Method>` runs the **alphabetically first** assembly that
+   defines the type — regardless of which mod you are building. That is harmless
+   while all copies are identical, which is why it only bites right after you
+   edit one.
 2. **Unity's AssetDatabase does not detect edits to a symlink *target*.** A
    build re-links only the mod being built, so only that mod's symlinks get a
    fresh mtime and reimport. Every other mod's editor assembly keeps a stale

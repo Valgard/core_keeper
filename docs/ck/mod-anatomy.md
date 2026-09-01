@@ -553,9 +553,9 @@ CoreLib, so CoreLib's assembly was not yet among the metadata references.
 The loader's `DependencySorter.SortMods` does the work:
 
 1. It indexes every mod by `metadata.name`.
-2. It scans the mod list backwards; a mod with a **required** dependency whose name is not
-   in the index is dropped, logging
-   `skipping mod <name> because of missing dependency: <dep>`.
+2. It scans the mod list backwards; a mod with a **required** dependency whose name is
+   not in the index is dropped, logging `skipping mod <name> because of missing
+   dependency: <dep>`.
 3. It builds a dependency graph from the surviving `dependencies` entries and
    depth-first-visits it, producing the load and compile order. A cycle logs
    `<name> has circular dependency` and is broken rather than resolved.

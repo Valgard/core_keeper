@@ -369,12 +369,11 @@ because a design gets built around them. Two corrections worth internalising:
   `AddComponent<T>()` at runtime lets several types share one prefab. The real
   cost of that route is different and smaller: you lose Editor-time wiring for
   that type's own serialised fields.
-- **Differently-typed row templates can and do live in one prefab file.** The
-  [example repository](https://github.com/Valgard/core_keeper) has a settings-menu
-  prefab where `SettingTemplate`, `ListTemplate` and `SectionTemplate` are
-  siblings in the *same* `.prefab`, each with its own baked-in, Editor-wired
-  component set. A single
-  `grep -n "m_Name: .*[Tt]emplate"` settles the question.
+- **Differently-typed row templates can and do live in one prefab file.** The [example repository](https://github.com/Valgard/core_keeper)
+  has a settings-menu prefab where `SettingTemplate`, `ListTemplate` and
+  `SectionTemplate` are siblings in the *same* `.prefab`, each with its own
+  baked-in, Editor-wired component set. A single `grep -n "m_Name:
+  .*[Tt]emplate"` settles the question.
 
 The rule: grep the authored `.prefab` YAML first, state the constraint second.
 

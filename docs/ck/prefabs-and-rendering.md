@@ -445,10 +445,10 @@ material bug, and it is a pure off-by-one.
 
 ### Mask setup facts
 
-- A `SpriteMask` needs Unity's built-in **Sprites-Mask** material
-  (`fileID: 10758, guid: 0000000000000000f000000000000000`). Prefabs imported via
-  AssetRipper arrive with a placeholder sprite *and* a placeholder material
-  (`0000000deadbeef15deadf00d0000000`) — both have to be replaced.
+- A `SpriteMask` needs Unity's built-in **Sprites-Mask** material (`fileID: 10758, guid:
+  0000000000000000f000000000000000`). Prefabs imported via AssetRipper arrive with a
+  placeholder sprite *and* a placeholder material (`0000000deadbeef15deadf00d0000000`) —
+  both have to be replaced.
 - **The mask's scale *is* its size.** A mask still carrying the calibration for a
   different sprite clips nothing at all, and the whole screen then counts as "inside the
   mask" — which looks like the `maskInteraction` flags being wrong.
@@ -542,7 +542,10 @@ after a world load, and is correct on every subsequent open.
 CK UI text is `PugText` rendering through `TextManager` / `PugFont`, all in
 `Pug.Other.dll`. This matters for any mod with localised labels or a custom font.
 
-**One exception, and it silently defeats everything in this section:** `PugText` has a second path that builds a `TextMeshPro` child on a `RectTransform` instead of rendering glyphs itself. It is selected for Thai and for text the user types into, so atlas replacement and runtime glyph overrides do nothing there.
+**One exception, and it silently defeats everything in this section:** `PugText` has a
+second path that builds a `TextMeshPro` child on a `RectTransform` instead of rendering
+glyphs itself. It is selected for Thai and for text the user types into, so atlas
+replacement and runtime glyph overrides do nothing there.
 
 ### Every PugText draws in front of every sprite
 

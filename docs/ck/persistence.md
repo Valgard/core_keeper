@@ -59,9 +59,8 @@ constructed from, on the client and on the dedicated server alike:
   well-trodden `Read`/`Write` pair — smoke-test it like any new surface.
 - **`GetFiles` recurses.** It enumerates with `SearchOption.AllDirectories` and
   returns paths relative to the API root with forward slashes — and it filters
-  out `.pugbackup` and `.pugtmp` siblings, so the backups described
-  [below](#the-pugbackup-sibling--a-free-beforeafter-diff) are invisible to it.
-  `Read` still opens them by name.
+  out `.pugbackup` and `.pugtmp` siblings, so the backups described [below](#the-pugbackup-sibling--a-free-beforeafter-diff) are
+  invisible to it. `Read` still opens them by name.
 - **`GetAllFiles()` is `GetFiles("")`** — everything under the root, and that
   root is shared, so the result spans every mod that has ever written there. To
   see only your own, pass your mod's directory to `GetFiles`.

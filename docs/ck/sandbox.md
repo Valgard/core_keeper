@@ -171,18 +171,16 @@ is not involved anywhere in this.
 
 Verified by passing live loads:
 
-- **`PugMod.API.ConfigFilesystem`** — the loader's own file API. See
-  [storing configuration and state](persistence.md).
+- **`PugMod.API.ConfigFilesystem`** — the loader's own file API. See [storing configuration and state](persistence.md).
 - **Harmony attributes that name banned types.** See the next section.
 - **`Newtonsoft.Json.*`** — trusted precompiled library; usable from mod code
   even though it uses `System.IO` internally.
 - **`System.Text` — `Encoding`, `UTF8Encoding` and `StringBuilder`.** CoreLib
-  compiles all three under the sandbox: `Encoding.UTF8.GetBytes` /
-  `GetString` wrapping its `API.ConfigFilesystem` calls, and
-  `new UTF8Encoding(false)` plus `StringBuilder` in its TOML writer. Its
-  manifest carries `skipSafetyChecks: false`, so it goes through exactly the
-  check your mod does, and its assembly logs `has passed code security
-  verification`.
+  compiles all three under the sandbox: `Encoding.UTF8.GetBytes` / `GetString`
+  wrapping its `API.ConfigFilesystem` calls, and `new UTF8Encoding(false)` plus
+  `StringBuilder` in its TOML writer. Its manifest carries `skipSafetyChecks:
+  false`, so it goes through exactly the check your mod does, and its assembly
+  logs `has passed code security verification`.
 - **`Convert.ToBase64String` / `Convert.FromBase64String`** — these live in
   `System`, not `System.IO`.
 - **`UnityEngine.PlayerPrefs`** — Unity-native persistence, sandbox-safe.
@@ -264,8 +262,7 @@ read a public field and a value-type argument.
 
 A failed verification writes **two** separate error entries, back to back:
 
-1. the counts summary — the single-quoted, five-counter line shown
-   [above](#what-the-verification-checks)
+1. the counts summary — the single-quoted, five-counter line shown [above](#what-the-verification-checks)
 2. a full occurrence report, one line per usage site, of the form
    `Referenced in method body: '<Type>.<Method>()' at instruction: '<IL_…>'`
 
@@ -287,5 +284,4 @@ genuinely absent:
    `Manager.saves.GetWorldId()` was found to fail verification, and it is
    nearly always faster than the alternative.
 2. **Decompile** the mod's freshly built DLL from `ModLoader/<Mod>/` and match
-   its external type references against the reported counts. See
-   [reverse engineering](reverse-engineering.md).
+   its external type references against the reported counts. See [reverse engineering](reverse-engineering.md).

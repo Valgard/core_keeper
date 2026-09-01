@@ -87,10 +87,8 @@ resolve to the wrong item. A dependency miss is filled in by hand, once.
   the SDK window fills — a build driven any other way leaves it empty.
 - Bad: title, description, tags, preview and visibility are UI fields, so
   nothing is derived and everything can diverge from mod.io.
-- Bad: it discards a created item's File ID when an upload fails
-  ([#13](https://github.com/Pugstorm/CoreKeeperModSDK/issues/13)) and keeps its
-  Editor-only files in the folder ModBuilder collects the mod from
-  ([#14](https://github.com/Pugstorm/CoreKeeperModSDK/issues/14)).
+- Bad: it discards a created item's File ID when an upload fails ([#13](https://github.com/Pugstorm/CoreKeeperModSDK/issues/13)) and keeps
+  its Editor-only files in the folder ModBuilder collects the mod from ([#14](https://github.com/Pugstorm/CoreKeeperModSDK/issues/14)).
 
 ### A file-based C# script
 

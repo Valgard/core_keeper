@@ -72,14 +72,14 @@ If you have not built a Core Keeper mod before, read three chapters in this
 order. They are the ones whose absence causes the most wasted time, and together
 they cover what every mod does regardless of what it is for.
 
-1. **[Mod anatomy](mod-anatomy.md)** — what a mod consists of, what the loader
-   reads, and how it is configured. Without this the rest has no frame.
-2. **[The load-time sandbox](sandbox.md)** — what your code may
-   reference at all. This is the chapter that prevents the classic first
-   experience: a mod that builds perfectly and dies at load.
-3. **[Harmony and ECS](harmony-and-ecs.md)** — how to hook into the game. Read
-   at least the first section; a patch that binds but never fires is the single
-   most common early confusion.
+1. **[Mod anatomy](mod-anatomy.md)** — what a mod consists of, what the loader reads, and how it
+   is configured. Without this the rest has no frame.
+2. **[The load-time sandbox](sandbox.md)** — what your code may reference at all. This is the
+   chapter that prevents the classic first experience: a mod that builds
+   perfectly and dies at load.
+3. **[Harmony and ECS](harmony-and-ecs.md)** — how to hook into the game. Read at least the first
+   section; a patch that binds but never fires is the single most common early
+   confusion.
 
 Then branch by what you actually want to build:
 

@@ -76,8 +76,8 @@ Four things about this pattern are load-bearing:
 
 - **`PostConvert` is managed, not Burst.** It manipulates `List`, `GameObject`,
   `BlobBuilder` and `EntityManager`, so the prefix binds normally — **no
-  `BurstDisabler` call is needed**. See [Harmony and ECS](harmony-and-ecs.md)
-  for how patch binding works and when Burst *does* get in the way.
+  `BurstDisabler` call is needed**. See [Harmony and ECS](harmony-and-ecs.md) for how patch binding
+  works and when Burst *does* get in the way.
 - **The bake is a straight copy**, e.g.
   `blob.amount = objectInfo.requiredObjectsToCraft[j].amount`. Whatever you
   leave in the list is what ships into the blob — you are not fighting a

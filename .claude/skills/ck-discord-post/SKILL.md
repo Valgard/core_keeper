@@ -145,9 +145,9 @@ input events produces exactly the traffic a human produces. So:
    new thread URL — `javascript_tool` with `location.href` gives exactly the
    form every `.envrc` carries, the full URL including `/threads/<id>` — and
    write it into the mod's `.envrc` **and** `.envrc.example` as
-   `CK_DISCORD_THREAD`. Then run `direnv allow` — an
-   edited `.envrc` is blocked until you do, and the next verification fails
-   with "is blocked", which reads like a broken script.
+   `CK_DISCORD_THREAD`. Then run `direnv allow` — an edited `.envrc` is blocked
+   until you do, and the next verification fails with "is blocked", which reads
+   like a broken script.
 
    Verify with `discord_post.py --update --json`: it must now report the
    thread, and `tags` and `attachments` must be empty. That proves both
@@ -215,13 +215,13 @@ channel's search form when the composer is closed, and "nothing selected" and
 
 Why nothing else works:
 
-- **The button's label never changes.** Discord keeps
-  `aria-label="Tag X hinzufügen"` whether or not the tag is selected —
-  selection lives only in `aria-pressed` and a `selected_…` class, and neither
-  `find` nor `read_page` surfaces either. The state is not unreliable through
-  those tools; it is invisible to them. (An earlier version of this file called
-  it a lag in the accessibility tree. It is not a lag, and that wording invited
-  exactly the false conclusion above.)
+- **The button's label never changes.** Discord keeps `aria-label="Tag X
+  hinzufügen"` whether or not the tag is selected — selection lives only in
+  `aria-pressed` and a `selected_…` class, and neither `find` nor `read_page`
+  surfaces either. The state is not unreliable through those tools; it is
+  invisible to them. (An earlier version of this file called it a lag in the
+  accessibility tree. It is not a lag, and that wording invited exactly the
+  false conclusion above.)
 - **The chip row answers nothing.** It is a horizontally scrollable overflow
   container showing whichever slice of the twenty currently fits and has been
   scrolled into place. Nor does the leading tag icon help: it sits *outside*

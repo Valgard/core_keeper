@@ -34,7 +34,9 @@ way the SDK expects, and link that directory into the SDK clone. A *directory*
 symlink captures every file the Editor writes into it, now and later, so nothing
 has to be registered by hand.
 
-The settings asset the wizard writes sits *beside* the mod folder rather than inside it, so it and its `.meta` need links of their own: one directory link plus a few file links, not one link for everything.
+The settings asset the wizard writes sits *beside* the mod folder rather than
+inside it, so it and its `.meta` need links of their own: one directory link
+plus a few file links, not one link for everything.
 
 Two properties of this follow directly and are worth knowing before relying on
 it:

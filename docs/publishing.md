@@ -434,8 +434,8 @@ deleted. Tags outside these four groups are never touched.
   `GetTagCategories` or `GetMod` fails (or a group is missing from the live
   taxonomy), the helper logs a warning, adds the desired tags and removes
   nothing.
-- The plan is logged per group before acting
-  (`Tag sync plan [Type]: +[…] -[…]`); `--dry-run` logs it and stops there.
+- The plan is logged per group before acting (`Tag sync plan [Type]: +[…]
+  -[…]`); `--dry-run` logs it and stops there.
 - A hand-set `Asset` tag is treated as surplus and removed.
 
 > ⚠️ Known build gotcha: the shared `CLIPublishHelper`/`CLIBuildHelper` compile
