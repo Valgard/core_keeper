@@ -97,5 +97,8 @@ Every one of these means: open the decompile and check it yourself first.
 A confirmed finding is fixed in both places: the PR text and the
 `docs/ck/` chapter it came from or contradicts. Do this as a normal
 step — a wrong-scope multiplayer claim once survived two verification
-rounds inside the handbook and reached three documents before a later
-pass caught it. Fixing only the PR leaves that source for the next PR.
+rounds inside the handbook and reached `harmony-and-ecs.md`, `CLAUDE.md`,
+and `docs/ck/index.md`'s own symptom table. A same-day pass corrected the
+first two on 2026-08-24; the third was never caught — as of 2026-09-01
+`docs/ck/index.md:109` still names the same wrong scope. Fixing only the
+PR leaves that source for the next PR.
