@@ -142,3 +142,61 @@ exists inside `docs/ck/` itself.
 **There is no `> **Correction (…):**` blockquote form.** That has been claimed
 as this project's convention before, and it was wrong — the same `grep` that
 finds `unverified` finds this claim has no instances to stand on either.
+
+## Questions nothing static can settle
+
+Group by **the game state a measurement needs**, never by chapter: two
+questions needing the same state cost almost nothing together, two needing
+different states are two rounds whether or not they share a chapter.
+
+**Blocking** — other statements in this chapter depend on it. Answer it
+immediately with its own small probe; assessing the dependents on a guess
+propagates the guess. Rare.
+
+**This session's batch** — every other question the chapter raises, one build,
+grouped by state. One round per state, not one per chapter.
+
+**Left standing** — a question whose state does not arise here, one belonging
+to another chapter, one needing a world state too expensive to arrange for a
+single answer. It is marked `unverified` and stays in the chapter, which is
+both the honest answer to the reader and the record that it is open. A later
+round in a matching state takes it along.
+
+### Probe rules
+
+- **Bundling is allowed; mixing is not.** The one-variable rule constrains a
+  single *test*, not a build. Twenty independent probe points in one mod are
+  fine; one probe point changing two things is not.
+- **Measurement hygiene is the real cost.** A measurement counts only with the
+  probe and its dependencies loaded. `DisableBurstForSystem*` registers a
+  *type* (`CLAUDE.md:222-223`), so any other mod un-Bursting the same system
+  carries the probe silently and the result is worthless.
+- **Smoke-check before the measurement round.** Start the game once and read
+  the log for whether the probe loaded and registered its points. A probe that
+  fails to compile takes all its measurements with it, and without this that is
+  discovered only after the round has been played.
+- **The probe is throwaway.** It lives in a mod repository, is never published,
+  and is removed afterwards.
+- **A dedicated server needs a connected player.** An idle one sits at
+  `timescale = 0` and never simulates (`docs/ck/harmony-and-ecs.md:368`; the
+  mechanism — `ECSManager` pausing on no connection rather than a heuristic —
+  is `docs/ck/multiplayer-and-server.md:553-554`), so a probe there logs
+  nothing.
+  To prove a patch is live server-side, log from the `[HarmonyPatch]` class's
+  static constructor (`docs/ck/harmony-and-ecs.md:361`,
+  `docs/ck/multiplayer-and-server.md:500`) and read the log after a session
+  with a player connected.
+
+### Requesting the round
+
+The measurement round is the only step in this procedure that puts the session
+on hold for a person — dispatch, aggregation and rewriting all run without one.
+Ask for it as a single block at the end of a message, naming: which mods to
+disable (the hygiene rule above is exactly why this has to be spelled out
+rather than assumed), what to start — the client, or the dedicated server plus
+a player who connects — what to do in game to trigger each probe point, and
+roughly how long the round takes. Then stop: don't continue into other work
+while it is pending. It is a handover, not a note in passing — there is
+nothing left in this chapter to verify until the result comes back, and
+drifting into other work is how a returned result meets a session that has
+moved on.
