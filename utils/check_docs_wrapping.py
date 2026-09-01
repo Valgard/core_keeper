@@ -404,11 +404,26 @@ def markdown_files(root):
     ]
 
 
+def expand(args):
+    """Files as given; a directory as the root of a repository to scan.
+
+    check_docs_links has taken a root all along, which is how a mod repo runs
+    the parent's copy over its own tree. This one took files only and died on
+    the "." such a hook passes, so it could not be wired there at all — and the
+    mod repos, where the documentation actually is, went unchecked.
+    """
+    out = []
+    for arg in args:
+        path = Path(arg)
+        out += markdown_files(path) if path.is_dir() else [path]
+    return out
+
+
 def main(argv):
     fix = "--fix" in argv
     args = [a for a in argv[1:] if not a.startswith("--")]
     root = Path(__file__).resolve().parent.parent
-    files = [Path(a) for a in args] if args else markdown_files(root)
+    files = expand(args) if args else markdown_files(root)
 
     problems, rewrapped, checked = [], 0, 0
     for f in sorted(files):

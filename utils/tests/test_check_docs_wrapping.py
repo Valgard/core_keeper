@@ -512,6 +512,25 @@ class TestMain:
         assert mod.main(["prog", str(p)]) == 1
         assert "mis-wrapped" in capsys.readouterr().out
 
+    def test_a_directory_argument_is_scanned_as_a_root(self, tmp_path, capsys):
+        # check_docs_links takes a root, which is how a mod repo runs the
+        # parent's copy over its own tree. This script took files only and
+        # died on a directory, so it could not be wired there at all
+        repo = git_repo(tmp_path / "modrepo")
+        write(repo, "docs/a.md", "# T\n\n" + "word " * 40 + "\nend.\n")
+        git(repo, "add", "docs/a.md")
+        assert mod.main(["prog", str(repo)]) == 1
+        assert "docs/a.md" in capsys.readouterr().out
+
+    def test_a_directory_root_finds_nothing_to_report_when_clean(
+        self, tmp_path, capsys
+    ):
+        repo = git_repo(tmp_path / "modrepo")
+        write(repo, "docs/a.md", "# T\n\nA short tidy paragraph.\n")
+        git(repo, "add", "docs/a.md")
+        assert mod.main(["prog", str(repo)]) == 0
+        assert "OK" in capsys.readouterr().out
+
     def test_fix_mode_exits_zero_and_rewrites(self, tmp_path, capsys):
         original = "# T\n\n" + "word " * 40 + "\nend.\n"
         p = write(tmp_path, "a.md", original)
