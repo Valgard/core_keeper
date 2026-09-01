@@ -511,12 +511,30 @@ def build_envrc(
 #   cp .envrc.example .envrc
 #   direnv allow                     # then `cd` triggers the chain
 #   # or, without direnv:  source .envrc && ../utils/build.sh
+#   #   from a worktree:   source .envrc && ../../../utils/build.sh
 
-# --- Inherit shared values from the parent core_keeper/.envrc ---------------
+# --- Inherit shared values from the nearest ancestor core_keeper/.envrc ------
+# The manual branch walks up instead of naming a depth, because this file is
+# copied verbatim into a worktree under .worktrees/<name>/, which sits one level
+# deeper than the mod directory. The SDK_PATH test is what makes the walk safe:
+# `source` does not change $PWD, so from a worktree the first *existing* hit
+# would be the mod's own .envrc — this same file — whose loop would then restart
+# against the same $PWD and never reach the parent. Only the parent defines
+# SDK_PATH, so testing content rather than position ends the walk in one place
+# regardless of how deep the caller sits. The test matches the ASSIGNMENT, not
+# the name: every mod .envrc mentions SDK_PATH in its own header comment, and a
+# looser grep therefore selects the mod file, sources it, and recurses.
+# direnv needs none of it: source_up_if_exists searches upward on its own.
 if command -v source_up_if_exists >/dev/null 2>&1; then
-    source_up_if_exists          # direnv: walk up to core_keeper/.envrc
-elif [ -f ../.envrc ]; then
-    source ../.envrc             # manual `source .envrc` fallback
+    source_up_if_exists
+else
+    for _up in ../.envrc ../../.envrc ../../../.envrc ../../../../.envrc; do
+        if [ -f "$_up" ] && grep -q '^export SDK_PATH=' "$_up"; then
+            # shellcheck disable=SC1090
+            source "$_up"; break
+        fi
+    done
+    unset _up
 fi
 
 # --- Mod identity (project-inherent — leave as-is) --------------------------
