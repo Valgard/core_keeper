@@ -16,14 +16,15 @@ Two modes: --capture writes the snapshot, the default compares against it.
 Capture deliberately requires a flag, so a drift run can never silently record
 the drift as the new truth.
 
-What it does not resolve, and reports instead of guessing at:
-citations naming something other than a decompiled assembly. As of
-2026-08-31 there were three — one into prefab YAML
-(`ControlMappingMenu.prefab:2456-2457`), one naming the dedicated-server
-*tree* rather than an assembly in it (`DedicatedServer:263259-263262`),
-and one naming the decompile *file* where the assembly `PugSprite` would
-resolve (`PugSprite.decompiled.cs:42`). These are documentation defects
-this surfaces rather than papers over, and are expected to shrink.
+What it resolves a citation against, in order of attempt: a plain assembly
+name in the client decompile (`Pug.Other:441234`); the same shape prefixed
+`DedicatedServer/` against that tree's own copy of the assembly — a distinct
+build kept separately, not a duplicate of the client's
+(`DedicatedServer/Pug.Other:430189`); and a name ending in a recognised Unity
+asset extension against `Resources/Assets/`, searched recursively
+(`ControlMappingMenu.prefab:2456-2457`). A citation naming anything else is
+reported rather than guessed at — and so is an asset name that matches more
+than one file, rather than picking between them.
 
 Usage:
     uv run utils/check_citation_drift.py --capture --game-version VERSION [--decompile PATH] [repo-root]
@@ -39,7 +40,13 @@ from pathlib import Path
 # Backtick-delimited, because that is how every real citation is written and it
 # is what separates `Pug.Other:441234` from prose like "roughly 124940". The
 # assembly part allows dots (Pug.ECS.Components) but not spaces or colons.
-CITATION = re.compile(r"`([A-Za-z][A-Za-z0-9_.]*):(\d+)(?:-(\d+))?`")
+# The `DedicatedServer/` prefix is anchored to that one literal string rather
+# than opening the class to "/" in general — a general slash would also
+# swallow a doc-to-doc line reference like `docs/ck/platforms.md:119`, which
+# is not a citation at all.
+CITATION = re.compile(
+    r"`((?:DedicatedServer/)?[A-Za-z][A-Za-z0-9_.]*):(\d+)(?:-(\d+))?`"
+)
 
 
 def extract(text):
@@ -50,6 +57,20 @@ def extract(text):
     ]
 
 
+# Unity asset extensions the handbook has actually cited by name-and-line so
+# far. `.prefab` is the only one in use today
+# (`ControlMappingMenu.prefab:2456-2457` in ui-framework.md) — extend this set
+# the day a citation needs a second one, rather than pre-guessing which.
+ASSET_EXTENSIONS = {".prefab"}
+
+
+def _stripped_lines(path, first, last):
+    """Read lines first..last from path, stripped — the shared tail of every
+    resolution path below, once each has found which file to read."""
+    lines = path.read_text(errors="replace").splitlines()
+    return [line.strip() for line in lines[first - 1 : last]]
+
+
 def resolve(assembly, first, last, decompile):
     """Return the stripped text of lines first..last, or None if unresolvable.
 
@@ -57,12 +78,28 @@ def resolve(assembly, first, last, decompile):
     that changes for reasons having nothing to do with the code — a nesting
     level added around it moves every line inside without altering what any of
     them says. Comparing stripped text keeps the report about the statement.
+
+    `assembly` carries the whole name as the citation wrote it, so a
+    `DedicatedServer/Pug.Other` citation needs no separate branch here — the
+    embedded "/" makes the join below land in that tree's own subdirectory
+    without anything having to notice. What does need its own branch is a
+    name the decompile has nothing by: a recognised Unity asset extension
+    sends the search into `Resources/Assets/` instead, by filename rather
+    than by path, because a citation states the file's name, not which of the
+    hundred type-named subdirectories under it holds that file. A name
+    matching more than one file there resolves to nothing rather than
+    guessing which one the sentence means.
     """
     source = Path(decompile) / f"{assembly}.decompiled.cs"
-    if not source.is_file():
-        return None
-    lines = source.read_text(errors="replace").splitlines()
-    return [line.strip() for line in lines[first - 1 : last]]
+    if source.is_file():
+        return _stripped_lines(source, first, last)
+
+    if Path(assembly).suffix in ASSET_EXTENSIONS:
+        matches = sorted(Path(decompile, "Resources", "Assets").rglob(assembly))
+        if len(matches) == 1:
+            return _stripped_lines(matches[0], first, last)
+
+    return None
 
 
 def key_of(assembly, first, last):

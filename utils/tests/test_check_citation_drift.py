@@ -1,11 +1,15 @@
 """Tests for check_citation_drift.
 
 The cases are the citation forms the handbook actually contains, not invented
-ones: the single-line majority, the range form, and — as of 2026-08-31 — the
-three ways a citation resolves to nothing: a prefab citation that names no
-assembly, a DedicatedServer citation that names a tree instead of one, and a
-PugSprite.decompiled.cs citation that names the decompile file itself rather
-than the assembly within it.
+ones: the single-line majority, the range form, and — since 2026-09-01 — the
+three shapes it resolves beyond a plain assembly name: a `DedicatedServer/`
+prefixed citation against that tree's own copy, and an asset citation
+(`.prefab`) found by name under `Resources/Assets/`. What still resolves to
+nothing is a citation naming neither shape: a bare `DedicatedServer:NNNN`
+with no assembly named inside it, an asset name matching zero or more than
+one file, and a doc-to-doc line reference that must never be mistaken for a
+citation in the first place — the regression the `DedicatedServer/` prefix
+regex change could have introduced.
 """
 
 import json
@@ -45,6 +49,20 @@ def test_ignores_a_bare_number_in_prose():
     assert mod.extract("roughly 124940 lines in") == []
 
 
+def test_extracts_a_dedicated_server_citation_with_its_prefix():
+    assert mod.extract("(`DedicatedServer/Pug.Other:263259-263262`)") == [
+        ("DedicatedServer/Pug.Other", 263259, 263262)
+    ]
+
+
+def test_a_doc_to_doc_line_reference_is_not_mistaken_for_a_citation():
+    # The regression a careless fix would introduce: widening the assembly
+    # character class to allow "/" in general (rather than anchoring the
+    # `DedicatedServer/` prefix specifically) would also swallow a
+    # documentation cross-reference shaped like this one.
+    assert mod.extract("see `docs/ck/platforms.md:119` for the format") == []
+
+
 def make_decompile(tmp_path, name, lines):
     tree = tmp_path / "decompile"
     tree.mkdir(exist_ok=True)
@@ -63,11 +81,57 @@ def test_resolves_a_range_inclusive_of_both_ends(tmp_path):
 
 
 def test_an_unknown_assembly_resolves_to_none(tmp_path):
-    # The real cases: a prefab citation and one naming the server tree. Both
-    # must be reportable, so they are distinguishable from an empty file.
+    # Neither shape matches anything in this bare tree — no Resources/Assets
+    # subtree for the prefab name to be found under, and "DedicatedServer"
+    # alone (no assembly named inside it) is the pre-fix form that was never
+    # meant to resolve. Both must be reportable, distinguishable from an
+    # empty file.
     tree = make_decompile(tmp_path, "Pug.Other", ["a"])
     assert mod.resolve("ControlMappingMenu.prefab", 2456, 2457, tree) is None
     assert mod.resolve("DedicatedServer", 263259, 263262, tree) is None
+
+
+def test_resolves_a_dedicated_server_citation_from_its_own_tree(tmp_path):
+    # The fix is entirely in extract()'s regex: assembly already carries the
+    # embedded "/", and Path's own join lands it in the right subdirectory
+    # with no extra branch in resolve() needed.
+    tree = tmp_path / "decompile"
+    server = tree / "DedicatedServer"
+    server.mkdir(parents=True)
+    (server / "Pug.Other.decompiled.cs").write_text("a\nb\nc\n")
+    assert mod.resolve("DedicatedServer/Pug.Other", 2, 2, tree) == ["b"]
+
+
+def test_resolves_an_asset_citation_by_name_under_resources_assets(tmp_path):
+    tree = tmp_path / "decompile"
+    gameobject = tree / "Resources" / "Assets" / "GameObject"
+    gameobject.mkdir(parents=True)
+    (gameobject / "ControlMappingMenu.prefab").write_text("a\nb\nc\nd\n")
+    assert mod.resolve("ControlMappingMenu.prefab", 2, 3, tree) == ["b", "c"]
+
+
+def test_an_asset_name_matching_two_files_resolves_to_none(tmp_path):
+    # Never guess between them — reported as unresolvable, the same as a
+    # citation that matches no file at all.
+    tree = tmp_path / "decompile"
+    one = tree / "Resources" / "Assets" / "GameObject"
+    two = tree / "Resources" / "Assets" / "Prefabs"
+    one.mkdir(parents=True)
+    two.mkdir(parents=True)
+    (one / "Foo.prefab").write_text("a\n")
+    (two / "Foo.prefab").write_text("b\n")
+    assert mod.resolve("Foo.prefab", 1, 1, tree) is None
+
+
+def test_an_unrecognised_asset_extension_is_not_searched_for(tmp_path):
+    # ".prefab" is the only extension the handbook has cited so far — a name
+    # ending in something else must fall through to unresolvable rather than
+    # triggering a Resources/Assets search that was never asked for.
+    tree = tmp_path / "decompile"
+    other = tree / "Resources" / "Assets" / "Material"
+    other.mkdir(parents=True)
+    (other / "Foo.mat").write_text("a\n")
+    assert mod.resolve("Foo.mat", 1, 1, tree) is None
 
 
 def test_a_line_past_the_end_yields_an_empty_list_not_a_crash(tmp_path):
@@ -328,8 +392,11 @@ def test_a_missing_snapshot_says_what_to_run_rather_than_crashing(tmp_path, caps
 
 
 def test_an_unresolvable_citation_fails_even_when_nothing_drifted(tmp_path, capsys):
-    # Otherwise the DedicatedServer citation stays invisible forever: it never
-    # drifts, because it never resolved in the first place.
+    # Otherwise an unresolvable citation stays invisible forever: it never
+    # drifts, because it never resolved in the first place. The bare
+    # "DedicatedServer:NNNN" form stands in for "names something the checker
+    # does not model" — it is the pre-fix shape, not the one the handbook
+    # writes any more.
     tree = make_decompile(tmp_path, "Pug.Other", ["a"])
     write_chapter(tmp_path, "m.md", "`DedicatedServer:263259-263262`\n")
     snapshot = tmp_path / "snap.json"
