@@ -1,6 +1,6 @@
 # Answer Key — Planted Errors, Corpus (SCORING ONLY)
 
-⚠️ **This document is for scoring only.** It must never be given to a lane during a baseline or verification run. A lane that is handed the answers is not measuring anything. Destroy this file or withhold it from every agent that reviews the fixture.
+⚠️ **This document is for scoring only.** It must never be given to a lane during a baseline or verification run. A lane that is handed the answers is not measuring anything. Destroy this file's planted-error answers (§ The four errors and § What must stay true in the fixture) or withhold them from every agent that reviews the fixture. That restriction does not extend to § One calibration round below — a record of a past run, not an answer a future lane could crib.
 
 Fixture: `../fixtures/corpus-diff.md`. Same instrument as `planted-errors.md`
 and `planted-errors-2.md`, aimed at a different evidence source: these four
