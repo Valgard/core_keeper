@@ -453,7 +453,7 @@ directory scan does not — `SideLoader` passes `supportsCurrentVersion: true`
 `!supportsCurrentVersion && !contains(guid)` — can never fire for a side-loaded
 mod. And a dedicated server's `Manager` registers only `SideLoader` and
 `SteamWorkshopLoader`, never `ModIOLoader` (`Pug.Other:263316-263325` against
-`DedicatedServer:263259-263262`), while `StreamingAssets/Mods` is how a server is
+`DedicatedServer/Pug.Other:263259-263262`), while `StreamingAssets/Mods` is how a server is
 normally given its mods. The rule that predicts both cases is therefore about the
 *source* of a mod, not about the build: a mod side-loaded into the **client's**
 own `StreamingAssets/Mods` skips the version check just as thoroughly.

@@ -788,7 +788,7 @@ seen** — a skin collection is necessarily mod-owned state.
 | Assignment | Random on hatch, `rng.NextInt(maxSkins)` |
 | ObjectID | All skins of a pet share one ID (`PetDog` = 1222) |
 | Skin count | `Manager.ui.petInfosTable.GetPetSkinInfo(id).skins.Count` — `PetCD.maxSkins` is baked from this same value (`Pug.ECS.Conversion:2761`) |
-| Rendering | Gradient recolours of the base `ObjectInfo.icon` (`_GradientMap` from `skins[i].primaryGradientMap` plus the `USE_GRADIENT_MAP` keyword on the `Amplify/UISpriteColorReplace` shader), not separate sprites; `GradientMapDataBlock` lives in `PugSprite.dll` (`PugSprite.decompiled.cs:42`, global namespace) — only its base `ScriptableDataBlock` is in `ScriptableData.dll` (`ScriptableData:1563`) |
+| Rendering | Gradient recolours of the base `ObjectInfo.icon` (`_GradientMap` from `skins[i].primaryGradientMap` plus the `USE_GRADIENT_MAP` keyword on the `Amplify/UISpriteColorReplace` shader), not separate sprites; `GradientMapDataBlock` lives in `PugSprite.dll` (`PugSprite:42`, global namespace) — only its base `ScriptableDataBlock` is in `ScriptableData.dll` (`ScriptableData:1563`) |
 | Stacking | Pets are non-stackable, one per slot |
 
 Reading `skinIndex` is sandbox-safe:
