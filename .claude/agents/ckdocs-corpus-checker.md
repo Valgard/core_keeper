@@ -35,7 +35,7 @@ list of these goes stale silently and has:
 cd /Users/valgard/Projects/private/core_keeper && \
   command find . -maxdepth 2 -name .git -not -path "./.git*" \
   | command sed 's|^\./||; s|/\.git$||' \
-  | command grep -v "^CoreKeeperModSDK$" | sort
+  | command grep -vE "^(CoreKeeperModSDK|CoreKeeperModDocs)$" | sort
 ```
 
 A mod's source is under `<mod>/unity/<ModName>/*.cs`. `CoreKeeperModSDK` is
