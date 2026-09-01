@@ -58,10 +58,12 @@ release** — anything that remembers the path rather than resolving it goes sta
 on the next update.
 
 The dedicated server keeps its own tree (`…/DedicatedServer/`) beside the
-client's — its filesystem constructor reads `-datapath` off the command line
-first and only falls back to that suffix when the flag is absent
-(`DedicatedServer/Pug.Other:430199`) — which is why a server and a client on
-one machine do not share a world by default.
+client's — `StandaloneFilesystem` has two constructors, and each reads
+`-datapath` off the command line first and only falls back to that suffix when
+the flag is absent (`DedicatedServer/Pug.Other:430189-430205`; the second
+constructor repeats the same read and fallback at `:430207`, then layers a
+subfolder argument on top) — which is why a server and a client on one machine
+do not share a world by default.
 
 ## What Wine breaks, and how it looks
 
@@ -97,9 +99,14 @@ is created and then lost; a direct write as a fallback recovers it. The same
 File-API-lies-about-success failure also breaks `StandaloneFilesystem.Delete`,
 which is not a directory deletion at all: it renames the file to
 `<path>.pugbackup` via `File.Move`, after deleting any pre-existing backup — a
-soft delete of one file. Its symptom differs from a directory-delete failure
-too — a deleted world that stays in the UI, rather than a mod that fails to
-load — and so does the fix: a hard delete in place of the rename.
+soft delete of one file. Unlike the directory deletes above, this one is
+guarded: `Delete` is wrapped in `try { } catch (IOException)` and logs
+`Delete failed: …` rather than throwing — the caller never learns the rename
+failed, which is why its symptom differs from a directory-delete failure too:
+a deleted world that stays in the UI, rather than a mod that fails to load.
+The catch is narrower than it looks, though — `UnauthorizedAccessException` is
+not an `IOException` and still propagates — and the fix is the same shape as
+before: a hard delete in place of the rename.
 
 Two things about patching the installed assemblies are worth knowing before
 relying on it:
@@ -113,10 +120,10 @@ relying on it:
   client then rejects as a protocol mismatch, not as a compile failure. See [multiplayer and server](multiplayer-and-server.md)
   for why that surfaces as "Game version mismatch".
 
-There is also a residual write failure for JSON side files — on the server for
-its own config files (`ServerConfig.json` and friends), on the client for
-cloud-conflict backups — whose `.pugbackup` copies fail to write. The files
-themselves are written and worlds are unaffected.
+There is also a residual write failure for JSON side files, unlike the world
+saves above — `ServerConfig.json` and friends, and the client's cloud-conflict
+backups — whose `.pugbackup` copies fail to write. The files themselves are
+written and worlds are unaffected.
 
 ## Reading logs on a translated host
 
