@@ -235,6 +235,29 @@ check has no concept of a mod, a mod's compiled assembly is named
 CoreLib is refused because its manifest name is `CoreLib`. Nothing would stop a
 mod that named itself `Pug…`.
 
+**The CoreLib case is measured, not only computed, and what it shows is that the
+two gates fail at different moments.** A probe read
+`AcceptableValueList<T>.AcceptableValues` — a *public* property, so nothing about
+it is private-member territory — through `API.Reflection` in a loaded mod. The
+mod compiled and loaded (`Successfully compiled … safetyCheck=True`): the
+sandbox permits the source, because `PugMod.MemberInfo` and `API.Reflection` are
+on none of its deny lists. The refusal came at the call, as
+`InvalidOperationException: Not allowed to access AcceptableValues`, with
+`InvokeChecker`'s own line beside it in the log — ``Trying to patch type
+CoreLib.Data.Configuration.AcceptableValueList`1[System.Int32] from unknown
+assembly``. So a build that loads cleanly proves nothing about whether a
+reflection call in it will work.
+
+The same run also settles what the obstacle is *not*. A non-generic control on a
+CoreLib type (`AcceptableValueBase.ValueType`) was refused identically, while
+`UnityEngine.Vector3.x` read fine — so the type parameter is irrelevant and the
+declaring type's assembly is the whole test, exactly as `CheckType` reads. The
+consequence for a mod that consumes CoreLib: its config API is reachable by
+ordinary calls and closed to reflection, and a value only a generic property
+exposes has to be reached by naming the type argument in a pattern-match.
+`ModSettingsMenu`'s `ForeignConfigDiscovery.TryExactValues` does exactly that,
+over the closed set of types `TomlTypeConverter` can convert.
+
 **Cost, with the caveat that matters more than the numbers.** One process, one
 Wine host, one mod set, on 1.2.1.5: **3.57 µs** for a cached-`MemberInfo` read,
 and **0.404 ms** for the first such call in that session. What the 0.404 ms
