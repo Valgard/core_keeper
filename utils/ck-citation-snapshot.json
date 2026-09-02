@@ -1151,8 +1151,20 @@
     "Pug.Other:361075": [
       "}"
     ],
-    "Pug.Other:361103": [
-      "if (data.triggerEffects != value)"
+    "Pug.Other:361103-361104": [
+      "if (data.triggerEffects != value)",
+      "{"
+    ],
+    "Pug.Other:363006-363014": [
+      "public void SetCharacterId(int id)",
+      "{",
+      "if (!IsCompatibleWithCurrentGameVersion(id))",
+      "{",
+      "UnityEngine.Debug.LogWarning(\"Activating a character that is not compatible with the current game version.\");",
+      "}",
+      "_characterDead = false;",
+      "_characterId = id;",
+      "}"
     ],
     "Pug.Other:363867": [
       "public void WriteCharacter()"
@@ -1300,6 +1312,23 @@
     "PugMod.Loader:1316": [
       "scriptDomain.RoslynCompilerService.OutputName = mod.Metadata.name + \".dll\";"
     ],
+    "PugMod.Loader:1414-1428": [
+      "private static void HarmonyPatchAssembly(Mod mod, ScriptAssembly assembly, HarmonyBootstrap harmony, InvokeChecker checker)",
+      "{",
+      "try",
+      "{",
+      "if (!harmony.Patch(mod.Metadata.name, assembly.SystemAssembly, !mod.Metadata.skipSafetyChecks, checker))",
+      "{",
+      "UnityEngine.Debug.Log(\"mod \" + mod.Metadata.name + \": patching failed\");",
+      "}",
+      "}",
+      "catch (Exception exception)",
+      "{",
+      "UnityEngine.Debug.Log(\"failed to patch mod \" + mod.Metadata.name + \", got exception\");",
+      "UnityEngine.Debug.LogException(exception);",
+      "}",
+      "}"
+    ],
     "PugMod.Loader:1418-1427": [
       "if (!harmony.Patch(mod.Metadata.name, assembly.SystemAssembly, !mod.Metadata.skipSafetyChecks, checker))",
       "{",
@@ -1398,6 +1427,17 @@
     ],
     "PugMod.SDK.Runtime:924": [
       "private static void CreateCompleteDependencyPatch(Type systemType, Harmony harmony, List<MethodInfo> patchedMethods, bool isManaged)"
+    ],
+    "PugMod.SDK.Runtime:963-971": [
+      "public static void Prefix(SystemHandle sh, out bool? __state)",
+      "{",
+      "__state = null;",
+      "if (BurstDisabler.SystemHandlesToDisableBurstFor.Contains(sh))",
+      "{",
+      "__state = BurstCompiler.Options.EnableBurstCompilation;",
+      "BurstCompiler.Options.EnableBurstCompilation = false;",
+      "}",
+      "}"
     ],
     "PugSprite:42": [
       "public class GradientMapDataBlock : ScriptableDataBlock"
