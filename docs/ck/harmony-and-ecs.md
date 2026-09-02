@@ -35,11 +35,16 @@ that, because the bind itself succeeded.
 
 The dispatch chain is worth knowing, because the fix only makes sense against
 it. `WorldUnmanagedImpl.UpdateSystem` invokes `UnmanagedUpdate` as a
-`$BurstDirectCall` (`Unity.Entities:67217`), which takes the Burst path whenever
-`BurstCompiler.IsEnabled`. `CallForwardingFunction` then runs *inside* Burst,
-where `CheckBurst` is `[BurstDiscard]` and therefore stripped — so its `status`
-stays `true` and the system's Burst function is called unconditionally. The
-per-system `BurstFunctionEnabledBits` flag is never even read on that path.
+`$BurstDirectCall` (`Unity.Entities:67217`), which takes the Burst path when
+`BurstCompiler.IsEnabled` **and** the compiled function pointer is non-zero — a
+failed `CompileFunctionPointer` falls through to the managed body.
+`CallForwardingFunction` then runs *inside* Burst, where `CheckBurst` is
+`[BurstDiscard]` and therefore stripped, so its `status` stays `true` and the
+per-system `BurstFunctionEnabledBits` flag is never read on that path. The
+function then invoked is whatever `SelectBurstFn` (`:58169-58188`) stored — the
+Burst-compiled body where one exists, and a managed forwarding thunk where the
+function was not Burst-compiled. So "the Burst path" names the dispatch route,
+not a guarantee that native code runs.
 
 ## `BurstDisabler` — moving a system off Burst
 
@@ -116,7 +121,10 @@ nested job. `EquipmentUpdateSystem` (`Pug.Other:419765`) does everything in
 `UpdateJob`, which carries its own `[BurstCompile]` (`:419767`) and calls
 `PlaceObjectSlot.UpdateEquipment` (`:419899`). With the plain variant, **no**
 patch on that path fires; with `BurstDisabler.DisableBurstForSystemAndJobs<T>()`
-(`PugMod.SDK.Runtime:783`) all of them do.
+(`PugMod.SDK.Runtime:783`) they do — provided the world is armed, which the call
+alone does not guarantee. On a dedicated server it is not, and the same patches
+stay silent with the `AndJobs` variant in place; that trap is two sections
+below, and its log line is the false shortcut described just after this one.
 
 **The criterion is what you patch, not which system it belongs to.**
 `DisableBurstForSystem<T>` calls `DisableBurstForSystemInternal(type,
@@ -192,9 +200,14 @@ two mods overlap belongs to neither until it has been isolated.
 **If the cost matters to your mod, measure it.** The variables that plausibly
 dominate are how often the system ticks and how much work it does per tick, so
 compare the same scene with your `DisableBurstForSystem*` call present and
-removed, and look at frame time rather than at whether it "feels" the same. That
-is a small experiment, and it beats both this anecdote and any assumption you
-would otherwise make.
+removed, and look at frame time rather than at whether it "feels" the same.
+**Removing the call is only a control if no other installed mod registers the
+same system** — the registry is a process-wide `HashSet<Type>`
+(`PugMod.SDK.Runtime:731`), so a sibling keeps your system un-Bursted with your
+own call gone, and the two runs then differ in nothing. Two mods in this family
+register `EquipmentUpdateSystem`. Disable the others for the comparison, or
+measure a system nothing else touches. That is a small experiment, and it beats
+both this anecdote and any assumption you would otherwise make.
 
 ## The dedicated-server trap
 
@@ -208,10 +221,13 @@ ServerWorld in that same process (`Pug.Other:2654`, guarded at `:2652` by
 `worldId != -1 && requestedPlayType != PlayType.Client` — **both** conditions,
 which is why the menu path below creates none despite not being a pure client),
 adds it to `_allWorlds`, and arms both worlds at `:2673-2675` — all of it after
-`Init()` on the client ordering. So host-based multiplayer works, and the defect
-belongs to the dedicated-server binary alone. The distinction matters when
-reading a bug report: "works for me in multiplayer" from a host neither
-reproduces nor refutes it.
+`Init()` on the client ordering. So host-based multiplayer works, and on the
+observed builds the defect appears on the dedicated server alone. What it
+belongs to is the *ordering*, not the binary: a mod that registers after its own
+`StartEcs` — calling `DisableBurstForSystem*` from `ModObjectLoaded` or `Update`
+instead of `Init` — reaches the identical dead patch on a hosting client. The
+distinction matters when reading a bug report: "works for me in multiplayer"
+from a host neither reproduces nor refutes it.
 
 The cause is the lifecycle order — which is **measured**, not derived; the
 paragraphs below say why no derivation replaces it, and one that was tried was
@@ -219,8 +235,13 @@ wrong. `BurstDisabler.AddWorld` is called from exactly one place,
 `ECSManager.StartEcs` (`Pug.Other:2675` in the client build, `:2656` in the
 server build), and it **snapshots** the types registered up to that moment.
 Nothing back-fills that snapshot for a world already passed to `AddWorld` — but
-the set itself is not permanent, and a later world load rebuilds it correctly;
-see the bound on this below.
+neither set is permanent, and a later world load rebuilds them correctly; see
+the bound on this below. Two different resetters exist and only one of them
+appears there: `ResetWorlds` clears the per-world handles, while
+`BurstDisabler.Init()` (`PugMod.SDK.Runtime:739-750`) — a
+`[RuntimeInitializeOnLoadMethod(SubsystemRegistration)]`, so once per process
+start rather than per world — additionally unpatches Harmony, clears
+`_patchedMethods`, and clears the **type** registry itself.
 
 Note what this does *not* mean: the call is present and runs on both builds, at
 the end of `ECSManager.StartEcs` once the worlds have been created. The server
@@ -292,9 +313,15 @@ public void Init()
 }
 ```
 
-`World.All` is sandbox-legal (`safetyCheck=True` on both client and server), and
-the registry behind `AddWorld` is a `HashSet`, so the pass is a harmless no-op in
-the client ordering.
+`World.All` is sandbox-legal (`safetyCheck=True` on both client and server).
+The pass is harmless in the client ordering, but not because of the `HashSet`
+behind `AddWorld`: that only makes re-adding the *same* world free, and
+`World.All` is a strict superset of what startup arms — `StartEcs` calls
+`AddWorld` over `_allWorlds` alone, the one or two worlds it created
+(`:2673-2675`), where the counter below measures six live worlds on a client.
+What makes the extra worlds harmless is that arming one is a set insertion with
+no other effect, so a world the mod does not care about carries an entry nothing
+ever consults.
 
 **Write it unconditionally, and note that the reason is stronger than "the extra
 pass is harmless".** Nothing in the SDK pins the ordering down: `AddWorld` and
@@ -362,10 +389,14 @@ actually cares about exist yet to arm — that is not the dedicated-server bug,
 it is the client working as intended: `StartEcs` runs its own `AddWorld` pass
 afterwards, once those worlds exist, and by then the registration from `Init()`
 is already in place. A self-check written against this counter — warning
-whenever `worlds > 0 && armed == 0` — fires on every healthy client. **No
-unhealthy state is observable from inside `Init()`**, so do not build a
-self-check there; check after the worlds you actually depend on exist, not at
-registration time.
+whenever `worlds > 0 && armed == 0` — fires on every healthy client. **The
+world count says nothing about health at registration time**, so do not build a
+self-check on it; check after the worlds you actually depend on exist. One thing
+*is* worth reading from `Init()`, and it is not a count: `BurstDisabler` logs
+`system X is already registered` (`PugMod.SDK.Runtime:835`) when a sibling mod
+un-Bursted the same system before you — the interference that makes a
+performance comparison meaningless a few sections above, and the one condition
+this early that a mod can actually act on.
 
 ### How the breakage presents itself
 
@@ -411,14 +442,22 @@ durability, pet levelling, world simulation.
 ### Proving a patch is live on the server
 
 Put a `Debug.Log` in the **static constructor** of the `[HarmonyPatch]` class.
-An explicit static ctor suppresses `beforefieldinit`, so it fires immediately
-before the first `Prefix()` call — the line appearing in the *server* log is the
-proof that the patch is live there.
+An explicit static ctor suppresses `beforefieldinit`, so it fires on the class's
+first use — which is the first `Prefix()` call **as long as nothing touches the
+class earlier**. A `[HarmonyPatch]` class that also holds a static field another
+patch reads, the shape [correlating private state](#correlating-private-state-across-two-methods) uses, runs its
+initialiser at that access instead, and the line then proves the class loaded
+rather than that the patch fired. Keep the probe class free of shared statics
+and the line appearing in the *server* log is the proof you want.
 
 Two caveats make an absent line meaningless:
 
 - **An idle dedicated server sits at `timescale = 0` and does not simulate.** A
-  player must be connected, or no system updates at all.
+  player must be connected, or nothing you patched in the simulation runs.
+  `PauseWorld` (`DedicatedServer/Pug.Other:2560-2582`) disables the
+  `SimulationSystemGroup` and nothing else — seven systems keep ticking every
+  frame, networking and command buffers among them — so "no system updates at
+  all" would be the wrong expectation to debug against.
 - The server log stops growing after world start, so read it *after* the
   session, not during.
 
@@ -458,9 +497,12 @@ cheap.
 
 ### `in`/`ref` parameters need `argumentVariations`
 
-A patch whose target has an `in` parameter — by-ref, shown as `A&` in the
-decompile — fails at load with `ArgumentException: Undefined target method for
-patch method …`. The mod itself loads and sandbox-compiles fine
+A patch whose target has an `in` parameter — by-ref, written `in A` in the
+decompiled C# and rendered `A&` in Harmony's own error text and anywhere else
+reflection names the type — fails at load with `ArgumentException: Undefined
+target method for patch method …`. Searching the `.cs` files for `A&` finds
+nothing; the parameter reads `in EquipmentUpdateAspect equipmentUpdateAspect`
+(`Pug.Other:311319`). The mod itself loads and sandbox-compiles fine
 (`safetyCheck=True`); only the bind fails. That distinguishes it cleanly from
 the Burst case, which binds and stays silent.
 
@@ -575,8 +617,12 @@ every non-tile placeable.
 
 Any side effect gated only on item identity over-fires massively. Gate instead
 on a signal that the placement actually **committed**: the `PlaceObject`
-player-state push for any placeable, `AddTile` when you specifically mean tiles,
-or the consume branch being taken. The postfix firing is not that signal.
+player-state push for any placeable, a *completed* `AddTile` when you
+specifically mean tiles, or the consume branch being taken. The postfix firing
+is not that signal — and neither is entering `AddTile`, which returns without
+queuing anything for a `tileSet` outside `0..74` and skips the
+`tileUpdateBuffer.Add` outside creative mode for tileset 2 at the four
+positions around the core (`Pug.Other:256440-256465`).
 
 This generalises to every equipment/input path in CK: assume the method is
 polled, and find the commit point.
@@ -628,17 +674,24 @@ lose:
 The robust target is the point where all routes converge. Queuing a tile means
 writing into the `TileUpdateBuffer`, and `EntityUtility.AddTile` is the
 convergence point of **equipment-driven** placement; the foreign mod calls it
-too. World generation, plant growth and the `SpawnTileOnDeathCD` handler write
-the buffer directly, without passing through it at all. Patching there lets you
-change *where* and *what* is placed without reimplementing the act of placing,
-and per-tile decisions cover grid/multi-tile placement for free — but not
-*whether* one happens: see [Never suppress an `AddTile` call to veto a placement](world-and-mechanics.md#never-suppress-an-addtile-call-to-veto-a-placement)
+too. Many other things write the buffer directly, without passing through it at
+all — world generation, plant growth and the `SpawnTileOnDeathCD` handler among
+them, but `new TileUpdateBuffer` appears at more than thirty distinct sites in
+`Pug.Other` alone, so treat those three as examples rather than as the list to
+plan around. Patching there lets you change *where* and *what* is placed without
+reimplementing the act of placing, and per-tile decisions cover grid/multi-tile
+placement for free — but not *whether* one happens: see [Never suppress an `AddTile` call to veto a placement](world-and-mechanics.md#never-suppress-an-addtile-call-to-veto-a-placement)
 for why blocking the call costs the player their item for nothing.
 
 `AddTile`'s parameters carry no player or inventory context. Get that from a
-prefix on `UpdateEquipment` marked `[HarmonyPriority(Priority.First)]` — it runs
-ahead of the foreign prefix, and the matching **postfix still runs even when a
-prefix returned `false`** — then do the actual work in the `AddTile` prefix. One
+prefix on `UpdateEquipment` marked `[HarmonyPriority(Priority.First)]` — then do
+the actual work in the `AddTile` prefix. **The priority orders your prefix, it
+does not rescue it:** a foreign prefix returning `false` does not suppress
+later prefixes at all. `WritePrefixes` iterates every prefix and ANDs each
+result into `__runOriginal`, emitting the skip only after the loop
+(`0Harmony:10287-10323`), so yours runs whatever its priority. What the priority
+buys is seeing the state *before* the foreign prefix has altered it, and the
+matching **postfix runs even when a prefix returned `false`**. One
 code path then serves both the vanilla and the modded world.
 
 Recorded as an observation, not a rule: **while a foreign prefix sat on the
@@ -873,7 +926,11 @@ cascade and desynchronise *other* mods, not only yours — see [troubleshooting]
   your edit is gone.
 - Every mod update replaces the cache folder outright. Keep a backup of the
   original file **outside** the `Scripts/` tree — a `.bak` left inside it would
-  be compiled along with everything else.
+  be compiled along with everything else — unless the manifest is the authority,
+  which it is: the loader compiles `mod.Metadata.files` filtered to `.cs`
+  (`PugMod.Loader:1737`, read at `:1301`), so a file no manifest lists is never
+  opened. A `.bak` is safe from the compiler and unsafe from the next mod
+  update, which replaces the folder; keep it outside either way.
 
 ## Reading the live ECS world from a mod
 
@@ -901,11 +958,14 @@ From there, `em.CreateEntityQuery(ComponentType.ReadOnly<…>())` →
 `ToEntityArray(Allocator.TempJob)` → `GetComponentData<T>`, `HasComponent<T>`,
 `GetBuffer<…>` all work.
 
-**Trap: the sandbox verdict is per component type, not per method.** The block
-is not on `GetComponentData` / `HasComponent` as such: `GetComponentData` over
-`ObjectDataCD` and `LocalTransform`, and `HasBuffer` / `GetBuffer` over
-`ContainedObjectsBuffer`, all load clean — which is what the scanning idiom
-above rests on. But `HasComponent<CharacterGuidCD>` plus
+**Trap: the same method passes for one component type and fails for another.**
+Which is an observation about outcomes, not a mechanism — the settings asset
+denies namespaces, types, assemblies and members, so nothing in it takes a
+generic argument into account, and how these verdicts arise has never been
+mapped. The block is not on `GetComponentData` / `HasComponent` as such:
+`GetComponentData` over `ObjectDataCD` and `LocalTransform`, and `HasBuffer` /
+`GetBuffer` over `ContainedObjectsBuffer`, all load clean — which is what the
+scanning idiom above rests on. But `HasComponent<CharacterGuidCD>` plus
 `GetComponentData<CharacterGuidCD>` (with `Hash128`) fails verification, at one
 illegal namespace, one type and one member reference, which is why the GUID
 example [further up](#correlating-private-state-across-two-methods) goes through Harmony instead. Whether the ban sits on those

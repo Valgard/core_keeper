@@ -4,6 +4,31 @@
       "_helpButtonList: 0600000005000000000000000100000002000000",
       "_helpButtonListNoJoystick: 05000000000000000100000002000000"
     ],
+    "DedicatedServer/Pug.Other:2560-2582": [
+      "private void PauseWorld(World world)",
+      "{",
+      "if (world != null)",
+      "{",
+      "world.GetExistingSystemManaged<SimulationSystemGroup>().Enabled = false;",
+      "WorldExtensions.GetExistingSystem<WorldUpdateAllocatorResetSystem>(world).Update(world.Unmanaged);",
+      "world.GetExistingSystem<BeginSimulationEntityCommandBufferSystem>().Update(world.Unmanaged);",
+      "world.EntityManager.CompleteAllTrackedJobs();",
+      "if (world == ClientWorld)",
+      "{",
+      "world.GetExistingSystem<NetworkCommandClientSystem>().Update(world.Unmanaged);",
+      "world.GetExistingSystem<LocalPresentationCueSystemGroup>().Update(world.Unmanaged);",
+      "}",
+      "else if (world == ServerWorld)",
+      "{",
+      "world.GetExistingSystem<NetworkCommandServerSystem>().Update(world.Unmanaged);",
+      "}",
+      "world.GetExistingSystem<NetworkReceiveSystemGroup>().Update(world.Unmanaged);",
+      "world.GetExistingSystem<RpcCommandRequestSystemGroup>().Update(world.Unmanaged);",
+      "WorldExtensions.GetExistingSystem<RpcSystem>(world).Update(world.Unmanaged);",
+      "world.GetExistingSystem<EndSimulationEntityCommandBufferSystem>().Update(world.Unmanaged);",
+      "}",
+      "}"
+    ],
     "DedicatedServer/Pug.Other:263259-263262": [
       "_modLoaders.Add(new SideLoader());",
       "}",
@@ -856,6 +881,34 @@
     "Pug.Other:256440": [
       "public static void AddTile(int tileSet, PugTilemap.TileType tileType, int2 position, bool isWorldModeCreative, DynamicBuffer<TileUpdateBuffer> tileUpdateBuffer)"
     ],
+    "Pug.Other:256440-256465": [
+      "public static void AddTile(int tileSet, PugTilemap.TileType tileType, int2 position, bool isWorldModeCreative, DynamicBuffer<TileUpdateBuffer> tileUpdateBuffer)",
+      "{",
+      "if (tileSet < 0 || tileSet >= 75)",
+      "{",
+      "UnityEngine.Debug.LogError($\"Trying to add invalid tileset {tileSet} for tileType {(int)tileType}\");",
+      "return;",
+      "}",
+      "TileCD tile = new TileCD",
+      "{",
+      "tileset = tileSet,",
+      "tileType = tileType",
+      "};",
+      "if (isWorldModeCreative || (tile.tileset != 2 && ((!math.all(position == new int2(0, 0)) && !math.all(position == new int2(0, 1)) && !math.all(position == new int2(-1, 1)) && !math.all(position == new int2(1, 1))) || tile.tileType == PugTilemap.TileType.roofHole)))",
+      "{",
+      "tileUpdateBuffer.Add(new TileUpdateBuffer",
+      "{",
+      "command = TileUpdateBuffer.Command.Add,",
+      "position = position,",
+      "tile = tile",
+      "});",
+      "if (tile.tileType == PugTilemap.TileType.wall)",
+      "{",
+      "tileUpdateBuffer.Add(new TileUpdateBuffer",
+      "{",
+      "command = TileUpdateBuffer.Command.Remove,",
+      "position = position,"
+    ],
     "Pug.Other:263198": [
       "public static NetworkingManager networking => main._networkingManager;"
     ],
@@ -936,6 +989,9 @@
     ],
     "Pug.Other:303957": [
       "int experienceFromDamage = PetExtensions.GetExperienceFromDamage(damageAfterReduction);"
+    ],
+    "Pug.Other:311319": [
+      "private static void PlaceItem(in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)"
     ],
     "Pug.Other:311322": [
       "if (!valueRW.canPlaceObject)"
@@ -1259,6 +1315,9 @@
     "PugMod.Loader:156": [
       "bool flag2 = ModVersion.IsCompatible(Application.version, entry.Tags);"
     ],
+    "PugMod.Loader:1737": [
+      "List<ModFile> list2 = mod.Metadata.files.FindAll((ModFile x) => x.path.EndsWith(\".cs\"));"
+    ],
     "PugMod.Loader:1742": [
       "text = Path.Combine(Application.temporaryCachePath, \"ModLoader\", mod.Metadata.name);"
     ],
@@ -1308,11 +1367,31 @@
     "PugMod.SDK.Runtime:702": [
       "public byte[] GetFile(string path)"
     ],
+    "PugMod.SDK.Runtime:731": [
+      "internal static readonly HashSet<Type> SystemTypesToDisableBurstFor = new HashSet<Type>();"
+    ],
+    "PugMod.SDK.Runtime:739-750": [
+      "[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]",
+      "private static void Init()",
+      "{",
+      "if (_harmony != null)",
+      "{",
+      "_harmony.UnpatchSelf();",
+      "_harmony = null;",
+      "}",
+      "_patchedMethods.Clear();",
+      "SystemTypesToDisableBurstFor.Clear();",
+      "SystemHandlesToDisableBurstFor.Clear();",
+      "}"
+    ],
     "PugMod.SDK.Runtime:783": [
       "public static void DisableBurstForSystemAndJobs<T>(bool burstEnabled = false)"
     ],
     "PugMod.SDK.Runtime:798": [
       "internal static void DisableBurstForSystemInternal(Type systemType, bool burstEnabled, bool addCompleteDependencyPatch)"
+    ],
+    "PugMod.SDK.Runtime:835": [
+      "UnityEngine.Debug.LogWarning(\"BurstDisabler: system \" + systemType.Name + \" is already registered\");"
     ],
     "PugMod.SDK.Runtime:841": [
       "public static void ResetWorlds()"
