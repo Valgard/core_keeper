@@ -190,8 +190,8 @@ bypass clears the **global** `BurstCompiler.Options.EnableBurstCompilation` for
 the duration of that `UpdateSystem` call (`PugMod.SDK.Runtime:963-971`), so
 everything dispatched inside the window runs un-Bursted —
 `OnStartRunning`/`OnStopRunning` through the same forwarding table included. How
-large that is for a given system is an open question, and this handbook cannot
-answer it.
+large that cost is for a given system is **unverified** — one anecdote exists,
+below, and nothing else settles it either way.
 
 What exists is a single anecdote, recorded here because the question comes up
 immediately and because knowing the evidence is thin is better than guessing:
@@ -513,7 +513,7 @@ replacing or clearing the whole invocation list, which is a hazard rather than
 a convenience: two mods that assign instead of combining can silently drop each
 other's handler.
 
-**Unverified: whether a mod's reference to it survives the sandbox.** Not
+Whether a mod's reference to it survives the sandbox is **unverified**. Not
 unexaminable, though — the settings asset denies seven assemblies and `modio.UI`
 is not among them, so nothing in the assembly deny list stands in the way; what
 is untested is the load itself, and no mod here has referenced that assembly in
@@ -743,7 +743,7 @@ Recorded as an observation, not a rule: **while a foreign prefix sat on the
 method, our own prefix on it fired without `BurstDisabler`** — and went quiet
 again when the foreign mod was removed, unless the `AndJobs` variant was used. A
 patch that only works while another mod is installed is a real and confusing
-outcome. The mechanism was not established: Burst selection is per *system*,
+outcome. The mechanism remains **unverified**: Burst selection is per *system*,
 through the enable bits that `DisableBurstForSystemPatch` flips, not per patched
 method, so a general "a patched method cannot be Burst-replaced" does not follow
 from this one case.
@@ -837,7 +837,7 @@ alone.** `SaveManager.SetCharacterId(int)` (`Pug.Other:363006-363014`) warns on
 an incompatible version and sets `_characterDead` and `_characterId` — it
 triggers no deserialize, and nothing in either tree links it to
 `CharacterData.OnAfterDeserialize`. Whatever couples them comes from the call
-site, not from the producer, and this handbook has not established it. The
+site, not from the producer, and what couples them is **unverified**. The
 pattern is sound; treat the pairing as the part you verify for your own two
 methods rather than as one demonstrated here.
 
@@ -899,8 +899,9 @@ pet's own total, read back through `GetTotalTalentPoints`, was **3550**. The
 missing 50 never passed the prefix — and had they, the same multiplier would
 have made them 2500. So the second route is not a theoretical branch: it
 delivers XP that a consumer-side patch neither sees nor scales. (The session
-mixed player damage and pet candy, so the 50 cannot be attributed to one of the
-two callers; that they bypass the consumer is what the measurement settles.)
+mixed player damage and pet candy, so which of the two callers those 50 came
+from is **unverified**; that they bypass the consumer is what the measurement
+settles.)
 
 Every skill funnels through `AddSkill` — Mining, Melee and Range via the combat
 `skillMultiplier`, Fishing, Crafting, Cooking, Gardening, Running, Vitality,
@@ -1026,8 +1027,8 @@ scanning idiom above rests on. But `HasComponent<CharacterGuidCD>` plus
 `GetComponentData<CharacterGuidCD>` (with `Hash128`) fails verification, at one
 illegal namespace, one type and one member reference, which is why the GUID
 example [further up](#correlating-private-state-across-two-methods) goes through Harmony instead. Whether the ban sits on those
-specific game-side types or on some narrower slice of the generic surface has
-never been mapped. Treat the safe set as enumerated rather than general: if a
+specific game-side types or on some narrower slice of the generic surface is
+**unverified**. Treat the safe set as enumerated rather than general: if a
 query trips the sandbox, bisect it by component rather than abandoning the
 approach.
 
