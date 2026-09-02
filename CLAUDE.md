@@ -403,6 +403,20 @@ human-facing setup; what matters when editing code here:
   purpose: `docs/specs/`, because reformatting a spec edits a record of what was
   decided, and the `ck-docs-review` skill's fixtures and scoring keys, which are
   the two halves of one calibration instrument.
+- **⚠️ That freeze holds for a file or for `.`, and breaks for any other
+  directory — `--fix docs/` rewrites the specs.** Known bug, found 2026-09-02
+  when a single such call reformatted eight `docs/specs/` files; caught in
+  `git status` before the commit, but nothing in the run says it happened.
+  `FROZEN` lists **repo-relative** prefixes (`"docs/specs/"`), while
+  `markdown_files()` treats whatever directory it is handed as the root — so
+  `--fix docs/` has `git ls-files` return `specs/….md`, and
+  `"specs/…".startswith("docs/specs/")` is `False`. Passing `.` keeps the two
+  relative to the same place and the freeze holds, which is why the hooks are
+  unaffected: they pass a root. So does plain checking, at any path — only
+  `--fix` writes. **Until it is fixed, name the file** (`--fix <file>`), which
+  is what the bullet above tells you to do anyway, **or pass `.`** — never an
+  intermediate directory. The hazard arrived with the directory arguments that
+  wired this script into the mod repos (below); before that it took files only.
 - **The wrapping gate runs in every mod repo too, since 2026-09-01.** For a long
   while it did not, while this file claimed it did, and the mod repos went
   unchecked — which is how an edit left a 143-column line in
