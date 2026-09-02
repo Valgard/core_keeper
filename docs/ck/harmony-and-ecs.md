@@ -24,7 +24,7 @@ except that your code does not run.
 |---|---|---|
 | `ArgumentException: Undefined target method for patch method …` at load | Harmony cannot resolve the target signature — typically an `in`/`ref` parameter | `argumentVariations` (below) |
 | Mod loads, `safetyCheck=True`, patch binds, prefix never fires | The target is Burst-compiled; the managed IL you patched is never executed | `BurstDisabler` (below) |
-| Works when a player hosts, dead on a dedicated server | `BurstDisabler` registered too late on the dedicated server | manual `AddWorld` pass (below) |
+| Works when a player hosts, dead on a dedicated server | an `ISystem` registered with `BurstDisabler` after the server took its snapshot — measured ordering, and it does not arise for a managed `SystemBase` | manual `AddWorld` pass (below) |
 | Mod does not compile at all (`CompileFailed`) | Not a patching problem — an ordinary compile error, or a sandbox rejection | [sandbox rules](sandbox.md) tells the two apart |
 
 ## Why a Burst-compiled `OnUpdate` cannot be intercepted
@@ -213,12 +213,14 @@ belongs to the dedicated-server binary alone. The distinction matters when
 reading a bug report: "works for me in multiplayer" from a host neither
 reproduces nor refutes it.
 
-The cause is an inverted lifecycle. `BurstDisabler.AddWorld` is called from
-exactly one place, `ECSManager.StartEcs` (`Pug.Other:2675` in the client build,
-`:2656` in the server build), and it **snapshots** the types registered up to
-that moment. Nothing back-fills that snapshot for a world already passed to
-`AddWorld` — but the set itself is not permanent, and a later world load rebuilds
-it correctly; see the bound on this below.
+The cause is the lifecycle order — which is **measured**, not derived; the
+paragraphs below say why no derivation replaces it, and one that was tried was
+wrong. `BurstDisabler.AddWorld` is called from exactly one place,
+`ECSManager.StartEcs` (`Pug.Other:2675` in the client build, `:2656` in the
+server build), and it **snapshots** the types registered up to that moment.
+Nothing back-fills that snapshot for a world already passed to `AddWorld` — but
+the set itself is not permanent, and a later world load rebuilds it correctly;
+see the bound on this below.
 
 Note what this does *not* mean: the call is present and runs on both builds, at
 the end of `ECSManager.StartEcs` once the worlds have been created. The server
@@ -314,9 +316,14 @@ permanent defect.** Unloading the worlds calls `BurstDisabler.ResetWorlds`
 (`Pug.Other:2938`, server `:2914`), which clears the handle set; the next
 `StartEcs` then runs its own `AddWorld` pass with the registration already in
 place, so a world reload arms correctly on its own. That is why the bug reads as
-"dead from launch" rather than intermittent — and why a dedicated server, which
-loads its world once at startup and keeps it, never gets the second chance a
-world switch would hand it.
+"dead from launch" rather than intermittent — and why a dedicated server, whose
+world in an observed session was loaded once at startup and kept, never got the
+second chance a world switch would hand it. Nothing in either tree makes that a
+property of the binary: the server build carries a full `UnloadWorldsInternal`
+(`:2890`), reachable from `OnSceneUnload` and from `StartEcs`'s own
+"Trying to start new ECS instance without unloading old" path (`:2622-2626`), so
+a second `StartEcs` there is not forbidden — merely not something an ordinary
+server run does.
 
 **`EarlyInit` is not the fix.** Moving the registration there fails on client
 *and* server: `TypeManager` is not initialised that early, so
@@ -367,9 +374,19 @@ durability system, for instance, sits in `EndPredictedSimulationSystemGroup` —
 but the server stays authoritative and its ghost snapshot overwrites the value a
 few ticks later. The player sees the effect flicker in and revert.
 
-Mods usually look half-broken rather than broken, because patches on *managed*
-methods (`SaveManager`, `PlayerController`, `PetExtensions`, …) are evaluated by
-the client itself and keep working. Only the ECS half goes quiet.
+Mods usually look half-broken rather than broken, because patches on methods the
+client itself reaches from managed code — `SaveManager`'s save and load path,
+the UI — keep working. Only the ECS half goes quiet.
+
+**The property is per method, not per type, and picking the type is how this
+goes wrong.** `PlayerController` and `PetExtensions` are ordinary managed
+classes that host both kinds of member, and the two this chapter builds its XP
+recipe around are the Burst-reached kind: `PlayerController.AddSkill` is the
+case [scaling a value](#scaling-a-value-that-flows-from-a-burst-producer-into-a-burst-consumer) opens with ("do not patch the producer"), and
+`PetExtensions.GetExperienceFromDamage` is called from
+`AttemptToDealDamageToEnemy` (`Pug.Other:303957`), inside that same Burst sim
+path. What survives the trap is a method managed code actually calls, which is
+not something the declaring type can tell you.
 
 Two variants worth recognising, both of which hide the problem further:
 
@@ -584,13 +601,15 @@ suspected conflict, toggle the foreign mod through the `disabledMods` set in
 `unsupportedModsToLoad` and does the opposite ([the two disable lists](troubleshooting.md#the-loaders-two-disable-lists-are-opposites)) — and
 count your own patch's invocations in both states.
 
-**A log line's count is not an event count.** A client connected to a
-dedicated server can log the same postfix more than once for a single release
-— NetCode re-prediction re-runs client-side logic, and how many times follows
-connection latency, not how many items actually arrived; a server, with no
-re-prediction, logs once per item. The zero-versus-non-zero comparison above
-still holds — an absence is an absence on either side — but do not read an
-absolute count past that as if it counted events.
+**A log line's count is not an event count.** A client connected to a dedicated
+server can log the same postfix more than once for a single release — NetCode
+re-prediction re-runs client-side logic, and how many times follows connection
+latency, not how many items actually arrived. A server logged once per item in
+the same sessions, which fits a process that does no re-prediction, though the
+re-prediction count is a NetCode runtime property that neither decompile states.
+The zero-versus-non-zero comparison above still holds — an absence is an absence
+on either side — but do not read an absolute count past that as if it counted
+events.
 
 And do not design around a change in the other mod. Whatever you ship has to
 work against the version players actually have installed, so a fix that depends

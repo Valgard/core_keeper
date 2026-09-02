@@ -934,6 +934,9 @@
     "Pug.Other:298371": [
       "public int adminPrivileges"
     ],
+    "Pug.Other:303957": [
+      "int experienceFromDamage = PetExtensions.GetExperienceFromDamage(damageAfterReduction);"
+    ],
     "Pug.Other:311322": [
       "if (!valueRW.canPlaceObject)"
     ],
