@@ -113,13 +113,15 @@ dedicated server, a fresh GUID directory per launch), and a reference that
 carries no instruction — a denied type in a field, property or local
 declaration — reports the file alone.
 
-The following were observed to fail and are *not* on the list — the reason lies
-in what the expression resolves to, not in a listed symbol:
+The following were observed to fail and are *not* on the list. Neither
+observation isolated the named expression in an assembly of its own, so what
+actually tripped the count is not established for either row — bisect by
+isolating the expression, not by reading the deny list:
 
 | Observed failure | What it resolves to |
 |---|---|
 | `Manager.saves.X()` on `SaveManager` | `SaveManager` is on no deny list. What trips is unexplained: one mod's load record shows `Manager.saves.GetWorldId()` failing verification, yet the published ItemBrowser mod calls `Manager.saves.HasDiscoveredObject(...)` — an instance method reached through the same static property — without trouble, and another mod, which reads talent point values, calls `Manager.saves.GetSkillValue(skillId)` and `Manager.saves.GetSkillTalentTreesPoints(skillTreeID)` cleanly too. Bisect the expression, not the deny list. |
-| Some game-side ECS component reads | `em.HasComponent<CharacterGuidCD>(entity)` + `GetComponentData<CharacterGuidCD>(entity)` + `Hash128` together produced 1 namespace + 1 type + 1 member illegal ref — something in that expression resolves into `System.Reflection.*` or `System.Runtime.InteropServices.*`. Bisect the expression, not the deny list. |
+| Some game-side ECS component reads | A mod's assembly reported 1 namespace + 1 type + 1 member illegal ref alongside an `em.HasComponent<CharacterGuidCD>(entity)` + `GetComponentData<CharacterGuidCD>(entity)` + `Hash128` expression — but that exact expression, isolated in an assembly of its own, **measured** 2026-09-03 (1.2.1.5-8be0) to pass verification, so the count belonged to something else the assembly referenced, not to this expression. Bisect the expression, not the deny list. |
 
 `System.IO.*` deserves its own note because the namespace ban reaches further
 than the name suggests: purely in-memory types go with it — `MemoryStream`,

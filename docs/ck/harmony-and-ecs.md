@@ -807,13 +807,29 @@ internal static class CharacterDataDiscoverySnapshot
 }
 ```
 
-That example obtains the active character's GUID, for which every direct route is
-closed: `PlayerController.characterGuid` does not exist, `Manager.saves.GetCharacterGuid()`
-is out — `SaveManager` is on no deny list, but calls through `Manager.saves` have been
-*observed* to fail verification anyway (see [what is banned](sandbox.md#what-is-banned)) —
-`HarmonyLib.Traverse` is banned as a reflection wrapper, and
-`EntityManager.HasComponent<CharacterGuidCD>` plus `GetComponentData` trips the
-sandbox on namespace, type and member.
+That example obtains the active character's GUID.
+`PlayerController.characterGuid` does not exist,
+`Manager.saves.GetCharacterGuid()` is out — `SaveManager` is on no deny list,
+but calls through `Manager.saves` have been *observed* to fail verification
+anyway (see [what is banned](sandbox.md#what-is-banned)) — and `HarmonyLib.Traverse` is banned as a
+reflection wrapper.
+
+**Correction: `EntityManager.HasComponent<CharacterGuidCD>` plus
+`GetComponentData` does not trip the sandbox.** This passage used to list that
+expression as a fourth closed route, "trips the sandbox on namespace, type and
+member." **Measured** 2026-09-03 against 1.2.1.5-8be0: eight side-loaded probes
+(`skipSafetyChecks: false`, every mod.io mod off, one expression isolated per
+assembly) all passed verification — including the full expression, reading
+`.Value` into a `Hash128` and calling `.ToString()`. The sandbox's verdict is
+per assembly and its message reports counts, not names (see [what is banned](sandbox.md#what-is-banned)), so
+attributing a count to one expression only holds when that expression was
+isolated the way this measurement isolated it; the original claim was not, and
+the real failure it recorded was misattributed. Whether a direct `EntityManager`
+read is now the better route for this particular lookup is a separate question
+this measurement does not answer: the worked example below still solves the
+correlation problem it was written for — knowing *which* character just
+deserialised is not the same question as whether `CharacterGuidCD` can be read
+at all.
 
 Nothing in the hook bodies violates the sandbox: only value-type parameters
 (`int id`), a public `string` field on a class that appears on no deny list,
@@ -1016,21 +1032,27 @@ From there, `em.CreateEntityQuery(ComponentType.ReadOnly<…>())` →
 `ToEntityArray(Allocator.TempJob)` → `GetComponentData<T>`, `HasComponent<T>`,
 `GetBuffer<…>` all work.
 
-**Trap: the same method passes for one component type and fails for another.**
-Which is an observation about outcomes, not a mechanism — the settings asset
-denies namespaces, types, assemblies and members, so nothing in it takes a
-generic argument into account, and how these verdicts arise has never been
-mapped. The block is not on `GetComponentData` / `HasComponent` as such:
-`GetComponentData` over `ObjectDataCD` and `LocalTransform`, and `HasBuffer` /
-`GetBuffer` over `ContainedObjectsBuffer`, all load clean — which is what the
-scanning idiom above rests on. But `HasComponent<CharacterGuidCD>` plus
-`GetComponentData<CharacterGuidCD>` (with `Hash128`) fails verification, at one
-illegal namespace, one type and one member reference, which is why the GUID
-example [further up](#correlating-private-state-across-two-methods) goes through Harmony instead. Whether the ban sits on those
-specific game-side types or on some narrower slice of the generic surface is
-**unverified**. Treat the safe set as enumerated rather than general: if a
-query trips the sandbox, bisect it by component rather than abandoning the
-approach.
+**Correction: an isolated `CharacterGuidCD` read passes verification too.** This
+section used to claim `HasComponent<CharacterGuidCD>` plus
+`GetComponentData<CharacterGuidCD>` (with `Hash128`) fails verification at one
+illegal namespace, one type and one member reference, and left open whether the
+ban sits on those specific game-side types or on some narrower slice of the
+generic surface. **Measured** 2026-09-03 against 1.2.1.5-8be0: the same
+eight-probe round cited [further up](#correlating-private-state-across-two-methods) isolated that exact
+`HasComponent`/`GetComponentData<CharacterGuidCD>` pair, and the full expression
+with `Hash128`, each in an assembly of its own — both passed.
+
+The premise behind the "same method, different type" framing does not
+survive that: `GetComponentData` over `ObjectDataCD` and `LocalTransform`, and
+`HasBuffer` / `GetBuffer` over `ContainedObjectsBuffer`, still load clean,
+which is what the scanning idiom above rests on — that part is untouched. But
+the count once attributed to `CharacterGuidCD` was not isolated the way this
+measurement isolated it, so it cannot stand as a case of the same method
+failing for that type specifically. What is settled is the isolation method
+itself: the sandbox's verdict is per assembly and its message reports counts,
+not names, so if a query trips the sandbox, bisect it by isolating the
+expression in an assembly of its own rather than reading the count against
+the deny lists.
 
 ### Identifying an entity as a particular object
 
