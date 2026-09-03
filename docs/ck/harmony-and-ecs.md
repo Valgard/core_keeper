@@ -513,13 +513,18 @@ replacing or clearing the whole invocation list, which is a hazard rather than
 a convenience: two mods that assign instead of combining can silently drop each
 other's handler.
 
-Whether a mod's reference to it survives the sandbox is **unverified**. Not
-unexaminable, though — the settings asset denies seven assemblies and `modio.UI`
-is not among them, so nothing in the assembly deny list stands in the way; what
-is untested is the load itself, and no mod here has referenced that assembly in
-either direction. Weigh that before reaching for it as the cheap alternative
-— a rejected reference is not a compile warning but a `CompileFailed`, which [can take unrelated mods down with it](troubleshooting.md).
-If you try it, verify the load before building anything on top.
+Whether a mod's reference to it survives the sandbox turned out not to be a
+sandbox question at all. **Measured** 2026-09-03 against 1.2.1.5-8be0: a source
+mod referencing a `modio.UI` type (`(int)default(UiViews)`) without [`accessesExtraAssemblies`](mod-anatomy.md#modmetadata-fields)
+fails to compile at `CS0246: The type or namespace name 'UiViews' could not be
+found` — the type is not visible to the compile at all, so the sandbox never
+gets a say. With the flag set, the same source compiles **and** passes
+verification. So the settings asset's assembly deny list was never the gate here
+— the mod-anatomy chapter already had the mechanism: `accessesExtraAssemblies`
+"adds every assembly loaded at game start as a metadata reference for the Roslyn
+compile," which is the switch that decides whether `modio.UI` is reachable at
+all. A rejected reference still is not a compile warning but a `CompileFailed`,
+which [can take unrelated mods down with it](troubleshooting.md).
 
 Whether CK has further hooks of this kind has not been surveyed — but checking
 the decompile for a public delegate field on the type you were about to patch is
