@@ -753,7 +753,14 @@ def build_precommit_config() -> str:
     `docs-wrapping` is its sibling and arrived a year later, not because
     nobody wanted it but because that checker took file arguments and died on
     the `.` this entry passes; a mod repo therefore could not run it, and an
-    edit that left a 143-column line in one of them committed unopposed."""
+    edit that left a 143-column line in one of them committed unopposed.
+
+    Both of those two find the parent by walking up rather than by spelling
+    `..`, and that is the same failure a second time: a literal `..` is the
+    parent only when the repo sits directly under it, which it does not in the
+    worktree the project requires all work to happen in. The hooks could not
+    start there at all, so for a second time these gates were absent from
+    exactly the path a defect would be introduced on."""
     return """repos:
     - repo: local
       hooks:
@@ -769,9 +776,18 @@ def build_precommit_config() -> str:
           # Both checkers live in the parent repo, not here: this mod repo sits
           # inside it and already reaches for ../utils/ to build and link. Each
           # takes this repo's root, so the scope is `git ls-files` here.
+          #
+          # The parent is SEARCHED FOR rather than spelled `..`, because `..` is
+          # only the parent when the repo sits directly under it. CLAUDE.md
+          # requires the work to happen in a worktree at <mod>/.worktrees/<branch>,
+          # where `..` is .worktrees/, so the hook aborted before the checker ran:
+          # every documentation commit made from a worktree failed with a spawn
+          # error rather than being examined. Loud, not silent — which is what
+          # made it survivable, and also what made it look like a gate doing its
+          # job. Walking up finds the same directory from either place.
           - id: docs-links
             name: docs links
-            entry: uv run --frozen --project .. ../utils/check_docs_links.py .
+            entry: bash -c 'd=$PWD; while [ "$d" != / ] && [ ! -e "$d/utils/check_docs_links.py" ]; do d=$(dirname "$d"); done; exec uv run --frozen --project "$d" "$d/utils/check_docs_links.py" .'
             language: system
             pass_filenames: false
             files: \\.md$
@@ -781,7 +797,7 @@ def build_precommit_config() -> str:
 
           - id: docs-wrapping
             name: docs wrapping
-            entry: uv run --frozen --project .. ../utils/check_docs_wrapping.py .
+            entry: bash -c 'd=$PWD; while [ "$d" != / ] && [ ! -e "$d/utils/check_docs_wrapping.py" ]; do d=$(dirname "$d"); done; exec uv run --frozen --project "$d" "$d/utils/check_docs_wrapping.py" .'
             language: system
             pass_filenames: false
             files: \\.md$
