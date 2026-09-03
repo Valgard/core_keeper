@@ -105,6 +105,24 @@ An UNSUPPORTED-BY-SOURCE verdict is reworded as an honest observation, never
 dropped for lack of confirmation. Corroboration is not the filter.
 Verification is.
 
+**The fix list is a checklist, and the pass is not done while any entry on it
+has no decision.** "Every lane's findings enter the fix list" says what goes
+in; it does not say when the list is exhausted. A pass that fixes every
+sourced error and every refutation can still read as complete while most of
+a lane's wording objections sit untouched — those are a separate category
+with a separate closure condition, and finishing one looks, from the outside,
+like finishing the pass. Number every finding across all three lanes and
+close the pass only once each number carries one of three outcomes: changed,
+augmented, or dismissed with a stated reason.
+
+Checking that off by diffing sentence text against the objection list
+undercounts on purpose. For an understatement the correct fix is to leave the
+true sentence standing and add beside it, not to rewrite it — so a
+closed objection can leave its original wording completely unchanged next to
+the addition that closed it, and a text diff reports it as still open. The
+list of decisions is what a completion check compares against, not the
+sentences themselves.
+
 ## Orchestrator discipline
 
 A lane's verdict informs your check; it never substitutes for it.
@@ -209,6 +227,18 @@ exists inside `docs/ck/` itself.
 **There is no `> **Correction (…):**` blockquote form.** That has been claimed
 as this project's convention before, and it was wrong — the same `grep` that
 finds `unverified` finds this claim has no instances to stand on either.
+
+**Make one of these shapes visible only when a reader could still expect the
+old claim** — because it stood for a while, was published, or is quoted
+somewhere else — and never in addition to a same-pass repair already made in
+the running text. A `### Correction:` heading built for a sentence this same
+pass had already rewritten in place corrects a version that no longer
+exists; the section reads as asserting something and immediately retracting
+it, and the only honest reader response is to ask why it is there. Match the
+scale to the defect too: the heading is for a paragraph that was wrong as a
+whole, the dated aside for a precision inside one that mostly held — a
+heading over a footnote-sized fix manufactures structure the chapter does
+not otherwise have.
 
 ## Questions nothing static can settle
 
