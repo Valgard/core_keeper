@@ -253,8 +253,21 @@ not otherwise have.
 
 ## Questions nothing static can settle
 
-Group by **the game state a measurement needs**, never by chapter: two
-questions needing the same state cost almost nothing together, two needing
+**Establish that first, rather than reading it off the heading.** A question
+that carries a marker is one an earlier pass could not settle *then*, which is
+not the same as one the decompile and the corpus cannot settle now — the tree
+has been read further since, and the answer may sit in a chapter the marker's
+author never opened. Before designing any probe, put the question to the
+decompile, to the other chapters, and to the installed mods' own sources. On
+2026-09-03 that check answered two of six markers with no launch at all, and
+one of the two had its answer in a sibling chapter the whole time.
+
+The check is cheap and its failure mode is expensive in one direction only: a
+question wrongly sent to a probe costs a measurement round, while one wrongly
+declared answerable statically is caught the moment the search comes up empty.
+
+Group what survives by **the game state a measurement needs**, never by chapter:
+two questions needing the same state cost almost nothing together, two needing
 different states are two rounds whether or not they share a chapter.
 
 **Blocking** — other statements in this chapter depend on it. Answer it
