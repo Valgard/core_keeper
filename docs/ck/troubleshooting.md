@@ -245,12 +245,30 @@ them is initialised.
 **It is not compile residue.** Nothing survives a pass: the next one `Reset`s
 every mod first — `Shutdown()` on each handler, `UndoHarmonyPatch`, bundles
 unloaded — then disposes the domain and builds a new one with
-`ScriptDomain.CreateDomain("PugMod")`. What a `CompileFailed` actually changes is
-*which* mods are live and *when* the survivors' patches bind: the retry re-does
-the whole set at a later point in the game's own initialisation. A prefix that
-was safe binding at startup is a NullRef binding mid-initialisation. (The
-observation below is verified directly; that the re-bind timing is what breaks
-the prefix is the mechanism that fits it, not something proven in isolation.)
+`ScriptDomain.CreateDomain("PugMod")`. When a retry follows, what a
+`CompileFailed` changes is *which* mods are live and *when* the survivors'
+patches bind: the retry re-does the whole set at a later point in the game's
+own initialisation. A prefix that was safe binding at startup is a NullRef
+binding mid-initialisation. (The observation below is verified directly; that
+the re-bind timing is what breaks the prefix is the mechanism that fits it,
+not something proven in isolation.)
+
+**Whether a retry follows at all is not guaranteed.** **Measured** 2026-09-03
+against 1.2.1.5-8be0: a launch with six side-loaded probe mods
+(`skipSafetyChecks: false`), the fifth failing to compile — `Player.log` holds
+exactly one `Creating modified script files` sequence, covering the first five
+mods and stopping there. The sixth mod is named in the side-loader's own
+`loaded mod … at …` line but never reaches a compile, and no second pass
+appears anywhere in the log up to shutdown at the main menu. In that launch,
+every mod after the failure in load order did not load at any point — stronger
+than "binds later." Both readings stand, dated by what each rests on: the
+chest-UI case below is a verified retry with delayed rebind timing; this is a
+verified launch with no retry at all. What decides which happens is open, so
+treat a mod's position relative to a `CompileFailed` as consequential rather
+than assume a retry will eventually come around to it. A worked consequence:
+the sixth probe mod blocked this way could still be measured — re-run on its
+own, with nothing ahead of it in load order to fail, in a launch of its own,
+which is how it was measured at all.
 
 **Logical independence between mods is a wrong prior.** In the verified case a
 chest-UI mod's `UIManager.Init` prefix started dereferencing a null
