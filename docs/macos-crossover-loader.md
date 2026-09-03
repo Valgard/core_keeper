@@ -17,6 +17,10 @@ fake ID is what makes a local build visible to it. (The loader has two further
 platforms — a `StreamingAssets/Mods` side-loader, which is how the dedicated
 server gets its mods, and Steam Workshop.)
 
+For a quick throwaway question rather than a real dev install, the side-loader
+is cheaper than any of this: it [accepts a hand-written manifest](ck/mod-anatomy.md#the-side-loader-accepts-a-hand-written-manifest)
+with no build behind it at all.
+
 ## Fake-ID dev install — loading a not-yet-published local mod
 
 Populate three locations under the CrossOver bottle, using a fake mod ID

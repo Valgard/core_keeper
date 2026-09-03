@@ -222,3 +222,7 @@ the Steam Workshop loader — load from a subscription list; the side-loader is
 the one that reads a directory instead — which is why a not-yet-published mod
 can be made loadable in more than one way, and why the dedicated server loads
 its mods from a directory rather than an account.
+
+Reading that directory is all the side-loader does — it does not require the
+mod it finds to have come from a Unity build. [What it actually accepts](mod-anatomy.md#the-side-loader-accepts-a-hand-written-manifest)
+is the cheapest way to test something quickly.

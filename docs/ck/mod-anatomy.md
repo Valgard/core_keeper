@@ -105,8 +105,12 @@ authoritative for months and change nothing. Delete it; edit the `.asset`.
 | `accessesExtraAssemblies` | `bool` | Required to load a shipped `.dll`; also adds every assembly loaded at game start as a metadata reference for the Roslyn compile. |
 | `disableHarmonyPatching` | `bool` | Suppresses the automatic Harmony pass over your compiled assembly. |
 | `requiredOn` | `[Flags] ModExistsOn` | Which side must have this mod — see below. |
-| `files` | `List<ModFile>` | `{path, guid}` per shipped file. **Build-generated; never hand-authored.** |
+| `files` | `List<ModFile>` | `{path, guid}` per shipped file. **Build-generated for a mod built through the SDK — the build recomputes it, and editing it there is still wrong.** |
 | `dependencies` | `List<Dependency>` | `{modName, required}` — the load-order dependencies. |
+
+("Never hand-authored" is the wrong scope and stood here until 2026-09-03: a mod loaded
+through [the side-loader](#the-side-loader-accepts-a-hand-written-manifest) below writes this whole list by hand, along with the rest of the
+manifest — nothing in the loader requires a build to have produced it.)
 
 Without `accessesExtraAssemblies`, loading a shipped `.dll` fails with
 `Tried to load dll for <name>, but accessesExtraAssemblies not set`.
@@ -172,6 +176,48 @@ under `Application.temporaryCachePath/ModLoader/`. Renaming it for cosmetic reas
 every dependent mod's manifest entry. Put the pretty title in `displayName` instead — the
 internal identity `ItemChecklist` and the shown title `Item Checklist` are allowed to
 differ, and normally should.
+
+## The side-loader accepts a hand-written manifest
+
+Everything above is the SDK build pipeline. The loader has a second path in
+that needs none of it: `SideLoader.Update()` (`PugMod.Loader:2127-2187`) scans
+`Application.streamingAssetsPath + "/Mods"` for directories, and for each one
+holding a `ModManifest.json` reads it with `JsonUtility.FromJson<ModMetadata>`,
+then calls `Integration.Instance.AddMod(metadata, <directory>, ModId,
+supportsCurrentVersion: true)`. The id it assigns is
+`-Mathf.Abs(metadata.name.GetHashCode())` — negative, which is what makes a
+side-loaded mod recognisable as one in [multiplayer and server](multiplayer-and-server.md).
+It re-reads a directory whenever the manifest's write time changes, and drops
+the mod once the manifest disappears.
+
+From there the ordinary load path runs, same as for a built mod: the loader reads each
+entry of `metadata.files` relative to the mod directory, source-gen-patches the texts,
+writes them into the temp `ModLoader/<name>/` tree and compiles them with [the sandbox](sandbox.md)
+active unless `skipSafetyChecks` is set (`PugMod.Loader:1296-1329`). So an unlisted file
+is never opened, and a listed `.cs` is all a code mod needs. **`files`'s
+"build-generated" above describes the SDK pipeline, not a requirement of the loader** —
+`SideLoader` never touches `ModBuilder`, and a manifest it accepts is nothing a person
+cannot type by hand: `StreamingAssets/Mods/<any directory>/ModManifest.json` naming one
+`Scripts/*.cs` file is a complete, loadable mod. Verify field names against [`ModMetadata`](#modmetadata-fields)
+rather than guessing them, and pick a `guid` that does not collide with an installed
+mod's — a collision breaks asset loading, [as below](#the-two-guids-and-the-rules-for-hand-created-files).
+
+**Which is what makes a throwaway probe cheap: a directory, not a build.** No
+Unity, no AssetBundle, no mod.io identity, no `.envrc` chain. Two properties
+decide how such a probe round is designed:
+
+- **The sandbox verdict is per assembly, and one mod compiles to one assembly.** Several
+  small probes in one launch give several independent verdicts, where one probe with
+  several references gives a single verdict over all of them. The compile-failure
+  message reports counts and no names (see [what is banned](sandbox.md#what-is-banned)), which is why isolating one
+  question per mod is what makes the answer attributable at all.
+- **A reference in code that never runs still counts.** Verification reads
+  the compiled IL, so a probe can put its reference in a method nobody calls
+  and learn whether it is allowed without executing anything.
+
+**Measured 2026-09-03, game version `1.2.1.5-8be0`:** eight hand-written
+manifests, loaded, compiled and sandbox-verified this way, with no Unity
+build behind any of them.
 
 ## The two GUIDs, and the rules for hand-created files
 
