@@ -359,10 +359,17 @@ object ID and the new-or-not flag this way.
 correlate them with a static flag. To capture the active character GUID, for
 example: a postfix on `SaveManager.SetCharacterId(int id)` sets a static
 "awaiting" flag, and a postfix on `CharacterData.OnAfterDeserialize` reads the
-public `__instance.characterGuid` field and clears it. This works because CK's
-path is strictly sequential — `SetCharacterId` → file read → JSON overwrite →
-`OnAfterDeserialize` on that specific character. No banned API is touched; you
-read a public field and a value-type argument.
+public `__instance.characterGuid` field and clears it. No banned API is
+touched; you read a public field and a value-type argument.
+
+**"Strictly sequential" is the caller's doing, not `SetCharacterId`'s.**
+`SetCharacterId` itself triggers no file read — the read and
+`OnAfterDeserialize` only follow when the specific caller that invoked it goes
+on to load a character, which not every one of its call sites does. Arming
+the "awaiting" flag on every call, as above, leaks it across a call with no
+load and pollutes whichever deserialize comes next. See [correlating private state across two methods](harmony-and-ecs.md#correlating-private-state-across-two-methods)
+for which call sites load and which don't, and for gating the flag on the
+right one instead of on `SetCharacterId` alone.
 
 ## Finding the banned identifier
 

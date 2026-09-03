@@ -885,10 +885,28 @@ intermittent.
 alone.** `SaveManager.SetCharacterId(int)` (`Pug.Other:363006-363014`) warns on
 an incompatible version and sets `_characterDead` and `_characterId` — it
 triggers no deserialize, and nothing in either tree links it to
-`CharacterData.OnAfterDeserialize`. Whatever couples them comes from the call
-site, not from the producer, and what couples them is **unverified**. The
-pattern is sound; treat the pairing as the part you verify for your own two
-methods rather than as one demonstrated here.
+`CharacterData.OnAfterDeserialize`.
+
+**Nothing couples them at the producer — the pairing is the caller's ordering.**
+`OnAfterDeserialize` is Unity's `ISerializationCallbackReceiver` hook: it
+appears once as an explicit call, in the routine that resets a character slot,
+`_ClearCharacter(int i)` (`Pug.Other:363844`); every other invocation comes from
+Unity itself, through `SaveManager.DecodeJson<T>` (`Pug.Other:362977-362981`),
+which runs `JsonUtility.FromJsonOverwrite` over the bytes read for a character.
+`SetCharacterId` has four call sites in the client tree. The one the worked
+example is about, `StartGame(int characterID)` (`Pug.Other:344095-344107`), sets
+the id and then immediately triggers the scene load —
+`Manager.load.LoadIntroScene()` or `LoadMainScene()` — and it is the character
+read that happens during that load which fires the callback.
+`GoToCharacterTypeSelection` (`Pug.Other:344109-344113`) makes the same point by
+contrast: it sets the id and pushes a menu, with no load and so no deserialize.
+
+So the two methods are coupled by nothing except the order the caller puts
+them in — the deserialize comes from Unity's serialization callback on the
+character read that the load performs. The pattern is sound; the pairing now
+rests on a named mechanism rather than an unknown, but treat it as the part
+you still verify for your own two methods rather than as one demonstrated
+here.
 
 ## Scaling a value that flows from a Burst producer into a Burst consumer
 

@@ -1106,6 +1106,28 @@
     "Pug.Other:343542": [
       "public void Deactivate(bool commit)"
     ],
+    "Pug.Other:344095-344107": [
+      "public static void StartGame(int characterID)",
+      "{",
+      "Manager.saves.SetCharacterId(characterID);",
+      "Manager.menu.isStartingGame = true;",
+      "if (Manager.saves.IsFirstTimePlayingOnAnyServer() && !Manager.saves.IsCreativeModeWorld())",
+      "{",
+      "Manager.load.LoadIntroScene();",
+      "}",
+      "else",
+      "{",
+      "Manager.load.LoadMainScene();",
+      "}",
+      "}"
+    ],
+    "Pug.Other:344109-344113": [
+      "private void GoToCharacterTypeSelection()",
+      "{",
+      "Manager.saves.SetCharacterId(saveFileId);",
+      "Manager.menu.PushMenu(RadicalMenu.MenuType.CHARACTER_TYPE_SELECTION);",
+      "}"
+    ],
     "Pug.Other:3474": [
       "public class PugDatabasePostConverter : PostConverter"
     ],
@@ -1155,6 +1177,13 @@
       "if (data.triggerEffects != value)",
       "{"
     ],
+    "Pug.Other:362977-362981": [
+      "private static bool DecodeJson<T>(byte[] data, T characterData) where T : class",
+      "{",
+      "try",
+      "{",
+      "JsonUtility.FromJsonOverwrite(Encoding.UTF8.GetString(data), characterData);"
+    ],
     "Pug.Other:363006-363014": [
       "public void SetCharacterId(int id)",
       "{",
@@ -1165,6 +1194,9 @@
       "_characterDead = false;",
       "_characterId = id;",
       "}"
+    ],
+    "Pug.Other:363844": [
+      "characterData[i].OnAfterDeserialize();"
     ],
     "Pug.Other:363867": [
       "public void WriteCharacter()"
