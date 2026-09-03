@@ -153,14 +153,37 @@ flat statement is the failure this whole programme exists to prevent.
 prose and is found by a search for that form; "nothing settles this either
 way" reads better and is invisible to one, and so is a bare `unverified` used
 as ordinary sandbox vocabulary rather than as the marker. There is no pool
-file — `grep -rn '\*\*unverified\*\*' docs/ck/` *is* the list of open
+file — `grep -rin '\*\*unverified\*\*' docs/ck/` *is* the list of open
 questions, and wording that hides from that search, or a stray unmarked use
-of the word, silently loses or pollutes it.
+of the word, silently loses or pollutes it. Case-insensitive on purpose: a
+marker written `**Unverified: whether …**`, capitalised inside a longer bold
+block, is real and open, and a case-sensitive search does not find it either.
 
 A third state never appears in the text: **unassessed**, meaning nobody has
 examined it. That is the absence of a verification commit, not a mark on a
 sentence — writing it into the chapters would paint the whole handbook with
 markers that say nothing about their subject.
+
+**A pass ends with a completion check against that search, not against how
+confident the writing feels.** Run the case-insensitive `grep` above for the
+markers that exist, then a second, wider pass for prose that could be an open
+question without ever spelling the word: "is not established", "was not
+established", "has not been established", "cannot be attributed", "has never
+been mapped", "is an open question", "nobody has", "untested". Every hit from
+either search is a decision, not a result — turn it into a proper marker, or
+record why it is deliberately not one. The check exists because the prose
+form is always the more elegant sentence to write, which is exactly why an
+open question drifts out of the register at the moment the writing is going
+well.
+
+The same register fails in the other direction when a hit sits inside a
+correction. Fixing a refuted sentence by quoting its old wording verbatim
+carries the old `**unverified**` along with it, and the search then finds a
+question that was *just answered*, indistinguishable from one still open.
+Reword the quoted claim into plain prose instead — "left open whether …",
+unmarked — rather than repeating its marker. A hit that turns up inside a
+correction paragraph is a candidate for the same completion check above, not
+an automatic count either way.
 
 ## Keep a correction visible
 
