@@ -21,6 +21,17 @@ other reader — a stray leading space mid-sentence, the shape a deletion
 leaves behind, passes both documentation gates and every lane's contract
 alike, and only a reading catches it.
 
+Run the gates once before dispatching too, not only at commit time:
+
+    uv run utils/check_docs_links.py .
+    uv run utils/check_docs_wrapping.py .
+    uv run utils/check_citation_drift.py
+
+Thirty seconds, and what it buys is the chapter's starting state — a gate
+failure found later is either something this pass introduced or something
+that was already there, and without a baseline there is no way to tell
+which.
+
 Work happens in a scratch directory outside any tracked path, made once per
 chapter and reused for the rest of this run:
 
@@ -267,7 +278,20 @@ round in a matching state takes it along.
 - **Measurement hygiene is the real cost.** A measurement counts only with the
   probe and its dependencies loaded. `DisableBurstForSystem*` registers a
   *type* (`CLAUDE.md:224-225`), so any other mod un-Bursting the same system
-  carries the probe silently and the result is worthless.
+  carries the probe silently and the result is worthless — and that
+  registration check is only half of it. Check separately who else **patches
+  the exact method** the probe measures: the registration is a type-level
+  fact, a patch on the method is a method-level one, and neither check finds
+  what the other would.
+- **The rule loosens for a binary question.** "Does the path fire at all" is
+  insensitive to a foreign mod that only shifts a number, unlike "by how
+  much" — a round built to answer the first can run with a full mod set and
+  say so; the same round would be invalid for the second.
+- **The rule does not apply to a probe that reads a world property.** A check
+  like `world.GetExistingSystem(...) != SystemHandle.Null` counts worlds the
+  engine creates, not an effect a mod's patch could have produced, so there
+  is nothing for a foreign mod to colour and nothing for the hygiene check to
+  rule out.
 - **Smoke-check before the measurement round.** Start the game once and read
   the log for whether the probe loaded and registered its points. A probe that
   fails to compile takes all its measurements with it, and without this that is
@@ -335,6 +359,15 @@ root-relative search here.
 A mod repository is a separate repository, so a correction there is its own
 commit. The sweep names both rather than assuming one commit closes it.
 
+**A citation you insert needs to say which tree it is from.** The client and
+dedicated-server decompiles the dispatch template names separately can offset
+the same method by a different line count, so an unmarked citation is only
+safe once the chapter has committed to one meaning for "unmarked" — state
+which tree a new citation is from, or confirm the chapter's own convention
+before relying on it silently. A verification pass found exactly this mixed
+within one paragraph: client offsets cited between server ones, in a chapter
+that had used "unmarked = client" throughout without ever saying so.
+
 **A line-number citation is a state reference, not a fact reference, and
 sweeping for it is a different search than sweeping for the same claim.** An
 insertion anywhere above a cited line shifts it silently — including from a
@@ -347,6 +380,14 @@ correct when written, and it is the file around it that moved.
 also find what cites *into* it by line — open every one and confirm the line
 still says what the citing sentence claims, the same way a citation is
 checked on first use.
+
+**Rewrap each touched file by name, or with `.`, never with a directory in
+between.** `check_docs_wrapping.py --fix` treats whatever directory it is
+handed as its own root, so `--fix docs/` silently rewrites the frozen
+`docs/specs/` records this sweep has no business touching — nothing in the
+tool's own output says so, only `git status` does. A sweep across several
+chapters is exactly the situation that invites running the fixer once "to
+catch everything" instead of once per file.
 
 ## Commit
 
@@ -363,6 +404,16 @@ from"): `1.2.1.5-8be0`, for example, is the current `game_version` in
 `utils/ck-citation-snapshot.json`. Read the current value from there, or from
 the decompile checkout itself — the example is a shape to match, not a value
 to copy forward.
+
+**Any citation inserted during this pass needs that same snapshot updated, in
+the same run:**
+
+    uv run utils/check_citation_drift.py --capture --game-version <version>
+
+Skip it after adding new citations and the next chapter's drift check reports
+them as "not in the snapshot" — a false positive with no relation to that
+later pass. Use the same version string as the commit line above, so the
+snapshot and the commit history agree on what was checked against what.
 
 ## Red flags
 
