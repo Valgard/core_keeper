@@ -299,12 +299,12 @@ round in a matching state takes it along.
 - **The probe is throwaway.** It lives in a mod repository, is never published,
   and is removed afterwards.
 - **A dedicated server needs a connected player.** An idle one sits at
-  `timescale = 0` and never simulates (`docs/ck/harmony-and-ecs.md:368`; the
+  `timescale = 0` and never simulates (`docs/ck/harmony-and-ecs.md:483`; the
   mechanism — `ECSManager` pausing on no connection rather than a heuristic —
-  is `docs/ck/multiplayer-and-server.md:554-555`), so a probe there logs
+  is `docs/ck/multiplayer-and-server.md:560-561`), so a probe there logs
   nothing.
   To prove a patch is live server-side, log from the `[HarmonyPatch]` class's
-  static constructor (`docs/ck/harmony-and-ecs.md:361`,
+  static constructor (`docs/ck/harmony-and-ecs.md:472`,
   `docs/ck/multiplayer-and-server.md:501`) and read the log after a session
   with a player connected.
 
@@ -336,7 +336,7 @@ saying which one is right.
 This is documented experience, not a hypothetical. Both known errors were
 corrected in two documents each. `harmony-and-ecs.md` said `BurstDisabler`
 "does nothing in multiplayer" until 2026-08-24
-(`docs/ck/harmony-and-ecs.md:186`), and the same wrong scope sat in
+(`docs/ck/harmony-and-ecs.md:239-240`), and the same wrong scope sat in
 `CLAUDE.md`'s own bullet until the same day (`CLAUDE.md:222-224`); a
 `SystemBase` precedent that never existed ran the other way, originating in
 `CLAUDE.md` and propagating into the chapter before both were corrected
