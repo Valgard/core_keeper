@@ -970,6 +970,29 @@ mixed player damage and pet candy, so which of the two callers those 50 came
 from is **unverified**; that they bypass the consumer is what the measurement
 settles.)
 
+**Neither of those two callers is reachable by a prefix either, and for the
+same reason as `PetHandlerSystem`.** `AttemptToDealDamageToEnemy` (`:303845`)
+is a `private static bool` taking `in` aspects and `NativeArray`s, and the
+pet-candy path (`:92814`) sits inside a Bursted `IJobEntity`. When a value is
+written by several paths and some of them are Burst, a prefix on the managed
+ones sees only those, and its silence looks like absence.
+
+**Poll the result instead of intercepting the write.** [`IMod.Update()`](mod-anatomy.md#the-imod-lifecycle)
+runs every frame as the mod's own managed code and is not a patch, so no
+producer — Bursted or not — can bypass it. Reading the pet's total there and
+logging it on change observes every route into it, including the ones no
+prefix can see; `GetTotalTalentPoints` is what the measurement above already
+read it back through.
+
+The trade is real: polling sees *that* the value changed, not *what changed
+it*, so it answers "which routes exist and what do they deliver", not "who
+called". Attribution has to come from separating the activities between reads
+— fight with no candy given, then feed candy with nothing to fight — not from
+the instrument itself. This is derived from the code above and from what the
+2026-09-02 session's own read-back already did, not from a probe run for this
+purpose: it is the technique that would separate the two callers above, were
+it applied, not something this pass demonstrates end to end.
+
 Every skill funnels through `AddSkill` — Mining, Melee and Range via the combat
 `skillMultiplier`, Fishing, Crafting, Cooking, Gardening, Running, Vitality,
 Summoning, Explosives. Its callers include `PlayerAttackAspect` and the inventory
