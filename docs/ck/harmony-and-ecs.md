@@ -748,10 +748,38 @@ Recorded as an observation, not a rule: **while a foreign prefix sat on the
 method, our own prefix on it fired without `BurstDisabler`** — and went quiet
 again when the foreign mod was removed, unless the `AndJobs` variant was used. A
 patch that only works while another mod is installed is a real and confusing
-outcome. The mechanism remains **unverified**: Burst selection is per *system*,
-through the enable bits that `DisableBurstForSystemPatch` flips, not per patched
-method, so a general "a patched method cannot be Burst-replaced" does not follow
-from this one case.
+outcome.
+
+**The mechanism is a registry shared by the whole process, gating one global
+flag.** `DisableBurstForSystemPatch.Prefix(SystemHandle sh, out bool? __state)`
+(`PugMod.SDK.Runtime:963-971`) patches `WorldUnmanagedImpl.UpdateSystem` and
+tests `BurstDisabler.SystemHandlesToDisableBurstFor.Contains(sh)`; on a hit it
+sets the static `BurstCompiler.Options.EnableBurstCompilation = false` for the
+duration of that system's update, restored in the postfix. That set is one
+`HashSet<SystemHandle>` for the entire process, and `AddWorld` fills it from
+every mod's `DisableBurstForSystem`/`DisableBurstForSystemAndJobs`
+registrations without recording which mod added which handle — so once *any*
+mod has registered a system for the running world, the flag it flips during
+that system's update is not scoped to that mod's own code. The installed
+PlacementPlus (mod.io `3400322`) calls
+`BurstDisabler.DisableBurstForSystemAndJobs<EquipmentUpdateSystem>()`, and
+`auto-rail-bridges` in this workspace registers the same system the same way.
+While PlacementPlus was installed, `EquipmentUpdateSystem` and the jobs it schedules
+ran un-Bursted for every mod in the process — which is why a prefix on a
+method inside that window fired without its own registration, and why
+removing PlacementPlus made it go quiet again unless the mod registered the
+system itself, which is what the `AndJobs` variant did.
+
+The general claim still does not follow from this case: Burst selection is
+per *system*, not per patched method, so "a patched method cannot be
+Burst-replaced" stays false in general — this only explains why *this*
+particular patch worked.
+
+**This is the isolation hazard, stated from the other side.** A measurement of
+your own mod, taken while a foreign mod has registered the same system,
+proves nothing about your own registration — the shared handle set is exactly
+why a foreign mod's `DisableBurstForSystem*` call can carry your patch target
+un-Bursted without your mod ever registering it.
 
 The placement *rules* themselves — which tile accepts which object — are in [world and mechanics](world-and-mechanics.md).
 

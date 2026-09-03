@@ -224,9 +224,16 @@ multiplayer" is the wrong scope and stood here until 2026-08-24;
 `docs/ck/harmony-and-ecs.md` has the evidence.) `DisableBurstForSystem` only
 *registers* the type; the bypass is armed per world by `BurstDisabler.AddWorld`,
 whose sole caller is `ECSManager.StartEcs` and which **snapshots** the types
-registered so far. A dedicated server runs `IMod.Init()` *after* `StartEcs` (the
-client runs it before), so the snapshot is taken while the registration is still
-missing. Follow every `DisableBurstForSystem*` call with:
+registered so far. **That registration is one registry shared by every mod in
+the process, not scoped to yours** — `AddWorld` resolves each registered type to
+a `SystemHandle` in one `HashSet<SystemHandle>`, and the flag
+`DisableBurstForSystemPatch` flips while a registered system updates is the
+process-wide Burst compiler switch, so a foreign mod's registration un-Bursts
+your patch target too, and a measurement taken while it is installed proves
+nothing about your own registration ([mechanism + corpus case](docs/ck/harmony-and-ecs.md#patch-the-convergence-point-to-survive-other-mods)). A dedicated
+server runs `IMod.Init()` *after* `StartEcs` (the client runs it before), so the
+snapshot is taken while the registration is still missing. Follow every
+`DisableBurstForSystem*` call with:
 
 ```csharp
 foreach (var world in World.All)   // using Unity.Entities;
