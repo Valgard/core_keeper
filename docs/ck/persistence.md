@@ -227,6 +227,31 @@ describing a HUD that does not exist in that process. They are artifacts, not an
 authoritative copy: the client's entry of the same name is a separate instance,
 and reconciling the two would overwrite something nobody asked about.
 
+**Every write saves the WHOLE file, and the first one happens inside
+`ConfigEntryBase`'s constructor — before `Bind` has registered the entry.**
+Setting a value goes `ConfigEntry<T>.Value` → `OnSettingChanged` →
+`ConfigFile.Save()`, and `Save` walks every entry in that file asking each for
+`ToDescriptionString()` (`WriteDescription`). The constructor ends in
+`BoxedValue = defaultValue`, which trips that chain for any default differing
+from `default(T)`; only afterwards does `Bind` reach `Entries[definition] =
+entry`. Three consequences, none of them local to the entry that causes them:
+
+- **One entry that throws when described makes the whole file unwritable.**
+  Every other entry in it silently stops persisting — the in-memory value
+  changes, the `.cfg` does not.
+- **A second such entry is never registered at all.** Its constructor's save
+  hits the first one and throws before registration, so the entry does not
+  exist: no row, no error of its own, and any code that catches around `Bind`
+  sees only the exception, not the absence. Whatever enumerates that file is
+  then one entry short with nothing to say why.
+- **A failed save leaves the new value in memory.** The assignment precedes
+  the save, so a UI that re-reads after writing shows the change as having
+  worked. Only the next launch disagrees.
+
+This bites specifically when a `AcceptableValueBase` subclass computes its
+description rather than returning a literal — a plausible thing to write, and
+the failure surfaces nowhere near it.
+
 **Change notification and reloading are both there.** `ConfigFile.SettingChanged`
 and the per-entry `ConfigEntryBase.SettingChanged` fire on every write, and
 `ConfigFile.Reload()` re-reads the file from disk. Together they allow a split
