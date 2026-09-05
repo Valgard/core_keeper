@@ -1132,6 +1132,66 @@ that instead derives the index from the caret's position trades an authoritative
 counter for one recomputed from glyph metrics, which is what makes every
 divergence above load-bearing.
 
+### The caret's x has a basis, and the render path sets it
+
+The blinker's x is a basis plus a glyph offset, and the basis is three summands
+rather than one: `Update` computes `pugText.transform.position.x +
+pugText.dimensions.xMin + 1f / 32f` and only then adds the glyph end position
+(`Pug.Other:343386-343387` — the method itself opens at `:343376`, so this is
+its third statement, not its first). That addend is guarded: outside
+`0 < currentCharIndex <= localCharacterEndPositions.Count` it contributes `0f`,
+so a stale or empty list collapses the caret onto the bare basis for every
+index, indistinguishable from a caret genuinely at the far left. The
+divergences described above are exactly what leaves a list in that state.
+
+So anything recovering a caret index from a position has to subtract the whole
+basis back off, and anything compared against a caret-derived number — a scroll
+offset, a clamp, a hit test — has to stay in that same basis or the two quietly
+disagree. This is not one screen's quirk: `TextInputField.Update`
+(`:354570-354577`) builds the same x basis for the other input class.
+
+**`dimensions.xMin` is not zero by nature — but only one of four writers sets it
+per alignment.** `PugText.Render` branches three ways (`:351896-351915`), and an
+empty string short-circuits before all of them with `dimensions = Rect.zero`
+(`:351864`). On the pooled pixel path `PugFont.Render` sets `xMin` per
+horizontal alignment: `0 + rightToLeftXOffset` for `left` (`:350726`),
+`round(-width / 2) + rightToLeftXOffset` for `center` (`:350731`), `-width +
+rightToLeftXOffset` for `right` (`:350747`). On the dynamic path
+`RenderDynamicText` builds it from TMP mesh bounds instead (`:352042`), where
+alignment enters only through the pivot. And in the non-pooled branch
+`pooledObj` is null, so the write at `:350766-350768` never happens at all and
+`dimensions` keeps whatever the previous render left in it.
+
+A bound written as `dimensions.width - w` and one written as `dimensions.xMin +
+dimensions.width - w` are therefore the same number for left-aligned text on the
+pixel path, and different numbers otherwise — which is what makes a left-aligned
+bench prove nothing about the general case. Which path a given `PugText` takes
+is decided by the two doors described under [glyph positions](#glyph-positions-are-not-string-positions).
+
+**No shipped language is right-to-left, and that is the whole of what keeps the
+RTL machinery inert.** `rightToLeftXOffset` is added only while
+`LocalizationManager.IsRight2Left && localized` (`:350484-350486`), and
+`UpdateStyleOverrides` separately turns a `left` style into `right` under the
+same condition when the style sets `invertHorizontalAlignment`
+(`:351384-351388`) — 21 of the 135 shipped prefabs carrying that field set it.
+`IsRight2Left` is I2's, tested against a 21-entry list (`ar-*`, `fa`, `he`,
+`ur`, `ji`), and none of the thirteen languages that reach it (`en`, `de`,
+`fr`, `pt-BR`, `it`, `ja`, `ko`, `ru`, `es`, `uk`, `zh-CN`, `zh-TW`, `th`) is
+on that list.
+
+**Do not read those thirteen off `I2Languages.asset`, and do not read them as
+fixed.** The importer calls `ClearAllData()` — which empties `mLanguages` — and
+rebuilds the set from the `LanguageDataBlock`s in the object database
+(`Pug.Other:276441-276444`). The asset's own thirteen are discarded first; that
+the same thirteen come back is a result, not a guarantee. `AddLanguage(name,
+code)` then writes whatever code it is handed, with no whitelist — and a mod
+can reach it today, because CoreLib's localisation module calls exactly that
+(`LocalizationModule.cs:132` in the CoreLib source). An `ar`, `he`, `fa`, `ur`
+or `ji` from any mod therefore flips `IsRight2Left`, turns an authored `left`
+row into a `right` one, and moves its `xMin` from `0` to `-width` without a
+prefab changing anywhere. The inertness is a property of what happens to be
+installed, not of the code — see also [the localisation table's format](localisation.md).
+
 ### The typing path repeats keys on a timer of its own
 
 `Input.GetKeyDown` is an edge: one frame per press. CK's typing path is not.
