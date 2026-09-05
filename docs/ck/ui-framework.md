@@ -1217,9 +1217,55 @@ once while vanilla keeps going.** Hold the arrow key and the caret walks the
 whole value while the mod's reaction to it happens a single time. Switching to
 `Input.GetKey` is not the fix either: that fires *every* frame while vanilla
 moves only on its own ticks, so anything the patch does to compensate for
-vanilla's action is now wrong on all the frames in between. Matching the
-behaviour means carrying an equivalent timer — the two intervals above are the
-whole of it.
+vanilla's action is now wrong on all the frames in between.
+
+**Carrying an equivalent timer is the obvious answer, and `typingInputCooldown`
+is one field rather than one per key** (`:269210`). Whichever *key* fires
+restarts that same timer — not whichever branch, which is the tempting
+shorthand and is wrong: `Start` sits inside `IsKeyDown`'s `if` (`:269698`), so
+a call returning false restarts nothing, and the paste branch (`:269667`), the
+`Input.inputString` branch (`:269671`) and `:269636` reached through
+`IsMenuBackButtonDown()` all claim a frame without any `Start` running. A
+private copy receives none of those resets, so it drifts once a second key
+takes a turn, and the two intervals become literals in the mod with nothing
+tying them to the game's.
+
+**The timer can be read instead of reproduced.** It is private, which
+`API.Reflection` reaches inside the sandbox (see [resolving a private member](sandbox.md#reaching-a-private-member-resolving-it-is-only-half-the-job)),
+and that route hands back a boxed *copy* of the struct — so reading
+`isTimerElapsed`, whose getter ticks the timer forward
+(`Pug.UnityExtensions:7805-7812` and `:7816`), leaves the game's own field
+alone. The copy belongs to the **route**, not to the field: Harmony's `ref
+___field` injection reaches the same kind of private `TimerSimple` by
+*reference*, where no such guarantee holds. A shipping third-party mod turns
+that difference into a feature — it reads one of these cooldowns through
+`API.Reflection`, fast-forwards the local, and writes it back with `SetValue`,
+which is only necessary because the read was a copy.
+
+**Read it in a prefix.** Anything downstream of `IsKeyDown` sees the post-`Start`
+state — `timer = 0f`, `isRunning = true` (`Pug.UnityExtensions:7866-7875`) — so
+`isTimerElapsed || !isRunning` is false there whether or not it *had* been ready.
+A prefix on `HandleTypingInput` reads it before any branch consumes it. That is
+not the only workable shape and this section does not rule the others out:
+`IsKeyDown` is an ordinary private method with a single declaration (`:269693`),
+so a postfix on it carries vanilla's own per-key verdict in `__result` and needs
+no timer at all.
+
+**What a prefix captures is only half of vanilla's condition, and dropping the
+other half puts the bug back.** `:269696` leads with `Input.GetKeyDown(keyCode)`,
+which fires irrespective of the timer — so a patch acting on the captured value
+alone goes silent on a press edge that lands while another key's `Start` is still
+running, which is exactly the failure being fixed. The mod's own test has to be
+`Input.GetKeyDown(key) || (captured && Input.GetKey(key))`.
+
+That combination is an over-set of vanilla's per-key condition, because a prefix
+cannot know which branch will claim the frame: it reports ready in frames where
+Backspace (`:269628`), Delete (`:269632`) or the Return branch (`:269636`) takes
+it and no arrow moves at all. Whether the surplus is harmless is a property of
+the patch and not of the game — it is, for one that recomputes an absolute target
+from the current state; it is not for one that steps relative to a remembered
+value, appends, plays a sound, or sends anything, where a spurious fire at 20 Hz
+is its own defect.
 
 **`IsKeyDown` also has a side effect worth knowing.** It sets
 `typingActionWasClicked` from `GetKeyUp || GetKeyDown || GetKey` (`:269695`), and
