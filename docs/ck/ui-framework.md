@@ -1246,10 +1246,11 @@ which is only necessary because the read was a copy.
 state — `timer = 0f`, `isRunning = true` (`Pug.UnityExtensions:7866-7875`) — so
 `isTimerElapsed || !isRunning` is false there whether or not it *had* been ready.
 A prefix on `HandleTypingInput` reads it before any branch consumes it. That is
-not the only workable shape and this section does not rule the others out:
-`IsKeyDown` is an ordinary private method with a single declaration (`:269693`),
-so a postfix on it carries vanilla's own per-key verdict in `__result` and needs
-no timer at all.
+not the only workable shape: `IsKeyDown` is an ordinary private method with a
+single declaration (`:269693`), so a postfix on it carries vanilla's own per-key
+verdict in `__result` and needs no timer at all. That route has since been
+measured; it is described below, along with what a foreign mod can do to the
+guarantee it rests on.
 
 **What a prefix captures is only half of vanilla's condition, and dropping the
 other half puts the bug back.** `:269696` leads with `Input.GetKeyDown(keyCode)`,
@@ -1266,6 +1267,65 @@ the patch and not of the game — it is, for one that recomputes an absolute tar
 from the current state; it is not for one that steps relative to a remembered
 value, appends, plays a sound, or sends anything, where a spurious fire at 20 Hz
 is its own defect.
+
+**The postfix route removes that surplus for a vanilla install, and it has been
+measured.** The chain holds six `IsKeyDown` calls on five lines — `:269628`,
+`:269632`, `:269636` twice, since Return and KeypadEnter share a branch,
+`:269659` and `:269663` — and those are the only calls in the assembly. So once
+Backspace claims the frame the arrows are never asked about, and no arrow verdict
+exists to be surplus. What reading could not settle is whether a private method
+this small survives the JIT: inlining is a known Harmony pitfall, and a patch on
+an inlined callee binds cleanly and never fires. Measured in game rather than
+argued — a postfix on `:269693` does fire, first observed call
+`Backspace -> False`. No mod in the installed corpus had patched it before.
+
+**"In the assembly" is the load-bearing qualifier, and a mod can break it.**
+BetterTextInput ships an accessor assembly and calls `MenuManager.IsKeyDown` from
+its own `HandleTypingInput` *prefix*, ahead of the chain that would have
+short-circuited — for thirteen key codes, the two arrows among them. A postfix
+cannot tell whose call it is answering, so with such a mod loaded an arrow
+verdict can exist in a frame the game itself never asks about arrows, and whether
+a clearing prefix runs after that probe is Harmony's load order rather than a
+guarantee.
+
+**What comes back is far smaller than what the chain removes**, and the
+difference is one argument: every one of those arrow probes passes
+`checkOnlyOnPressedDown: true`, which gates off the `GetKey`-and-timer disjunct
+at `:269696` — the same opt-out Return and KeypadEnter use. So they answer `true`
+on a press edge only, at most one stray verdict per physical press, against the
+20 Hz repeat stream a held key produces. Two surpluses two orders of magnitude
+apart, and reading them as the same thing overstates the hazard.
+
+**The larger foreign hazard is not the postfix's at all — it is the shared
+timer.** `typingInputCooldown` is one field (`:269210`), and a foreign probe that
+returns `true` restarts it through `:269698`. BetterTextInput probes `Escape`,
+`Home`, `End`, both vertical arrows, `A`, `C` and `X`, none of which vanilla's
+chain asks about, so the timer is restarted in frames it otherwise would not be —
+which moves the repeat schedule under a **prefix** reading that same field just
+as much as under a postfix. It also cancels vanilla's body outright on several of
+those branches and forces its own postfix result to `true`. So a mod that reaches
+into this path is a hazard to either shape; the qualifier above is about which
+guarantee it breaks, not about which route is exposed.
+
+**What the postfix does not give up is the press/repeat distinction**, which is
+worth saying because the verdict looks like it must. `IsKeyDown` returns `true`
+for the press edge and for every repeat through the same `return` (`:269699`), so
+`__result` on its own does not separate them — but a postfix holds `keyCode` and
+runs inside the same `MenuManager.Update()` frame, so `Input.GetKeyDown(keyCode)`
+there is vanilla's own first disjunct and separates them exactly. The 0.3f/0.05f
+written at `:269698` is a second route to the same answer — it lands in
+`TimerSimple.lifespan`, which is a public field (`Pug.UnityExtensions:7795`,
+assigned at `:7879`) — but a narrower one than it looks: the write sits inside
+the `if`, so it says nothing after a `false` return and the shared field may
+still carry another key's value, and `typingInputCooldown` itself is private, so
+reaching it still costs the reflection route described above. The keyCode route
+needs none of that.
+
+So both shapes can reach both halves, and between them the press/repeat question
+is about which is cheaper to ask rather than which is answerable. That is not a
+claim that the two are equally precise: the prefix's verdict remains the over-set
+described above, true of the frame rather than of a key, and that difference is
+untouched by any of this.
 
 **`IsKeyDown` also has a side effect worth knowing.** It sets
 `typingActionWasClicked` from `GetKeyUp || GetKeyDown || GetKey` (`:269695`), and
