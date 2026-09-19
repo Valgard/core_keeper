@@ -929,7 +929,19 @@ consequences follow, and neither has a workaround inside your subclass, because
 
 - **Escape is not a cancel.** For every mod built on this base class, backing out
   of a field commits whatever is typed, exactly like Enter. If you need a cancel,
-  it has to come from a patch, not from an override.
+  it has to come from a patch, not from an override. A patch on
+  `MenuManager.HandleTypingInput` can supply one: its prefix still sees
+  `IsMenuBackButtonDown()`, and its postfix runs in the same call, after the body
+  has cleared the field — so the row can be put back before anything reads it.
+  Measured working on game 1.2.1.5.
+- **The back key in a menu text field is Rewired action 6**, which
+  `IsMenuBackButtonDown()` reads (`Pug.Other:267169`). The binding lives in
+  Rewired asset data rather than in the decompile, so it was measured rather than
+  read: one Escape press while a field was active produced exactly one hit
+  (2026-09-19). Worth stating because `Manager.input.GetButtonDown(int)` returns
+  **`false` silently** for an action outside the active map — a wrong id never
+  raises anything, it only makes the key appear to do nothing, which is
+  indistinguishable from a feature that is wired up wrongly.
 - **A transition-based commit cannot see intent.** Since the only usable "the user
   is done" signal is `activeInputField` moving away from your row, and the flag
   saying *why* is gone by then, every ending looks the same from inside the row.
