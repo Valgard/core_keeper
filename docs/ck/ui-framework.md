@@ -887,11 +887,32 @@ controller still reach it, so an in-game check that does not deliberately click
 the blank row will not find this. If blank rows are a legitimate state in your
 UI, size from a frame sprite or a constant rather than from the text.
 
-**On a controller, ALL text entry goes through the on-screen keyboard — and its
-result arrives without a frame boundary.** `HandleTypingInput` takes the OSK branch
-whenever `!SystemPrefersKeyboardAndMouse()`, so `AppendString` is never reached
-there. The result handler, `MenuManager.TrySetInputText` (`Pug.Other:269678`),
-then does both of these in **one synchronous callback**:
+**On a controller, text entry goes through the on-screen keyboard — when the
+keyboard actually opens.** `HandleTypingInput` enters the OSK block whenever
+`!SystemPrefersKeyboardAndMouse()`, but that block returns only on success: it
+asks `Manager.platform.platformImpl.GetControllerTextInput(…)` and returns `true`
+only if that returns `true` (`Pug.Other:269620-269624`). On `false` there is **no
+`else`** — execution falls out of the block at `Pug.Other:269625` and continues
+into the ordinary keyboard chain, reaching `AppendString`, the arrow keys and
+`Deactivate(!IsMenuBackButtonDown())` at `:269652`, all while
+`SystemPrefersKeyboardAndMouse()` is still false.
+
+**That is not a theoretical branch.** Both shipped implementations return `false`
+in reachable situations: the Steam one when `SteamUtils.ShowGamepadTextInput`
+fails, e.g. with the overlay unavailable (`Pug.Other:286911-286913`), and the
+fallback platform's **unconditionally** (`Pug.Other:288045`). So a mod that gates
+behaviour on the input device — "this only matters for keyboard players, the
+controller path is handled elsewhere" — silently excludes controller players
+whose keyboard never appeared, while vanilla goes on treating their input as
+keyboard input. Gate on what the code path does, not on which device is
+plugged in. (Found 2026-09-19 building MSM-12 in `mod-settings-menu`, after an
+earlier version of this very paragraph said "ALL text entry" and a design was
+built on that word.)
+
+Where the keyboard does open, its result arrives **without a frame boundary**:
+`AppendString` is never reached, and the result handler,
+`MenuManager.TrySetInputText` (`Pug.Other:269678`), does both of these in **one
+synchronous callback**:
 
 ```csharp
 Manager.input.activeInputField.SetInputText(input);
@@ -899,10 +920,13 @@ Manager.input.activeInputField.Deactivate(success);
 ```
 
 Any logic that watches for "the text changed *while* this field was active" will
-therefore never fire on a controller: while the keyboard is open the text does not
+therefore never fire **on this path**: while the keyboard is open the text does not
 move, and in the frame it does, `activeInputField` is already null. Watch the
 previous frame's ownership as well, or the field silently behaves as read-only for
-every controller player while looking editable.
+every controller player while looking editable. Note the scope: *this path*, not
+"on a controller" — where the keyboard fails to open, the same player types
+through the ordinary chain (above) and that logic fires normally. Both halves have
+to work, and neither is the controller case on its own.
 
 Two details that make this hard to notice: **cancelling** the keyboard is a
 different path (no `SetInputText` runs at all, so cancel-shaped tests pass), and
