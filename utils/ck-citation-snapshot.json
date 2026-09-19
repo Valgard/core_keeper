@@ -930,11 +930,24 @@
     "Pug.Other:2654": [
       "_allWorlds.Add(CreateServerWorld(\"ServerWorld\", worldId));"
     ],
+    "Pug.Other:267169": [
+      "return system.GetButtonDown(6);"
+    ],
     "Pug.Other:267323": [
       "public bool SystemIsUsingMouse()"
     ],
     "Pug.Other:2675": [
       "BurstDisabler.AddWorld(allWorld);"
+    ],
+    "Pug.Other:269620-269624": [
+      "}, Manager.input.activeInputField.IsHidden()))",
+      "{",
+      "isShowingControllerTextInput = true;",
+      "return true;",
+      "}"
+    ],
+    "Pug.Other:269625": [
+      "}"
     ],
     "Pug.Other:269675": [
       "return true;"
@@ -963,11 +976,25 @@
     "Pug.Other:273386": [
       "if (Manager.input.textInputIsActive)"
     ],
+    "Pug.Other:276441-276444": [
+      "i2LanguageData.ClearAllData();",
+      "foreach (LanguageDataBlock item in list)",
+      "{",
+      "i2LanguageData.AddLanguage(item.name, item.ISO6391);"
+    ],
     "Pug.Other:279626": [
       "string s = JsonUtility.ToJson(modConfigFile, prettyPrint: true);"
     ],
     "Pug.Other:285322": [
       "public void InitWorld(World world)"
+    ],
+    "Pug.Other:286911-286913": [
+      "if (!SteamUtils.ShowGamepadTextInput(hidden ? GamepadTextInputMode.Password : GamepadTextInputMode.Normal, GamepadTextInputLineMode.SingleLine, description, maxChars, currentText))",
+      "{",
+      "return false;"
+    ],
+    "Pug.Other:288045": [
+      "return false;"
     ],
     "Pug.Other:2938": [
       "BurstDisabler.ResetWorlds();"
@@ -1099,6 +1126,10 @@
     ],
     "Pug.Other:343386": [
       "float num = pugText.transform.position.x + pugText.dimensions.xMin + 1f / 32f;"
+    ],
+    "Pug.Other:343386-343387": [
+      "float num = pugText.transform.position.x + pugText.dimensions.xMin + 1f / 32f;",
+      "num += ((currentCharIndex > 0 && currentCharIndex <= pugText.localCharacterEndPositions.Count) ? pugText.localCharacterEndPositions[currentCharIndex - 1].x : 0f);"
     ],
     "Pug.Other:343398": [
       "while (maxWidth > 0f && pugText.dimensions.width > maxWidth)"
@@ -1257,6 +1288,31 @@
     ],
     "Pug.UnityExtensions:5349": [
       "public static int Clamp(int x, int low, int high)"
+    ],
+    "Pug.UnityExtensions:7795": [
+      "public float lifespan;"
+    ],
+    "Pug.UnityExtensions:7805-7812": [
+      "public float elapsedTime",
+      "{",
+      "get",
+      "{",
+      "Update();",
+      "return timer;",
+      "}",
+      "}"
+    ],
+    "Pug.UnityExtensions:7866-7875": [
+      "public void Start(bool reset = true)",
+      "{",
+      "if (reset)",
+      "{",
+      "isRunning = false;",
+      "timer = 0f;",
+      "}",
+      "Update();",
+      "isRunning = true;",
+      "}"
     ],
     "PugConversion:632-650": [
       "",
@@ -1569,6 +1625,9 @@
       "BurstCompiler.Options.EnableBurstCompilation = false;",
       "}",
       "}"
+    ],
+    "PugRP:1450": [
+      "private int m_outputHeight = 270;"
     ],
     "PugSprite:42": [
       "public class GradientMapDataBlock : ScriptableDataBlock"

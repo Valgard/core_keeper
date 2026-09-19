@@ -965,10 +965,17 @@ multiplier at 50×. The prefix accounted for eleven grants totalling 3500 XP; th
 pet's own total, read back through `GetTotalTalentPoints`, was **3550**. The
 missing 50 never passed the prefix — and had they, the same multiplier would
 have made them 2500. So the second route is not a theoretical branch: it
-delivers XP that a consumer-side patch neither sees nor scales. (The session
-mixed player damage and pet candy, so which of the two callers those 50 came
-from is **unverified**; that they bypass the consumer is what the measurement
-settles.)
+delivers XP that a consumer-side patch neither sees nor scales.
+
+The session mixed player damage and pet candy, and the amount itself tells the
+two callers apart. The common `PetCandyEntity` is authored at `xp: 50`
+(`Resources/Assets/GameObject/PetCandyEntity.prefab:117`; the rare and epic
+tiers carry 500 and 5000), so candy produces that number by design. The damage
+caller would have had to land a hit of 1000-1019 after reduction to reach it
+through `clamp(dmg / 20, 1, 250)` — against eleven pet grants the prefix scaled
+to 3500, i.e. about six raw XP each and so roughly 128 damage per hit. Candy is
+therefore what the numbers support, on the amount rather than on a log line that
+named the caller.
 
 **Neither of those two callers is reachable by a prefix either, and for the
 same reason as `PetHandlerSystem`.** `AttemptToDealDamageToEnemy` (`:303845`)
