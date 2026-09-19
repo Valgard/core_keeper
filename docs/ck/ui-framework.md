@@ -80,18 +80,32 @@ movement is only the most visible way that happens: an assigned element that
 stops being visible opens it too, as does a pointer already resting over empty
 space.
 
-**A click is delivered to `Manager.ui.currentSelectedUIElement`, not to whatever
-sits under the cursor** — `Manager.ui.currentSelectedUIElement?.LeftClick(…)`
-(`:356024`). That selection is assigned **unconditionally**
-(`UIManager.OnUIElementSelected`, `:273422`), after a deselect branch that runs
-*before* it (`:273418`) and — unlike `DeselectAnySelectedUIElement` — never
-calls `DeselectAnyCurrentOption`, so `selectedIndex` survives a code-driven
-switch where it would not survive a hover-driven one. Selection is assigned
-first and branched on after, so **being selected and being highlighted are
-different things.** The case where they come apart is documented further down:
-an option outside the top menu's `menuOptions` becomes the selection like any
-other, while `SelectOption` finds no index for it and returns without a marker
-or a sound ([a child option that is never registered](#a-sub-element-must-not-be-a-radicalmenuoption)).
+**A click is dispatched through `Manager.ui.currentSelectedUIElement`, not
+through whatever the ray just hit** — but on an ordinary click those are the
+same element. The interact press is itself the second disjunct of the gate
+below, so `TrySelectNewElement` re-derives the selection from the ray in the
+same pass, immediately before the dispatch. The two come apart only where that
+re-derive did not happen — `flag2` set that frame, or a prefix of your own — and
+that is what a selection assigned from code is betting on. Which handler
+receives the click then depends on what is selected: an `InventorySlotUI` goes
+through the repair / trash / lock / move branch (`:355930`), everything else
+through `Manager.ui.currentSelectedUIElement?.LeftClick(…)` (`:356024`).
+
+That selection is assigned **unconditionally** (`UIManager.OnUIElementSelected`,
+`:273422`), after a deselect branch that runs *before* it and only for a
+non-`isMenuOption` predecessor (`:273418`). Unlike
+`DeselectAnySelectedUIElement` it never calls `DeselectAnyCurrentOption`, so it
+never clears `selectedIndex` to `-1` — but it does not leave the index alone
+either: an incoming element that reports `isMenuOption` ends in
+`Manager.menu.SelectOption` (`:273427`-`:273430`), which moves the index onto
+that option (`:342830`) exactly as hover does. Selection is assigned first and
+branched on after, so **being selected and being highlighted are different
+things** — and both of those differences turn on one condition. An option
+outside the top menu's `menuOptions` becomes the selection like any other, while
+`SelectOption` finds no index for it and returns without a marker or a sound
+([a child option that is never registered](#a-sub-element-must-not-be-a-radicalmenuoption)); the index it did not move is then
+left wherever it was, where the hover path would have cleared it to `-1` on the
+way in.
 
 **A menu option's highlight is no evidence that this element carries a
 collider.** What the option draws follows from `IsSelected()`, which asks only
@@ -1940,7 +1954,9 @@ same branch. `IsMenuMouseInteractButtonPressed` (`:267246`) is the held state,
 **The mouse does not travel this path at all.** It runs through `UIMouse`
 (`:355288`), which drives `Manager.ui.currentSelectedUIElement` from hover (§
 "How `UIMouse` picks and selects an element") and re-derives that selection
-whenever the pointer moves onto something else. So a mode built out of the
+whenever its gate opens — pointer movement is the usual trigger, but an interact
+press, a selection that has gone or stopped being visible, and a ray that hits
+nothing each open it with the pointer standing still. So a mode built out of the
 levers above is controller/keyboard only; giving it a mouse equivalent means a
 **second, separate path** — read the held state, read CK's hover selection as
 the target, act on release — that meets the first one at the operation, not at
@@ -1962,9 +1978,10 @@ from the pointer or the keyboard?" test, for which no reliable flag exists (see
 
 The trap inside the trap: restoring the focused control from your own state
 inside `OnSelected` looks like the obvious fix and is **unstable**: the row is
-selected (sound), your code redirects to the button, and the ray still points at
-the row, so the next re-derive selects the row again (sound) and the redirect
-fires again. `Select()`'s guard does not stop it — the redirect is what makes
+selected (sound), your code redirects to the button while the ray still points
+at the row, so the next time the gate opens the row is no longer the current
+selection and is selected again (sound) — and the redirect fires again.
+`Select()`'s guard does not stop it — the redirect is what makes
 the row differ from the current selection each time. A literally motionless pointer
 settles after one round *if* the redirect target stays visible — hide or disable
 it, as a row rebuild does, and the fifth disjunct keeps the fight going with the
