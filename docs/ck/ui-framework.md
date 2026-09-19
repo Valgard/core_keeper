@@ -66,11 +66,94 @@ Inheriting from `UIelement`, reading `Manager.input` and touching
 
 ### How `UIMouse` picks and selects an element
 
-`UIMouse.UpdateMouseUIInput()` (`Pug.Other` ~355773) re-runs
-`Physics.RaycastNonAlloc` against `ObjectLayerID.UILayerMask` **every frame**
-and calls `TrySelectNewElement`. `Manager.ui.currentSelectedUIElement` is
-therefore owned by that raycast: a selection you assign from code is clobbered
-on the next frame.
+`UIMouse.UpdateMouseUIInput()` (`Pug.Other` ~355773) casts a UI-layer ray
+through `Manager.physics.RaycastNonAlloc` (`:355872`) on every frame it runs —
+and it runs at most once per frame: `hasDoneMouseUpdateThisFrame`
+(`:355777`) makes a second call return early without re-running the body, and
+several conditions below it return before the ray is cast at all.
+`isMouseShowing` (`:355789`) is not one of them — it wraps the body, and its
+`else` releases a grabbed item (`:356060`). Whether it then calls
+`TrySelectNewElement` is a separate question, answered by the gate below.
+`Manager.ui.currentSelectedUIElement` is nonetheless owned by that raycast: a
+selection you assign from code is clobbered as soon as the gate next opens, and
+movement is only the most visible way that happens: an assigned element that
+stops being visible opens it too, as does a pointer already resting over empty
+space.
+
+**A click is delivered to `Manager.ui.currentSelectedUIElement`, not to whatever
+sits under the cursor** — `Manager.ui.currentSelectedUIElement?.LeftClick(…)`
+(`:356024`). That selection is assigned **unconditionally**
+(`UIManager.OnUIElementSelected`, `:273422`), after a deselect branch that runs
+*before* it (`:273418`) and — unlike `DeselectAnySelectedUIElement` — never
+calls `DeselectAnyCurrentOption`, so `selectedIndex` survives a code-driven
+switch where it would not survive a hover-driven one. Selection is assigned
+first and branched on after, so **being selected and being highlighted are
+different things.** The case where they come apart is documented further down:
+an option outside the top menu's `menuOptions` becomes the selection like any
+other, while `SelectOption` finds no index for it and returns without a marker
+or a sound ([a child option that is never registered](#a-sub-element-must-not-be-a-radicalmenuoption)).
+
+**A menu option's highlight is no evidence that this element carries a
+collider.** What the option draws follows from `IsSelected()`, which asks only
+whether the parent menu's selected option is this one (`:343101`-`:343104`) —
+the ray appears nowhere in that answer. What an element needs in order to be
+selectable *by the pointer* is listed below.
+
+**The selection is not always re-derived.** `TrySelectNewElement` sits behind
+`!flag2 && (six disjuncts)` (`:355919`): a gamepad system, an interact button
+down this frame, the pointer *moved*, nothing currently selected, the current
+selection no longer visible, or no visible `UIelement` under the ray. The first
+is not a property of the machine but of the moment: it reads
+`!SystemPrefersKeyboardAndMouse()` (`:355795`, inside the `isMouseShowing`
+branch). That predicate (`:267309`) asks Rewired for the last active *device*,
+and a keyboard answers it as affirmatively as a mouse — so the disjunct is off
+for a keyboard player just as for a mouse one, and off whenever Rewired reports
+no last-active controller at all — the null-conditional chain at `:267311`
+covers a missing player or controller collection as much as a session in which
+nothing has been pressed yet. What makes a device "last active" is Rewired's own
+bookkeeping and is not in the decompile. The fallback, `touchpadInUse`, is
+reached by whatever is *neither* a keyboard nor a mouse (`:267314`) — a gamepad,
+but equally any other controller type Rewired reports. `UpdateMouseUIInput`
+writes that field itself (`:355793`, `:355901`), as does one site outside it
+(`:130240`). The gate is shut when `flag2` is set, and otherwise only when **all
+six** fail at once: mouse input, no press this frame, a pointer that has not
+moved since the last re-derivation, something selected, that something still
+visible, and a visible `UIelement` under the ray. (`flag2` is the gamepad path's
+own "already selected this frame" latch, set at `:355850`, and is reachable only
+while the system prefers a controller.)
+
+The last three catch people out. A collider that shrinks out from under a
+stationary pointer makes the ray miss and opens the gate by itself — the
+mechanism behind the backspacing row described under [a text row in a menu](#a-text-row-in-a-menu-radicalmenuoptiontextinput).
+And what an element that *appears* under a resting pointer does depends on what
+was selected a moment earlier: over empty space the pointer has already been
+deselected (`:273441`), so `currentSelectedUIElement == null` holds the gate open
+and the new element is picked up at once; with some other element still selected
+and visible, the gate stays shut, nothing is re-derived, and that older highlight
+stays where it is.
+
+A second call site skips the gate entirely (`:355849`): the gamepad's own "jump
+the pointer to this element" path, which warps `pointer.position` and selects in
+the same breath — and sets `flag2`, which disables the gate for the rest of that
+pass. The two sites are therefore alternatives rather than a sequence: a mod
+patching `TrySelectNewElement` sees **at most one** call per pass, and cannot
+tell from inside the patch which site it came from.
+
+**"The pointer moved" is measured in whole design pixels, on the mouse path.**
+`pointer.localPosition` is written through
+`RoundToPixelPerfectPosition.RoundPosition` (`:355799`, inside the branch taken
+when `SystemPrefersKeyboardAndMouse()`), which rounds each axis to 1/16 of a
+unit — one design pixel (`:265952`, `ppu = 16`). A movement that does not cross
+a design-pixel boundary leaves the value bit-identical and contributes nothing
+to the gate. The quantum is a pixel of CK's internal render target, not of the
+screen: `GetMouseUIViewPosition` already divides by 16 (`:357357`), so the ratio
+between the window and that render height decides how far the mouse has to
+travel — and that height is a serialized setting, not a constant. `PugRP`
+initializes `m_outputHeight` to 270 (`PugRP:1450`), but whether it is used at all
+hangs on `m_outputMode` (`:1432`), whose C# default is the first enum member,
+`Native` (`:1266`-`:1271`). The ratio therefore cannot be read off the code,
+which is itself why "nudge the mouse by a pixel" is not a portable instruction
+for forcing a re-derive.
 
 There is **no `isSelectable` flag**. What makes an element selectable is a
 **3D collider on the same GameObject that carries the `UIelement`** — that is
@@ -106,24 +189,47 @@ Moving the mouse into empty space calls
 regardless of any override of yours. What that does to a field the player is
 editing is in [text rendering and text input](#text-rendering-and-text-input).
 
-**The two halves of `TrySelectNewElement` (`:356110`) run at different rates,
-and the difference explains most hover oddities:**
+**`TrySelectNewElement` (`:356110`) clears on an edge and selects through a
+guard — the second call is reached on every pass with a target, its effect is
+not:**
 
 ```csharp
 if (selectedUIElement == null || selectedUIElement != Manager.ui.currentSelectedUIElement)
     Manager.ui.DeselectAnySelectedUIElement();   // only on a CHANGE — clears selectedIndex to -1
 if (selectedUIElement != null)
-    selectedUIElement.Select();                   // EVERY frame the pointer rests on it
+    selectedUIElement.Select();                   // whenever there is a target; Select() returns early
 ```
 
-So the clear is an edge and the select is a level. Two things follow. A menu
-option under a resting pointer is re-selected continuously, which is audible
-because `MenuManager.SelectOption` (`:269846`) plays its sound on **every
-attempt** — the call is not guarded by `SelectOptionIndex`'s return value, so a
-selection that changes nothing still sounds, throttled only by the 50 ms
-cooldown. And any per-`OnSelected` work you attach to an element runs every
-frame, not once; if that work re-selects something else, the two fight for the
-pointer for as long as it rests there.
+`UIelement.Select()` (`:357887`) is four lines whose entire body is that guard:
+it reaches `Manager.ui.OnUIElementSelected(this)` **only** when
+`currentSelectedUIElement` is not already this element, and `Select()` is that
+method's only caller in the game. A pointer wandering around inside an option it has
+already selected therefore reaches none of the selection callbacks: no `OnSelected`, no
+`MenuManager.SelectOption`, no sound. That — not the 50 ms SFX cooldown — is
+what makes "the menu sound plays at most once while the pointer moves within one
+option" hold. This passage said the opposite until 2026-09-19: it
+called the second half a level, credited the cooldown with the throttling, and
+concluded that per-`OnSelected` work runs every frame, which it does not.
+
+The cooldown (`:269113`, a `TimerSimple(0.05f, unscaled: true)` checked at
+`:269302`) matters in the opposite direction: two menu sounds closer together
+than 50 ms collapse into one — and since the timer restarts on every play
+(`:269305`), a steady stream of triggers is capped at about twenty a second, not
+throttled pairwise. An *expected* sound can therefore go missing. That makes a
+sound a poor thing to assert in a check — and the highlight beside it is no
+better, for the reason given further up: it follows `selectedIndex`, not the
+pointer. `unscaled` is why the window elapses at all while the menu holds the
+game at `timescale = 0`.
+
+**`MenuManager.SelectOption` (`:269846`) is guarded, but not by the thing you
+would expect.** It ignores `SelectOptionIndex`'s return value and sounds
+regardless (`:269854`-`:269855`), so an option that is already the selected index
+still sounds when something calls `SelectOption` directly. What it *does* check
+is that a top menu exists and that the option is in that menu's `menuOptions`
+(`:269849`, `:269852`) — fail either and it returns in silence. Hover reaches it
+whenever hover moves the selection onto a **menu option**, which is the ordinary
+case and the menu selection sound you hear. What hover does not do is reach it a
+second time while the pointer rests on the option it already selected.
 
 **`SelectOptionIndex` never asks whether the option can be selected.** Its only
 guards are `CanChangeIndex()` and "the index is already that" (`:342815`,
@@ -632,6 +738,18 @@ glyphs belong to no live `PugText`, so `FindObjectsByType<PugText>` and
 
 Set your row's resting colour to the `UNSELECTED_TEXT_COLOR` constant (reading
 the static is sandbox-legal) and let the effect drive hover.
+
+**Selection reaches an option through `RadicalMenuOption.OnSelected`**
+(`:343231`): it fires the element-selected event, then its `selectionListeners`,
+then walks `menuOptionEffects` (`:343240`-`:343244`) and calls each effect's own
+`OnSelected`, which first stops that effect's deselection wind-down timers
+(`:349593`-`:349594`; `OnDeselected` is what starts them, `:349604`-`:349605`)
+and then recolours its `PugText` and any `SpriteRenderer`s wired beside it
+(`:349595`-`:349599`). Note that the recolour dereferences the text without a
+guard, so an effect on a component with no `PugText` throws rather than skipping
+— and its base class `PugTextEffect` carries
+`[RequireComponent(typeof(PugText))]` (`:348865`). Hand-edited prefab YAML —
+which this family does routinely — is one way to reach it regardless.
 
 **The effect is wired by GameObject, not by `labelText`.** `PugTextEffect.Awake`
 binds `_text = GetComponent<PugText>()` (`Pug.Other:348885`) — the text on its
@@ -1820,13 +1938,13 @@ same branch. `IsMenuMouseInteractButtonPressed` (`:267246`) is the held state,
 `…ButtonDown` (`:267237`) the edge.
 
 **The mouse does not travel this path at all.** It runs through `UIMouse`
-(`:355288`), which drives `Manager.ui.currentSelectedUIElement` from hover
-(§ "How `UIMouse` picks and selects an element") and re-selects whenever the
-pointer moves. So a mode built out of the levers above is controller/keyboard
-only; giving it a mouse equivalent means a **second, separate path** — read the
-held state, read CK's hover selection as the target, act on release — that
-meets the first one at the operation, not at the input. Budget for two paths,
-not one.
+(`:355288`), which drives `Manager.ui.currentSelectedUIElement` from hover (§
+"How `UIMouse` picks and selects an element") and re-derives that selection
+whenever the pointer moves onto something else. So a mode built out of the
+levers above is controller/keyboard only; giving it a mouse equivalent means a
+**second, separate path** — read the held state, read CK's hover selection as
+the target, act on release — that meets the first one at the operation, not at
+the input. Budget for two paths, not one.
 
 **Count the whole bill before choosing this shape.** Opting a control out of
 CK's routing is one decision with a long tail, and the items arrive one at a
@@ -1843,10 +1961,34 @@ from the pointer or the keyboard?" test, for which no reliable flag exists (see
 `SystemIsUsingMouse` below).
 
 The trap inside the trap: restoring the focused control from your own state
-inside `OnSelected` looks like the obvious fix and is **unstable**, because of
-the every-frame `Select()` above — the row is selected (sound), your code
-redirects to the button, the next frame the pointer is over the row again
-(sound), and so on for as long as the mouse rests there.
+inside `OnSelected` looks like the obvious fix and is **unstable**: the row is
+selected (sound), your code redirects to the button, and the ray still points at
+the row, so the next re-derive selects the row again (sound) and the redirect
+fires again. `Select()`'s guard does not stop it — the redirect is what makes
+the row differ from the current selection each time. A literally motionless pointer
+settles after one round *if* the redirect target stays visible — hide or disable
+it, as a row rebuild does, and the fifth disjunct keeps the fight going with the
+mouse standing still. And while the last device used is a controller, the
+first disjunct holds the gate open regardless of the pointer — unless `flag2`
+was set that frame.
+
+**CK ships a hover redirect that cannot start that fight — but it does not solve
+this case.** `ButtonUIElement.optionToSelectOnHover` (`:334886`) is read in that
+class's own `OnSelected` and calls `Manager.menu.SelectOption(…)` (`:335008`),
+which moves the *menu index*. On the base path that is all it does, so
+`Select()`'s guard still holds on the hovered element and nothing re-selects it
+— a property of the base rather than a guarantee, since `SelectOptionIndex` goes
+on to call the option's own `OnSelected` (`:342831`) and that is virtual:
+vanilla's `ListConnectedPlayers` overrides it and calls `Select()` from there
+(`:331625`, `:331643`), which does write `currentSelectedUIElement`. Two things
+keep it from being the answer above. The field is on `ButtonUIElement`
+(`:334860`), a **sibling** of `RadicalMenuOption` (`:343031`) rather than a base
+of it, so a control in the shape this section describes does not have it. And
+`SelectOption` looks its target up with `GetIndexForOption` and acts only on a
+hit (`:269851`-`:269852`), so that target must be a registered menu option —
+exactly what the opted-out control is not. It redirects the other way: from a
+plain button *to* a real option. Worth knowing as the shape of a redirect that
+does not fight, not as a drop-in for this one.
 
 None of these is unsolvable, and together they are a re-implementation of
 CK's selection model. **When a control needs to be navigable in its own right,
