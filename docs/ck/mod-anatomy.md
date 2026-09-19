@@ -130,7 +130,7 @@ The one derivable identifier is the **modfile ID**. Installations live in a dire
 named `<modId>_<modfileId>`, and `API.ModLoader.GetDirectory(long modId)`
 (`PugMod.SDK.Runtime`) hands you that path as a `string`. Splitting a string needs no
 `System.IO`, so the derivation is [sandbox](sandbox.md)-legal. Whether a locally installed development
-build yields a parsable ID this way is untested.
+build yields a parsable ID this way is **unverified**.
 
 **Trap: the GUIDs in `files` are not a version hash.** They are per-asset GUIDs, and the
 list only changes when a file is added or removed. A release that changes nothing but C#

@@ -115,7 +115,7 @@ declaration — reports the file alone.
 
 The following were observed to fail and are *not* on the list. Neither
 observation isolated the named expression in an assembly of its own, so what
-actually tripped the count is not established for either row — bisect by
+actually tripped the count is **unverified** for either row — bisect by
 isolating the expression, not by reading the deny list:
 
 | Observed failure | What it resolves to |

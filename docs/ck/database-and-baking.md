@@ -155,7 +155,7 @@ own Burst-compiled form. A nested job needs `DisableBurstForSystemAndJobs<T>()`
 (`PugMod.SDK.Runtime:783`), which additionally completes the system's job
 dependency inside the un-Bursted window. That variant is verified to make
 patches fire on another `ISystem` whose work sits in a nested `[BurstCompile]`
-job, but nobody has run it against the craft path — see [Harmony and ECS](harmony-and-ecs.md)
+job, but whether it does the same for the craft path is **unverified** — see [Harmony and ECS](harmony-and-ecs.md)
 for how it works and what it costs.
 
 Bake time remains the seam this chapter recommends: one edit at conversion time,

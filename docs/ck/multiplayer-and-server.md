@@ -167,7 +167,7 @@ carries no `[BurstCompile]` attribute either, holds a managed
 `RunWithoutJobsInternal` (`:124642`) — it cannot be Bursted, so a Harmony patch
 on it is viable. Whether a Harmony patch on `OnCreate` binds early enough on a
 **dedicated server** — where `IMod.Init()` runs after the worlds are built, see
-below — is untested.
+below — is **unverified**.
 
 ### What a mismatch looks like to the player
 
@@ -284,7 +284,7 @@ changes nothing on the other. The surrounding code is present on both:
 `EquipmentSystemGroup` (`Pug.Other:418856`) runs in the server **and** the client
 simulation world, and `EquipmentUpdateSystem.UpdateJob` is a scheduled job.
 Whether a Harmony prefix in that area therefore behaves identically across
-singleplayer, a hosted session and a dedicated server is an open question — treat
+singleplayer, a hosted session and a dedicated server is **unverified** — treat
 it as "can run on either side" and verify on the topology you care about.
 
 ## The dedicated server

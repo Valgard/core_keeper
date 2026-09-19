@@ -74,7 +74,7 @@ it. For an actual position, query the entity (below).
 
 **Trap: do not derive the offset from the region's midpoint.** Only the southern
 edge was stable across all eight worlds; the northern one came out at `10` or
-`11`, and what makes the difference was not established. A midpoint computed from
+`11`, and what makes the difference is **unverified**. A midpoint computed from
 the two is therefore not reproducible across saves — and it would in any case
 describe the base, not the Core object.
 
@@ -769,8 +769,7 @@ looks like an elegant way to avoid a Burst patch entirely — it is a dead end.
 That path is not reached when an item is *placed*, so a pure CoreLib data patch
 cannot dispense anything at placement time. This was tested and rejected before
 the equivalent mod was built as a code patch instead. (Verified for this case;
-whether the path never fires on *any* placement has not been established more
-broadly.)
+whether the path never fires on *any* placement is **unverified**.)
 
 ### Pets
 
