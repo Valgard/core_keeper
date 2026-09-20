@@ -208,6 +208,23 @@ won — two pairs in one launch, so an observation rather than a rule, since the
 platform registration order named above is what decides it and nothing here pins
 that down.
 
+**The dev build keeps winning, and why is unverified.** Beyond that single
+launch, the author reports that across sessions it has *always* been the dev
+build (2026-09-20). Two independent observations pointing the same way make
+chance an awkward explanation, but neither reads the mechanism: **it is
+**unverified** what fixes the platform registration order, and therefore whether
+the dev build wins by construction or merely by a habit of this setup.** The
+question matters in one direction only — a verification run that trusts the dev
+build is loaded is safe today and would fail silently the day the order flips.
+
+*To check:* follow `SortMods` back to who fills its input. The dictionary is
+keyed on `metadata.name` with last write wins, so the question is purely which
+platform enumerates last and what determines that — a fixed order in
+`PugMod.Loader`'s platform list, the order the platforms finish loading, or
+something per-launch. The side-loader, the mod.io path and the Steam Workshop
+loader are the three candidates. Until then the log line above is the only
+honest answer, and it answers after the fact rather than before.
+
 Before testing a published build the way a player receives it, remove the local
 one. The reverse case is the quieter one: subscribing to your own mod for a
 quick look leaves it subscribed.
