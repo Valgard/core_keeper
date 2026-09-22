@@ -400,7 +400,7 @@ non-existence**: `Convert` snapshots the list
 conversion pass — which is what makes the "requires a restart" advice true.
 
 The list is reachable from `PugDatabasePostConverter.PostConvert(GameObject)`
-(`Pug.Other:3442`/`Pug.Other:3478`), which does run per world/database conversion. From a
+(`Pug.Other:3442`/`Pug.Other:3504`), which does run per world/database conversion. From a
 prefix you walk `PugDatabaseAuthoring` →
 `DatabaseConversionUtility.GetPrefabList(...)` → the `PrefabData` whose
 `ObjectInfo.objectID` matches → `ObjectInfo.prefabInfos` →

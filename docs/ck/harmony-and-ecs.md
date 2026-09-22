@@ -321,8 +321,8 @@ does not.** `Loader.Update` is reached from two places, not one. Both go through
 `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]`
 (`Pug.Other:271375` client, `DedicatedServer/Pug.Other:271318` server) and
 therefore runs *before* any scene `Awake`. The other, the MonoBehaviour
-`Update()` the derivation actually means, is at `Pug.Other:270347` (server
-`DedicatedServer/Pug.Other:270188`). The lifecycle rule never applies to the
+`Update()` the derivation actually means, is at `Pug.Other:278428` (server
+`DedicatedServer/Pug.Other:278274`). The lifecycle rule never applies to the
 first path, so it cannot settle the ordering. Nor is the hosting side
 "menu-triggered" as a contrast: the client's own world-creating `StartEcs`
 (`Pug.Other:382130`) sits in `SceneHandler` too, and the menu path

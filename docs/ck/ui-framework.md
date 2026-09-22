@@ -1037,7 +1037,7 @@ into the ordinary keyboard chain, reaching `AppendString`, the arrow keys and
 **That is not a theoretical branch.** Both shipped implementations return `false`
 in reachable situations: the Steam one when `SteamUtils.ShowGamepadTextInput`
 fails, e.g. with the overlay unavailable (`Pug.Other:295356-295358`), and the
-fallback platform's **unconditionally** (`Pug.Other:288045`). So a mod that gates
+fallback platform's **unconditionally** (`Pug.Other:296493`). So a mod that gates
 behaviour on the input device — "this only matters for keyboard players, the
 controller path is handled elsewhere" — silently excludes controller players
 whose keyboard never appeared, while vanilla goes on treating their input as
