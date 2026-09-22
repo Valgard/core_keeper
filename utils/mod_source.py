@@ -13,8 +13,12 @@ mods unresolvable. The measurement and the cases that defeat it are in
 docs/specs/2026-09-20-mod-source-lookup-design.md.
 """
 
+import dataclasses
+import json
+import os
 import re
 import unicodedata
+from pathlib import Path
 
 ORIGIN_INTERNAL = "internal name"
 ORIGIN_TITLE = "mod.io title"
@@ -65,3 +69,125 @@ class NameIndex:
     def lookup(self, query: str) -> dict[int, set[str]]:
         """Every mod whose any name matches, with the origins that matched."""
         return self._keys.get(normalise(query), {})
+
+
+# install-macos.sh gives every dev build an id above the real catalogue; the
+# same threshold server.sh uses, so the two agree on what a dev build is.
+FAKE_ID_MIN = 9999000
+
+
+@dataclasses.dataclass(frozen=True)
+class InstalledMod:
+    """One mod installed in the cache, with all names and metadata from state.json."""
+
+    mod_id: int
+    modfile_id: int
+    folder: Path
+    internal_name: str
+    title: str
+    slug: str
+    enabled: bool
+    source_files: list[str]
+
+    @property
+    def is_fake_id(self) -> bool:
+        """Whether this mod uses a dev build id rather than a published one."""
+        return self.mod_id >= FAKE_ID_MIN
+
+    @property
+    def source_path(self) -> Path:
+        """Where the mod's C# source lives inside its folder."""
+        return self.folder / "Scripts"
+
+    @property
+    def ships_source(self) -> bool:
+        """Whether the mod carries a Scripts directory at all."""
+        return self.source_path.is_dir()
+
+
+def bottle_path() -> Path:
+    """The CrossOver bottle, resolved exactly as server.sh resolves it.
+
+    Checks CK_BOTTLE_PATH environment variable first, then falls back to
+    CK_BOTTLE_NAME (defaulting to "Core Keeper") inside the standard CrossOver
+    bottles directory.
+    """
+    explicit = os.environ.get("CK_BOTTLE_PATH")
+    if explicit:
+        return Path(explicit)
+    name = os.environ.get("CK_BOTTLE_NAME", "Core Keeper")
+    return Path.home() / "Library/Application Support/CrossOver/Bottles" / name
+
+
+def read_installed(cache_dir: Path) -> tuple[list[InstalledMod], list[str]]:
+    """Every mod the cache holds, taking the live folder from state.json.
+
+    state.json rather than the folder name, because the cache keeps superseded
+    folders -- CoreLib sat at 3177992_7710097 next to _7845185 -- and "highest
+    modfile id wins" is a guess where state.json has the answer.
+
+    Returns warnings rather than raising for a damaged state.json: the running
+    game rewrites that file, so a read can legitimately land mid-write, and a
+    traceback there would make a routine lookup look like a broken tool. A
+    missing cache DIRECTORY is the opposite case and does raise -- that is a
+    configuration error, and returning an empty list would read as "no such
+    mod" for every query.
+    """
+    if not cache_dir.is_dir():
+        raise FileNotFoundError(
+            f"no mod.io cache at {cache_dir} — set CK_BOTTLE_PATH (or CK_BOTTLE_NAME) "
+            "if the bottle lives elsewhere"
+        )
+
+    warnings: list[str] = []
+    state_file = cache_dir.parent / "state.json"
+    try:
+        state = json.loads(state_file.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        warnings.append(
+            f"{state_file} is missing — cannot tell which folders are current"
+        )
+        return [], warnings
+    except (json.JSONDecodeError, OSError) as error:
+        warnings.append(
+            f"{state_file} could not be read ({error}) — the game rewrites it while "
+            "running, so this is usually transient"
+        )
+        return [], warnings
+
+    disabled: set[str] = set()
+    for user in (state.get("existingUsers") or {}).values():
+        disabled |= {str(x) for x in user.get("disabledMods", [])}
+
+    mods: list[InstalledMod] = []
+    for mod_id, entry in (state.get("mods") or {}).items():
+        modfile_id = (entry.get("currentModfile") or {}).get("id")
+        if modfile_id is None:
+            continue
+        folder = cache_dir / f"{mod_id}_{modfile_id}"
+        manifest = folder / "ModManifest.json"
+        if not manifest.is_file():
+            continue
+        try:
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as error:
+            warnings.append(f"{manifest} could not be read ({error})")
+            continue
+        profile = entry.get("modObject") or {}
+        mods.append(
+            InstalledMod(
+                mod_id=int(mod_id),
+                modfile_id=int(modfile_id),
+                folder=folder,
+                internal_name=data.get("name", ""),
+                title=profile.get("name", ""),
+                slug=profile.get("name_id", ""),
+                enabled=str(mod_id) not in disabled,
+                source_files=[
+                    f["path"]
+                    for f in data.get("files", [])
+                    if f.get("path", "").endswith(".cs")
+                ],
+            )
+        )
+    return mods, warnings
