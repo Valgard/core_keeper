@@ -17,7 +17,9 @@ import dataclasses
 import json
 import os
 import re
+import subprocess
 import unicodedata
+import urllib.parse
 from pathlib import Path
 
 # Reading the real id, not the fake one. FAKE_MOD_ID identifies only a mod
@@ -259,3 +261,131 @@ def read_own_mods(workspace: Path) -> list[OwnMod]:
             )
         )
     return mods
+
+
+# steam_backfill reads these out of the SDK's own mod.io config asset; the same
+# three values drive the catalogue fetch, which is why SDK_PATH is an input of
+# this tool and not only of a download.
+_MODIO_CONFIG = "Assets/Resources/mod.io/config.asset"
+_SERVER_URL = re.compile(r"^\s*serverURL:\s*(\S+)\s*$", re.MULTILINE)
+_GAME_ID = re.compile(r"^\s*gameId:\s*(\d+)\s*$", re.MULTILINE)
+_GAME_KEY = re.compile(r"gameKey:[ \t]*([A-Za-z0-9]{8,})[ \t]*$", re.MULTILINE)
+
+# The catalogue is small (312 mods when measured) but the API pages at 100.
+_PAGE = 100
+
+
+@dataclasses.dataclass(frozen=True)
+class CatalogueEntry:
+    """One mod as mod.io's catalogue lists it, reduced to what a lookup needs."""
+
+    mod_id: int
+    title: str
+    slug: str
+    modfile_id: int | None
+
+
+def cache_root() -> Path:
+    """Where derived runtime state lives — never inside the repository.
+
+    The mirror and anything --download fetches are a foreign service's data,
+    not this repository's. Putting them in utils/ would TRACK them, because
+    .gitignore excludes everything with /* and re-includes the whole directory
+    with !/utils/ -- so every refresh would be a committable diff.
+    """
+    explicit = os.environ.get("CK_MOD_SOURCE_CACHE")
+    if explicit:
+        return Path(explicit)
+    return Path.home() / "Library/Caches/ck-mod-source"
+
+
+def read_catalogue(path: Path) -> list[CatalogueEntry]:
+    """The mirrored catalogue, or an empty list when there is none to read.
+
+    A damaged file reads as absent rather than raising: the only way to get
+    one is an interrupted fetch, and the right response to half a download is
+    to download it again, not to fail every lookup until a human intervenes.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return []
+    return [
+        CatalogueEntry(
+            mod_id=entry["id"],
+            title=entry.get("name", ""),
+            slug=entry.get("name_id", ""),
+            modfile_id=entry.get("modfile"),
+        )
+        for entry in data.get("entries", [])
+        if "id" in entry
+    ]
+
+
+def _modio_config(sdk_path: Path) -> tuple[str, int, str]:
+    """(serverURL, gameId, gameKey) out of the SDK's mod.io config asset."""
+    text = (sdk_path / _MODIO_CONFIG).read_text()
+    server, game, key = (
+        _SERVER_URL.search(text),
+        _GAME_ID.search(text),
+        _GAME_KEY.search(text),
+    )
+    if not (server and game and key):
+        raise ValueError(f"{sdk_path / _MODIO_CONFIG} has no serverURL/gameId/gameKey")
+    return server.group(1), int(game.group(1)), key.group(1)
+
+
+def _curl(url: str) -> bytes:
+    """Fetch a URL with curl.
+
+    curl rather than urllib, and not out of preference: mod.io answers urllib
+    with a 403 and curl with the data (docs/ck/publishing.md).
+    """
+    completed = subprocess.run(["curl", "-sSfL", url], capture_output=True, check=False)
+    if completed.returncode != 0:
+        raise ValueError(
+            f"curl failed ({completed.returncode}) for {url.split('?')[0]}: "
+            f"{completed.stderr.decode().strip()}"
+        )
+    return completed.stdout
+
+
+def fetch_catalogue(sdk_path: Path, path: Path) -> list[CatalogueEntry]:
+    """Mirror every mod mod.io lists for this game, reduced to four fields.
+
+    Reduced because the raw listing is 2.0 MB of descriptions and statistics
+    for the 30 KB that matters. Mirrored at all because the live search cannot
+    do the job: _q matches the title alone, so a slug or an internal name
+    returns nothing, and a title returns a ranked list rather than an answer.
+    """
+    server, game, key = _modio_config(sdk_path)
+    entries: list[dict] = []
+    offset = 0
+    while True:
+        query = urllib.parse.urlencode(
+            {"api_key": key, "_limit": _PAGE, "_offset": offset}
+        )
+        page = json.loads(_curl(f"{server}/games/{game}/mods?{query}"))
+        entries += page.get("data", [])
+        total = page.get("result_total", len(entries))
+        if len(entries) >= total or not page.get("data"):
+            break
+        offset += _PAGE
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {
+                        "id": e["id"],
+                        "name": e.get("name", ""),
+                        "name_id": e.get("name_id", ""),
+                        "modfile": (e.get("modfile") or {}).get("id"),
+                    }
+                    for e in entries
+                ]
+            }
+        )
+    )
+    return read_catalogue(path)

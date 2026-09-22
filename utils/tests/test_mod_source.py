@@ -1,6 +1,8 @@
 """Unit tests for resolving a Core Keeper mod name to its source location."""
 
 import json
+import urllib.parse
+
 import pytest
 
 import mod_source
@@ -231,3 +233,91 @@ def test_a_fake_id_below_the_threshold_is_rejected(tmp_path):
     assert len(own) == 1
     assert own[0].mod_id == 6065498
     assert own[0].fake_id is None
+
+
+def test_reads_a_mirrored_catalogue(tmp_path):
+    mirror = tmp_path / "catalogue.json"
+    mirror.write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {
+                        "id": 4584153,
+                        "name": "General Mod Config Menu",
+                        "name_id": "generalconfigmenu",
+                        "modfile": 7840263,
+                    }
+                ]
+            }
+        )
+    )
+
+    entries = mod_source.read_catalogue(mirror)
+
+    assert len(entries) == 1
+    assert entries[0].mod_id == 4584153
+    assert entries[0].slug == "generalconfigmenu"
+
+
+def test_a_truncated_mirror_reads_as_absent(tmp_path):
+    # An interrupted fetch leaves half a file. Failing every lookup until
+    # someone deletes it by hand would be worse than fetching again.
+    mirror = tmp_path / "catalogue.json"
+    mirror.write_text('{"entries": [{"id": 458')
+
+    assert mod_source.read_catalogue(mirror) == []
+
+
+def test_a_missing_mirror_reads_as_empty(tmp_path):
+    assert mod_source.read_catalogue(tmp_path / "nothing.json") == []
+
+
+def test_cache_root_honours_the_environment(tmp_path, monkeypatch):
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "somewhere"))
+
+    assert mod_source.cache_root() == tmp_path / "somewhere"
+
+
+def test_fetch_catalogue_follows_pagination_to_the_last_page(tmp_path, monkeypatch):
+    # The _limit/_offset loop is the one part of this module that never runs
+    # against a real multi-page listing in this suite otherwise -- against the
+    # live API the catalogue is 312 entries at a page size of 100, so it loops
+    # four times in production and zero times if a test only ever hands back
+    # one page. Two fake pages, with the first announcing a result_total the
+    # first page alone does not cover, force the loop to run more than once.
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda sdk_path: ("https://fake.modio", 1, "key")
+    )
+
+    page_one = {
+        "data": [
+            {"id": 1, "name": "Mod One", "name_id": "modone", "modfile": {"id": 10}}
+        ],
+        "result_total": 2,
+    }
+    page_two = {
+        "data": [
+            {"id": 2, "name": "Mod Two", "name_id": "modtwo", "modfile": {"id": 20}}
+        ],
+        "result_total": 2,
+    }
+    seen_offsets = []
+
+    def fake_curl(url):
+        offset = int(
+            urllib.parse.parse_qs(urllib.parse.urlparse(url).query)["_offset"][0]
+        )
+        seen_offsets.append(offset)
+        return json.dumps(page_two if offset else page_one).encode()
+
+    monkeypatch.setattr(mod_source, "_curl", fake_curl)
+
+    mirror = tmp_path / "catalogue.json"
+    entries = mod_source.fetch_catalogue(tmp_path / "sdk", mirror)
+
+    assert seen_offsets == [0, mod_source._PAGE]
+    assert {e.mod_id for e in entries} == {1, 2}
+    assert {e.modfile_id for e in entries} == {10, 20}
+
+    mirrored = json.loads(mirror.read_text())
+    assert [e["id"] for e in mirrored["entries"]] == [1, 2]
