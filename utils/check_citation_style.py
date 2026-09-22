@@ -51,10 +51,27 @@ CHECKS = (
 )
 
 
+FENCE = re.compile(r"^\s*(```|~~~)")
+
+
 def problems_in(path):
-    """Every offending reference in one file, as (line number, text, why, fix)."""
+    """Every offending reference in one file, as (line number, text, why, fix).
+
+    Fenced code blocks are skipped, which is the difference between using a
+    notation and showing one. A chapter that explains why the short form is
+    unverifiable has to be able to display it, and the alternative -- a magic
+    comment marking an exception -- would both drift during rewrapping and
+    invite use as a way around the rule. A code fence cannot be missed by a
+    reader either, which is what makes it a safe boundary.
+    """
     found = []
+    in_fence = False
     for number, line in enumerate(path.read_text().splitlines(), start=1):
+        if FENCE.match(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
         for pattern, why, fix in CHECKS:
             for m in pattern.finditer(line):
                 found.append((number, m.group(0), why, fix))

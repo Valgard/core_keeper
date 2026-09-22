@@ -10,10 +10,18 @@ fire, and how to read and write the live ECS world once it does.
 
 Line numbers quoted below (`Pug.Other:305267`) are offsets into the decompiled
 game assemblies — see [reverse-engineering](reverse-engineering.md) for how to produce that decompile.
-**An unmarked citation is the client build.** The two builds' offsets differ for
-the same code — `BurstDisabler.AddWorld` is `Pug.Other:2601` on the client and
-`DedicatedServer/Pug.Other:2579` on the server — so a server citation says so,
-and resolving an unmarked one in the server checkout lands on unrelated code.
+**Every citation names its assembly, and the two builds are different
+assemblies.** The same code sits at different offsets in each —
+`BurstDisabler.AddWorld` is `Pug.Other:2601` on the client and
+`DedicatedServer/Pug.Other:2579` on the server — so the prefix is what decides
+which checkout resolves it, and reading one in the wrong tree lands on unrelated
+code.
+
+This used to be a convention about what an *unmarked* citation meant, because
+most references were written without an assembly and inherited it from the
+sentence before. That form was readable and unverifiable: no checker could
+follow it, so a game update silently invalidated it. There is now a gate against
+it — see [reverse-engineering](reverse-engineering.md#line-citations-carry-their-assembly).
 
 ## Three failure modes, three different causes
 

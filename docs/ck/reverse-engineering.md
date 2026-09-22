@@ -173,6 +173,41 @@ question "which citations now point at something else" is answered by
 comparison rather than by re-reading all of them. A citation whose text is
 unchanged is not thereby correct — it is merely undisturbed.
 
+### Line citations carry their assembly
+
+A citation is only as useful as the tooling that can follow it, and the shape
+that reads best is the one nothing can check. Written out, the rule is dull:
+every line reference is `` `Assembly:line` `` or `` `Assembly:first-last` ``,
+with `DedicatedServer/` in front when it means the server build.
+
+It is worth stating because the alternative is so natural. A paragraph citing
+the same assembly four times wants to drop it from the last three, and a passage
+unsure of an exact offset wants to mark that with a tilde:
+
+```text
+`:419767`              assembly inherited from an earlier sentence
+`Pug.Other` ~355773    number outside the backticks
+```
+
+Both read better than the full form. Neither matches the pattern a checker looks
+for, so both sit outside every verification — and that is invisible precisely
+because the citations themselves look fine.
+
+The cost is not theoretical. Of roughly 500 line references in this handbook,
+178 were in the checkable form and the rest were not; the `1.3` update
+invalidated all of them equally and only the checked third reported it. A gate
+now rejects the short forms, which is the only thing that keeps them from
+returning, because the reason they appeared is a good one and recurs with every
+paragraph that cites the same assembly twice.
+
+Two habits follow from the same reasoning. **Cite a declaration, not a line
+inside a body** — `_ClearCharacter(int i)` once pointed at a statement in its
+own body, which is harder to notice than being wrong, because the surrounding
+prose still reads correctly. And **spell out approximate offsets rather than
+marking them with a tilde**: three such references here sat one to six lines
+from what their sentence claimed, and expanding them was the occasion to find
+out.
+
 **Trap: decompile from stock DLLs.** If the installation carries locally applied
 IL patches — on macOS/CrossOver hosts it does, see [platforms and hosts](platforms.md)
 — the decompile bakes those patches in and presents them as the game's own code.
