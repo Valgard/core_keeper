@@ -143,7 +143,7 @@ The lifecycle itself is in [Mod anatomy](mod-anatomy.md).
 The obvious alternative — patching the runtime craft — is closed to a plain
 Harmony patch. The path is `InventoryUpdateSystem` → `ProcessCraftingJob` →
 `InventoryUtility.Craft`, and it is **Burst-compiled twice over**:
-`InventoryUpdateSystem` is a `[BurstCompile] ISystem` (`Pug.Other:408486`), and
+`InventoryUpdateSystem` is a `[BurstCompile] ISystem` (`Pug.Other:426385`), and
 the work sits in the separately `[BurstCompile]`d `IJob` it schedules
 (`ProcessCraftingJob`, `:408848`; scheduled at `:409176`, calling
 `InventoryUtility.Craft` at `:408902`).

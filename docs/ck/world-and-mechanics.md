@@ -441,7 +441,7 @@ the player at all.
 
 | Method | What it receives | Inventory reachable |
 |---|---|---|
-| `PlacementHandler.UpdatePlaceablePosition` (`Pug.Other:304888`) | the full `EquipmentUpdateAspect`, and through `LookupEquipmentUpdateData` the `BufferLookup<ContainedObjectsBuffer> containedObjectsBufferLookup` (`Pug.Other:419083`) | yes |
+| `PlacementHandler.UpdatePlaceablePosition` (`Pug.Other:304888`) | the full `EquipmentUpdateAspect`, and through `LookupEquipmentUpdateData` the `BufferLookup<ContainedObjectsBuffer> containedObjectsBufferLookup` (`Pug.Other:437073`) | yes |
 | `PlacementHandler.Activate` | `(ref PlacementCD, Entity placementPrefab, ComponentLookup<ObjectPropertiesCD>, ComponentLookup<TileCD>, ComponentLookup<PseudoTileCD>)` | no — there is no player entity in the signature |
 
 Vanilla reads that buffer lookup exactly this way in `UpdateJob.Execute`
@@ -787,7 +787,7 @@ seen** — a skin collection is necessarily mod-owned state.
 | Assignment | Random on hatch, `rng.NextInt(maxSkins)` |
 | ObjectID | All skins of a pet share one ID (`PetDog` = 1222) |
 | Skin count | `Manager.ui.petInfosTable.GetPetSkinInfo(id).skins.Count` — `PetCD.maxSkins` is baked from this same value (`Pug.ECS.Conversion:2902`) |
-| Rendering | Gradient recolours of the base `ObjectInfo.icon` (`_GradientMap` from `skins[i].primaryGradientMap` plus the `USE_GRADIENT_MAP` keyword on the `Amplify/UISpriteColorReplace` shader), not separate sprites; `GradientMapDataBlock` lives in `PugSprite.dll` (`PugSprite:42`, global namespace) — only its base `ScriptableDataBlock` is in `ScriptableData.dll` (`ScriptableData:1563`) |
+| Rendering | Gradient recolours of the base `ObjectInfo.icon` (`_GradientMap` from `skins[i].primaryGradientMap` plus the `USE_GRADIENT_MAP` keyword on the `Amplify/UISpriteColorReplace` shader), not separate sprites; `GradientMapDataBlock` lives in `PugSprite.dll` (`PugSprite:42`, global namespace) — only its base `ScriptableDataBlock` is in `ScriptableData.dll` (`ScriptableData:1648`) |
 | Stacking | Pets are non-stackable, one per slot |
 
 Reading `skinIndex` is sandbox-safe:

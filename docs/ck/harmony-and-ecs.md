@@ -206,7 +206,7 @@ judged by eye with no profiler. It does not establish that Burst-disabling is
 cheap in general — and the recorded note names two properties of *this* system
 that keep it cheap, both of which have to be re-checked before assuming the same
 anywhere else: the query iterates player entities only (`EquipmentUpdateAspect`
-requires `ClientInput`, `PlayerStateCD`, `PlayerGhost` — `Pug.Other:419114`),
+requires `ClientInput`, `PlayerStateCD`, `PlayerGhost` — `Pug.Other:437116`),
 and the job is scheduled with `Schedule()`, not `ScheduleParallel()`
 (`:420660`), so it was single-threaded anyway and `Complete()` costs only the
 frame overlap.
@@ -458,11 +458,12 @@ Two variants worth recognising, both of which hide the problem further:
 `BurstDisabler Example` page patches `SpawnEnvironmentObjectsInNewAreaSystem`,
 which is a `struct : ISystem` carrying
 `[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation, …)]`
-(`WorldGen:2836-2839`) — so it is on the trap's `ISystem` path *and* has no
-client-side copy. That example works when the player hosts (the hosting process
-runs a server world of its own) and does nothing on a dedicated server. Useful
-as the canonical instance, and as a reminder that the official docs are not a
-counter-argument to any of this: they simply do not cover the case.
+(`WorldGen.EnvironmentalObjects:257-260`) — so it is on the trap's `ISystem`
+path *and* has no client-side copy. That example works when the player hosts
+(the hosting process runs a server world of its own) and does nothing on a
+dedicated server. Useful as the canonical instance, and as a reminder that the
+official docs are not a counter-argument to any of this: they simply do not
+cover the case.
 
 Anything server-authoritative is in the blast radius: XP and skill grants,
 durability, pet levelling, world simulation.
@@ -537,7 +538,7 @@ decompiled C# and rendered `A&` in Harmony's own error text and anywhere else
 reflection names the type — fails at load with `ArgumentException: Undefined
 target method for patch method …`. Searching the `.cs` files for `A&` finds
 nothing; the parameter reads `in EquipmentUpdateAspect equipmentUpdateAspect`
-(`Pug.Other:311319`). The mod itself loads and sandbox-compiles fine
+(`Pug.Other:321986`). The mod itself loads and sandbox-compiles fine
 (`safetyCheck=True`); only the bind fails. That distinguishes it cleanly from
 the Burst case, which binds and stays silent.
 
@@ -642,7 +643,7 @@ prefix runs ahead of all five.
 
 | Guard | Location |
 |---|---|
-| `if (!valueRW.canPlaceObject) return;` | `Pug.Other:311322` |
+| `if (!valueRW.canPlaceObject) return;` | `Pug.Other:321989` |
 | `CanPlaceItem` → `tilePlacementTimer` (0.65 s in this build) — **not a pure guard**: it stops the timer for a non-tile prefab (`:311538`) and starts it on the success path (`:311553`), so a prefix returning `false` suppresses those writes too | call `:311332`, declaration `:311533`, timer logic `:311538-311555` |
 | `timeSincePlaced.isRunning && … < 1f && pos == positionLastPlacedAt` | `:311337` |
 | `PlayerController.CanConsumeEntityInSlot` | `:311349` |
@@ -669,7 +670,7 @@ specifically mean tiles, or the consume branch being taken. The postfix firing
 is not that signal — and neither is entering `AddTile`, which returns without
 queuing anything for a `tileSet` outside `0..74` and skips the
 `tileUpdateBuffer.Add` outside creative mode for tileset 2 at the four
-positions around the core (`Pug.Other:256440-256465`).
+positions around the core (`Pug.Other:264406-264431`).
 
 This generalises to every equipment/input path in CK: assume the method is
 polled, and find the commit point.
@@ -890,7 +891,7 @@ triggers no deserialize, and nothing in either tree links it to
 **Nothing couples them at the producer — the pairing is the caller's ordering.**
 `OnAfterDeserialize` is Unity's `ISerializationCallbackReceiver` hook: it
 appears once as an explicit call, in the routine that resets a character slot,
-`_ClearCharacter(int i)` (`Pug.Other:363844`); every other invocation comes from
+`_ClearCharacter(int i)` (`Pug.Other:380596`); every other invocation comes from
 Unity itself, through `SaveManager.DecodeJson<T>` (`Pug.Other:379746-379750`),
 which runs `JsonUtility.FromJsonOverwrite` over the bytes read for a character.
 `SetCharacterId` has four call sites in the client tree. The one the worked

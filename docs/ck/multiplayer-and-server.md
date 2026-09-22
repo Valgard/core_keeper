@@ -158,7 +158,7 @@ exactly **once**, not per request, and — unlike `OnUpdate` and `OnDestroy` in 
 same struct — carries **no `[BurstCompile]` attribute** of its own. The struct
 itself does (`Pug.Other:125498`), so a grep for the attribute on the type still
 turns it up — only `OnCreate` is exempt. On the client,
-`NetworkClientStartSystem.OnUpdate` (`Pug.Other:124905`) is a plain
+`NetworkClientStartSystem.OnUpdate` (`Pug.Other:129371`) is a plain
 `protected override void OnUpdate()` and already holds the client's copy of the
 list; the job that actually receives the RPCs,
 `NetworkClientStartSystem_33002849_LambdaJob_0_Job` (`Pug.Other:129013`),
@@ -256,7 +256,7 @@ worked example below.
 
 **The world you wrote it in decides the direction, and there is only one
 direction.** Snapshots are produced in the server world — `GhostSendSystem`,
-which `NetworkingManager.InitWorld` (`Pug.Other:285322`, the class itself at
+which `NetworkingManager.InitWorld` (`Pug.Other:293767`, the class itself at
 `:284453`) configures only in the world that has one, called from
 `ECSManager.InitWorld` (`:2996`) for both worlds — and applied in the client
 world, `GhostUpdateSystem`, which CK fetches from `Manager.ecs.ClientWorld`. So
