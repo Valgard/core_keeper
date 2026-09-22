@@ -1,7 +1,9 @@
 """Unit tests for resolving a Core Keeper mod name to its source location."""
 
+import io
 import json
 import urllib.parse
+import zipfile
 from pathlib import Path
 
 import mod_source
@@ -728,3 +730,161 @@ def test_file_mode_raises_when_no_file_matches(tmp_path):
 
     with pytest.raises(LookupError, match="no .cs file matching"):
         mod_source.find_file(result, "NonExistentFile")
+
+
+def test_download_verifies_the_manifest_name_against_the_query(tmp_path, monkeypatch):
+    # The catalogue-only case: the hit is provisional because the internal name
+    # is unknowable until the manifest arrives. Once it does, it either agrees
+    # with the query or it does not, and silence would be the wrong answer.
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("ModManifest.json", json.dumps({"name": "SomethingElse"}))
+        zf.writestr("Scripts/A.cs", "// code")
+
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+
+    resolution = mod_source.Resolution(
+        kind=mod_source.KIND_CATALOGUE,
+        mod_id=4584153,
+        internal_name=None,
+        title="General Mod Config Menu",
+        slug="generalconfigmenu",
+        source_path=None,
+        provisional=True,
+    )
+
+    path, warnings = mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
+
+    assert (path / "Scripts" / "A.cs").is_file()
+    assert any("SomethingElse" in w for w in warnings)
+    # The point of the check: the resolution itself is settled from the
+    # manifest that just arrived, not left in its pre-download provisional
+    # state -- a caller inspecting `resolution` after the call must see the
+    # same answer the returned warnings describe.
+    assert resolution.internal_name == "SomethingElse"
+    assert resolution.provisional is False
+
+
+def test_download_matches_via_the_slug_when_the_title_differs(tmp_path, monkeypatch):
+    # The manifest name is checked against EITHER the queried title OR its
+    # slug. An implementation that only compared against the title would warn
+    # here even though the mod that arrived is unambiguously the right one --
+    # title and slug diverge (as they routinely do), and only the slug agrees.
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("ModManifest.json", json.dumps({"name": "GeneralConfigMenu"}))
+
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+
+    resolution = mod_source.Resolution(
+        kind=mod_source.KIND_CATALOGUE,
+        mod_id=4584153,
+        internal_name=None,
+        title="General Mod Config Menu",
+        slug="generalconfigmenu",
+        source_path=None,
+        provisional=True,
+    )
+
+    _, warnings = mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
+
+    assert warnings == []
+
+
+def test_download_refuses_paths_outside_the_target(tmp_path, monkeypatch):
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("../escaped.cs", "// nope")
+
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+
+    resolution = mod_source.Resolution(
+        kind=mod_source.KIND_CATALOGUE,
+        mod_id=1,
+        internal_name=None,
+        title="Evil",
+        slug="evil",
+        source_path=None,
+        provisional=True,
+    )
+
+    with pytest.raises(ValueError):
+        mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
+
+    assert not (tmp_path / "escaped.cs").exists()
+
+
+def test_download_refuses_an_absolute_path_member(tmp_path, monkeypatch):
+    # A relative "../" is one way to escape the target; a member that is
+    # already absolute is another, and pathlib's own join rule makes it look
+    # different internally -- `target / member` DISCARDS target outright when
+    # member is absolute, rather than raising. The is_relative_to check must
+    # still catch it, because the joined result is then just as reliably
+    # outside `target` as the "../" case.
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("/etc/absolute.cs", "// nope")
+
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+
+    resolution = mod_source.Resolution(
+        kind=mod_source.KIND_CATALOGUE,
+        mod_id=1,
+        internal_name=None,
+        title="Evil",
+        slug="evil",
+        source_path=None,
+        provisional=True,
+    )
+
+    with pytest.raises(ValueError):
+        mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
+
+    assert not (tmp_path / "dl" / "etc" / "absolute.cs").exists()
+    assert not Path("/etc/absolute.cs").exists()
+
+
+def test_download_survives_the_call_with_no_cleanup(tmp_path, monkeypatch):
+    # steam_backfill's download_release deletes its own scratch directory once
+    # the bytes are re-uploaded -- it only ever needed the bytes. Here the
+    # unpacked copy IS the answer, so nothing may remove it before an agent
+    # gets a chance to read it. Checked as a directory listing rather than a
+    # single file, so a wrong implementation that unpacks into a throwaway
+    # temp dir and copies only ONE file back would still be caught.
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("ModManifest.json", json.dumps({"name": "Widget"}))
+        zf.writestr("Scripts/A.cs", "// a")
+        zf.writestr("Scripts/B.cs", "// b")
+
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+
+    resolution = mod_source.Resolution(
+        kind=mod_source.KIND_CATALOGUE,
+        mod_id=1,
+        internal_name=None,
+        title="Widget",
+        slug="widget",
+        source_path=None,
+        provisional=True,
+    )
+
+    path, _ = mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
+
+    assert path.is_dir()
+    assert sorted(p.name for p in (path / "Scripts").iterdir()) == ["A.cs", "B.cs"]

@@ -14,12 +14,14 @@ docs/specs/2026-09-20-mod-source-lookup-design.md.
 """
 
 import dataclasses
+import io
 import json
 import os
 import re
 import subprocess
 import unicodedata
 import urllib.parse
+import zipfile
 from pathlib import Path
 
 # Reading the real id, not the fake one. FAKE_MOD_ID identifies only a mod
@@ -721,3 +723,74 @@ def find_file(resolution: Resolution, needle: str) -> Path | list[Path]:
     if len(matches) > 1:
         return [root / m for m in matches]
     return (root / matches[0]).resolve()
+
+
+def download(
+    resolution: Resolution, sdk_path: Path, into: Path
+) -> tuple[Path, list[str]]:
+    """Fetch one mod's published build and settle whether it is the mod asked for.
+
+    steam_backfill's download_release deletes its own scratch directory once
+    the bytes are re-uploaded -- it only ever needed the bytes in transit. The
+    unpacked copy here is the opposite case: it IS the answer this tool exists
+    to give, so it stays under `into` for an agent to read after this function
+    returns, rather than being cleaned up on the way out.
+
+    A hit that comes only from the catalogue mirror is provisional
+    (Resolution.provisional) because its internal name is unknowable ahead of
+    time -- that name exists only inside a ModManifest.json, which nothing
+    short of a download can see. Two mods can normalise onto the same lookup
+    key through different name spaces (AutoPlant3 is one mod's internal name
+    and another mod's title), so the archive fetched here is what finally
+    settles it: when a ModManifest.json is found in it, resolution's
+    internal_name and provisional flag are updated from it, and a manifest
+    name that agrees with neither the queried title nor its slug is reported
+    back as a warning -- the mismatch is surfaced, not silently accepted as a
+    match. The extracted files are returned either way; a warning is a reason
+    to double-check, not a withheld answer.
+    """
+    server, game, key = _modio_config(sdk_path)
+    url = (
+        f"{server}/games/{game}/mods/{resolution.mod_id}/files/"
+        f"{resolution.modfile_id}/download?api_key={key}"
+    )
+    payload = _curl(url)
+
+    into.mkdir(parents=True, exist_ok=True)
+    target = into.resolve()
+    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+        # Validated in full BEFORE the first write. A member found bad halfway
+        # through extractall() would leave every member before it on disk --
+        # a partial write is still a write, and this archive comes from a
+        # foreign server, so a member name cannot be trusted before it is
+        # checked against the directory it is about to land in.
+        for member in archive.namelist():
+            # `target / member` discards `target` outright when `member` is
+            # itself absolute -- that is pathlib's own join rule for `/`, not
+            # a bug here -- but the joined result then fails is_relative_to
+            # exactly like a "../" traversal does, so this one check catches
+            # both kinds of escape without telling them apart.
+            destination = (target / member).resolve()
+            if not destination.is_relative_to(target):
+                raise ValueError(
+                    f"refusing to extract {member!r} from mod {resolution.mod_id} "
+                    f"— it would land outside {target}"
+                )
+        archive.extractall(target)
+
+    warnings: list[str] = []
+    manifest = target / "ModManifest.json"
+    if manifest.is_file():
+        internal = json.loads(manifest.read_text(encoding="utf-8")).get("name", "")
+        resolution.internal_name = internal
+        resolution.provisional = False
+        if normalise(internal) not in {
+            normalise(resolution.title),
+            normalise(resolution.slug),
+        }:
+            warnings.append(
+                f"the downloaded mod calls itself {internal!r}, which matches "
+                f"neither {resolution.title!r} nor its slug {resolution.slug!r} "
+                "— check this is the mod you meant"
+            )
+    return target, warnings
