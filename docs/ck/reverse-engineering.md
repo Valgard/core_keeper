@@ -70,6 +70,37 @@ Pure third-party libraries (PlayFab, Sentry, MessagePack, Rewired, Steamworks,
 **grep hygiene, not a barrier**. Anything excluded can be decompiled on demand
 with the same command.
 
+**Trap: last version's file list is not this version's curated set.** The
+tempting way to refresh a checkout is to take the assemblies it already has and
+decompile those again. It works perfectly between patch releases and fails on
+exactly the update where it matters: a feature release adds assemblies, they are
+not in the old list, and nothing says so. What you get is a checkout that looks
+complete, and a later `grep` for the new feature's component that answers
+"does not exist".
+
+A name heuristic does not save you either, because it misses the specific shape
+a new feature has. Going into 1.3 by rule — every `Pug.*`, every
+`<Feature>.{Components,Authoring,Converters,Systems}` — found seven of the ten
+new assemblies and missed three: `AmbientAudioCue` and `LootingProgress`, the
+**base** assemblies of two new features, which carry no ECS suffix at all, and
+`WorldGen.EnvironmentalObjects`, which starts with no recognisable prefix.
+
+The check that does work is an independent measurement rather than a restatement
+of the old list: **an assembly whose MonoBehaviours the game's own assets
+reference is in use, whatever its name looks like.** An AssetRipper export's
+script lookup table names every one of them, so comparing that column against the
+assemblies actually present surfaces the gap:
+
+```bash
+comm -23 \
+  <(cut -f3 Resources/script_lookup.tsv | grep -v '^#' | sort -u) \
+  <(ls *.decompiled.cs | sed 's/\.decompiled\.cs$//' | sort)
+```
+
+Everything it prints is either a deliberate framework exclusion or an assembly
+that should be there. It needs the asset export finished first, which makes it
+the last step of an update rather than the first.
+
 **Grep, do not read.** The big files are big: `Pug.Other` is ~16 MB / ~441k
 lines, `Pug.ECS.Components` ~4 MB (the `*CD` component-data structs),
 `Pug.Objects` ~1 MB, and `Pug.Base` holds the `ObjectInfo` class plus the
@@ -91,10 +122,49 @@ game update if a type you rely on may have moved.
 Between patch releases the drift can be nil. Across the `1.2.1.4` → `1.2.1.5`
 update, 119 of the 121 assemblies compared were byte-identical; only `Pug.Other` (42 lines)
 and `PugMod.Loader` (4 lines) differed at all — and that difference was locally
-applied host patches disappearing, not the game changing. That is **one**
-measured update, and only at the fourth version component; nothing here says
-anything about a minor or major one. The point of the version stamp is not that
-drift is large; it is that you cannot tell without it.
+applied host patches disappearing, not the game changing.
+
+A minor release is a different animal. `1.2.1.5` → `1.3.0.2` moved roughly
+127,000 lines: of 122 assemblies compared, 53 changed and only 69 stayed
+byte-identical, and ten assemblies were added. `Pug.Other` alone changed 76,048
+of its 460,797 lines.
+
+So the two measurements bracket the range rather than establishing a rate: a
+fourth-component patch can move nothing, a minor release rewrites a sixth of the
+main assembly. The point of the version stamp is not that drift is large; it is
+that you cannot tell without it.
+
+**Trap: a diff line count measures movement, not meaning — and a large part of
+it is noise.** Decompiled assemblies embed long `byte[]` literals holding build
+paths, and those paths contain the Unity package cache hash
+(`…/com.unity.entities@5a88913fb71f/…`). A package rebuild changes the hash,
+every byte of it is a separate array element on its own line, and the diff
+counts each one. The rows are trivially recognisable — nothing but digits and
+commas — so the real figure is one `grep -v` away:
+
+| Assembly | diff lines | of those, byte-array rows | real |
+|---|---|---|---|
+| `Unity.Entities` | 780 | 766 | **14** |
+| `PugMod.SDK.Runtime` | 192 | 176 | **16** |
+| `PugMod.Loader` | 428 | 179 | **249** |
+| `Pug.Base` | 3,704 | 1,327 | **2,377** |
+
+Reading the counts alone gets both directions wrong at once. `Unity.Entities`
+looks like the DOTS internals moved under the Burst-versus-Harmony dispatch
+chain; the 14 real lines are one capacity change (`EntityNameStorage`'s
+`kMaxEntries` 16,384 → 65,536 and `kMaxChars` 1 M → 4 M) and the dispatch chain
+is untouched. `PugMod.SDK.Runtime` looks minor next to it; its 16 real lines are
+a **new public mod API** — `API.DataBlocks`, an `IScriptableData` with four
+`CreateRuntimeInstance` overloads for minting `ScriptableDataBlock` instances at
+runtime. The smallest real diff in the set was the most consequential finding in
+it.
+
+Read the diff. The number only tells you where to look.
+
+**Record it where it will be found.** A version noted only in a subdirectory's
+README is a version you have to already know to look up. It belongs in the
+checkout's directory name and at the top of its root README, so that every
+citation taken out of it can be traced back to a build without asking anyone.
 
 Line numbers still appear in this handbook, because a class name alone does
 not locate a statement inside a 441,000-line file. What makes that affordable
@@ -139,20 +209,49 @@ others settle it after the fact, on the checkout you already have:
   `modio.UnityPlugin` is settled without ever anchor-testing its backup.
 - **Read the patched region in the output.** Each patch has a recognisable shape,
   so its absence is the answer. Stock `StandaloneFilesystem.DeleteDirectory`
-  (`Pug.Other:435029`) reads `Directory.Delete(Rel2Abs(path), recursive: true)`
-  and stock `SystemIOWrapper.DeleteDirectory` (`modio.UnityPlugin:39208`) reads
-  `Directory.Delete(path, recursive: true)` — neither is the iterate-and-delete
-  rewrite the host patches install in their place.
+  reads `Directory.Delete(Rel2Abs(path), recursive: true)` and stock
+  `SystemIOWrapper.DeleteDirectory` reads `Directory.Delete(path, recursive: true)`
+  — neither is the iterate-and-delete rewrite the host patches install in their
+  place.
+
+**Better: have the script refuse the result.** Reading the patched region is a
+check someone has to remember to run, on a file they have no particular reason to
+suspect. A patch leaves identifiers behind that stock code has no reason to
+contain, so the decompile script can scan its own output for them and report the
+assembly as unusable rather than writing it. For the patches used here, two
+strings catch four of the six: `CorekeeperWineSafeDeleteDir` (the
+iterate-and-delete rewrite, in both `Pug.Other` and `modio.UnityPlugin`) and
+`DefaultThreadCurrentUICulture` (the Roslyn locale fix in `PugMod.Loader`).
+
+The reason to automate it is that the window for getting this right is narrower
+than it looks. **A fresh game update leaves the install stock only until you make
+the game playable again** — on a host that needs IL patches, that is the same
+afternoon. During the 1.3 update here the install was stock at 17:03 and fully
+patched by 20:54, and a second decompile run made after that produced "game code"
+for three assemblies that silently contained the host patches. Nothing in the
+run's output said so; it was caught only because a 29-line difference was looked
+at instead of explained away, and "the two runs used different reference paths"
+was available as a plausible, well-reasoned and entirely wrong explanation.
+
+Two habits follow. **Decompile first, patch afterwards** — the stock window is
+free and reconstructing it later is not. And when a diff surprises you, read it
+before you account for it.
 
 **Trap: decompile from `Managed/`, never from AssetRipper's re-emitted
 `GameAssemblies/`.** The extractor's re-emit changes synthetic variable names
 and reorders members, turning a build-to-build diff into thousands of spurious
 lines.
 
-**The dedicated server needs its own checkout only in part.** 117 of 122
-assemblies decompile identically for client and server. Only `Pug.Other`,
-`WorldGen`, `Pug.Objects`, `Pug.Dev` and `PugMod.Loader` genuinely differ — for
-everything else the client checkout already *is* the server's code.
+**The dedicated server needs its own checkout only in part.** The overwhelming
+majority of assemblies decompile identically for client and server — 117 of 122
+under 1.2.1.5, 127 of 132 under 1.3.0.2. Only `Pug.Other`, `WorldGen`,
+`Pug.Objects`, `Pug.Dev` and `PugMod.Loader` genuinely differ — for everything
+else the client checkout already *is* the server's code.
+
+That the same five assemblies, at nearly the same line counts, survived a minor
+release intact suggests the split is a property of how the two builds are
+configured rather than of any particular version. Worth re-measuring rather than
+assuming, but it is the way to bet.
 
 **Trap: in a partial server checkout, a failed grep means "identical", not
 "absent".** Because only the differing assemblies are kept, searching the server
@@ -238,8 +337,36 @@ nothing.
 ## Unpacking the game's resources
 
 Prefabs, sprites, textures and every authored MonoBehaviour live in
-`resources.assets` (~143 MB, plus a ~227 MB `.resS` stream): 130,172 objects, of
-which 55,493 are MonoBehaviours, 7,918 Sprites and 6,954 Texture2Ds.
+`resources.assets` — **and, since 1.3, mostly somewhere else.**
+
+**Trap: check where the content actually is before re-running an extraction.**
+Through 1.2.1.5 `resources.assets` held it all: ~143 MB plus a ~227 MB `.resS`
+stream, 130,172 objects, of which 55,493 MonoBehaviours, 7,918 Sprites and 6,954
+Texture2Ds. The extraction method followed from that — isolate the one file,
+export it. In 1.3 the same file is 50 MB with a 31 MB stream, and
+`StreamingAssets/aa/` holds 443 MB across 284 Addressable bundles.
+
+The old method still runs. It produces the right directory structure, the right
+file types and no errors, holding roughly an eighth of the content:
+
+| `Assets/` | 1.2.1.5 | `resources.assets` alone, 1.3 | with the bundles |
+|---|---|---|---|
+| `Sprite` | 15,818 | 4,298 | 18,636 |
+| `Texture2D` | 14,016 | 704 | 15,040 |
+| `GameObject` | 8,344 | 542 | 8,844 |
+| total files | 48,295 | 11,509 | 87,037 |
+
+A search for a 1.3 mount prefab in the middle column comes back empty, and reads
+exactly like the prefab not existing. Include `StreamingAssets/aa/` in the
+scoped directory and the numbers land in the right-hand column.
+
+Two further consequences. The bundles bring **their own folder names** — `Data/`,
+`Audio/`, `Art/`, `Prefabs/`, `Scriptable Objects/` — because an Addressable
+group keeps its authoring path, so content is no longer sorted by Unity type
+alone and both places need looking in. And the size ratio is a cheap standing
+check: if `resources.assets` is small relative to the install, the content is
+elsewhere, and finding out where is the first step of an extraction rather than
+a detail of it.
 
 **Trap: the obvious Python route does not work.** UnityPy alone cannot read
 Core Keeper MonoBehaviours, because the shipped build has **stripped type
@@ -265,33 +392,47 @@ AssetRipper.GUI.Free --headless --port 5577
 #   POST /Export/UnityProject {path}      # ~40 s
 ```
 
-**Scope trick — isolate `resources.assets` but keep Mono resolution.** Pointing
-AssetRipper at the single `.assets` file yields `Unknown scripting backend` and
-no field names. Instead build a throwaway `CoreKeeper_Data/` directory of
-**symlinks** — `resources.assets`, its `.resS`, `globalgamemanagers*` and
-`Managed/` — and `LoadFolder` that. AssetRipper recognises the `*_Data`
-structure, loads the assemblies under the Mono backend, and exports only that
-one content layer. Symlinks avoid duplicating 143 MB.
+**Scope trick — take the content layers, leave the rest.** Pointing AssetRipper
+at a single `.assets` file yields `Unknown scripting backend` and no field names,
+while pointing it at the real installation drags in everything that happens to
+live there. Instead build a throwaway `CoreKeeper_Data/` directory of
+**symlinks** and `LoadFolder` that:
+
+| Symlink | Why |
+|---|---|
+| `resources.assets`, `resources.assets.resS` | the classic content layer |
+| `StreamingAssets/aa` | the Addressable bundles — since 1.3, most of the content |
+| `globalgamemanagers*` | lets AssetRipper recognise the `*_Data` structure |
+| `Managed/` | loads the assemblies under the Mono backend, which is what resolves named fields |
+
+Linking `StreamingAssets/aa` specifically, rather than `StreamingAssets`, leaves
+out `Patcher/` — 70 MB of Windows binaries with nothing to extract. Symlinks
+avoid duplicating several hundred megabytes either way.
 
 ### What the export gives you
 
-All 55,493 MonoBehaviours come through, **most of them embedded inside
-`.prefab` files rather than standing alone**. 78.9 % carry named fields; the
-remaining 21.1 % are fieldless ECS tag components (`IndestructibleAuthoring`
-and its kind) — that is correct output, not a failure.
+Every MonoBehaviour comes through, **most of them embedded inside `.prefab`
+files rather than standing alone**. A good share carry no named fields, and that
+is correct output rather than a failure: they are fieldless ECS tag components,
+`IndestructibleAuthoring` and its kind. Under 1.2.1.5 the split measured 78.9 %
+with fields against 21.1 % without.
 
 **Where a vanilla UI widget lives — check both places.** A menu is ordinarily
-its own file. The export carries 4,607 `.prefab` files, 4,172 of them standalone
-in `Resources/Assets/GameObject/`, and that is where `SettingsMenu.prefab`,
+its own file. Under 1.3 the export carries 4,884 `.prefab` files, 4,422 of them
+standalone in `Assets/GameObject/`, and that is where `SettingsMenu.prefab`,
 `Pause Menu.prefab`, `UISettings.prefab`, `ControlMappingMenu.prefab` and
-`CreateWorldMenu.prefab` sit — 17 of the standalone prefabs have "Menu" in the
+`CreateWorldMenu.prefab` sit — 19 of the standalone prefabs have "Menu" in the
 name — the kind of input a scripted importer takes.
 
 In-world HUD widgets are the other case: some have no prefab file at all and
-exist only as subtrees inside one giant `Resources/Assets/Resources/Global
-Objects (Main Manager).prefab` — 6.5 MB, 2,626 GameObjects. `CoordinatesUI` is
-one of those; nothing in the export matches `*Coordinates*`, and it lives in
-that file from around line 7813 as five GameObjects.
+exist only as subtrees inside one giant `Assets/Resources/Global Objects (Main
+Manager).prefab` — 11 MB and 2,954 GameObjects under 1.3, up from 6.5 MB and
+2,626. `CoordinatesUI` is one of those; nothing in the export matches
+`*Coordinates*`, and it lives in that file as five GameObjects, around line 7629.
+
+That line number is worth treating as an illustration rather than an address: it
+was 7813 one release earlier. Grep `m_Name: <Widget>` instead of seeking to a
+remembered offset.
 
 So look for a standalone prefab first, and fall back to `grep -n "m_Name:
 <Widget>"` in the Main Manager prefab. Lifting a subtree out of it means
