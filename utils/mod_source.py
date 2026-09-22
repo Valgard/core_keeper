@@ -211,9 +211,14 @@ def read_installed(cache_dir: Path) -> tuple[list[InstalledMod], list[str]]:
 
 
 def read_own_mods(workspace: Path) -> list[OwnMod]:
-    """Every sibling directory that is a mod repo, with the ids that name it.
+    """One entry per identity asset (one mod directory in the workspace).
 
-    A directory qualifies by carrying unity/<Mod>/Editor/<Mod>_modio.asset,
+    A directory qualifies by carrying unity/<Mod>/Editor/<Mod>_modio.asset.
+    A repository holding more than one mod directory therefore contributes
+    more than one entry. We index by asset, not by repository, because the
+    asset is what identifies the mod.
+
+    A directory is identified as a mod repo by carrying the asset file,
     not by being a git repository: CoreKeeperModDocs is a checkout of someone
     else's documentation and would otherwise read as a mod whose dev build is
     parked somewhere.
@@ -222,6 +227,11 @@ def read_own_mods(workspace: Path) -> list[OwnMod]:
     state of every mod not yet published -- and two such repos indexed under
     the id 0 would collide with each other for no reason. They stay findable
     by name, which is all the identity they have yet.
+
+    A fake id from .envrc is only accepted if it is at or above FAKE_ID_MIN,
+    the threshold for dev-build ids. A below-threshold value is treated as
+    absent, to avoid accepting a real mod.io id that is not actually installed
+    as a dev build.
     """
     mods: list[OwnMod] = []
     for asset in sorted(workspace.glob("*/unity/*/Editor/*_modio.asset")):
@@ -235,7 +245,9 @@ def read_own_mods(workspace: Path) -> list[OwnMod]:
         if envrc.is_file():
             fake_match = _FAKE_ID.search(envrc.read_text())
             if fake_match:
-                fake_id = int(fake_match.group(1))
+                candidate = int(fake_match.group(1))
+                if candidate >= FAKE_ID_MIN:
+                    fake_id = candidate
 
         mods.append(
             OwnMod(

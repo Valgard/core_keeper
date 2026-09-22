@@ -216,3 +216,18 @@ def test_an_unpublished_mod_id_of_zero_is_not_an_identity(tmp_path):
     assert len(own) == 1
     assert own[0].mod_id is None
     assert own[0].mod_name == "BrandNewMod"
+
+
+def test_a_fake_id_below_the_threshold_is_rejected(tmp_path):
+    # .envrc is gitignored and maintained by hand, so a typo or a copy-paste
+    # error could put a real mod.io id there. Accepting such a value would
+    # claim this workspace's repo as foreign mod, a silent wrong answer.
+    # Only dev-build ids (>= FAKE_ID_MIN) are trusted; below-threshold values
+    # are treated as absent.
+    _write_repo(tmp_path, "faster-talents", "FasterTalents", 6065498, fake_id=6065466)
+
+    own = mod_source.read_own_mods(tmp_path)
+
+    assert len(own) == 1
+    assert own[0].mod_id == 6065498
+    assert own[0].fake_id is None
