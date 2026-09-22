@@ -673,9 +673,13 @@ def test_file_mode_answers_an_installed_mod_from_the_manifest(tmp_path):
 
     # Assert the FULL path to catch a regressed join base (source_path instead of parent).
     # Manifest paths are relative to Scripts/, so ConfigScope.cs joins to source_path.parent.
+    # Checking only found.parent.name is invariant to join-base errors (both produce ConfigFile
+    # as the immediate parent), so pin the whole tail from a fixture-known anchor instead.
     assert found.name == "ConfigScope.cs"
     assert found.is_absolute()
-    assert found.parent.name == "ConfigFile"
+    assert found.as_posix().endswith(
+        "3177992_7845185/Scripts/Scripts/Util/Data/ConfigFile/ConfigScope.cs"
+    )
 
 
 def test_file_mode_returns_candidates_when_several_match(tmp_path):
