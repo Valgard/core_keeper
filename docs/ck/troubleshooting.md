@@ -299,11 +299,11 @@ get rid of a stuck incompatible mod cleanly, remove its GUID from
 `unsupportedModsToLoad` *and* add its mod.io ID to `disabledMods`.
 
 **Only one of the two is the loader's own.** `unsupportedModsToLoad` is
-`PugMod.Loader`'s config list (`:1070`); `disabledMods` is a `HashSet<ModId>` on
-the **mod.io plugin's** `Registry` (`modio.UnityPlugin:34712`), which the loader
-never reads — mods switched off there simply do not reach it. The heading calls
-them the loader's two lists because that is where both land in practice, not
-because the loader owns both.
+`PugMod.Loader`'s config list (`PugMod.Loader:1110`); `disabledMods` is a
+`HashSet<ModId>` on the **mod.io plugin's** `Registry`
+(`modio.UnityPlugin:34712`), which the loader never reads — mods switched off
+there simply do not reach it. The heading calls them the loader's two lists
+because that is where both land in practice, not because the loader owns both.
 
 Neither file is host-specific — only the root of the path above changes with the
 platform. `unsupportedModsToLoad` is not save-game state and uses no

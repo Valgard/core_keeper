@@ -403,10 +403,10 @@ of the same reset that calls `Shutdown`.
 **A throw does not cost you one patch, it costs the rest of the pass.** The loader hands
 the whole assembly to `Harmony.PatchAll` (`PugMod.Loader:480`), which walks
 `assembly.GetTypes()` and calls `PatchClassProcessor.Patch()` on each type with nothing
-catching in between (`0Harmony:2148-2154`, `:9074-9084`). A target that cannot be resolved
+catching in between (`0Harmony:2148-2154`, `Pug.Other:9052-9062`). A target that cannot be resolved
 makes `PatchWithAttributes` throw `ArgumentException: Undefined target method for patch
-method …` (`:3240-3243`), and `Patch()` catches it only to run `[HarmonyCleanup]` before
-rethrowing it wrapped as a `HarmonyException` (`:3170-3175`, `:3367-3371`). The
+method …` (`Pug.Other:3177-3180`), and `Patch()` catches it only to run `[HarmonyCleanup]` before
+rethrowing it wrapped as a `HarmonyException` (`Pug.Other:3170-3175`, `Pug.Other:3305-3309`). The
 enumeration ends there: classes already processed stay patched, the rest are never
 reached — and `GetTypes()` guarantees no order, so *which* ones made it is not something
 the source tells you. The symptom is a half-patched game, not one missing feature.
@@ -640,14 +640,14 @@ symptom-first index: [troubleshooting](troubleshooting.md).
 
 | Check site | Test | Effect |
 |---|---|---|
-| `NetworkClientStartSystem` (`Pug.Other`, decompiled ~124928) | `localMod.required = (requiredOn & ModExistsOn.Server) != 0` | The **Server** flag makes the **client** demand the mod on the server |
-| `ModInfoRpcSystem` (`Pug.Other`, decompiled ~125929) | `required = (requiredOn & ModExistsOn.Client) != 0` | The **Client** flag makes the **server** demand it on the client |
+| `NetworkClientStartSystem` (`Pug.Other:129394`) | `localMod.required = (requiredOn & ModExistsOn.Server) != 0` | The **Server** flag makes the **client** demand the mod on the server |
+| `ModInfoRpcSystem` (`Pug.Other:130395`) | `required = (requiredOn & ModExistsOn.Client) != 0` | The **Client** flag makes the **server** demand it on the client |
 
 A mod without the relevant flag is removed from the check list, but by two different
 mechanisms depending on direction: in the `Server` direction, `localMods.RemoveAt`
-(~124944-124946) drops it outright; in the `Client` direction, the server reports
+(`Pug.Other:129410-129412`) drops it outright; in the `Client` direction, the server reports
 `required = false` for it and the client never adds it to `modsToCheck` in the first
-place (~124577-124578). Either way it never interferes with a connection.
+place (`Pug.Other:129043-129044`). Either way it never interferes with a connection.
 
 ### Choosing a value
 
@@ -669,7 +669,7 @@ mod.io catalogue tag, which is described in [publishing](publishing.md).
 ## The in-game mod menu, and when mod.io is contacted
 
 The mod browser behind the main menu is not Pugstorm's UI.
-`RadicalMainMenuOption_OpenMods` (`Pug.Other`, decompiled ~338577) calls `Browser.Open()`
+`RadicalMainMenuOption_OpenMods` (`Pug.Other:351233`) calls `Browser.Open()`
 on mod.io's embedded drop-in UI package — `modio.UI.dll`, namespace `ModIOBrowser`.
 Pugstorm embedded it rather than rebuilding it, so what you see there is mod.io's
 behaviour, not the game's.
@@ -698,6 +698,6 @@ The locally held state, by contrast, is readable at any time with no network tra
 SubscribedMod { SubscribedModStatus status; string directory; ModProfile modProfile; bool enabled; }
 ```
 
-with the status enum at `modio.UnityPlugin`, decompiled ~29014. Reaching any of this from
+with the status enum at `modio.UnityPlugin:29014`. Reaching any of this from
 mod source is the two-switch case described above under *Using an assembly the game loads
 but does not expose*.

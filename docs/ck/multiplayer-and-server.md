@@ -143,8 +143,8 @@ with `name.Substring(0, min(UTF8MaxLengthInBytes / 2, len))`
 characters are all that survive. Matching is unaffected, and for a **published**
 mod neither is the display: when the server demands a mod the client lacks, the
 client resolves `modId` through `ModIOUnity.GetMod` and prints the mod.io
-profile name instead (`:125076`), or `"Unknown"` if that lookup fails
-(`:125066`, `:125072`) — `GetMod` is only ever called for a **positive**
+profile name instead (`Pug.Other:125076`), or `"Unknown"` if that lookup fails
+(`Pug.Other:129519`, `Pug.Other:129538`) — `GetMod` is only ever called for a **positive**
 `modId` (`Pug.Other:129530-129549`). For a **negative** one — a mod
 side-loaded from `StreamingAssets/Mods` — `GetMod` is skipped entirely, and
 the truncated field is exactly what reaches the player. In the other
@@ -156,22 +156,22 @@ this field at all.
 **If you patch this layer:** `ModInfoRpcSystem.OnCreate` builds its mod list
 exactly **once**, not per request, and — unlike `OnUpdate` and `OnDestroy` in the
 same struct — carries **no `[BurstCompile]` attribute** of its own. The struct
-itself does (`Pug.Other:125498`), so a grep for the attribute on the type still
+itself does (`Pug.Other:129964`), so a grep for the attribute on the type still
 turns it up — only `OnCreate` is exempt. On the client,
 `NetworkClientStartSystem.OnUpdate` (`Pug.Other:129371`) is a plain
 `protected override void OnUpdate()` and already holds the client's copy of the
 list; the job that actually receives the RPCs,
 `NetworkClientStartSystem_33002849_LambdaJob_0_Job` (`Pug.Other:129013`),
 carries no `[BurstCompile]` attribute either, holds a managed
-`NetworkClientStartSystem __this` field (`:124549`), and is dispatched through
-`RunWithoutJobsInternal` (`:124642`) — it cannot be Bursted, so a Harmony patch
+`NetworkClientStartSystem __this` field (`Pug.Other:124549`), and is dispatched through
+`RunWithoutJobsInternal` (`Pug.Other:129108`) — it cannot be Bursted, so a Harmony patch
 on it is viable. Whether a Harmony patch on `OnCreate` binds early enough on a
 **dedicated server** — where `IMod.Init()` runs after the worlds are built, see
 below — is **unverified**.
 
 ### What a mismatch looks like to the player
 
-It is a hard block, not a warning (~124940-124978). Joining a server that lacks a
+It is a hard block, not a warning (`Pug.Other:129406-129444`). Joining a server that lacks a
 `Server`-flagged mod raises `Menu/ModMissingServerDialogue`, and the dialogue
 offers exactly two ways out:
 
@@ -227,7 +227,7 @@ nothing ever locks. A permission feature therefore **cannot be tested in
 singleplayer** — it needs a second player who is not the host.
 
 **`guestMode` is not a world flag alone.** `WorldInfoCD.guestMode` is the world's
-setting, but `PlayerController.guestMode` (`:298432`) answers the useful
+setting, but `PlayerController.guestMode` (`Pug.Other:298432`) answers the useful
 question — it returns true only when the world flag is set **and**
 `adminPrivileges < 1`. An admin in a guest-mode world is not a guest.
 
@@ -257,15 +257,15 @@ worked example below.
 **The world you wrote it in decides the direction, and there is only one
 direction.** Snapshots are produced in the server world — `GhostSendSystem`,
 which `NetworkingManager.InitWorld` (`Pug.Other:293767`, the class itself at
-`:284453`) configures only in the world that has one, called from
-`ECSManager.InitWorld` (`:2996`) for both worlds — and applied in the client
-world, `GhostUpdateSystem`, which CK fetches from `Manager.ecs.ClientWorld`. So
-a `[GhostField]` write in the server world replicates, and the identical write
-in the client world reaches nobody and is overwritten by the next snapshot.
-Client → server is a separate mechanism, not ghost fields: player input
-(`ClientInputData`, an `IInputComponentData`, `Pug.ECS.Components:3607`, carried
-by the generated command send/receive systems at `:15462` and `:15612`) and
-RPCs.
+`Pug.Other:284453`) configures only in the world that has one, called from
+`ECSManager.InitWorld` (`Pug.Other:2935`) for both worlds — and applied in the
+client world, `GhostUpdateSystem`, which CK fetches from
+`Manager.ecs.ClientWorld`. So a `[GhostField]` write in the server world
+replicates, and the identical write in the client world reaches nobody and is
+overwritten by the next snapshot. Client → server is a separate mechanism, not
+ghost fields: player input (`ClientInputData`, an `IInputComponentData`,
+`Pug.ECS.Components:3607`, carried by the generated command send/receive systems
+at `Pug.ECS.Components:16019` and `Pug.ECS.Components:16169`) and RPCs.
 
 Read the attribute before assuming either way — and read it per *field*, not per
 component:
@@ -273,7 +273,7 @@ component:
 | Component | Replicated |
 |---|---|
 | `HealthCD` | yes — declared `[GhostField]`, so a server-side change travels to the client |
-| `PlacementCD`'s placement-permission flags — `canPlaceOnWalkableTiles` through `blockedByObjectsOnWalls` (`Pug.ECS.Components:4475-4493`) | no — the tail of the struct carries no `[GhostField]` and none of those fields appears in the generated snapshot, so they are world-local state. The rest of `PlacementCD` *is* replicated, `canPlaceGround` (`:4287`) and `canPlaceRoofHole` (`:4290`) included — this is a per-field answer, not a per-component one |
+| `PlacementCD`'s placement-permission flags — `canPlaceOnWalkableTiles` through `blockedByObjectsOnWalls` (`Pug.ECS.Components:4475-4493`) | no — the tail of the struct carries no `[GhostField]` and none of those fields appears in the generated snapshot, so they are world-local state. The rest of `PlacementCD` *is* replicated, `canPlaceGround` (`Pug.ECS.Components:4287`) and `canPlaceRoofHole` (`Pug.ECS.Components:4467`) included — this is a per-field answer, not a per-component one |
 
 What the client then *does* with a replicated value is a separate question: for
 `HealthCD` it is **unverified** whether a damage-stage sprite or a progress bar
@@ -281,7 +281,7 @@ refreshes on its own.
 
 For those flags the consequence runs the other way — writing them on one side
 changes nothing on the other. The surrounding code is present on both:
-`EquipmentSystemGroup` (`Pug.Other:418856`) runs in the server **and** the client
+`EquipmentSystemGroup` (`Pug.Other:438657`) runs in the server **and** the client
 simulation world, and `EquipmentUpdateSystem.UpdateJob` is a scheduled job.
 Whether a Harmony prefix in that area therefore behaves identically across
 singleplayer, a hosted session and a dedicated server is **unverified** — treat
@@ -364,10 +364,11 @@ its value.
 
 **That absence is the topology test.** `Manager.ecs.ServerWorld` is a public
 property (`Pug.Other:2321`) assigned only where the process creates a server
-world (`:2837`) and nulled on teardown (`:2936`); vanilla itself branches on it
-in at least eight places (`:2152`, `:2487`, `:2517`, …), and the SDK exposes the
-same object as `API.Server.World` (`ModAPIServer.World`, `:392317`). So a mod
-that needs to know whether it *is* the authority asks one question:
+world (`Pug.Other:2770`) and nulled on teardown (`Pug.Other:2869`); vanilla
+itself branches on it in at least eight places (`Pug.Other:2093`,
+`Pug.Other:2487`, `Pug.Other:2517`, …), and the SDK exposes the same object as
+`API.Server.World` (`ModAPIServer.World`, `Pug.Other:409003`). So a mod that
+needs to know whether it *is* the authority asks one question:
 
 ```csharp
 bool iAmTheAuthority = Manager.ecs.ServerWorld != null;
@@ -406,11 +407,11 @@ hashes the two sides compare. Nothing in the message mentions mods.
 
 **No mod name appears anywhere in the connect handshake**, which is why the
 split in the table above decides who can hit this. CK's own connect handshake rejects on two
-values (`Pug.Other:130653`, `:126203`): `localVersionHash`, which is
+values (`Pug.Other:130653`, `Pug.Other:130669`): `localVersionHash`, which is
 `PlayerConnectRequestRPC.GetVersionHash(Manager.version)` — the game version and
-nothing else (`:126655`) — and `ghostCollectionHash`, the XOR of every
+nothing else (`Pug.Other:126655`) — and `ghostCollectionHash`, the XOR of every
 `GhostCollectionPrefab.Hash` in the default world
-(`ECSManager.TryCalculateGhostCollectionHash`, `:2450`). NetCode's own
+(`ECSManager.TryCalculateGhostCollectionHash`, `Pug.Other:2382`). NetCode's own
 `NetworkProtocolVersion` check compares the same kind of thing one layer down.
 A mod set differing only in Harmony-patch or bake-time mods leaves all of it
 untouched and the join **succeeds** — which is exactly the gap `requiredOn`
@@ -514,8 +515,8 @@ Afterwards both processes log `Loading mod with ID <modId>` once per loaded mod,
 from `ModManager.Init()`, regardless of source. So `grep "loaded mod "` is the
 one pattern that works on both sides — it is not the only one that names a mod,
 though: `not loading incompatible mod <name>` (`PugMod.Loader:1231`), `skipping
-mod <name> because of missing dependency` (`:990`) and `failed to load mod
-<name> …` (`:2175`) each name one too, for their own failure case.
+mod <name> because of missing dependency` (`PugMod.Loader:1012`) and `failed to load mod
+<name> …` (`PugMod.Loader:2175`) each name one too, for their own failure case.
 
 ### Warning: the lifecycle order is inverted
 

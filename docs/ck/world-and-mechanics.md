@@ -137,11 +137,11 @@ not a pointer — and reproducing vanilla's number means reading the same source
 does, rather than assuming a mouse exists.
 
 The player marker drawn on the map is rasterised independently, through
-`MakePixelPerfectMapPosition` (`:333968`, called from `:333387`), which
+`MakePixelPerfectMapPosition` (`Pug.Other:346588`, called from `Pug.Other:345959`), which
 quantises with `GetPixelPerfectQuantization()` — `0.0625f / GetCurrentZoom()`
-(`:332990`) — so the step shrinks as you zoom in rather than staying fixed at
+(`Pug.Other:332990`) — so the step shrinks as you zoom in rather than staying fixed at
 `0.0625f`. The literal `RoundToMultiple(0.0625f)` does exist in the code, but
-in `MapUI.CenterMapOnLocalPlayer` (`:333504`), operating on a screen-coordinate
+in `MapUI.CenterMapOnLocalPlayer` (`Pug.Other:346077`), operating on a screen-coordinate
 offset, not on the marker.
 
 **Trap: at a tile boundary the readout and the marker may differ by 1.** They are
@@ -183,7 +183,7 @@ for the reasons in [savegame formats](savegame-formats.md).
 
 ## Tile layers: what may sit on what
 
-`TileType.GetNeededTile` (`Pug.Base:19957`) and `GetInvalidTile` (`:18156`) are
+`TileType.GetNeededTile` (`Pug.Base:19957`) and `GetInvalidTile` (`Pug.Base:20002`) are
 the authority. A tile is applied only if at least one of its needed tiles is
 present at that position and none of its invalid ones is.
 
@@ -235,7 +235,7 @@ with neither `ground` nor `bridge` — gated on a third condition alongside the
 missing-substrate check: a ground item must exist for that tileset. The wall
 itself does not follow automatically in the same click; it needs a second
 click, handled by `IsPlacingWallAfterPreviouslyPlacedGround`
-(`:311570-311577`). Inserting a missing substrate is an established pattern,
+(`Pug.Other:322238-322245`). Inserting a missing substrate is an established pattern,
 not a hack.
 
 ## `AddTile` is a queue append, not a commit
@@ -259,9 +259,9 @@ that position, silently and without a placement check.
 
 ### Ordering: the buffer is reversed twice, so insertion order survives
 
-- `UpdateSubMapCommon.FilterUpdates` (`Pug.Other:240546`) walks the buffer
+- `UpdateSubMapCommon.FilterUpdates` (`Pug.Other:246672`) walks the buffer
   backwards while building `addList`, de-duplicating per `(position, tileType)`.
-- `ApplyAdd` (`Pug.Other:241602`) walks `addList` backwards again.
+- `ApplyAdd` (`Pug.Other:247851`) walks `addList` backwards again.
 
 Two reversals cancel. Net effect: **write the substrate tile first and it is
 applied first.** A bridge under a rail means queueing `bridge`, then `rail`. A
@@ -287,7 +287,7 @@ and third-party placement mods call it too. That makes it the right place to
 **The item is debited from the inventory *after* the `AddTile` call.** Vanilla
 does it in the same method, one statement later: `EntityUtility.AddTile(...)`
 followed immediately by `Create.ConsumeEntityAt(..., destroy: true, ...)` pushed
-onto the inventory update buffer (`Pug.Other:322046`, then `:311382`). The one
+onto the inventory update buffer (`Pug.Other:322046`, then `Pug.Other:322049`). The one
 foreign placement mod measured here, PlacementPlus, behaves the same way.
 Blocking the call therefore consumes the item and produces nothing: a straight
 item loss. Letting the call through and having it fail validation only drops a
@@ -322,18 +322,18 @@ grants permission through **two independent, OR-ed routes**:
 
 1. **`PlacementCD` bool flags** — `canPlaceOnWalkableTiles`, `canPlaceOnWater`,
    `canBePlacedOnLava` (which is `water` with `tileset == 3`), `canPlaceOnPit`,
-   … They are set in `PlacementHandler.Activate` (`:296014`) from
+   … They are set in `PlacementHandler.Activate` (`Pug.Other:305546`) from
    `ObjectPropertiesCD` hashes:
 
    | Hash | Flag |
    |---|---|
-   | `1497889171` | `canPlaceOnWalkableTiles` (`:296026`) |
+   | `1497889171` | `canPlaceOnWalkableTiles` (`Pug.Other:305558`) |
    | `-1324171664` | `canPlaceOnWater` |
    | `-1535225238` | `canBePlacedOnLava` |
    | `-1827158511` | `canPlaceOnPit` |
 
 2. **An object list** — `ObjectCanBePlacedOnObject(<the ObjectID the target TILE
-   maps to>, …, canBePlacedOnObjects)` at `:295775`, which sets
+   maps to>, …, canBePlacedOnObjects)` at `Pug.Other:305307`, which sets
    `foundValidTileToPlaceOn = true` **regardless of every flag**.
 
 **Trap: bridges use route 2, not route 1.** Measured live on `WoodBridge`, the
@@ -346,9 +346,9 @@ membership list.
 
 ### The two list properties are passed crossed
 
-`CanPlaceObjectAtPosition` (`:295579-295586`) reads both list properties into
+`CanPlaceObjectAtPosition` (`Pug.Other:305111-305118`) reads both list properties into
 locals and then calls `ShouldCheckPlaceObjectOnTile(…, tilesChecked, value2,
-value, …)` at `:295631` against a signature of `(…, canBePlacedOnObjects,
+value, …)` at `Pug.Other:305163` against a signature of `(…, canBePlacedOnObjects,
 canNotBePlaceOnObjects, …)`. Reading the hashes in declaration order gets the
 meaning exactly backwards:
 
@@ -370,7 +370,7 @@ conveyor belts.
 `ObjectCanBePlacedOnObject` is a plain membership scan — veto list first as a
 hard block, then the allow list, where a hit returns `true` with no further
 condition. A third, reciprocal step follows if neither list resolves it:
-`:295898-295930` resolves the **target**'s own primary prefab and tests
+`Pug.Other:305430-305462` resolves the **target**'s own primary prefab and tests
 whether *its* `-789473209` (`canBePlacedOnObjects`) list contains the object
 being placed — so either object naming the other is enough.
 
@@ -388,7 +388,7 @@ reflection and invoked virtually.
 (`PugConversion:647-665`) scans the executing assembly and every loaded assembly
 referencing it; `RunConverters` (`PugConversion:996-1007`) calls
 `converter.Convert(gameObject)`, which `SingleAuthoringComponentConverter<T>`
-(`:1376-1386`) forwards to the abstract `Convert(T authoring)` — the same
+(`PugConversion:1394-1404`) forwards to the abstract `Convert(T authoring)` — the same
 conversion pipeline that [database and baking](database-and-baking.md#changing-a-vanilla-objects-baked-data) describes for
 `PugDatabasePostConverter`.
 
@@ -400,7 +400,7 @@ non-existence**: `Convert` snapshots the list
 conversion pass — which is what makes the "requires a restart" advice true.
 
 The list is reachable from `PugDatabasePostConverter.PostConvert(GameObject)`
-(`Pug.Other:3442`/`:3478`), which does run per world/database conversion. From a
+(`Pug.Other:3442`/`Pug.Other:3478`), which does run per world/database conversion. From a
 prefix you walk `PugDatabaseAuthoring` →
 `DatabaseConversionUtility.GetPrefabList(...)` → the `PrefabData` whose
 `ObjectInfo.objectID` matches → `ObjectInfo.prefabInfos` →
@@ -412,7 +412,7 @@ constants: `ObjectID.Pit = 233`, `ObjectID.Water = 232`. The bake runs after
 the full `PostConvert` pattern is in [database and baking](database-and-baking.md).
 
 **Permission has to exist before placement runs.** `canPlaceObject` is computed
-in `UpdatePlaceablePosition`, and `PlaceItem` returns early at `:311322` when it
+in `UpdatePlaceablePosition`, and `PlaceItem` returns early at `Pug.Other:321989` when it
 is false. You cannot "place first and justify it afterwards" — a hook that would
 insert the supporting tile is never reached.
 
@@ -421,10 +421,10 @@ insert the supporting tile is never reached.
 `PlacementHandler.Activate` — the call that populates `PlacementCD` from the
 object's properties — is invoked from
 `SelectedEquipmentChangeSystem.EquippedSlotChangeJob` (`Pug.Other:445953`, call
-at `:427333`).
+at `Pug.Other:446187`).
 
 **Trap: do not read that system's name as its cadence.** Its `OnUpdate` schedules
-the job **unconditionally every tick** (`:428254-428257`; its queries carry no
+the job **unconditionally every tick** (`Pug.Other:447139-447142`; its queries carry no
 `SetChangedVersionFilter`), and the `Activate` call sits *outside* the
 equip-change branch above it. The flags are refreshed per tick, not only when
 the equipped item changes.
@@ -451,7 +451,7 @@ move the work to `UpdatePlaceablePosition` instead.
 
 ## Consuming an item from an inventory slot
 
-`InventoryUtility.ConsumeEntityAt` (`Pug.Other:427790`, class at `:409602`)
+`InventoryUtility.ConsumeEntityAt` (`Pug.Other:427790`, class at `Pug.Other:427534`)
 takes an `optionalTargetObjectID`.
 
 **Trap: despite the name, it is not optional.** The slot's ObjectID is compared
@@ -463,7 +463,7 @@ up in an unhurried manual test. With the argument set, the consume fails
 instead, which is the direction you want this failure to go.
 
 `Create.ConsumeEntityAt(Entity inventory, int index, …)` (`Pug.Other:425614`,
-class `Create` at `:407719`) looks like an overload of the same method but is
+class `Create` at `Pug.Other:425601`) looks like an overload of the same method but is
 not — it is a different class. It builds an `InventoryChangeData` command and
 pushes it onto the inventory-update buffer; it consumes nothing itself.
 `InventoryUtility.ConsumeEntityAt` above already takes an `Entity inventory`,
@@ -600,7 +600,7 @@ every 30 ticks it sets every entity carrying `RequiresDrillCD` and
 `DontDropSelfCD` back to `maxHealth`, but only while `0 < health < maxHealth *
 0.1` (a boulder already at `health <= 0` is deliberately not reanimated). At
 Core Keeper's 20 Hz simulation rate (`defaultSimulationTickRate = 20`,
-`Pug.Base:14788`/`:13887`) 30 ticks is ≈1.5 s, not the ≈0.5 s a 60 Hz frame
+`Pug.Base:14788`/`Pug.Base:15620`) 30 ticks is ≈1.5 s, not the ≈0.5 s a 60 Hz frame
 rate would give — if the mod is instead counting Unity frames rather than
 simulation ticks, the ≈0.5 s figure stands, but the qualitative point holds
 either way. That 10% window is 1.296 million health wide — with eight drills
@@ -740,11 +740,11 @@ two distinct consume sites:
 
 | Event | Where | What happens |
 |---|---|---|
-| Capture | `CageCattle()` `Pug.Other:421821` | Gated on `objectID == ObjectID.CattleCage`; calls `EntityUtility.DropPetInCage(...)` (`:404701`), `DestroyEntity(cattle)` (`:404702`), then `Create.ConsumeEntityAt(.., 1, destroy: true, ..)` (`:404706`) eats the empty box |
-| Release | `PlaceItem()` `:311465` | The carried item is placed and consumed via `Create.ConsumeEntityAt(.., destroy: false, ..)`, amount from `objectDataCD2.amount` (`:311451-311454`); `:311388` is the `else` branch, not the consume |
+| Capture | `CageCattle()` `Pug.Other:421821` | Gated on `objectID == ObjectID.CattleCage`; calls `EntityUtility.DropPetInCage(...)` (`Pug.Other:404701`), `DestroyEntity(cattle)` (`Pug.Other:421867`), then `Create.ConsumeEntityAt(.., 1, destroy: true, ..)` (`Pug.Other:421871`) eats the empty box |
+| Release | `PlaceItem()` `Pug.Other:322132` | The carried item is placed and consumed via `Create.ConsumeEntityAt(.., destroy: false, ..)`, amount from `objectDataCD2.amount` (`Pug.Other:322118-322121`); `Pug.Other:322055` is the `else` branch, not the consume |
 
 **There is no "filled box" item.** This is the natural assumption and it is
-wrong. `DropPetInCage` (`:254079`) spawns a `DroppedItem` that carries the
+wrong. `DropPetInCage` (`Pug.Other:254079`) spawns a `DroppedItem` that carries the
 animal itself as an **`ObjectType.Creature` item**, preserving its auxiliary
 data — `NameCD`, `MealsEatenCD`, `BreedToggleCD` — while the cattle entity is
 destroyed. The box is gone; what you hold is the animal.
@@ -752,9 +752,9 @@ destroyed. The box is gone; what you hold is the animal.
 That changes how you detect a release: test `objectType == Creature` **and**
 `CattleCD` on the prefab. Testing for a cage object finds nothing.
 
-The `amount < 1 && HasComponent<CattleCD>` exception in
-`CanConsumeEntityInSlot` (`:301217`, static overload `:301224`) exists precisely
-so the carried item can still be placed at amount 0.
+The `amount < 1 && HasComponent<CattleCD>` exception in `CanConsumeEntityInSlot`
+(`Pug.Other:310982`, static overload `Pug.Other:310989`) exists precisely so the
+carried item can still be placed at amount 0.
 
 Both sites live in Burst-compiled DOTS player systems (state-update and
 equipment-update aspects), so intercepting them needs the Burst treatment in [Harmony and ECS](harmony-and-ecs.md).
@@ -764,7 +764,7 @@ patching something a nested job calls — as `PlaceItem` is, from
 `EquipmentUpdateSystem.UpdateJob` — needs `DisableBurstForSystemAndJobs` (see [nested jobs need the `AndJobs` variant](harmony-and-ecs.md#nested-jobs-need-the-andjobs-variant)).
 
 **Trap: the data-only loot path does not fire on placement.** Emitting an empty
-`CattleCage` through `SpawnsItemsOnUseCD` / `OpenItemAndSpawnLoot` (`:404518`)
+`CattleCage` through `SpawnsItemsOnUseCD` / `OpenItemAndSpawnLoot` (`Pug.Other:421683`)
 looks like an elegant way to avoid a Burst patch entirely — it is a dead end.
 That path is not reached when an item is *placed*, so a pure CoreLib data patch
 cannot dispense anything at placement time. This was tested and rejected before
@@ -776,7 +776,7 @@ whether the path never fires on *any* placement is **unverified**.)
 Pets are `ObjectType.Pet` (802) — **not** `Creature`, which is a common wrong
 guess when relaxing a bake filter to "include pets".
 
-`SaveManager.SetObjectAsDiscovered` (`Pug.Other` ~`:363151`) force-zeroes
+`SaveManager.SetObjectAsDiscovered` (`Pug.Other` ~`Pug.Other:379923`) force-zeroes
 `variation` for anything with a `PetCD`, so `discoveredObjects2` only ever holds
 a pet at `(objectID, 0)`. **The game does not track which pet skins you have
 seen** — a skin collection is necessarily mod-owned state.
@@ -817,7 +817,7 @@ them all:
 | Group | ObjectIDs | Note |
 |---|---|---|
 | Net-catchable critters | 9800-9819 | 20 entries, no gaps |
-| Fireflies / glowbugs | 3500-3504 | `YellowFirefly` (`Pug.Base:2719`, lower-case `f` — vanilla is inconsistent here), `BlueFireFly`, `GreenFireFly`, `RedFireFly`, `PurpleFireFly` (`:2648`); carry `FireflyCD`, **not** `CritterCD` |
+| Fireflies / glowbugs | 3500-3504 | `YellowFirefly` (`Pug.Base:2719`, lower-case `f` — vanilla is inconsistent here), `BlueFireFly`, `GreenFireFly`, `RedFireFly`, `PurpleFireFly` (`Pug.Base:2723`); carry `FireflyCD`, **not** `CritterCD` |
 
 Because the fireflies use a different component, following `TryCatchAnyCritters`
 in the decompile leads away from them entirely. They are bug-net catchable
@@ -878,7 +878,7 @@ inside: golden plants and `StarlightNautilus` win by rule
 all pairs. It also decides the dish family: the **primary** ingredient's
 `CookingIngredientCD.turnsIntoFood` picks it.
 
-The name is generated per pair (`Pug.Other` ~`:301730`): `foodFormat` composes an
+The name is generated per pair (`Pug.Other` ~`Pug.Other:311513`): `foodFormat` composes an
 adjective (`FoodAdjectives/<secondary>`), a noun (`FoodNouns/<primary>`) and the
 dish type (`Items/<family>`), with grammatical gender. A "Mushroom Soup" is
 simply mushroom in both slots. Each pair is a genuinely distinct, separately

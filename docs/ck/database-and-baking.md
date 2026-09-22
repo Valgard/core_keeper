@@ -145,8 +145,8 @@ Harmony patch. The path is `InventoryUpdateSystem` → `ProcessCraftingJob` →
 `InventoryUtility.Craft`, and it is **Burst-compiled twice over**:
 `InventoryUpdateSystem` is a `[BurstCompile] ISystem` (`Pug.Other:426385`), and
 the work sits in the separately `[BurstCompile]`d `IJob` it schedules
-(`ProcessCraftingJob`, `:408848`; scheduled at `:409176`, calling
-`InventoryUtility.Craft` at `:408902`).
+(`ProcessCraftingJob`, `Pug.Other:408848`; scheduled at `Pug.Other:427108`, calling
+`InventoryUtility.Craft` at `Pug.Other:426805`).
 
 **The distinction that matters is which `BurstDisabler` call.**
 `DisableBurstForSystem<InventoryUpdateSystem>()` does not reach it — that takes

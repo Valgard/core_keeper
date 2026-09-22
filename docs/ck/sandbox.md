@@ -186,8 +186,8 @@ API.Reflection.Invoke(UpdateScrollHeight, scrollWindow);
 
 **Both halves are SDK surface, so the whole recipe costs no dependency at all.**
 `GetNameChecked` and `GetMembersChecked` are extension methods in
-`PugMod.SDK.Runtime` (`:602`, `:642`) alongside `API.Reflection` itself — CoreLib
-is not involved anywhere in this.
+`PugMod.SDK.Runtime` (`PugMod.SDK.Runtime:616`, `PugMod.SDK.Runtime:656`)
+alongside `API.Reflection` itself — CoreLib is not involved anywhere in this.
 
 **A PRIVATE member is reported only by the type that declares it, so aim the
 lookup there and not at a subclass you happen to hold.** `GetMembersChecked`
@@ -223,8 +223,8 @@ on it:
   no narrower channel to listen on.
 - **A refusal is `Debug.Log`, not a warning, in one of three strings.**
   `Trying to patch disallowed type {type}` (`PugMod.Loader:579`), `Patching mod
-  loading not allowed` (`:567`), `Trying to patch type {type} from unknown
-  assembly` (`:590`). Grepping for one of them finds a third of the refusals.
+  loading not allowed` (`PugMod.Loader:567`), `Trying to patch type {type} from unknown
+  assembly` (`PugMod.Loader:590`). Grepping for one of them finds a third of the refusals.
 
 **The prefix test does not separate the game from mods, and reading it that way
 is the trap.** Classifying the 122 decompiled assemblies against the five
@@ -272,8 +272,9 @@ figures as an order of magnitude: a read per keystroke or per click needs no
 budgeting, and a shipped mod does one per frame in a `LateUpdate` without
 apparent trouble. The uncached *lookup* is the half to keep out of a hot path
 regardless — `GetMembersChecked` allocates two arrays plus one wrapper object
-per member on every call (`PugMod.SDK.Runtime:658-664`, `:682`), which is why
-the recipe above caches it in a `static readonly`.
+per member on every call (`PugMod.SDK.Runtime:658-664`,
+`PugMod.SDK.Runtime:696`), which is why the recipe above caches it in a `static
+readonly`.
 
 ## What is not banned
 
