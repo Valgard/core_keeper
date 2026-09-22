@@ -428,3 +428,208 @@ def fetch_catalogue(sdk_path: Path, path: Path) -> list[CatalogueEntry]:
         )
     )
     return read_catalogue(path)
+
+
+KIND_OWN = "own"
+KIND_INSTALLED = "installed"
+KIND_PARKED = "parked"
+KIND_CATALOGUE = "catalogue"
+
+
+@dataclasses.dataclass
+class Resolution:
+    """Where a query landed, described as far as the evidence supports.
+
+    modfile_id is the specific build a download would fetch -- only the
+    catalogue mirror carries it, so it stays None whenever no catalogue entry
+    matched any of the resolved mod's ids.
+    """
+
+    kind: str
+    mod_id: int | None
+    internal_name: str | None
+    title: str
+    slug: str
+    source_path: Path | None
+    modfile_id: int | None = None
+    provisional: bool = False
+    notes: list[str] = dataclasses.field(default_factory=list)
+    source_files: list[str] = dataclasses.field(default_factory=list)
+
+
+class Workspace:
+    """The three sources, indexed together and resolvable by any name.
+
+    Built rather than constructed so that the read of each source stays
+    testable on its own, and so a caller can hand in synthetic paths.
+    """
+
+    def __init__(
+        self,
+        installed: list[InstalledMod],
+        own: list[OwnMod],
+        catalogue: list[CatalogueEntry],
+        warnings: list[str],
+    ) -> None:
+        self.installed = {m.mod_id: m for m in installed}
+        self.own = own
+        self.catalogue = {c.mod_id: c for c in catalogue}
+        self.warnings = list(warnings)
+
+        # A repo claims both its ids: the real one names its subscription, the
+        # fake one its dev build. Mapping both to the repo is what turns "dev
+        # build beside subscription" from an ambiguity into two locations.
+        self.owner_of: dict[int, OwnMod] = {}
+        for mod in own:
+            for claimed in (mod.mod_id, mod.fake_id):
+                if claimed is not None:
+                    self.owner_of[claimed] = mod
+
+        self.index = NameIndex()
+        for mod in installed:
+            self.index.add(mod.internal_name, mod.mod_id, ORIGIN_INTERNAL)
+            self.index.add(mod.title, mod.mod_id, ORIGIN_TITLE)
+            self.index.add(mod.slug, mod.mod_id, ORIGIN_SLUG)
+        for entry in catalogue:
+            self.index.add(entry.title, entry.mod_id, ORIGIN_TITLE)
+            self.index.add(entry.slug, entry.mod_id, ORIGIN_SLUG)
+        for mod in own:
+            for claimed in (mod.mod_id, mod.fake_id):
+                if claimed is not None:
+                    self.index.add(mod.mod_name, claimed, ORIGIN_INTERNAL)
+
+    @classmethod
+    def build(
+        cls, cache_dir: Path | None, workspace: Path, catalogue_path: Path
+    ) -> "Workspace":
+        """Read all three sources and index them.
+
+        cache_dir=None skips the cache read rather than probing a directory
+        that may not exist -- a caller with no bottle to offer (a fresh test,
+        a machine with no CrossOver bottle yet) should not have to invent a
+        path just to dodge read_installed's own FileNotFoundError.
+        """
+        installed, warnings = ([], [])
+        if cache_dir is not None:
+            installed, warnings = read_installed(cache_dir)
+        return cls(
+            installed,
+            read_own_mods(workspace),
+            read_catalogue(catalogue_path),
+            warnings,
+        )
+
+    def _group(self, hits: dict[int, set[str]]) -> dict[object, list[int]]:
+        """Collapse ids that belong to one mod onto one group key.
+
+        An own mod's real id and fake id are two keys in `hits` but one
+        candidate: the repo they both name. Everything else groups on its own
+        id, since nothing else ties two ids to the same mod.
+        """
+        groups: dict[object, list[int]] = {}
+        for mod_id in hits:
+            owner = self.owner_of.get(mod_id)
+            key = owner.repo if owner is not None else mod_id
+            groups.setdefault(key, []).append(mod_id)
+        return groups
+
+    def resolve(self, query: str) -> Resolution | list[Resolution]:
+        """One Resolution, or a list of candidates when genuinely ambiguous.
+
+        Never a best guess. A display title is not an identity -- two authors
+        ship a "Tool Resizer" -- and the cost of choosing wrong is an agent
+        reading a different mod's source and reporting confidently about it.
+        """
+        if not normalise(query):
+            raise ValueError(f"{query!r} has no letters or digits to match on")
+
+        hits = self.index.lookup(query)
+        if not hits:
+            raise LookupError(f"no mod matches {query!r}")
+
+        groups = self._group(hits)
+        if len(groups) > 1:
+            return [self._describe(ids[0]) for ids in groups.values()]
+        return self._describe(min(next(iter(groups.values()))), all_ids=hits)
+
+    def _describe(
+        self, mod_id: int, all_ids: dict[int, set[str]] | None = None
+    ) -> Resolution:
+        """Build the Resolution for one already-resolved group of ids.
+
+        Checked in this order -- own, then installed, then catalogue-only --
+        because a repo in this workspace is the strongest evidence available,
+        an installed copy is the next best (it is what actually runs), and a
+        catalogue-only hit is what is left once neither exists locally.
+        """
+        owner = self.owner_of.get(mod_id)
+        ids = sorted(all_ids or [mod_id])
+        installed = next((self.installed[i] for i in ids if i in self.installed), None)
+        entry = next((self.catalogue[i] for i in ids if i in self.catalogue), None)
+        modfile_id = entry.modfile_id if entry else None
+        notes: list[str] = []
+
+        if owner is not None:
+            dev = next(
+                (
+                    self.installed[i]
+                    for i in ids
+                    if i in self.installed and i >= FAKE_ID_MIN
+                ),
+                None,
+            )
+            if dev is not None:
+                notes.append(f"also built as a dev build at {dev.folder}")
+            return Resolution(
+                kind=KIND_OWN,
+                mod_id=owner.mod_id,
+                internal_name=owner.mod_name,
+                title=entry.title if entry else (installed.title if installed else ""),
+                slug=entry.slug if entry else (installed.slug if installed else ""),
+                source_path=owner.source_path,
+                modfile_id=modfile_id,
+                notes=notes,
+            )
+
+        if installed is not None:
+            if installed.is_fake_id:
+                notes.append(
+                    "temporary: this fake id belongs to no mod repo, so it is a foreign "
+                    "mod parked locally — a mod.io sync deletes such entries"
+                )
+                kind = KIND_PARKED
+            else:
+                kind = KIND_INSTALLED
+            if not installed.ships_source:
+                notes.append("ships no Scripts/ — this mod is assets only")
+            if not installed.enabled:
+                notes.append("installed but disabled in the game's mod menu")
+            return Resolution(
+                kind=kind,
+                mod_id=installed.mod_id,
+                internal_name=installed.internal_name,
+                title=installed.title,
+                slug=installed.slug,
+                source_path=installed.source_path,
+                modfile_id=modfile_id,
+                notes=notes,
+                source_files=installed.source_files,
+            )
+
+        return Resolution(
+            kind=KIND_CATALOGUE,
+            mod_id=entry.mod_id,
+            internal_name=None,
+            title=entry.title,
+            slug=entry.slug,
+            source_path=None,
+            modfile_id=modfile_id,
+            provisional=True,
+            notes=[
+                (
+                    "not installed — internal name unknown, it exists only in a "
+                    "ModManifest.json, so this hit could be a different mod with a "
+                    "similar title"
+                )
+            ],
+        )

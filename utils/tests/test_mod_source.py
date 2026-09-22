@@ -377,3 +377,139 @@ def test_fetch_catalogue_tolerates_a_present_but_null_page(tmp_path, monkeypatch
     entries = mod_source.fetch_catalogue(tmp_path / "sdk", tmp_path / "catalogue.json")
 
     assert entries == []
+
+
+def _workspace(tmp_path, installed=(), own=(), catalogue=()):
+    """Build a Workspace from synthetic sources, skipping any source unused by the test."""
+    cache = _write_cache(tmp_path / "bottle", list(installed)) if installed else None
+    repos = tmp_path / "repos"
+    repos.mkdir(exist_ok=True)
+    for repo, mod_name, mod_id, fake_id in own:
+        _write_repo(repos, repo, mod_name, mod_id, fake_id)
+    mirror = tmp_path / "catalogue.json"
+    mirror.write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {"id": i, "name": n, "name_id": s, "modfile": f}
+                    for i, n, s, f in catalogue
+                ]
+            }
+        )
+    )
+    return mod_source.Workspace.build(
+        cache_dir=cache, workspace=repos, catalogue_path=mirror
+    )
+
+
+def test_an_own_mod_resolves_to_its_repository(tmp_path):
+    ws = _workspace(
+        tmp_path,
+        installed=[(6211950, 7958010, "ModSettingsMenu", ["Scripts/M.cs"])],
+        own=[("mod-settings-menu", "ModSettingsMenu", 6211950, 9999991)],
+        catalogue=[(6211950, "Mod Settings Menu", "mod-settings-menu", 7958010)],
+    )
+
+    result = ws.resolve("Mod Settings Menu")
+
+    assert result.kind == mod_source.KIND_OWN
+    assert result.source_path.name == "ModSettingsMenu"
+    assert result.internal_name == "ModSettingsMenu"
+
+
+def test_a_dev_build_beside_its_subscription_is_one_mod(tmp_path):
+    # Both cache entries map to the same repo, so this is two locations for
+    # one mod -- not two candidates to choose between. If Workspace grouped
+    # by raw mod id instead of by owning repo (dropping _group's owner-aware
+    # key), this would come back as a two-candidate list instead of one
+    # Resolution, and the isinstance check below would fail.
+    ws = _workspace(
+        tmp_path,
+        installed=[
+            (6065466, 8079348, "DisableDurability", ["Scripts/D.cs"]),
+            (9999999, 1, "DisableDurability", ["Scripts/D.cs"]),
+        ],
+        own=[("disable-durability", "DisableDurability", 6065466, 9999999)],
+    )
+
+    result = ws.resolve("DisableDurability")
+
+    assert isinstance(result, mod_source.Resolution)
+    assert result.kind == mod_source.KIND_OWN
+    assert any("dev build" in n for n in result.notes)
+
+
+def test_two_distinct_mods_return_candidates(tmp_path):
+    ws = _workspace(
+        tmp_path,
+        catalogue=[
+            (6041499, "Tool Resizer", "tool-resizer", 1),
+            (4799620, "ToolResizer", "toolresizer", 2),
+        ],
+    )
+
+    result = ws.resolve("ToolResizer")
+
+    assert isinstance(result, list)
+    assert {r.mod_id for r in result} == {6041499, 4799620}
+
+
+def test_a_foreign_fake_id_is_flagged_temporary(tmp_path):
+    ws = _workspace(
+        tmp_path,
+        installed=[(9999986, 1, "GeneralConfigMenu", ["Scripts/G.cs"])],
+    )
+
+    result = ws.resolve("GeneralConfigMenu")
+
+    assert result.kind == mod_source.KIND_PARKED
+    assert any("temporary" in n.lower() for n in result.notes)
+
+
+def test_a_catalogue_only_hit_is_provisional(tmp_path):
+    ws = _workspace(
+        tmp_path,
+        catalogue=[(4584153, "General Mod Config Menu", "generalconfigmenu", 7840263)],
+    )
+
+    result = ws.resolve("General Mod Config Menu")
+
+    assert result.kind == mod_source.KIND_CATALOGUE
+    assert result.provisional is True
+    assert result.internal_name is None
+
+
+def test_an_empty_query_is_refused(tmp_path):
+    ws = _workspace(tmp_path)
+
+    with pytest.raises(ValueError):
+        ws.resolve("---")
+
+
+def test_a_resolution_carries_the_modfile_id_from_the_catalogue(tmp_path):
+    # modfile_id has no source of its own -- it is only ever copied out of a
+    # matched CatalogueEntry. A Resolution built without reading `entry` here
+    # would leave the field at its None default and this would fail.
+    ws = _workspace(
+        tmp_path,
+        catalogue=[(4584153, "General Mod Config Menu", "generalconfigmenu", 7840263)],
+    )
+
+    result = ws.resolve("General Mod Config Menu")
+
+    assert result.modfile_id == 7840263
+
+
+def test_an_own_mod_with_no_catalogue_entry_has_no_modfile_id(tmp_path):
+    # The own-mod branch also runs `entry.modfile_id if entry else None` --
+    # this pins the "else None" half, which the catalogue-present test above
+    # cannot exercise.
+    ws = _workspace(
+        tmp_path,
+        own=[("faster-talents", "FasterTalents", 6065498, None)],
+    )
+
+    result = ws.resolve("FasterTalents")
+
+    assert result.kind == mod_source.KIND_OWN
+    assert result.modfile_id is None
