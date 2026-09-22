@@ -2,9 +2,11 @@
 
 The cases are the citation forms the handbook actually contains, not invented
 ones: the single-line majority, the range form, and — since 2026-09-01 — the
-three shapes it resolves beyond a plain assembly name: a `DedicatedServer/`
-prefixed citation against that tree's own copy, and an asset citation
-(`.prefab`) found by name under `Resources/Assets/`. What still resolves to
+shapes it resolves beyond a plain assembly name: a `DedicatedServer/`
+prefixed citation against that tree's own copy, an asset citation (`.prefab`)
+found by name under `Resources/Assets/`, and — since 2026-09-22 — a `.cs`
+citation naming a file in an open-source dependency's own clone, which sits
+beside the decompile rather than inside it. What still resolves to
 nothing is a citation naming neither shape: a bare `DedicatedServer:NNNN`
 with no assembly named inside it, an asset name matching zero or more than
 one file, and a doc-to-doc line reference that must never be mistaken for a
@@ -430,3 +432,37 @@ def test_an_assembly_that_disappears_is_not_also_reported_as_uncited(tmp_path, c
     assert code == 1
     assert "no decompiled assembly" in out
     assert "no longer cited anywhere" not in out
+
+
+class TestSourceCloneResolution:
+    """A citation can name a file in an open-source dependency's own sources.
+
+    Those sit beside the decompiled assemblies rather than among them, so they
+    need their own lookup — and the handbook states a filename, not a path.
+    """
+
+    def _clone(self, tmp_path, rel, text):
+        p = tmp_path / "CoreLib-source-4.0.5" / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
+        return p
+
+    def test_a_cs_file_in_a_source_clone_resolves(self, tmp_path):
+        self._clone(tmp_path, "Assets/CoreLib/LocalizationModule.cs", "a\nb\nc\n")
+        assert mod.resolve("LocalizationModule.cs", 2, 2, tmp_path) == ["b"]
+
+    def test_an_ambiguous_filename_resolves_to_nothing(self, tmp_path):
+        # Two files of the same name cannot be told apart from a citation that
+        # gives only the name, so guessing between them is worse than failing.
+        self._clone(tmp_path, "a/Thing.cs", "x\n")
+        self._clone(tmp_path, "b/Thing.cs", "y\n")
+        assert mod.resolve("Thing.cs", 1, 1, tmp_path) is None
+
+    def test_an_absent_file_resolves_to_nothing(self, tmp_path):
+        (tmp_path / "CoreLib-source-4.0.5").mkdir(parents=True)
+        assert mod.resolve("Missing.cs", 1, 1, tmp_path) is None
+
+    def test_a_decompiled_assembly_still_wins(self, tmp_path):
+        # The assembly path is tried first; a same-named .cs must not shadow it.
+        (tmp_path / "Pug.Other.decompiled.cs").write_text("real\n")
+        assert mod.resolve("Pug.Other", 1, 1, tmp_path) == ["real"]

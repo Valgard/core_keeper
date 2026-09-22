@@ -63,6 +63,14 @@ def extract(text):
 # the day a citation needs a second one, rather than pre-guessing which.
 ASSET_EXTENSIONS = {".prefab"}
 
+# A citation can also name a file in an open-source dependency's own sources,
+# which are checked out beside the decompile rather than inside it —
+# `LocalizationModule.cs:132` is CoreLib's, not a decompiled assembly. Those
+# resolve by searching the dependency clones, same as an asset name: the
+# handbook states a filename, not a path.
+SOURCE_EXTENSIONS = {".cs"}
+SOURCE_CLONES = ("CoreLib-source-*",)
+
 
 def _stripped_lines(path, first, last):
     """Read lines first..last from path, stripped — the shared tail of every
@@ -96,6 +104,16 @@ def resolve(assembly, first, last, decompile):
 
     if Path(assembly).suffix in ASSET_EXTENSIONS:
         matches = sorted(Path(decompile, "Resources", "Assets").rglob(assembly))
+        if len(matches) == 1:
+            return _stripped_lines(matches[0], first, last)
+
+    if Path(assembly).suffix in SOURCE_EXTENSIONS:
+        matches = sorted(
+            match
+            for pattern in SOURCE_CLONES
+            for clone in Path(decompile).glob(pattern)
+            for match in clone.rglob(assembly)
+        )
         if len(matches) == 1:
             return _stripped_lines(matches[0], first, last)
 
