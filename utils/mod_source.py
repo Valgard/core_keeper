@@ -13,12 +13,14 @@ mods unresolvable. The measurement and the cases that defeat it are in
 docs/specs/2026-09-20-mod-source-lookup-design.md.
 """
 
+import argparse
 import dataclasses
 import io
 import json
 import os
 import re
 import subprocess
+import sys
 import unicodedata
 import urllib.parse
 import zipfile
@@ -818,3 +820,309 @@ def download(
                     "— check this is the mod you meant"
                 )
     return target, warnings
+
+
+def _installed_mods_dir() -> Path:
+    """Where mod.io unpacks installed mods, inside the CrossOver bottle.
+
+    The same suffix utils/server.sh's own MODIO_CACHE appends: 5289 is Core
+    Keeper's mod.io game id, fixed and identical everywhere it is used in
+    this repository (docs/ck/platforms.md). Kept separate from cache_root()
+    on purpose -- that directory is THIS tool's own derived state (the
+    catalogue mirror, a --download target); this one belongs to the game's
+    own mod.io client and is only ever read, never written.
+    """
+    return bottle_path() / "drive_c/users/Public/mod.io/5289/mods"
+
+
+def _catalogue_path() -> Path:
+    """Where the mirrored catalogue lives -- the one file under cache_root()."""
+    return cache_root() / "catalogue.json"
+
+
+def _sdk_path() -> Path | None:
+    """SDK_PATH from the environment, or None when it is not set.
+
+    Only the catalogue fetch and --download need it -- every other lookup
+    (cache, repos, an already-mirrored catalogue) works without it, so its
+    absence is a warning at the call site, never a hard failure here.
+    """
+    value = os.environ.get("SDK_PATH")
+    return Path(value) if value else None
+
+
+def _display_name(resolution: Resolution) -> str:
+    """The header name -- what a human most likely searched for.
+
+    Title first, not the internal name: it is the name that exists for every
+    kind except a brand-new own mod with no catalogue entry, whereas the
+    internal name is exactly the field a catalogue-only hit does NOT have
+    (Workspace._describe leaves it None until a download settles it). Falls
+    all the way to the mod id, and then to a fixed string, for the one case
+    that has neither -- an own mod with no real id, no dev build and no
+    catalogue entry, which is the state new_mod.py scaffolds.
+    """
+    if resolution.title:
+        return resolution.title
+    if resolution.internal_name:
+        return resolution.internal_name
+    if resolution.mod_id is not None:
+        return f"mod {resolution.mod_id}"
+    return "(unpublished mod)"
+
+
+def _status_phrase(resolution: Resolution) -> str:
+    """The clause after the header's em dash: kind plus source availability.
+
+    source_path being None (catalogue-only, never downloaded) and source_path
+    existing but not being a directory (installed, but the mod ships no
+    Scripts/) are different facts and must not collapse into the same
+    "no source" phrase -- one means "not installed", the other "installed,
+    assets only". A resolution a --download just settled looks like neither
+    of the ordinary kinds: its `kind` is still KIND_CATALOGUE (classification
+    is a property of how it was FOUND, not of what has happened to it since),
+    but it now has a real source_path, so it reads as "installed" rather than
+    "not installed" once one exists -- the whole reason main() updates
+    source_path in place after a successful fetch instead of building a new
+    Resolution.
+    """
+    if resolution.source_path is None:
+        return "not installed" + (
+            ", provisional match" if resolution.provisional else ""
+        )
+
+    availability = (
+        "source available" if resolution.source_path.is_dir() else "no source shipped"
+    )
+    if resolution.kind == KIND_OWN:
+        return f"own mod in this workspace, {availability}"
+    if resolution.kind == KIND_PARKED:
+        return f"installed (temporary/foreign), {availability}"
+    if resolution.provisional:
+        return f"downloaded, {availability}"
+    return f"installed, {availability}"
+
+
+def _names_line(resolution: Resolution) -> str:
+    """One line naming the mod in all three spaces, plus its mod.io id.
+
+    Every field defaults to a literal "unknown"/"unpublished" rather than
+    being omitted -- a caller that only ever sees the line when it is
+    complete could read a missing field as "this tool didn't check", when
+    what it actually means is "this name space has no answer yet".
+    """
+    internal = resolution.internal_name or "unknown"
+    title = resolution.title or "unknown"
+    slug = resolution.slug or "unknown"
+    mod_id = resolution.mod_id if resolution.mod_id is not None else "unpublished"
+    return f'internal {internal} · mod.io "{title}" · slug {slug} · modId {mod_id}'
+
+
+def _source_count(resolution: Resolution) -> int | None:
+    """How many .cs files ship, or None when that cannot be known.
+
+    source_files comes straight from the manifest for an installed or parked
+    mod -- no directory walk needed. An own mod carries no manifest
+    (ModManifest.json is build-generated, per read_own_mods's own docstring),
+    and neither does a freshly downloaded catalogue-only mod the moment after
+    main() points its source_path at the unpacked archive -- both fall back
+    to counting the same way find_file's own-mod branch already does.
+    """
+    if resolution.source_files:
+        return len(resolution.source_files)
+    if resolution.source_path is not None and resolution.source_path.is_dir():
+        return sum(1 for _ in resolution.source_path.rglob("*.cs"))
+    return None
+
+
+def render(resolution: Resolution) -> str:
+    """A resolution in the exact shape a dispatch prompt can carry unchanged.
+
+    This is the requirement the whole tool is judged by. The originating
+    failure was eight subagents sent to verify a claim about CoreLib: 19 of
+    23 across the run were never told where its source was, and seven fell
+    back to `find /` for up to 12h49m. A correct answer nobody can paste into
+    a prompt as it stands changes nothing -- so every line here is either an
+    absolute path or a name the query itself supplied, and nothing requires
+    the reader to already know a mod id, a cache directory layout, or which
+    of the three name spaces (internal, mod.io title, slug) actually matched.
+    """
+    lines = [f"{_display_name(resolution)}  —  {_status_phrase(resolution)}"]
+
+    source = (
+        str(resolution.source_path)
+        if resolution.source_path is not None
+        else "not installed — fetch it with --download"
+    )
+    lines.append(f"  Source    {source}")
+    lines.append(f"  Names     {_names_line(resolution)}")
+
+    count = _source_count(resolution)
+    if count is not None:
+        noun = ".cs file" if count == 1 else ".cs files"
+        lines.append(f"  Size      {count} {noun}")
+
+    if resolution.notes:
+        lines.append("  Notes")
+        for note in resolution.notes:
+            lines.append(f"    - {note}")
+
+    return "\n".join(lines)
+
+
+def _resolution_payload(resolution: Resolution) -> dict:
+    """Resolution as a JSON-safe dict.
+
+    dataclasses.asdict copies a Path field verbatim rather than converting
+    it, and json.dumps cannot encode one -- so it is stringified explicitly
+    here, on the one field known to hold a Path, rather than through a
+    default= hook that would silently apply to any OTHER field that later
+    became one.
+    """
+    payload = dataclasses.asdict(resolution)
+    payload["source_path"] = (
+        str(resolution.source_path) if resolution.source_path is not None else None
+    )
+    return payload
+
+
+def render_json(resolution: Resolution) -> str:
+    """The same facts as render(), for a caller that parses rather than reads."""
+    return json.dumps(_resolution_payload(resolution))
+
+
+def main(argv: list[str] | None = None) -> int:
+    """The CLI: resolve one query, optionally find one file in it or fetch it.
+
+    Deliberately thin. Every piece of behaviour here already exists above
+    with its own tests (Workspace.resolve, find_file, download, render) --
+    this only wires argv to them and picks an exit code.
+    """
+    parser = argparse.ArgumentParser(
+        prog="mod_source.py",
+        description="Resolve a Core Keeper mod name to where its source lives.",
+    )
+    parser.add_argument("mod", help="internal name, mod.io title, or slug")
+    parser.add_argument(
+        "file",
+        nargs="?",
+        help="find one .cs file by (partial, case-insensitive) filename in the resolved mod",
+    )
+    parser.add_argument("--json", action="store_true", help="machine-readable output")
+    parser.add_argument(
+        "--download",
+        action="store_true",
+        help="fetch the published build when the mod is not installed locally",
+    )
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="refetch the mod.io catalogue mirror before resolving",
+    )
+    parser.add_argument(
+        "--workspace",
+        type=Path,
+        default=Path(__file__).resolve().parent.parent,
+        help="directory holding this repo's own mods (default: %(default)s)",
+    )
+    args = parser.parse_args(argv)
+
+    sdk_path = _sdk_path()
+    catalogue_path = _catalogue_path()
+    if args.refresh or not catalogue_path.is_file():
+        if sdk_path is None:
+            print(
+                "warning: SDK_PATH is not set — proceeding with the cache and "
+                "repos only, a mod that is not installed cannot be resolved",
+                file=sys.stderr,
+            )
+        else:
+            try:
+                fetch_catalogue(sdk_path, catalogue_path)
+            except (ValueError, OSError) as error:
+                print(
+                    f"warning: could not refresh the mod.io catalogue ({error}) "
+                    "— proceeding with the cache and repos only",
+                    file=sys.stderr,
+                )
+
+    try:
+        workspace = Workspace.build(
+            _installed_mods_dir(), args.workspace, catalogue_path
+        )
+    except FileNotFoundError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    for warning in workspace.warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+
+    try:
+        result = workspace.resolve(args.mod)
+    except (LookupError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+
+    if isinstance(result, list):
+        print(f"{len(result)} mods match {args.mod!r} — which one?")
+        if args.json:
+            print(json.dumps([_resolution_payload(r) for r in result]))
+        else:
+            for candidate in result:
+                print()
+                print(render(candidate))
+        return 2
+
+    if args.download and result.source_path is None:
+        if result.modfile_id is None:
+            print(
+                f"error: {result.title!r} has no published build to download",
+                file=sys.stderr,
+            )
+            return 1
+        if sdk_path is None:
+            print(
+                "error: --download needs SDK_PATH set in the environment",
+                file=sys.stderr,
+            )
+            return 1
+        into = cache_root() / "downloads" / f"{result.mod_id}_{result.modfile_id}"
+        try:
+            downloaded, warnings = download(result, sdk_path, into)
+        except (ValueError, OSError) as error:
+            print(f"error: download failed ({error})", file=sys.stderr)
+            return 1
+        for warning in warnings:
+            print(f"warning: {warning}", file=sys.stderr)
+        scripts = downloaded / "Scripts"
+        result.source_path = scripts if scripts.is_dir() else downloaded
+        # The "not installed" note _describe attached before the fetch is now
+        # stale -- the mod just was installed, right here -- and notes are the
+        # only place render() surfaces it, so leaving it in would print a
+        # downloaded mod as still not installed. Only a catalogue-only result
+        # ever reaches this branch (source_path was None to get here), and
+        # that note text is the one _describe attaches for exactly that case.
+        result.notes = [note for note in result.notes if "not installed" not in note]
+
+    if args.file:
+        try:
+            found = find_file(result, args.file)
+        except LookupError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+        if isinstance(found, list):
+            if args.json:
+                print(json.dumps([str(p) for p in found]))
+            else:
+                print(f"{len(found)} files match {args.file!r}:")
+                for path in found:
+                    print(path)
+            return 2
+        print(json.dumps(str(found)) if args.json else found)
+        return 0
+
+    print(render_json(result) if args.json else render(result))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

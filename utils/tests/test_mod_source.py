@@ -1017,3 +1017,280 @@ def test_download_leaves_no_directory_behind_when_rejected(tmp_path, monkeypatch
         mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
 
     assert not (tmp_path / "dl").exists()
+
+
+# ---------------------------------------------------------------------------
+# render / render_json / main
+# ---------------------------------------------------------------------------
+
+
+def test_render_names_every_known_name_and_an_absolute_path(tmp_path):
+    ws = _workspace(
+        tmp_path,
+        installed=[(3177992, 7845185, "CoreLib", ["Scripts/CoreLibMod.cs"])],
+    )
+    text = mod_source.render(ws.resolve("CoreLib"))
+
+    assert "CoreLib" in text
+    assert "3177992" in text
+    assert str(tmp_path) in text
+    assert "1 .cs" in text or "1 source file" in text
+
+
+def test_render_says_when_the_internal_name_is_unknown(tmp_path):
+    ws = _workspace(
+        tmp_path, catalogue=[(4584153, "General Mod Config Menu", "gcm", 7840263)]
+    )
+    text = mod_source.render(ws.resolve("General Mod Config Menu"))
+
+    assert "unknown" in text.lower()
+
+
+def test_render_reports_an_own_mods_file_count_by_walking_its_directory(tmp_path):
+    # An own mod carries no manifest -- ModManifest.json is build-generated,
+    # per read_own_mods's own docstring -- so source_files is always empty for
+    # KIND_OWN and the .cs count can only come from walking the repository.
+    # _write_repo creates exactly one .cs file (<mod_name>Mod.cs), so "1 .cs
+    # file" is right only if that walk actually ran; an implementation that
+    # only ever reads source_files would print no Size line at all here.
+    ws = _workspace(tmp_path, own=[("faster-talents", "FasterTalents", 6065498, None)])
+
+    text = mod_source.render(ws.resolve("FasterTalents"))
+
+    assert "own mod" in text.lower()
+    assert "1 .cs file" in text
+
+
+def test_render_states_an_asset_only_installed_mod_ships_no_source(tmp_path):
+    # _write_cache always creates a Scripts/ directory; removing it after the
+    # fact is what makes this a genuine asset-only install (ships_source
+    # False), the case the design's failure-mode table names explicitly.
+    ws = _workspace(tmp_path, installed=[(1, 2, "AssetPack", [])])
+    (tmp_path / "bottle" / "mods" / "1_2" / "Scripts").rmdir()
+
+    text = mod_source.render(ws.resolve("AssetPack"))
+
+    assert "no source shipped" in text.lower()
+    assert "ships no scripts" in text.lower()
+
+
+def test_json_output_is_machine_readable(tmp_path):
+    ws = _workspace(tmp_path, installed=[(1, 2, "X", ["Scripts/X.cs"])])
+    payload = json.loads(mod_source.render_json(ws.resolve("X")))
+
+    assert payload["mod_id"] == 1
+    assert payload["kind"] == mod_source.KIND_INSTALLED
+
+
+def test_json_output_stringifies_the_source_path(tmp_path):
+    # dataclasses.asdict alone leaves source_path as a Path object, which
+    # json.dumps cannot encode -- parsing the result at all is half the
+    # check, the other half is that the string still names the right,
+    # absolute folder rather than e.g. repr()'d Path("...").
+    ws = _workspace(tmp_path, installed=[(1, 2, "X", ["Scripts/X.cs"])])
+
+    payload = json.loads(mod_source.render_json(ws.resolve("X")))
+
+    assert payload["source_path"] == str(
+        tmp_path / "bottle" / "mods" / "1_2" / "Scripts"
+    )
+
+
+def _write_bottle(tmp_path, mods=()):
+    """A synthetic CrossOver bottle at the path main() expects to find one.
+
+    _installed_mods_dir() appends drive_c/users/Public/mod.io/5289/mods to
+    bottle_path()'s result -- the same suffix utils/server.sh's own
+    MODIO_CACHE uses -- so building the cache there with the existing
+    _write_cache helper, then handing back the bottle root, is enough for
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: <this>) to make
+    main() see it.
+    """
+    bottle = tmp_path / "bottle"
+    _write_cache(bottle / "drive_c/users/Public/mod.io/5289", list(mods))
+    return bottle
+
+
+def _write_main_catalogue(tmp_path, entries=()):
+    """The catalogue mirror at the one path main() reads it from by default."""
+    mirror = tmp_path / "cache" / "catalogue.json"
+    mirror.parent.mkdir(parents=True, exist_ok=True)
+    mirror.write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {"id": i, "name": n, "name_id": s, "modfile": f}
+                    for i, n, s, f in entries
+                ]
+            }
+        )
+    )
+    return mirror
+
+
+def test_main_exits_non_zero_on_ambiguity(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    _write_main_catalogue(
+        tmp_path,
+        [
+            (1, "Tool Resizer", "tool-resizer", 1),
+            (2, "ToolResizer", "toolresizer", 2),
+        ],
+    )
+    # An empty but EXISTING cache directory, not a missing bottle_path: the
+    # subject here is ambiguity, and read_installed raises FileNotFoundError
+    # for a missing cache directory by design (that path has its own test,
+    # test_main_exits_one_when_the_bottle_path_does_not_exist below) -- a
+    # nonexistent bottle here would fail for the wrong reason and never reach
+    # the ambiguity this test is meant to exercise.
+    bottle = _write_bottle(tmp_path)
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
+
+    code = mod_source.main(["ToolResizer", "--workspace", str(tmp_path)])
+
+    assert code != 0
+    assert "Tool Resizer" in capsys.readouterr().out
+
+
+def test_main_resolves_a_single_installed_mod_and_prints_source(
+    tmp_path, capsys, monkeypatch
+):
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    _write_main_catalogue(tmp_path)
+    bottle = _write_bottle(
+        tmp_path, [(3177992, 7845185, "CoreLib", ["Scripts/CoreLibMod.cs"])]
+    )
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
+
+    code = mod_source.main(["CoreLib", "--workspace", str(tmp_path)])
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "3177992_7845185" in out
+    assert "CoreLib" in out
+
+
+def test_main_exits_one_on_a_lookup_error(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    _write_main_catalogue(tmp_path)
+    bottle = _write_bottle(tmp_path)
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
+
+    code = mod_source.main(["NoSuchMod", "--workspace", str(tmp_path)])
+
+    assert code == 1
+    assert "NoSuchMod" in capsys.readouterr().err
+
+
+def test_main_exits_one_when_the_bottle_path_does_not_exist(
+    tmp_path, capsys, monkeypatch
+):
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    _write_main_catalogue(tmp_path)
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: tmp_path / "no-such-bottle")
+
+    code = mod_source.main(["CoreLib", "--workspace", str(tmp_path)])
+
+    assert code == 1
+    assert "CK_BOTTLE_PATH" in capsys.readouterr().err
+
+
+def test_main_file_argument_prints_the_resolved_absolute_path(
+    tmp_path, capsys, monkeypatch
+):
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    _write_main_catalogue(tmp_path)
+    bottle = _write_bottle(
+        tmp_path, [(3177992, 7845185, "CoreLib", ["Scripts/Util/ConfigScope.cs"])]
+    )
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
+
+    code = mod_source.main(["CoreLib", "ConfigScope", "--workspace", str(tmp_path)])
+
+    out = capsys.readouterr().out.strip()
+    assert code == 0
+    assert out.endswith("Scripts/Util/ConfigScope.cs")
+    assert Path(out).is_absolute()
+
+
+def test_main_file_argument_exits_one_when_nothing_matches(
+    tmp_path, capsys, monkeypatch
+):
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    _write_main_catalogue(tmp_path)
+    bottle = _write_bottle(tmp_path, [(1, 2, "X", ["Scripts/X.cs"])])
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
+
+    code = mod_source.main(["X", "NoSuchFile", "--workspace", str(tmp_path)])
+
+    assert code == 1
+    assert "NoSuchFile" in capsys.readouterr().err
+
+
+def test_main_json_flag_emits_parseable_json_for_a_single_resolution(
+    tmp_path, capsys, monkeypatch
+):
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    _write_main_catalogue(tmp_path)
+    bottle = _write_bottle(tmp_path, [(1, 2, "X", ["Scripts/X.cs"])])
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
+
+    code = mod_source.main(["X", "--json", "--workspace", str(tmp_path)])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert payload["mod_id"] == 1
+    assert isinstance(payload["source_path"], str)
+
+
+def test_main_warns_and_proceeds_when_the_mirror_is_missing_and_sdk_path_is_unset(
+    tmp_path, capsys, monkeypatch
+):
+    # The design's own failure-mode table: "catalogue fetch fails, or
+    # SDK_PATH is unset -> proceed with cache and repos only, warn". No
+    # catalogue.json is written here on purpose -- that absence, combined
+    # with no SDK_PATH, is exactly the case this test targets, and an
+    # installed mod must still resolve despite it.
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    monkeypatch.delenv("SDK_PATH", raising=False)
+    bottle = _write_bottle(tmp_path, [(1, 2, "X", ["Scripts/X.cs"])])
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
+
+    code = mod_source.main(["X", "--workspace", str(tmp_path)])
+
+    captured = capsys.readouterr()
+    assert code == 0
+    assert "SDK_PATH" in captured.err
+    assert "X" in captured.out
+
+
+def test_main_download_flag_fetches_an_uninstalled_mod(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setenv("SDK_PATH", str(tmp_path / "sdk"))
+    _write_main_catalogue(
+        tmp_path, [(4584153, "General Mod Config Menu", "generalconfigmenu", 7840263)]
+    )
+    bottle = _write_bottle(tmp_path)
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
+
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("ModManifest.json", json.dumps({"name": "GeneralModConfigMenu"}))
+        zf.writestr("Scripts/Menu.cs", "// code")
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+
+    code = mod_source.main(
+        ["General Mod Config Menu", "--download", "--workspace", str(tmp_path)]
+    )
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "not installed" not in out
+    downloaded = (
+        tmp_path / "cache" / "downloads" / "4584153_7840263" / "Scripts" / "Menu.cs"
+    )
+    assert downloaded.is_file()
+    assert str(downloaded.parent) in out
