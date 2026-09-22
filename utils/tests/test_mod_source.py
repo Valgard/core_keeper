@@ -601,3 +601,52 @@ def test_two_unpublished_mods_in_one_repo_stay_distinct(tmp_path):
     assert alpha.source_path.name == "ModAlpha"
     assert beta.source_path.name == "ModBeta"
     assert alpha.source_path != beta.source_path
+
+
+def test_two_same_normalised_mods_in_one_repo_stay_separate_candidates(tmp_path):
+    # Regression: _group used to key an own mod's candidate on owner.repo,
+    # not owner.source_path. "ToolResizer" and "Tool-Resizer" both normalise
+    # to "toolresizer", so a single query matches both -- and since they
+    # share a repo, the old key merged their two ids into ONE group instead
+    # of reporting a genuine two-way ambiguity. One of the two mods
+    # disappeared from the result entirely.
+    ws = _workspace(
+        tmp_path,
+        own=[
+            ("multi-mod-repo", "ToolResizer", 0, None),
+            ("multi-mod-repo", "Tool-Resizer", 0, None),
+        ],
+    )
+
+    result = ws.resolve("ToolResizer")
+
+    assert isinstance(result, list)
+    assert len(result) == 2
+    assert {r.source_path.name for r in result} == {"ToolResizer", "Tool-Resizer"}
+
+
+def test_a_dev_build_still_collapses_with_its_subscription_after_source_path_keying(
+    tmp_path,
+):
+    # The property _group exists for must survive the source_path-keyed fix
+    # above: an own mod's real id and its dev-build fake id both resolve to
+    # the SAME OwnMod object (see Workspace.__init__'s owner_of loop), so
+    # they carry the identical source_path and must still collapse into one
+    # group rather than being reported as two candidates. This is the same
+    # scenario as test_a_dev_build_beside_its_subscription_is_one_mod, kept
+    # here as a second, independent witness specifically for the source_path
+    # key (that other test would also catch a full regression, but pins the
+    # behaviour rather than the mechanism).
+    ws = _workspace(
+        tmp_path,
+        installed=[
+            (6065466, 8079348, "DisableDurability", ["Scripts/D.cs"]),
+            (9999999, 1, "DisableDurability", ["Scripts/D.cs"]),
+        ],
+        own=[("disable-durability", "DisableDurability", 6065466, 9999999)],
+    )
+
+    result = ws.resolve("DisableDurability")
+
+    assert isinstance(result, mod_source.Resolution)
+    assert result.kind == mod_source.KIND_OWN

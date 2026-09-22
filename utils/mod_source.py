@@ -552,13 +552,22 @@ class Workspace:
         """Collapse ids that belong to one mod onto one group key.
 
         An own mod's real id and fake id are two keys in `hits` but one
-        candidate: the repo they both name. Everything else groups on its own
-        id, since nothing else ties two ids to the same mod.
+        candidate: they both come from the SAME OwnMod object, so they share
+        its source_path. Everything else groups on its own id, since nothing
+        else ties two ids to the same mod.
+
+        Keys on source_path, not repo: a repo can hold more than one mod
+        directory under unity/ (read_own_mods yields one entry per identity
+        asset), and two of them whose names normalise to the same key --
+        "ToolResizer" and "Tool-Resizer" -- would otherwise share `repo` and
+        collapse into one group, silently hiding one of two genuinely
+        different mods behind a single candidate instead of reporting the
+        real ambiguity.
         """
         groups: dict[object, list[int]] = {}
         for mod_id in hits:
             owner = self.owner_of.get(mod_id)
-            key = owner.repo if owner is not None else mod_id
+            key = owner.source_path if owner is not None else mod_id
             groups.setdefault(key, []).append(mod_id)
         return groups
 
