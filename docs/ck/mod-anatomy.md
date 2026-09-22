@@ -245,6 +245,36 @@ They are stable across SDK clones — every mod built against this SDK carries t
 pair — but they are the SDK's own asset GUIDs, so an SDK update can in principle move
 them. Treat a mismatch as something to verify, not as proof of corruption.
 
+**A game update does move an assembly GUID, and the symptom is an empty screen
+rather than an error.** Core Keeper 1.3 gave `Pug.Other.dll` a new asset GUID. A
+prefab authored against the previous SDK names the old one in every `m_Script`
+that binds a vanilla UI component, so on 1.3 each of those resolves to nothing:
+the prefab still instantiates, its own hierarchy survives, and the components are
+simply absent. Nothing is logged. Measured 2026-09-23 on Mod Settings Menu 1.x,
+whose menu prefab carried 23 such references.
+
+This is the row above one level out. Those entries are `m_Script` on the *SDK's*
+assets; a prefab's `m_Script` binds a *game* assembly, and a game assembly is
+exactly what a version update replaces. The `fileID` beside it is unaffected,
+because it identifies the class within the assembly and the classes did not move —
+so the repair is a GUID substitution and nothing else, which is also how to check
+it: a correct fix touches no line that is not one of the two GUIDs.
+
+Finding it needs no suspicion about a particular file. Collect every GUID the mod
+*references* and subtract every GUID that any `.meta` under the SDK's `Assets`,
+its `Packages` or the mod itself *defines*; what remains points at nothing. Three
+things produce false positives, and all three did here: `Packages/` holds the
+SDK's own classes and is easy to leave out of the subtraction; `metadata.guid` in
+the ModBuilderSettings `.asset` matches a naive `guid:` pattern although it is an
+identity field and not a reference at all; and Unity's built-in
+`0000000000000000f000000000000000` is a marker rather than an asset.
+
+Run the same sweep over a tree that already works on the new version, and the
+difference between the two results is the update's doing. A GUID that is
+unresolved in both is something else — the localisation assets every mod here
+generates carry one such `m_Script`, shared across all of them and defined
+nowhere in the SDK tree, and they work.
+
 **Trap: a duplicated `metadata.guid` breaks asset loading, not identity.** The loader
 registers each mod's asset-bundle data-block loader under that GUID
 (`ScriptableData.AddDataBlocksLoader(mod.Metadata.guid, …)`), so a second mod carrying the
