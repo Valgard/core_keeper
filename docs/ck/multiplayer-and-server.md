@@ -452,12 +452,21 @@ both sides. The version check belongs to the *subscription* loaders, which pass
 directory scan does not — `SideLoader` passes `supportsCurrentVersion: true`
 **hardcoded** (`PugMod.Loader:2389`), so the gate the list feeds —
 `!supportsCurrentVersion && !contains(guid)` — can never fire for a side-loaded
-mod. And a dedicated server's `Manager` registers only `SideLoader` and
-`SteamWorkshopLoader`, never `ModIOLoader` (`Pug.Other:271446-271455` against
-`DedicatedServer/Pug.Other:263259-263262`), while `StreamingAssets/Mods` is how a server is
-normally given its mods. The rule that predicts both cases is therefore about the
-*source* of a mod, not about the build: a mod side-loaded into the **client's**
-own `StreamingAssets/Mods` skips the version check just as thoroughly.
+mod. And a dedicated server's `Manager` registers **only `SideLoader`** — neither
+`ModIOLoader` nor `SteamWorkshopLoader` (`Pug.Other:271446-271455`, all three,
+against `DedicatedServer/Pug.Other:271390-271393`, one), while
+`StreamingAssets/Mods` is how a server is normally given its mods. The rule that
+predicts both cases is therefore about the *source* of a mod, not about the
+build: a mod side-loaded into the **client's** own `StreamingAssets/Mods` skips
+the version check just as thoroughly.
+
+**That narrowed in 1.3.** Through 1.2.1.5 the server registered
+`SteamWorkshopLoader` as well; in 1.3.0.2 the type does not appear in the
+server's `Pug.Other` at all. A dedicated server can therefore be given mods only
+through its directory, and a deployment that relied on the Workshop path has
+nothing left to fall back to. Found while re-checking citations after the
+update, so it is a code reading rather than a tested deployment — worth
+confirming against a running server before planning around it.
 
 The asymmetry therefore runs one way only, and it is a mismatch generator: a mod
 the **client rejects** but the server still loads is a set difference. Resolve

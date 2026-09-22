@@ -579,7 +579,7 @@ the Editor**, so the Editor assignment is only a design-time preview.
 
 ### The vanilla tooltip is selection-driven, not entity-driven
 
-`UIMouse.UpdateHoverText` (`Pug.Other:356342`) reads
+`UIMouse.UpdateHoverText` (`Pug.Other:372950`) reads
 `Manager.ui.currentSelectedUIElement` and calls four `UIelement` virtuals on it:
 `GetHoverTitle()`, `GetHoverDescription()`, `GetHoverStats(bool)` and
 `GetContainedObject()`. **No live ECS entity appears anywhere in that path.** To

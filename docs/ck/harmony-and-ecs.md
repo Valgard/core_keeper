@@ -316,10 +316,10 @@ Unity's rule that every `Awake` precedes every `Update` fixes the order. **It
 does not.** `Loader.Update` is reached from two places, not one. Both go through
 `Integration.Instance.Update()` — an `IIntegration` interface call that lands on
 `Loader` only because `Loader : IIntegration` — and one of them sits in
-`Manager.EarlyInit` (`Pug.Other:263334`, client build; server
-`DedicatedServer/Pug.Other:263271`), which is a
+`Manager.EarlyInit` (`Pug.Other:271463`, client build; server
+`DedicatedServer/Pug.Other:271400`), which is a
 `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]`
-(`Pug.Other:263245` client, `DedicatedServer/Pug.Other:263187` server) and
+(`Pug.Other:271375` client, `DedicatedServer/Pug.Other:271318` server) and
 therefore runs *before* any scene `Awake`. The other, the MonoBehaviour
 `Update()` the derivation actually means, is at `Pug.Other:270347` (server
 `DedicatedServer/Pug.Other:270188`). The lifecycle rule never applies to the
@@ -660,7 +660,7 @@ prefix runs ahead of all five.
 | `CanPlaceItem` → `tilePlacementTimer` (0.65 s in this build) — **not a pure guard**: it stops the timer for a non-tile prefab (`Pug.Other:322206`) and starts it on the success path (`Pug.Other:322221`), so a prefix returning `false` suppresses those writes too | call `Pug.Other:321999`, declaration `Pug.Other:322201`, timer logic `Pug.Other:322206-322223` |
 | `timeSincePlaced.isRunning && … < 1f && pos == positionLastPlacedAt` | `Pug.Other:322004` |
 | `PlayerController.CanConsumeEntityInSlot` | `Pug.Other:322016` |
-| Creative / `ObjectType.PlaceablePrefab` check | `Pug.Other:311353` |
+| Creative / `ObjectType.PlaceablePrefab` check | `Pug.Other:322020` |
 
 The first point past all five that commits the placement **as player state** is
 `playerStateCD.ValueRW.PushState(PlayerStateEnum.PlaceObject)` (`Pug.Other:322035`),
