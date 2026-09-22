@@ -80,8 +80,17 @@ def find_sequence(haystack, needle):
     ]
 
 
-def relocate(old_lines, old_first, source):
-    """Where the recorded text now lives: (new_first, verdict, detail)."""
+def relocate(old_lines, old_first, source, anchors=None):
+    """Where the recorded text now lives: (new_first, verdict, detail).
+
+    `anchors` is a sorted list of (old_line, new_line) pairs from citations in
+    the same assembly that relocated unambiguously. They turn the weakest case
+    into the strongest one: text like `{` or `return true;` occurs thousands of
+    times, so matching on it alone settles nothing, but insertions and deletions
+    are local, and between two neighbouring anchors the offset barely moves.
+    A candidate sitting where the surrounding code went is the right one; the
+    rest are elsewhere in the file entirely.
+    """
     lines = [line.strip() for line in source.read_text(errors="replace").splitlines()]
     hits = find_sequence(lines, old_lines)
 
@@ -90,12 +99,57 @@ def relocate(old_lines, old_first, source):
     if len(hits) == 1:
         return hits[0], "moved" if hits[0] != old_first else "unchanged", ""
 
+    if anchors:
+        expected = expected_position(old_first, anchors)
+        if expected is not None:
+            near = sorted(hits, key=lambda h: abs(h - expected))
+            # Accept only when the best candidate is unambiguously nearer than
+            # the next one AND lands where the anchors say -- otherwise the
+            # anchors did not actually decide it, and a guess wearing a
+            # confident verdict is worse than an honest "ambiguous".
+            decisive = len(near) == 1 or abs(near[0] - expected) * 4 <= abs(
+                near[1] - expected
+            )
+            if decisive and abs(near[0] - expected) <= ANCHOR_TOLERANCE:
+                verdict = "moved" if near[0] != old_first else "unchanged"
+                return (
+                    near[0],
+                    verdict,
+                    f"{len(hits)} matches, placed by neighbouring anchors",
+                )
+
     # Several matches: prefer the one nearest where the citation used to sit.
     # A file grows and shrinks around a statement, so the old line number is a
     # weak signal -- good enough to pick between candidates, never good enough
     # to accept one on its own, which is why the count travels with it.
     best = min(hits, key=lambda h: abs(h - old_first))
     return best, "ambiguous", f"{len(hits)} matches, nearest to the old position"
+
+
+# How far a candidate may sit from where the anchors say the code went. Wide
+# enough to absorb a few lines added inside the enclosing method, narrow enough
+# that a match elsewhere in a 460,000-line file never qualifies.
+ANCHOR_TOLERANCE = 400
+
+
+def expected_position(old_line, anchors):
+    """Interpolate where `old_line` should have landed, from surrounding anchors."""
+    below = [a for a in anchors if a[0] <= old_line]
+    above = [a for a in anchors if a[0] > old_line]
+    if below and above:
+        lo, hi = below[-1], above[0]
+        span = hi[0] - lo[0]
+        if span == 0:
+            return lo[1]
+        frac = (old_line - lo[0]) / span
+        return round(lo[1] + frac * (hi[1] - lo[1]))
+    if below:
+        lo = below[-1]
+        return lo[1] + (old_line - lo[0])
+    if above:
+        hi = above[0]
+        return hi[1] - (hi[0] - old_line)
+    return None
 
 
 def rewrite_chapter(path, mapping):
@@ -146,23 +200,47 @@ def main():
             last = int(m.group(3) or m.group(2))
             cited.setdefault(key_of(assembly, first, last), []).append(chapter.name)
 
-    results = []
+    # Two passes. The first settles every citation whose recorded text occurs
+    # exactly once; the second reuses those as anchors, which is what makes a
+    # citation on `{` placeable at all.
     sources = {}
+    work = []
     for key, chapters in sorted(cited.items()):
         assembly, _, span = key.partition(":")
         old_first = int(span.split("-")[0])
         if args.only and assembly != args.only:
             continue
         if key not in recorded:
-            results.append((key, chapters, None, "unrecorded", "not in the snapshot"))
+            work.append((key, chapters, assembly, old_first, "unrecorded"))
             continue
         if assembly not in sources:
             sources[assembly] = source_for(assembly, args.decompile)
-        source = sources[assembly]
-        if source is None:
+        if sources[assembly] is None:
+            work.append((key, chapters, assembly, old_first, "unresolvable"))
+            continue
+        work.append((key, chapters, assembly, old_first, None))
+
+    first_pass = {}
+    for key, _chapters, assembly, old_first, problem in work:
+        if problem:
+            continue
+        new_first, verdict, _d = relocate(recorded[key], old_first, sources[assembly])
+        if verdict in ("moved", "unchanged"):
+            first_pass.setdefault(assembly, []).append((old_first, new_first))
+    for pairs in first_pass.values():
+        pairs.sort()
+
+    results = []
+    for key, chapters, assembly, old_first, problem in work:
+        if problem == "unrecorded":
+            results.append((key, chapters, None, "unrecorded", "not in the snapshot"))
+            continue
+        if problem == "unresolvable":
             results.append((key, chapters, None, "unresolvable", "no such assembly"))
             continue
-        new_first, verdict, detail = relocate(recorded[key], old_first, source)
+        new_first, verdict, detail = relocate(
+            recorded[key], old_first, sources[assembly], first_pass.get(assembly)
+        )
         results.append((key, chapters, new_first, verdict, detail))
 
     by_verdict = {}

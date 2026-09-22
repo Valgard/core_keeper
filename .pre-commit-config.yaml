@@ -43,6 +43,20 @@ repos:
                 - pre-commit
                 - pre-push
 
+          # A line reference that drops its assembly — `:419767`, inherited from
+          # an earlier sentence — reads better and is invisible to every check,
+          # so a game update invalidates it in silence. 288 of the handbook's
+          # references were written that way before this gate existed.
+          - id: citation-style
+            name: citation style
+            entry: uv run --frozen utils/check_citation_style.py
+            language: system
+            pass_filenames: false
+            files: \.md$
+            stages:
+                - pre-commit
+                - pre-push
+
           # Runs through uv so the suite sees the pinned Pillow, not whatever
           # the machine has — test_shipped_artifacts.py compares the committed
           # font atlas by byte-identity, which an unpinned encoder would break.
