@@ -677,3 +677,39 @@ class Workspace:
                 )
             ],
         )
+
+
+def find_file(resolution: Resolution, needle: str) -> Path | list[str]:
+    """The full path of one source file, or every candidate when several match.
+
+    Two paths, because the two kinds of hit carry their file list differently.
+    An installed mod has a ModManifest.json listing every file with its path,
+    so the answer needs no directory traversal at all. An own mod has none --
+    that manifest is build-generated and no repo contains one -- so its
+    unity/<Mod>/ is walked instead, which is small, local and bounded.
+
+    Telling an agent the folder and leaving it to find the file is the second
+    half of the failure this tool exists to remove.
+    """
+    if resolution.source_path is None:
+        raise LookupError(
+            f"{resolution.title or resolution.internal_name} is not installed — "
+            "fetch it with --download before asking for a file"
+        )
+
+    if resolution.source_files:
+        matches = [f for f in resolution.source_files if needle.lower() in f.lower()]
+        root = resolution.source_path.parent
+    else:
+        matches = [
+            str(p.relative_to(resolution.source_path))
+            for p in sorted(resolution.source_path.rglob("*.cs"))
+            if needle.lower() in p.name.lower()
+        ]
+        root = resolution.source_path
+
+    if not matches:
+        raise LookupError(f"no .cs file matching {needle!r}")
+    if len(matches) > 1:
+        return matches
+    return (root / matches[0]).resolve()

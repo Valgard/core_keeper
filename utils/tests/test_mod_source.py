@@ -3,9 +3,8 @@
 import json
 import urllib.parse
 
-import pytest
-
 import mod_source
+import pytest
 
 
 def test_normalise_is_casefold_and_alphanumeric():
@@ -650,3 +649,50 @@ def test_a_dev_build_still_collapses_with_its_subscription_after_source_path_key
 
     assert isinstance(result, mod_source.Resolution)
     assert result.kind == mod_source.KIND_OWN
+
+
+def test_file_mode_answers_an_installed_mod_from_the_manifest(tmp_path):
+    ws = _workspace(
+        tmp_path,
+        installed=[
+            (
+                3177992,
+                7845185,
+                "CoreLib",
+                [
+                    "Scripts/Scripts/Util/Data/ConfigFile/ConfigScope.cs",
+                    "Scripts/CoreLibMod.cs",
+                ],
+            )
+        ],
+    )
+    result = ws.resolve("CoreLib")
+
+    found = mod_source.find_file(result, "ConfigScope")
+
+    assert found.name == "ConfigScope.cs"
+    assert found.is_absolute()
+
+
+def test_file_mode_returns_candidates_when_several_match(tmp_path):
+    ws = _workspace(
+        tmp_path,
+        installed=[(1, 2, "X", ["Scripts/ConfigFile.cs", "Scripts/ConfigScope.cs"])],
+    )
+    result = ws.resolve("X")
+
+    found = mod_source.find_file(result, "Config")
+
+    assert isinstance(found, list)
+    assert len(found) == 2
+
+
+def test_file_mode_walks_an_own_mods_repository(tmp_path):
+    # An own mod resolves to its repo, and no repo contains a ModManifest.json
+    # -- that file is build-generated.
+    ws = _workspace(tmp_path, own=[("faster-talents", "FasterTalents", 6065498, None)])
+    result = ws.resolve("FasterTalents")
+
+    found = mod_source.find_file(result, "FasterTalentsMod")
+
+    assert found.name == "FasterTalentsMod.cs"
