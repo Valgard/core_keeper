@@ -543,13 +543,31 @@ portability.
 
 For a **game-DLL component**, Unity computes the fileID as the first 4 bytes,
 little-endian signed int32, of `MD4("s\x00\x00\x00" + namespace + className)`
-— empty namespace for global types. Verified anchors:
+— empty namespace for global types.
+
+**`namespace + className` is a plain concatenation, with no dot between them.**
+`Affixes.Authoring` + `AffixAuthoring` is hashed as
+`Affixes.AuthoringAffixAuthoring`, not as the dotted full name. Reading it the
+other way is correct for every type that has no namespace and wrong for every
+type that does — which is the worst available failure shape, because the table
+keeps working most of the time and quietly resolves the wrong class the rest of
+it. Measured against 1,647 known-good rows: 90.41 % correct with the dot,
+100.00 % without.
+
+Verified anchors — note that the first three are all **global** types, so they
+pass either way and cannot catch the mistake. Calibrate against the last two:
 
 | Type | fileID |
 |---|---|
 | `UIScrollWindow` | `197547074` |
 | `ScrollBar` | `-277093456` |
 | `ScrollBarHandle` | `-1490357010` |
+| `Affixes.Authoring.AffixAuthoring` | `-1102179062` |
+| `LootingProgress.Authoring.LootProgressAuthoring` | `-2121339178` |
+
+The general lesson outlives this particular hash: **an anchor set that only
+contains the easy case validates nothing.** Pick anchors that would come out
+differently under the mistake you are trying to rule out.
 
 For **a mod's own MonoBehaviours** there is usually no hash: they use
 `fileID: 11500000`.
