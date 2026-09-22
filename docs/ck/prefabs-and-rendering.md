@@ -616,7 +616,7 @@ Which charset a face uses differs per face. `thinTiny` carries its own `_customC
 but it does not start at ASCII 33: index 0 is unmapped (`glyphs[0]` carries no `chars`)
 and `'!'` sits at index 1 — the charset holds 118 entries for 114 actual codepoints.
 `thinSmall` uses the shared static `latinCharset`; the `charset` property
-(`Pug.Other:350400`) picks `_customCharset` whenever it is not null or whitespace.
+(`Pug.Other:365874`) picks `_customCharset` whenever it is not null or whitespace.
 `thinTiny`'s 114 codepoints are a **true subset** of `thinSmall`'s 331 — the difference
 measures empty, so going from one to the other is a pure gain of 217 characters.
 
@@ -1049,7 +1049,7 @@ float leftEdge = text.transform.localPosition.x + text.dimensions.xMin;
 
 is the left edge of what is actually on screen, **for any alignment**, without knowing a
 single glyph width. CK positions its own text-field caret exactly this way
-(`Pug.Other:343386`). Verified in game for left- and right-aligned rows.
+(`Pug.Other:358830`). Verified in game for left- and right-aligned rows.
 
 **The consequence for anything placed beside a text row.** With right-aligned text the
 row grows leftwards, so that left edge moves whenever the string gains a character. An
@@ -1064,12 +1064,12 @@ Three properties decide whether what you read out of it is a measurement or a le
 
 **The draw writes it synchronously.** `PugText.Render` reaches `PugFont.Render` within
 the same call, and that assigns `pooledObj.dimensions` before returning
-(`Pug.Other:350767`). There is no deferred layout pass to wait for, which is what makes
+(`Pug.Other:366241`). There is no deferred layout pass to wait for, which is what makes
 the usual ordering sound: a mod's `IMod.Update` renders the string, the element's
 `LateUpdate` places against it, and the value read there belongs to this frame.
 
 **It survives hide and show.** `OnDisable` releases the glyphs only when
-`freeResourcesOnDisable` is set (`Pug.Other:351466`), and `OnEnable`'s repaint is gated
+`freeResourcesOnDisable` is set (`Pug.Other:366936`), and `OnEnable`'s repaint is gated
 on `renderOnStart`. With the flags an always-on HUD wants anyway — `renderOnStart: 0`,
 `keepEnabledOnStart: 1`, `freeResourcesOnDisable: 0` — both the glyphs and the Rect
 outlive every toggle. So the empty-Rect window opens exactly **once per session**, on the

@@ -279,7 +279,7 @@ none of the three routes reach it: it never passes through
 `API.ConfigFilesystem`, because the loader never wrote it there in the first
 place.
 
-`LoadedMod.GetFile(string path)` (`PugMod.SDK.Runtime:702`) is the answer. It
+`LoadedMod.GetFile(string path)` (`PugMod.SDK.Runtime:716`) is the answer. It
 resolves `path` against the mod's own install directory
 (`API.ModLoader.GetDirectory(ModId)`), rejects a path that escapes that
 directory, and returns the file's bytes with `File.ReadAllBytes` — all inside

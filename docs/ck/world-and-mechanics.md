@@ -66,7 +66,7 @@ Core rather than in the Core.
 **One number in the code agrees with that.** When `ECSManager` finds more than
 one entity carrying `TheCoreCD`, it deletes the extras and repositions the
 survivor to a hardcoded `LocalTransform.FromPosition(new float3(0f, 0f, 4f))`
-(`Pug.Other:181802`) — the only hardcoded Core position in the assemblies, and it
+(`Pug.Other:187362`) — the only hardcoded Core position in the assemblies, and it
 lands inside the range the map measurement gives. Read it as corroboration of the
 direction and rough size of the offset, not as the Core's position: it is a repair
 value on one code path, and a world that never needed repairing never went through
@@ -89,10 +89,10 @@ Practical consequences:
 
 **Getting the Core's position at runtime.** You do not have to measure anything:
 the Core carries a dedicated tag component, `TheCoreCD`
-(`Pug.ECS.Components:1390`) — zero bytes, and `[GhostComponent(PrefabType =
+(`Pug.ECS.Components:1478`) — zero bytes, and `[GhostComponent(PrefabType =
 GhostPrefabType.All)]`, so it exists on the client ghost as well as on the
 server. Query it, take the single entity, read its `LocalTransform.Position`.
-The game does exactly that query itself (`Pug.Other:181795`, in the routine that
+The game does exactly that query itself (`Pug.Other:187355`, in the routine that
 deletes duplicate cores). Two conditions apply: the Core resolves only while it
 is loaded — see [entity radii](#entity-radii-loaded-is-not-observed) — and the sandbox's verdict on ECS reads is per
 component type, so verify the load as described in [reading the live ECS world](harmony-and-ecs.md#reading-the-live-ecs-world-from-a-mod).
@@ -123,14 +123,14 @@ int2 x = (int2)math.floor(mapUI.GetCursorWorldPosition());
 ```
 
 — the map **cursor**, not the player — and renders each coordinate through
-`ToString("F0")` (`Pug.Other:318520-318528`), not a printf-style `"%d, %d"`
+`ToString("F0")` (`Pug.Other:329556-329564`), not a printf-style `"%d, %d"`
 template. That parenthesised number is the straight-line distance to the world
 origin, computed **from the already-floored ints** rather than from the float
 position, formatted the same way. Measured: at `63, -14` the readout shows
 `(65)`, matching `sqrt(63² + 14²) = 64.5 → 65`.
 
 **Which cursor depends on the input device.** `MapUI.GetCursorScreenPosition`
-(`Pug.Other:333982`) branches on `inputModule.PrefersKeyboardAndMouse()`: with
+(`Pug.Other:346602`) branches on `inputModule.PrefersKeyboardAndMouse()`: with
 keyboard and mouse it returns the mouse pointer, and otherwise the map's own
 centre transform. So on a gamepad the readout follows where the map is centred,
 not a pointer — and reproducing vanilla's number means reading the same source it
@@ -183,7 +183,7 @@ for the reasons in [savegame formats](savegame-formats.md).
 
 ## Tile layers: what may sit on what
 
-`TileType.GetNeededTile` (`Pug.Base:18111`) and `GetInvalidTile` (`:18156`) are
+`TileType.GetNeededTile` (`Pug.Base:19957`) and `GetInvalidTile` (`:18156`) are
 the authority. A tile is applied only if at least one of its needed tiles is
 present at that position and none of its invalid ones is.
 
@@ -201,7 +201,7 @@ therefore never be laid over normal ground.
 
 ### The bridge family
 
-Nine objects produce the `bridge` tile (`Pug.Base:2755-2799`):
+Nine objects produce the `bridge` tile (`Pug.Base:2840-2884`):
 
 | `ObjectID` | Object |
 |---|---|
@@ -215,7 +215,7 @@ Nine objects produce the `bridge` tile (`Pug.Base:2755-2799`):
 | 4773 | `MetalGrateBridge` |
 | 4802 | `ExcavationBridge` |
 
-`ObjectID.Rail` is `6550` (`Pug.Base:3357`).
+`ObjectID.Rail` is `6550` (`Pug.Base:3454`).
 
 Pugstorm hands out IDs as content ships, so the numeric order *roughly* tracks
 biome progression and hence roughly tracks scarcity. Treat that as a heuristic
@@ -223,13 +223,13 @@ for ordering a fallback list, never as a rule — `GlassBridge` and
 `MetalGrateBridge` are both counterexamples.
 
 **Do not substitute `TileType.IsWalkableTile()` for this check.**
-`IsWalkableTile` (`Pug.Base:17781`) also accepts `floor`, `rug`, `litFloor`,
+`IsWalkableTile` (`Pug.Base:19631`) also accepts `floor`, `rug`, `litFloor`,
 `looseFlooring`, `rail`, `circuitPlate` and more — a strictly wider set than the
 apply-time rule uses. The correct predicate for "can a rail/floor/wall go here"
 is `ground || bridge`.
 
 Vanilla itself substitutes a tile the player never asked for:
-`PlaceObjectSlot.GetTileTypeToPlace` (`Pug.Other:311561-311568`) returns
+`PlaceObjectSlot.GetTileTypeToPlace` (`Pug.Other:322229-322236`) returns
 `TileType.ground` **instead of** `wall` when a wall is placed on a position
 with neither `ground` nor `bridge` — gated on a third condition alongside the
 missing-substrate check: a ground item must exist for that tileset. The wall
@@ -246,7 +246,7 @@ EntityUtility.AddTile(int tileSet, TileType tileType, int2 position,
                       DynamicBuffer<TileUpdateBuffer> tileUpdateBuffer)
 ```
 
-`Pug.Other:256440`. Its core is `tileUpdateBuffer.Add(new TileUpdateBuffer {
+`Pug.Other:264406`. Its core is `tileUpdateBuffer.Add(new TileUpdateBuffer {
 command = Add, … })`. It rejects `tileSet < 0 || tileSet >= 75` and guards the
 spawn-area tiles. **The layer rules above are judged later**, when the buffer
 is applied.
@@ -280,14 +280,14 @@ costs the player a walk to pick it back up, nothing more.
 
 `AddTile` is the convergence point of **equipment-driven** tile placement: every
 path where the player's held item produces a tile — placing, digging, watering,
-painting, roofing — routes through it. Vanilla calls it at `Pug.Other:311379`,
+painting, roofing — routes through it. Vanilla calls it at `Pug.Other:322046`,
 and third-party placement mods call it too. That makes it the right place to
 *change* a placement — but the wrong place to *cancel* one:
 
 **The item is debited from the inventory *after* the `AddTile` call.** Vanilla
 does it in the same method, one statement later: `EntityUtility.AddTile(...)`
 followed immediately by `Create.ConsumeEntityAt(..., destroy: true, ...)` pushed
-onto the inventory update buffer (`Pug.Other:311379`, then `:311382`). The one
+onto the inventory update buffer (`Pug.Other:322046`, then `:311382`). The one
 foreign placement mod measured here, PlacementPlus, behaves the same way.
 Blocking the call therefore consumes the item and produces nothing: a straight
 item loss. Letting the call through and having it fail validation only drops a
@@ -317,7 +317,7 @@ path wholesale — are in [Harmony and ECS](harmony-and-ecs.md).
 ## The placement permission model
 
 Whether an item may be placed on a given tile is decided by
-`PlacementHandler.ShouldCheckPlaceObjectOnTile` (`Pug.Other:295720`), and it
+`PlacementHandler.ShouldCheckPlaceObjectOnTile` (`Pug.Other:305252`), and it
 grants permission through **two independent, OR-ed routes**:
 
 1. **`PlacementCD` bool flags** — `canPlaceOnWalkableTiles`, `canPlaceOnWater`,
@@ -381,12 +381,12 @@ a rail on a pit does not conjure a substrate: the rail still needs `ground` or
 ### Changing the list requires the bake-time hook
 
 `PlaceableObjectConverter.Convert(PlaceableObjectAuthoring)`
-(`Pug.ECS.Conversion:2825`) **does run in the shipped game.** Zero *static* call
+(`Pug.ECS.Conversion:2967`) **does run in the shipped game.** Zero *static* call
 sites is expected, not a sign the converter never fires: converters are found by
 reflection and invoked virtually.
 `ConversionManager.FindAllConvertersInCurrentAssembly()`
-(`PugConversion:632-650`) scans the executing assembly and every loaded assembly
-referencing it; `RunConverters` (`PugConversion:981-992`) calls
+(`PugConversion:647-665`) scans the executing assembly and every loaded assembly
+referencing it; `RunConverters` (`PugConversion:996-1007`) calls
 `converter.Convert(gameObject)`, which `SingleAuthoringComponentConverter<T>`
 (`:1376-1386`) forwards to the abstract `Convert(T authoring)` — the same
 conversion pipeline that [database and baking](database-and-baking.md#changing-a-vanilla-objects-baked-data) describes for
@@ -395,17 +395,17 @@ conversion pipeline that [database and baking](database-and-baking.md#changing-a
 The accurate reason to prefer the `PostConvert` seam is **ordering, not
 non-existence**: `Convert` snapshots the list
 (`SetPropertyList("PlaceableObject/canBePlacedOnObjects", …)`,
-`Pug.ECS.Conversion:2893`) and all converters run before any post-converter
-(`PugConversion:751-790`), so a `PostConvert` mutation lands in the *next*
+`Pug.ECS.Conversion:3035`) and all converters run before any post-converter
+(`PugConversion:766-805`), so a `PostConvert` mutation lands in the *next*
 conversion pass — which is what makes the "requires a restart" advice true.
 
 The list is reachable from `PugDatabasePostConverter.PostConvert(GameObject)`
-(`Pug.Other:3474`/`:3478`), which does run per world/database conversion. From a
+(`Pug.Other:3442`/`:3478`), which does run per world/database conversion. From a
 prefix you walk `PugDatabaseAuthoring` →
 `DatabaseConversionUtility.GetPrefabList(...)` → the `PrefabData` whose
 `ObjectInfo.objectID` matches → `ObjectInfo.prefabInfos` →
 `prefabInfo.ecsPrefab.TryGetComponent<PlaceableObjectAuthoring>()` → mutate
-`canBePlacedOnObjects`, a `List<ObjectID>` (`Pug.ECS.Authoring:3150`). Identify
+`canBePlacedOnObjects`, a `List<ObjectID>` (`Pug.ECS.Authoring:3251`). Identify
 prefabs by their `objectID` enum, never by `objectName` string. Useful
 constants: `ObjectID.Pit = 233`, `ObjectID.Water = 232`. The bake runs after
 `EarlyInit` and before `Init`, so the patch must be bound in `IMod.EarlyInit`;
@@ -420,7 +420,7 @@ insert the supporting tile is never reached.
 
 `PlacementHandler.Activate` — the call that populates `PlacementCD` from the
 object's properties — is invoked from
-`SelectedEquipmentChangeSystem.EquippedSlotChangeJob` (`Pug.Other:427122`, call
+`SelectedEquipmentChangeSystem.EquippedSlotChangeJob` (`Pug.Other:445953`, call
 at `:427333`).
 
 **Trap: do not read that system's name as its cadence.** Its `OnUpdate` schedules
@@ -441,17 +441,17 @@ the player at all.
 
 | Method | What it receives | Inventory reachable |
 |---|---|---|
-| `PlacementHandler.UpdatePlaceablePosition` (`Pug.Other:295381`) | the full `EquipmentUpdateAspect`, and through `LookupEquipmentUpdateData` the `BufferLookup<ContainedObjectsBuffer> containedObjectsBufferLookup` (`Pug.Other:419083`) | yes |
+| `PlacementHandler.UpdatePlaceablePosition` (`Pug.Other:304888`) | the full `EquipmentUpdateAspect`, and through `LookupEquipmentUpdateData` the `BufferLookup<ContainedObjectsBuffer> containedObjectsBufferLookup` (`Pug.Other:419083`) | yes |
 | `PlacementHandler.Activate` | `(ref PlacementCD, Entity placementPrefab, ComponentLookup<ObjectPropertiesCD>, ComponentLookup<TileCD>, ComponentLookup<PseudoTileCD>)` | no — there is no player entity in the signature |
 
 Vanilla reads that buffer lookup exactly this way in `UpdateJob.Execute`
-(`Pug.Other:419886`), so it is a supported route rather than a trick. If your
+(`Pug.Other:437873`), so it is a supported route rather than a trick. If your
 hook sits on `Activate`, no amount of lookup juggling will get you an inventory;
 move the work to `UpdatePlaceablePosition` instead.
 
 ## Consuming an item from an inventory slot
 
-`InventoryUtility.ConsumeEntityAt` (`Pug.Other:409858`, class at `:409602`)
+`InventoryUtility.ConsumeEntityAt` (`Pug.Other:427790`, class at `:409602`)
 takes an `optionalTargetObjectID`.
 
 **Trap: despite the name, it is not optional.** The slot's ObjectID is compared
@@ -462,7 +462,7 @@ data loss for the player, and because it needs a race to happen it will not show
 up in an unhurried manual test. With the argument set, the consume fails
 instead, which is the direction you want this failure to go.
 
-`Create.ConsumeEntityAt(Entity inventory, int index, …)` (`Pug.Other:407732`,
+`Create.ConsumeEntityAt(Entity inventory, int index, …)` (`Pug.Other:425614`,
 class `Create` at `:407719`) looks like an overload of the same method but is
 not — it is a different class. It builds an `InventoryChangeData` command and
 pushes it onto the inventory-update buffer; it consumes nothing itself.
@@ -485,7 +485,7 @@ The named constants:
 | `UNLOADED_WORLD_SEGMENT_SIZE_LOG2` | 7 (serialized world segment = 128 tiles) |
 
 `UnloadToSerializeWorldSystem` / `FindUnloadedChunksToLoad`
-(`Pug.Other:179834-180412`) build the keep-loaded, load and load-immediately
+(`Pug.Other:185394-185972`) build the keep-loaded, load and load-immediately
 circles from those radii: a segment's entities are destroyed when its AABB
 overlaps no 300-circle, and re-created when it overlaps the 250 or 200 circles.
 
@@ -600,7 +600,7 @@ every 30 ticks it sets every entity carrying `RequiresDrillCD` and
 `DontDropSelfCD` back to `maxHealth`, but only while `0 < health < maxHealth *
 0.1` (a boulder already at `health <= 0` is deliberately not reanimated). At
 Core Keeper's 20 Hz simulation rate (`defaultSimulationTickRate = 20`,
-`Pug.Base:13190`/`:13887`) 30 ticks is ≈1.5 s, not the ≈0.5 s a 60 Hz frame
+`Pug.Base:14788`/`:13887`) 30 ticks is ≈1.5 s, not the ≈0.5 s a 60 Hz frame
 rate would give — if the mod is instead counting Unity frames rather than
 simulation ticks, the ≈0.5 s figure stands, but the qualitative point holds
 either way. That 10% window is 1.296 million health wide — with eight drills
@@ -614,7 +614,7 @@ than for a collision.
 
 Exactly one converter hands out `RequiresDrillCD`: `DestructibleObjectConverter`,
 gated on `DestructibleObjectAuthoring.requiresDrill`
-(`Pug.ECS.Conversion:1146-1156`). Of the 177 prefabs carrying
+(`Pug.ECS.Conversion:1157-1167`). Of the 177 prefabs carrying
 `DestructibleObjectAuthoring`, exactly **12** set `requiresDrill: 1` — the ten
 ore types plus two scene variants. Counted against the unpacked prefabs, not
 assumed.
@@ -630,7 +630,7 @@ adds, and it fails quietly, as a mod that simply does nothing to the new boulder
 ### Ore boulders are ordinary placeable prefabs
 
 All ten ore types (`CopperOreBoulder` 2200 … `ReluciteOreBoulder` 2218) carry
-`objectType: 800` = `ObjectType.PlaceablePrefab` (`Pug.Base:4696`), a real `icon`
+`objectType: 800` = `ObjectType.PlaceablePrefab` (`Pug.Base:4889`), a real `icon`
 and `smallIcon`, `isStackable: 1` and `prefabTileSize: 2×2`. Nothing in the
 prefab data marks them as world-only decoration.
 
@@ -638,7 +638,7 @@ prefab data marks them as world-only decoration.
 Vanilla hangs the creative object browser off
 `UIManager.OnPlayerInventoryOpen` → `if (_creativeModeUIShouldBeOn &&
 Manager.saves.IsCreativeModeWorld() && …) creativeModeUI.ShowContainerUI()`
-(`Pug.Other:273173`). The mod.io mod *Item Spawner* (6103095) consists
+(`Pug.Other:281213`). The mod.io mod *Item Spawner* (6103095) consists
 essentially of one prefix on that predicate:
 
 ```csharp
@@ -740,7 +740,7 @@ two distinct consume sites:
 
 | Event | Where | What happens |
 |---|---|---|
-| Capture | `CageCattle()` `Pug.Other:404656` | Gated on `objectID == ObjectID.CattleCage`; calls `EntityUtility.DropPetInCage(...)` (`:404701`), `DestroyEntity(cattle)` (`:404702`), then `Create.ConsumeEntityAt(.., 1, destroy: true, ..)` (`:404706`) eats the empty box |
+| Capture | `CageCattle()` `Pug.Other:421821` | Gated on `objectID == ObjectID.CattleCage`; calls `EntityUtility.DropPetInCage(...)` (`:404701`), `DestroyEntity(cattle)` (`:404702`), then `Create.ConsumeEntityAt(.., 1, destroy: true, ..)` (`:404706`) eats the empty box |
 | Release | `PlaceItem()` `:311465` | The carried item is placed and consumed via `Create.ConsumeEntityAt(.., destroy: false, ..)`, amount from `objectDataCD2.amount` (`:311451-311454`); `:311388` is the `else` branch, not the consume |
 
 **There is no "filled box" item.** This is the natural assumption and it is
@@ -786,7 +786,7 @@ seen** — a skin collection is necessarily mod-owned state.
 | Skin storage | `PetSkinCD { int skinIndex }`, an `[InventoryAuxDataComponent]` in the world-global `InventoryAuxDataSystem` — not a variation, not a direct entity component |
 | Assignment | Random on hatch, `rng.NextInt(maxSkins)` |
 | ObjectID | All skins of a pet share one ID (`PetDog` = 1222) |
-| Skin count | `Manager.ui.petInfosTable.GetPetSkinInfo(id).skins.Count` — `PetCD.maxSkins` is baked from this same value (`Pug.ECS.Conversion:2761`) |
+| Skin count | `Manager.ui.petInfosTable.GetPetSkinInfo(id).skins.Count` — `PetCD.maxSkins` is baked from this same value (`Pug.ECS.Conversion:2902`) |
 | Rendering | Gradient recolours of the base `ObjectInfo.icon` (`_GradientMap` from `skins[i].primaryGradientMap` plus the `USE_GRADIENT_MAP` keyword on the `Amplify/UISpriteColorReplace` shader), not separate sprites; `GradientMapDataBlock` lives in `PugSprite.dll` (`PugSprite:42`, global namespace) — only its base `ScriptableDataBlock` is in `ScriptableData.dll` (`ScriptableData:1563`) |
 | Stacking | Pets are non-stackable, one per slot |
 
@@ -817,7 +817,7 @@ them all:
 | Group | ObjectIDs | Note |
 |---|---|---|
 | Net-catchable critters | 9800-9819 | 20 entries, no gaps |
-| Fireflies / glowbugs | 3500-3504 | `YellowFirefly` (`Pug.Base:2644`, lower-case `f` — vanilla is inconsistent here), `BlueFireFly`, `GreenFireFly`, `RedFireFly`, `PurpleFireFly` (`:2648`); carry `FireflyCD`, **not** `CritterCD` |
+| Fireflies / glowbugs | 3500-3504 | `YellowFirefly` (`Pug.Base:2719`, lower-case `f` — vanilla is inconsistent here), `BlueFireFly`, `GreenFireFly`, `RedFireFly`, `PurpleFireFly` (`:2648`); carry `FireflyCD`, **not** `CritterCD` |
 
 Because the fireflies use a different component, following `TryCatchAnyCritters`
 in the decompile leads away from them entirely. They are bug-net catchable
@@ -898,13 +898,13 @@ The arithmetic, measured in game on Core Keeper 1.2.1.5:
 | **Distinct obtainable dishes** | **6,864** — `3,003 × 2` (base + rare, unconditional) `+ 858` (reachable epic) |
 
 **The epic tier is gated, not unconditional.** A `flag` in
-`Pug.Other:324037-324077` guards the epic counter (`num5++`) entirely: it
+`Pug.Other:335187-335227` guards the epic counter (`num5++`) entirely: it
 requires a Rare-rarity Flower among the ingredients or any Legendary
 ingredient. Without it, only base and rare are reachable — which is why
 2,145 of the 3,003 pairs have an epic `ObjectID`/variation baked into the
 database that no cooking roll can ever produce. That same roll
 (`ChanceToGainExtraCookedFood` → `ChanceForExtraCookedFoodToBeRare`,
-`Pug.Other:324033-324034`) shifts by one tier when `flag` is set: a roll that
+`Pug.Other:335183-335184`) shifts by one tier when `flag` is set: a roll that
 would otherwise add base instead adds rare, and one that would otherwise add
 rare instead adds epic.
 

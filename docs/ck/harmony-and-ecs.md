@@ -8,10 +8,10 @@ are reading, and a fix that works whenever a player hosts and is inert on a
 dedicated server. This chapter covers how to make a patch bind, how to make it
 fire, and how to read and write the live ECS world once it does.
 
-Line numbers quoted below (`Pug.Other:295735`) are offsets into the decompiled
+Line numbers quoted below (`Pug.Other:305267`) are offsets into the decompiled
 game assemblies — see [reverse-engineering](reverse-engineering.md) for how to produce that decompile.
 **An unmarked citation is the client build.** The two builds' offsets differ for
-the same code — `BurstDisabler.AddWorld` is `Pug.Other:2675` on the client and
+the same code — `BurstDisabler.AddWorld` is `Pug.Other:2601` on the client and
 `:2656` on the server — so a server citation says so, and resolving an unmarked
 one in the server checkout lands on unrelated code.
 
@@ -61,7 +61,7 @@ public void Init()
 
 ### The call does two entirely different things, depending on the system
 
-`DisableBurstForSystemInternal` (`PugMod.SDK.Runtime:798`) first calls
+`DisableBurstForSystemInternal` (`PugMod.SDK.Runtime:812`) first calls
 `TypeManager.IsSystemType` — the check that throws a `NullReferenceException`
 when `TypeManager` is not yet initialised, which is why this cannot run in
 `EarlyInit` — and then branches on `TypeManager.IsSystemManaged`, **returning
@@ -81,7 +81,7 @@ reaches `SystemTypesToDisableBurstFor`, so `AddWorld` has nothing to arm for it
 and the server trap does not arise.
 
 **The `AndJobs` variant is the exception — it is not `ISystem`-only.** Both
-branches end in `CreateCompleteDependencyPatch` (`PugMod.SDK.Runtime:924`),
+branches end in `CreateCompleteDependencyPatch` (`PugMod.SDK.Runtime:938`),
 called from `PatchSystem` (`:867`, `isManaged: false`) and from
 `PatchManagedSystem` (`:885`, `isManaged: true`). A managed system therefore
 gets the same dependency-completing postfix from the same flag; only the
@@ -106,7 +106,7 @@ own Harmony patch on `UpdateSystem`, gated on
 `SystemHandlesToDisableBurstFor.Contains(sh)` — flips `EnableBurstCompilation =
 false`, which makes the managed path run; only then does half 1 select
 `ManagedFunctionsUnBursted`, the `OnUpdate` you can patch. It also saves the
-previous setting into `out bool? __state` (`PugMod.SDK.Runtime:963-971`), which
+previous setting into `out bool? __state` (`PugMod.SDK.Runtime:977-985`), which
 is what the postfix restores — and leaves `__state` null on the unarmed path, so
 that postfix restores nothing when the prefix did nothing. If half 2 never armed
 for the world your system runs in, half 1 is dead weight.
@@ -122,7 +122,7 @@ armed, and only then.
 ### Nested jobs need the `AndJobs` variant
 
 `DisableBurstForSystem<T>` is not enough when the system's real work lives in a
-nested job. `EquipmentUpdateSystem` (`Pug.Other:419765`) does everything in
+nested job. `EquipmentUpdateSystem` (`Pug.Other:437752`) does everything in
 `UpdateJob`, which carries its own `[BurstCompile]` (`:419767`) and calls
 `PlaceObjectSlot.UpdateEquipment` (`:419899`). Note the blast radius before
 reaching for it: that call sits in a `switch` on `slotType` (`:419894`) covering
@@ -130,7 +130,7 @@ reaching for it: that call sits in a `switch` on `slotType` (`:419894`) covering
 one system takes the equipment path off Burst for **every** slot type, not only
 the one you meant to patch. With the plain variant, **no** patch on that path
 fires; with `BurstDisabler.DisableBurstForSystemAndJobs<T>()`
-(`PugMod.SDK.Runtime:783`) they do — provided the world is armed, which the call
+(`PugMod.SDK.Runtime:797`) they do — provided the world is armed, which the call
 alone does not guarantee. On a dedicated server it is not, and the same patches
 stay silent with the `AndJobs` variant in place; that trap is two sections
 below, and its log line is the false shortcut described just after this one.
@@ -187,7 +187,7 @@ snapshot — so it appears even while the bypass is inactive.
 
 Taking a system off Burst costs more than its `OnUpdate` running managed. The
 bypass clears the **global** `BurstCompiler.Options.EnableBurstCompilation` for
-the duration of that `UpdateSystem` call (`PugMod.SDK.Runtime:963-971`), so
+the duration of that `UpdateSystem` call (`PugMod.SDK.Runtime:977-985`), so
 everything dispatched inside the window runs un-Bursted —
 `OnStartRunning`/`OnStopRunning` through the same forwarding table included. How
 large that cost is for a given system is **unverified** — one anecdote exists,
@@ -222,7 +222,7 @@ compare the same scene with your `DisableBurstForSystem*` call present and
 removed, and look at frame time rather than at whether it "feels" the same.
 **Removing the call is only a control if no other installed mod registers the
 same system** — the registry is a process-wide `HashSet<Type>`
-(`PugMod.SDK.Runtime:731`), so a sibling keeps your system un-Bursted with your
+(`PugMod.SDK.Runtime:745`), so a sibling keeps your system un-Bursted with your
 own call gone, and the two runs then differ in nothing. Two mods in this family
 register `EquipmentUpdateSystem`. Disable the others for the comparison, or
 measure a system nothing else touches. That is a small experiment, and it beats
@@ -238,7 +238,7 @@ whenever a player hosts and does nothing on a dedicated server.
 
 **"Does nothing in multiplayer" is the wrong scope, and this file said it until
 2026-08-24.** A hosting client is not affected: `StartEcs` creates the
-ServerWorld in that same process (`Pug.Other:2654`, guarded at `:2652` by
+ServerWorld in that same process (`Pug.Other:2586`, guarded at `:2652` by
 `worldId != -1 && requestedPlayType != PlayType.Client` — **both** conditions,
 which is why the menu path below creates none despite not being a pure client),
 adds it to `_allWorlds`, and arms both worlds at `:2673-2675` — all of it after
@@ -253,13 +253,13 @@ from a host neither reproduces nor refutes it.
 The cause is the lifecycle order — which is **measured**, not derived; the
 paragraphs below say why no derivation replaces it, and one that was tried was
 wrong. `BurstDisabler.AddWorld` is called from exactly one place,
-`ECSManager.StartEcs` (`Pug.Other:2675` in the client build, `:2656` in the
+`ECSManager.StartEcs` (`Pug.Other:2601` in the client build, `:2656` in the
 server build), and it **snapshots** the types registered up to that moment.
 Nothing back-fills that snapshot for a world already passed to `AddWorld` — but
 neither set is permanent, and a later world load rebuilds them correctly; see
 the bound on this below. Two different resetters exist and only one of them
 appears there: `ResetWorlds` clears the per-world handles, while
-`BurstDisabler.Init()` (`PugMod.SDK.Runtime:739-750`) — a
+`BurstDisabler.Init()` (`PugMod.SDK.Runtime:753-764`) — a
 `[RuntimeInitializeOnLoadMethod(SubsystemRegistration)]`, so once per process
 start rather than per world — additionally unpatches Harmony, clears
 `_patchedMethods`, and clears the **type** registry itself.
@@ -289,7 +289,7 @@ state is not the same on the two sides.
 the only route.** The server build's own guard names its real entry point and
 then acts on it — `UnityEngine.Debug.LogError("Server should start from
 ServerMain!")` followed immediately by `Application.Quit()`
-(`Pug.Other:361103-361104`, server build), so a server build reaching
+(`Pug.Other:377690-377691`, server build), so a server build reaching
 `SceneHandler.Awake` with a ServerWorld already created terminates rather than
 continuing. That is what rules the `SceneHandler.Awake` → `StartEcs` route out
 as the server's ordinary path. And `ServerMain` exists nowhere as a type:
@@ -314,7 +314,7 @@ two places, not one. Both go through `Integration.Instance.Update()` — an
 is at `:270347` (server `:270188`). The lifecycle rule never applies to the
 first path, so it cannot settle the ordering. Nor is the hosting
 side "menu-triggered" as a contrast: the client's own world-creating `StartEcs`
-(`Pug.Other:365349`) sits in `SceneHandler` too, and the menu path
+(`Pug.Other:382130`) sits in `SceneHandler` too, and the menu path
 (`RadicalJoinGameMenu.Join`, `:337913`) passes `worldId: -1` and creates no
 ServerWorld at all.
 
@@ -367,7 +367,7 @@ call `DisableBurstForSystem*` for everything you want it to see *before* the
 
 **What the pass repairs is the *first* `StartEcs` of the process, not a
 permanent defect.** Unloading the worlds calls `BurstDisabler.ResetWorlds`
-(`PugMod.SDK.Runtime:841`) from `ECSManager.UnloadWorldsInternal`
+(`PugMod.SDK.Runtime:855`) from `ECSManager.UnloadWorldsInternal`
 (`Pug.Other:2938`, server `:2914`), which clears the handle set; the next
 `StartEcs` then runs its own `AddWorld` pass with the registration already in
 place, so a world reload arms correctly on its own. That is why the bug reads as
@@ -421,7 +421,7 @@ whenever `worlds > 0 && armed == 0` — fires on every healthy client. **The
 world count says nothing about health at registration time**, so do not build a
 self-check on it; check after the worlds you actually depend on exist. One thing
 *is* worth reading from `Init()`, and it is not a count: `BurstDisabler` logs
-`system X is already registered` (`PugMod.SDK.Runtime:835`) when a sibling mod
+`system X is already registered` (`PugMod.SDK.Runtime:849`) when a sibling mod
 un-Bursted the same system before you — the interference that makes a
 performance comparison meaningless a few sections above, and the one condition
 this early that a mod can actually act on.
@@ -443,7 +443,7 @@ classes that host both kinds of member, and the two this chapter builds its XP
 recipe around are the Burst-reached kind: `PlayerController.AddSkill` is the
 case [scaling a value](#scaling-a-value-that-flows-from-a-burst-producer-into-a-burst-consumer) opens with ("do not patch the producer"), and
 `PetExtensions.GetExperienceFromDamage` is called from
-`AttemptToDealDamageToEnemy` (`Pug.Other:303957`), inside that same Burst sim
+`AttemptToDealDamageToEnemy` (`Pug.Other:313854`), inside that same Burst sim
 path. What survives the trap is a method managed code actually calls, which is
 not something the declaring type can tell you.
 
@@ -482,7 +482,7 @@ Two caveats make an absent line meaningless:
 
 - **An idle dedicated server sits at `timescale = 0` and does not simulate.** A
   player must be connected, or nothing you patched in the simulation runs.
-  `PauseWorld` (`DedicatedServer/Pug.Other:2560-2582`) disables the
+  `PauseWorld` (`DedicatedServer/Pug.Other:2492-2514`) disables the
   `SimulationSystemGroup` and nothing else — seven systems keep ticking every
   frame, networking and command buffers among them — so "no system updates at
   all" would be the wrong expectation to debug against.
@@ -500,7 +500,7 @@ multicast delegate **fields** — not `event`s — which any assembly can assign
 or combine onto. `Mods.OnModManagementEvent` is one: it is declared
 `public static ModManagementEventDelegate` in `modio.UI` (`ModIOBrowser.Mods`,
 `:2906`), and the game's own `RadicalMainMenuOption_OpenMods.Awake` combines its
-handler onto it via `Delegate.Combine` at `Pug.Other:338594`.
+handler onto it via `Delegate.Combine` at `Pug.Other:351272`.
 
 **Correction: the field-versus-event distinction does not gate your access.**
 This paragraph used to justify itself with "an `event` would only let you `+=`
@@ -547,7 +547,7 @@ with it — see [what a throw costs](mod-anatomy.md#harmony-patches-are-auto-dis
 
 **And the mod goes on loading, which is what makes this expensive.**
 `HarmonyPatchAssembly` wraps the call in `try/catch (Exception)`
-(`PugMod.Loader:1414-1428`), logs `failed to patch mod <name>, got exception`
+(`PugMod.Loader:1470-1484`), logs `failed to patch mod <name>, got exception`
 plus the exception, and returns normally; the load continues from there. So the
 mod appears in the mod list, its assembly is registered, and an unknown number
 of its patches simply are not there — a single logged line between a working
@@ -617,7 +617,7 @@ on the systems that *write* the components you read is irrelevant. `BurstDisable
 is needed only when the **patch target itself** is executed by Burst. Read-only
 access needs it not at all: an `EntityQuery.ToEntityArray` plus `GetComponentData`
 out of a managed coroutine or `Update` requires nothing, even though Burst jobs —
-`DropSelfJob` (`Pug.Other:88847`), for instance — match the very same components.
+`DropSelfJob` (`Pug.Other:89994`), for instance — match the very same components.
 `BurstDisabler` is not a precondition for touching ECS from a mod, and a
 needless `DisableBurstForSystemAndJobs` is not free.
 
@@ -752,7 +752,7 @@ outcome.
 
 **The mechanism is a registry shared by the whole process, gating one global
 flag.** `DisableBurstForSystemPatch.Prefix(SystemHandle sh, out bool? __state)`
-(`PugMod.SDK.Runtime:963-971`) patches `WorldUnmanagedImpl.UpdateSystem` and
+(`PugMod.SDK.Runtime:977-985`) patches `WorldUnmanagedImpl.UpdateSystem` and
 tests `BurstDisabler.SystemHandlesToDisableBurstFor.Contains(sh)`; on a hit it
 sets the static `BurstCompiler.Options.EnableBurstCompilation = false` for the
 duration of that system's update, restored in the postfix. That set is one
@@ -882,7 +882,7 @@ If any of these is uncertain, the flag will race or leak, and the bug will be
 intermittent.
 
 **The example above does not satisfy the third precondition from the source
-alone.** `SaveManager.SetCharacterId(int)` (`Pug.Other:363006-363014`) warns on
+alone.** `SaveManager.SetCharacterId(int)` (`Pug.Other:379776-379784`) warns on
 an incompatible version and sets `_characterDead` and `_characterId` — it
 triggers no deserialize, and nothing in either tree links it to
 `CharacterData.OnAfterDeserialize`.
@@ -891,14 +891,14 @@ triggers no deserialize, and nothing in either tree links it to
 `OnAfterDeserialize` is Unity's `ISerializationCallbackReceiver` hook: it
 appears once as an explicit call, in the routine that resets a character slot,
 `_ClearCharacter(int i)` (`Pug.Other:363844`); every other invocation comes from
-Unity itself, through `SaveManager.DecodeJson<T>` (`Pug.Other:362977-362981`),
+Unity itself, through `SaveManager.DecodeJson<T>` (`Pug.Other:379746-379750`),
 which runs `JsonUtility.FromJsonOverwrite` over the bytes read for a character.
 `SetCharacterId` has four call sites in the client tree. The one the worked
-example is about, `StartGame(int characterID)` (`Pug.Other:344095-344107`), sets
+example is about, `StartGame(int characterID)` (`Pug.Other:359543-359555`), sets
 the id and then immediately triggers the scene load —
 `Manager.load.LoadIntroScene()` or `LoadMainScene()` — and it is the character
 read that happens during that load which fires the callback.
-`GoToCharacterTypeSelection` (`Pug.Other:344109-344113`) makes the same point by
+`GoToCharacterTypeSelection` (`Pug.Other:359557-359561`) makes the same point by
 contrast: it sets the id and pushes a menu, with no load and so no deserialize.
 
 So the two methods are coupled by nothing except the order the caller puts
@@ -939,7 +939,7 @@ Two XP choke points fit this shape:
 | Track | Producer | Component | Burst consumer |
 |---|---|---|---|
 | Player skill XP | `PlayerController.AddSkill(Entity, SkillID, int amount, EntityCommandBuffer, bool isServer)` — the sole creator of the component, only `if (isServer)` | `AddSkillValueCD : IComponentData` | `AddSkillValueSystem` (`SkillBuffer.Value += amount`, guarded `levelFromSkill < maxSkillLevel`) |
-| Pet XP, when the **pet** lands the hit | `PetExtensions.GetExperienceFromDamage(dmg) = clamp(dmg / 20, 1, 250)`, appended by `AttackSystem.CheckForHit` (`Pug.Other:12591`) | `AddPetExperienceBuffer : IBufferElementData` | `PetHandlerSystem` (`pet.objectData.amount += amount`, guarded `!IsAtMaxLevel`) |
+| Pet XP, when the **pet** lands the hit | `PetExtensions.GetExperienceFromDamage(dmg) = clamp(dmg / 20, 1, 250)`, appended by `AttackSystem.CheckForHit` (`Pug.Other:12602`) | `AddPetExperienceBuffer : IBufferElementData` | `PetHandlerSystem` (`pet.objectData.amount += amount`, guarded `!IsAtMaxLevel`) |
 
 **Correction: pet XP has a second route, and "pets level only from dealt damage"
 is wrong.** This section said there were exactly two choke points and that pets
@@ -1063,7 +1063,7 @@ helper methods can be added freely.
 (`…/Public/mod.io/5289/mods/<modId>_<modfileId>/Scripts/Generated/`), delete the
 loader's extraction at `…/Temp/Pugstorm/Core Keeper/ModLoader/<ModName>/`, then
 restart the game. The deletion step has no target on a dedicated server: the
-same line (`PugMod.Loader:1742` in both builds) extracts to `ModLoader/<mod
+same line (`PugMod.Loader:1802` in both builds) extracts to `ModLoader/<mod
 name>` on the client but to `ModLoader/DedicatedServer/<fresh GUID>` on the
 server, a new directory per start, so there is nothing stable to delete and
 nothing stale to clear. Leave the ZIP under `…/Temp/Pugstorm/Core Keeper/5289/`
@@ -1083,7 +1083,7 @@ cascade and desynchronise *other* mods, not only yours — see [troubleshooting]
   original file **outside** the `Scripts/` tree — a `.bak` left inside it would
   be compiled along with everything else — unless the manifest is the authority,
   which it is: the loader compiles `mod.Metadata.files` filtered to `.cs`
-  (`PugMod.Loader:1737`, read at `:1301`), so a file no manifest lists is never
+  (`PugMod.Loader:1797`, read at `:1301`), so a file no manifest lists is never
   opened. A `.bak` is safe from the compiler and unsafe from the next mod
   update, which replaces the folder; keep it outside either way.
 
@@ -1139,7 +1139,7 @@ the deny lists.
 
 **Trap: there is no per-object-type component.** Hunting the decompile for a
 `<Thing>CD` that marks one kind of object is the wrong search and will fail after
-a long detour. `EntityMonoBehaviourDataConverter.Convert` (`Pug.ECS.Conversion:5808`) fills
+a long detour. `EntityMonoBehaviourDataConverter.Convert` (`Pug.ECS.Conversion:5796`) fills
 `ObjectTypeCD` and `ObjectDataCD` on *every* object entity, and those two carry
 the identity. A third goes on unconditionally beside them and is worth knowing
 before hand-rolling a category test: `ObjectCategoryTagsCD` (`:5833`), a
@@ -1176,7 +1176,7 @@ public struct DiggableCD : IComponentData, IQueryTypeParameter { }
 It sits on everything a shovel can turn over — floor tiles, plants, dig spots —
 which makes it worthless as an identity test and valuable in the query, where it
 excludes non-matching archetypes cheaply. The game disambiguates the same way,
-with `objectID ==` checks (`Pug.Other:296438`, `:296842`, `:310904`). The pattern
+with `objectID ==` checks (`Pug.Other:305970`, `:296842`, `:310904`). The pattern
 generalises — tag narrows, `objectID` decides — while `DiggableCD`'s particular
 breadth is just one data point.
 
@@ -1211,7 +1211,7 @@ To persist mod state in lockstep with CK's own save, Harmony-postfix
 patch attribute never goes through `Manager.saves` at all.
 
 **Name the overload — `nameof` alone is ambiguous here.** `SaveManager` declares
-both `WriteCharacter()` (`Pug.Other:363867`) and `WriteCharacter(int)`
+both `WriteCharacter()` (`Pug.Other:380645`) and `WriteCharacter(int)`
 (`:363872`), so the attribute needs the argument-type array; the parameterless
 one delegates to the `int` overload, which is why patching that one covers both
 call paths:

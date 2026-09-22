@@ -24,7 +24,7 @@ server assemblies carry its symbols verbatim — `GhostCollectionSystem`,
 `NetworkProtocolVersion` — and the SDK matches them with
 `ProjectSettings/NetCode{Client,Server,ClientAndServer}Settings.asset`. The
 similarly-named `ghostCollectionHash` further down is not one of these — it is
-CK's own field on `PlayerConnectRequestRPC` (`Pug.ECS.Components:3628`), not a
+CK's own field on `PlayerConnectRequestRPC` (`Pug.ECS.Components:3802`), not a
 symbol from `Unity.NetCode.dll`.
 
 SDR does **not** come from Unity. It is Facepunch's Steamworks binding
@@ -123,7 +123,7 @@ server you join must also run it.
 
 Once the connection is up the client sends an empty `ModInfoRequestRPC`, and the
 server answers with one `ModInfoRPC` per loaded mod
-(`Pug.ECS.Components:3681`):
+(`Pug.ECS.Components:3855`):
 
 | Field | Type |
 |---|---|
@@ -133,24 +133,24 @@ server answers with one `ModInfoRPC` per loaded mod
 | `required` | `bool` |
 | `lastMod` | `bool` |
 
-Identity is matched on `modId` **or** `modGuid` (`Pug.Other:124570`) — the name
+Identity is matched on `modId` **or** `modGuid` (`Pug.Other:129036`) — the name
 is never compared. `modName` travels only so the missing-mod dialogue has
 something to print; it ends up in `ModCheck.modName`.
 
 **Trap: that name is truncated to 14 characters.** The server fills the field
 with `name.Substring(0, min(UTF8MaxLengthInBytes / 2, len))`
-(`Pug.Other:125928`), and `FixedString32Bytes` holds 29 UTF-8 bytes — so 14
+(`Pug.Other:130394`), and `FixedString32Bytes` holds 29 UTF-8 bytes — so 14
 characters are all that survive. Matching is unaffected, and for a **published**
 mod neither is the display: when the server demands a mod the client lacks, the
 client resolves `modId` through `ModIOUnity.GetMod` and prints the mod.io
 profile name instead (`:125076`), or `"Unknown"` if that lookup fails
 (`:125066`, `:125072`) — `GetMod` is only ever called for a **positive**
-`modId` (`Pug.Other:125064-125083`). For a **negative** one — a mod
+`modId` (`Pug.Other:129530-129549`). For a **negative** one — a mod
 side-loaded from `StreamingAssets/Mods` — `GetMod` is skipped entirely, and
 the truncated field is exactly what reaches the player. In the other
 direction — your `Server`-flagged mod missing on the server — the dialogue
 prints the client's own local `metadata.name` (`localMod.name =
-loadedMod.Metadata.name`, `Pug.Other:124927`), untruncated, and never touches
+loadedMod.Metadata.name`, `Pug.Other:129393`), untruncated, and never touches
 this field at all.
 
 **If you patch this layer:** `ModInfoRpcSystem.OnCreate` builds its mod list
@@ -161,7 +161,7 @@ turns it up — only `OnCreate` is exempt. On the client,
 `NetworkClientStartSystem.OnUpdate` (`Pug.Other:124905`) is a plain
 `protected override void OnUpdate()` and already holds the client's copy of the
 list; the job that actually receives the RPCs,
-`NetworkClientStartSystem_33002849_LambdaJob_0_Job` (`Pug.Other:124547`),
+`NetworkClientStartSystem_33002849_LambdaJob_0_Job` (`Pug.Other:129013`),
 carries no `[BurstCompile]` attribute either, holds a managed
 `NetworkClientStartSystem __this` field (`:124549`), and is dispatched through
 `RunWithoutJobsInternal` (`:124642`) — it cannot be Bursted, so a Harmony patch
@@ -212,7 +212,7 @@ rule — the game ships one, and CoreLib's config scopes already delegate to it.
 
 **`adminPrivileges` is an `int` on the player, and its levels are not
 interchangeable.** `PlayerController.adminPrivileges` reads it off the
-`PlayerGhost` component and returns `0` when there is none (`Pug.Other:298371`):
+`PlayerGhost` component and returns `0` when there is none (`Pug.Other:308036`):
 
 | Value | Meaning |
 |---|---|
@@ -251,7 +251,7 @@ both of them.
 **The declaration decides whether the value is on the wire at all.** Codegen
 emits one `…GhostComponentSerializer` per replicated component, and its
 `Snapshot` struct holds exactly that component's `[GhostField]`s and nothing
-else — `PlacementCDGhostComponentSerializer` (`Pug.ECS.Components:42160`) is the
+else — `PlacementCDGhostComponentSerializer` (`Pug.ECS.Components:43900`) is the
 worked example below.
 
 **The world you wrote it in decides the direction, and there is only one
@@ -263,7 +263,7 @@ world, `GhostUpdateSystem`, which CK fetches from `Manager.ecs.ClientWorld`. So
 a `[GhostField]` write in the server world replicates, and the identical write
 in the client world reaches nobody and is overwritten by the next snapshot.
 Client → server is a separate mechanism, not ghost fields: player input
-(`ClientInputData`, an `IInputComponentData`, `Pug.ECS.Components:3444`, carried
+(`ClientInputData`, an `IInputComponentData`, `Pug.ECS.Components:3607`, carried
 by the generated command send/receive systems at `:15462` and `:15612`) and
 RPCs.
 
@@ -273,7 +273,7 @@ component:
 | Component | Replicated |
 |---|---|
 | `HealthCD` | yes — declared `[GhostField]`, so a server-side change travels to the client |
-| `PlacementCD`'s placement-permission flags — `canPlaceOnWalkableTiles` through `blockedByObjectsOnWalls` (`Pug.ECS.Components:4298-4316`) | no — the tail of the struct carries no `[GhostField]` and none of those fields appears in the generated snapshot, so they are world-local state. The rest of `PlacementCD` *is* replicated, `canPlaceGround` (`:4287`) and `canPlaceRoofHole` (`:4290`) included — this is a per-field answer, not a per-component one |
+| `PlacementCD`'s placement-permission flags — `canPlaceOnWalkableTiles` through `blockedByObjectsOnWalls` (`Pug.ECS.Components:4475-4493`) | no — the tail of the struct carries no `[GhostField]` and none of those fields appears in the generated snapshot, so they are world-local state. The rest of `PlacementCD` *is* replicated, `canPlaceGround` (`:4287`) and `canPlaceRoofHole` (`:4290`) included — this is a per-field answer, not a per-component one |
 
 What the client then *does* with a replicated value is a separate question: for
 `HealthCD` it is **unverified** whether a damage-stage sprite or a progress bar
@@ -363,7 +363,7 @@ system will at best win for a few ticks before the next ghost snapshot overwrite
 its value.
 
 **That absence is the topology test.** `Manager.ecs.ServerWorld` is a public
-property (`Pug.Other:2381`) assigned only where the process creates a server
+property (`Pug.Other:2321`) assigned only where the process creates a server
 world (`:2837`) and nulled on teardown (`:2936`); vanilla itself branches on it
 in at least eight places (`:2152`, `:2487`, `:2517`, …), and the SDK exposes the
 same object as `API.Server.World` (`ModAPIServer.World`, `:392317`). So a mod
@@ -387,7 +387,7 @@ The distinction that matters is not "am I in multiplayer" but "does someone else
 decide".
 
 Two neighbouring signals on `Manager.networking` (a `NetworkingManager`,
-`Pug.Other:263198`) answer narrower questions and are not substitutes for the
+`Pug.Other:271328`) answer narrower questions and are not substitutes for the
 one above: `isConnected` is a plain settable `bool` property, and
 `currentSessionIsDedicatedServer` asks the platform layer
 (`impl.ConnectedToDedicatedServer`) and returns `false` whenever there is no
@@ -406,7 +406,7 @@ hashes the two sides compare. Nothing in the message mentions mods.
 
 **No mod name appears anywhere in the connect handshake**, which is why the
 split in the table above decides who can hit this. CK's own connect handshake rejects on two
-values (`Pug.Other:126187`, `:126203`): `localVersionHash`, which is
+values (`Pug.Other:130653`, `:126203`): `localVersionHash`, which is
 `PlayerConnectRequestRPC.GetVersionHash(Manager.version)` — the game version and
 nothing else (`:126655`) — and `ghostCollectionHash`, the XOR of every
 `GhostCollectionPrefab.Hash` in the default world
@@ -447,12 +447,12 @@ the server's loader is a different build. `PugMod.Loader` is all but identical o
 both sides. The version check belongs to the *subscription* loaders, which pass
 `ModVersion.IsCompatible(Application.version, tags)` into
 `Integration.AddMod(…, supportsCurrentVersion)`: `ModIOLoader`
-(`PugMod.Platform:70`) and `SteamWorkshopLoader` (`PugMod.Loader:156`). The
+(`PugMod.Platform:70`) and `SteamWorkshopLoader` (`PugMod.Loader:157`). The
 directory scan does not — `SideLoader` passes `supportsCurrentVersion: true`
-**hardcoded** (`PugMod.Loader:2173`), so the gate the list feeds —
+**hardcoded** (`PugMod.Loader:2389`), so the gate the list feeds —
 `!supportsCurrentVersion && !contains(guid)` — can never fire for a side-loaded
 mod. And a dedicated server's `Manager` registers only `SideLoader` and
-`SteamWorkshopLoader`, never `ModIOLoader` (`Pug.Other:263316-263325` against
+`SteamWorkshopLoader`, never `ModIOLoader` (`Pug.Other:271446-271455` against
 `DedicatedServer/Pug.Other:263259-263262`), while `StreamingAssets/Mods` is how a server is
 normally given its mods. The rule that predicts both cases is therefore about the
 *source* of a mod, not about the build: a mod side-loaded into the **client's**
@@ -507,13 +507,13 @@ so the systems actually run.
 The two mod log formats come from different loader *stages*, not from different
 builds — both processes write both. `loaded mod <Name> …` is written once per mod
 by whichever loader found it: `… at <path>` for the `StreamingAssets/Mods`
-directory scan (what a dedicated server uses, `PugMod.Loader:2178`), `… from
+directory scan (what a dedicated server uses, `PugMod.Loader:2394`), `… from
 mod.io (<Profile>)` for a mod.io subscription (`PugMod.Platform:97`, what the
 client usually uses), `… from steam workshop (<Title>)` for the third.
 Afterwards both processes log `Loading mod with ID <modId>` once per loaded mod,
 from `ModManager.Init()`, regardless of source. So `grep "loaded mod "` is the
 one pattern that works on both sides — it is not the only one that names a mod,
-though: `not loading incompatible mod <name>` (`PugMod.Loader:1175`), `skipping
+though: `not loading incompatible mod <name>` (`PugMod.Loader:1231`), `skipping
 mod <name> because of missing dependency` (`:990`) and `failed to load mod
 <name> …` (`:2175`) each name one too, for their own failure case.
 

@@ -180,7 +180,7 @@ differ, and normally should.
 ## The side-loader accepts a hand-written manifest
 
 Everything above is the SDK build pipeline. The loader has a second path in
-that needs none of it: `SideLoader.Update()` (`PugMod.Loader:2127-2187`) scans
+that needs none of it: `SideLoader.Update()` (`PugMod.Loader:2343-2403`) scans
 `Application.streamingAssetsPath + "/Mods"` for directories, and for each one
 holding a `ModManifest.json` reads it with `JsonUtility.FromJson<ModMetadata>`,
 then calls `Integration.Instance.AddMod(metadata, <directory>, ModId,
@@ -193,7 +193,7 @@ the mod once the manifest disappears.
 From there the ordinary load path runs, same as for a built mod: the loader reads each
 entry of `metadata.files` relative to the mod directory, source-gen-patches the texts,
 writes them into the temp `ModLoader/<name>/` tree and compiles them with [the sandbox](sandbox.md)
-active unless `skipSafetyChecks` is set (`PugMod.Loader:1296-1329`). So an unlisted file
+active unless `skipSafetyChecks` is set (`PugMod.Loader:1352-1385`). So an unlisted file
 is never opened, and a listed `.cs` is all a code mod needs. **`files`'s
 "build-generated" above describes the SDK pipeline, not a requirement of the loader** —
 `SideLoader` never touches `ModBuilder`, and a manifest it accepts is nothing a person
@@ -396,12 +396,12 @@ itself. Two metadata fields govern the pass:
 Failures are logged and do **not** abort the load, so a mod whose patches never bound
 still reports as loaded. Two lines, two different causes: `mod <name>: patching failed`
 is the safety check rejecting the assembly, while `failed to patch mod <name>, got
-exception` — followed by the exception itself — is Harmony throwing (`PugMod.Loader:1418-1427`).
+exception` — followed by the exception itself — is Harmony throwing (`PugMod.Loader:1474-1483`).
 On reload the loader undoes your patches (unless `disableHarmonyPatching` is set) as part
 of the same reset that calls `Shutdown`.
 
 **A throw does not cost you one patch, it costs the rest of the pass.** The loader hands
-the whole assembly to `Harmony.PatchAll` (`PugMod.Loader:462`), which walks
+the whole assembly to `Harmony.PatchAll` (`PugMod.Loader:480`), which walks
 `assembly.GetTypes()` and calls `PatchClassProcessor.Patch()` on each type with nothing
 catching in between (`0Harmony:2148-2154`, `:9074-9084`). A target that cannot be resolved
 makes `PatchWithAttributes` throw `ArgumentException: Undefined target method for patch

@@ -100,8 +100,8 @@ item in two different ways:
 
 | How you spell it | Where it is declared | Shape |
 |---|---|---|
-| `CraftingObject` | a **class**, global namespace (`Pug.Base:4541`) | `{ ObjectID objectID; int amount; }` |
-| `InventoryItemAuthoring.CraftingObject` | a **struct** nested inside `InventoryItemAuthoring` (`Pug.ECS.Authoring:2848`) | `{ string objectName; int amount; }` |
+| `CraftingObject` | a **class**, global namespace (`Pug.Base:4709`) | `{ ObjectID objectID; int amount; }` |
+| `InventoryItemAuthoring.CraftingObject` | a **struct** nested inside `InventoryItemAuthoring` (`Pug.ECS.Authoring:2896`) | `{ string objectName; int amount; }` |
 
 Only the first is global, so a bare `CraftingObject` resolves to it and the
 compiler never has to choose between the two — there is no `CS0104` to trip over
@@ -112,7 +112,7 @@ item is named.
 Iterate with `var` and never write the type name. Where you must name the nested
 one — in a method signature, say, where `var` is not available — qualify it in
 full; that is what CK's own bake code does (`foreach
-(InventoryItemAuthoring.CraftingObject item in …)`, `Pug.ECS.Authoring:2971`),
+(InventoryItemAuthoring.CraftingObject item in …)`, `Pug.ECS.Authoring:3031`),
 and CoreLib too. Reading the element into a `var` local, mutating it, and
 assigning back through the list indexer (as above) is the shape that works for
 both — and is not optional for the nested struct, where the local is a copy.
@@ -152,7 +152,7 @@ the work sits in the separately `[BurstCompile]`d `IJob` it schedules
 `DisableBurstForSystem<InventoryUpdateSystem>()` does not reach it — that takes
 the *system's* `OnUpdate` off Burst and leaves the job it schedules to run its
 own Burst-compiled form. A nested job needs `DisableBurstForSystemAndJobs<T>()`
-(`PugMod.SDK.Runtime:783`), which additionally completes the system's job
+(`PugMod.SDK.Runtime:797`), which additionally completes the system's job
 dependency inside the un-Bursted window. That variant is verified to make
 patches fire on another `ISystem` whose work sits in a nested `[BurstCompile]`
 job, but whether it does the same for the craft path is **unverified** — see [Harmony and ECS](harmony-and-ecs.md)

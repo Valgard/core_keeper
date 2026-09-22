@@ -190,7 +190,7 @@ list does **not** leak hover to the elements behind it, so a guard for that is
 dead weight; and `ScrollBar.UpdateHandleSize` — which runs only when the handle is dragged
 or the content height changes — overwrites the handle collider's `y` whenever
 it runs, so authoring that value is pointless either way: `ScrollHeight` —
-content height minus window height (`Pug.Other:357633`) — is 0 until content
+content height minus window height (`Pug.Other:374207`) — is 0 until content
 actually overflows the window, and below that `ScrollBar.Update` deactivates
 the whole scrollbar root and never calls `UpdateHandleSize` at all; the
 moment it does overflow, `UpdateHandleSize` runs that same frame and
@@ -649,7 +649,7 @@ call uses the list overload, so grepping for `GetComponentsInChildren<RadicalMen
 finds nothing: the type appears only in the parameter.
 
 **A row already has a second text field.** `RadicalMenuOption`
-(`Pug.Other:343031`) declares `labelText` (`:343056`) **and** `public PugText
+(`Pug.Other:358470`) declares `labelText` (`:343056`) **and** `public PugText
 valueText` (`:343058`) — the latter is what CK uses for the right-aligned value
 of a toggle row. Where it is wired, a value or badge suffix costs no prefab, no
 new GameObject and no layout, only a string. Whether it is wired on a
@@ -766,7 +766,7 @@ guard, so an effect on a component with no `PugText` throws rather than skipping
 which this family does routinely — is one way to reach it regardless.
 
 **The effect is wired by GameObject, not by `labelText`.** `PugTextEffect.Awake`
-binds `_text = GetComponent<PugText>()` (`Pug.Other:348885`) — the text on its
+binds `_text = GetComponent<PugText>()` (`Pug.Other:364359`) — the text on its
 *own* GameObject — and `RadicalMenuOption.Awake` collects the effects with
 `GetComponentsInChildren<PugTextEffectMenuOption>(includeInactive: true)`
 (`:343152`). Where the option's `labelText` / `valueText` fields point therefore
@@ -930,7 +930,7 @@ whether a term exists at all are in [localisation](localisation.md).
 ### A non-zero `maxWidth` can crash on a character its face does not map
 
 `PugFont.Render` enters `AddNewLinesToLinesExceedingMaxWidth` only when
-`maxWidth > 0f`. Inside it, the kerning lookup at `Pug.Other:350905-350917`
+`maxWidth > 0f`. Inside it, the kerning lookup at `Pug.Other:366379-366391`
 (`kerning[cp]`) is unguarded — neither `num5 < glyphData.Length` nor
 `cp < kerning.Length` is checked, unlike the twin lookup inside `PugFont.Render`
 itself (`:350634-350646`), which carries both guards. `cp`/`num5` land outside
@@ -1011,7 +1011,7 @@ the collider to the maximum row width instead. This second half applies to every
 
 **And beware the empty string, which measures as nothing.** `PugText.Render`
 returns early on `string.IsNullOrEmpty(textString)` after setting
-`dimensions = Rect.zero` (`Pug.Other:351862`), so anything derived from text
+`dimensions = Rect.zero` (`Pug.Other:367332`), so anything derived from text
 metrics collapses for a blank row: a text-sized collider becomes unhittable by
 `UIMouse`'s raycast, and a `renderHeightPixels` computed from
 `dimensions.height` makes a `LinearLayout` swallow the row entirely. Keyboard and
@@ -1023,7 +1023,7 @@ UI, size from a frame sprite or a constant rather than from the text.
 keyboard actually opens.** `HandleTypingInput` enters the OSK block whenever
 `!SystemPrefersKeyboardAndMouse()`, but that block returns only on success: it
 asks `Manager.platform.platformImpl.GetControllerTextInput(…)` and returns `true`
-only if that returns `true` (`Pug.Other:269620-269624`). On `false` there is **no
+only if that returns `true` (`Pug.Other:277670-277674`). On `false` there is **no
 `else`** — execution falls out of the block at `Pug.Other:269625` and continues
 into the ordinary keyboard chain, reaching `AppendString`, the arrow keys and
 `Deactivate(!IsMenuBackButtonDown())` at `:269652`, all while
@@ -1031,7 +1031,7 @@ into the ordinary keyboard chain, reaching `AppendString`, the arrow keys and
 
 **That is not a theoretical branch.** Both shipped implementations return `false`
 in reachable situations: the Steam one when `SteamUtils.ShowGamepadTextInput`
-fails, e.g. with the overlay unavailable (`Pug.Other:286911-286913`), and the
+fails, e.g. with the overlay unavailable (`Pug.Other:295356-295358`), and the
 fallback platform's **unconditionally** (`Pug.Other:288045`). So a mod that gates
 behaviour on the input device — "this only matters for keyboard players, the
 controller path is handled elsewhere" — silently excludes controller players
@@ -1043,7 +1043,7 @@ built on that word.)
 
 Where the keyboard does open, its result arrives **without a frame boundary**:
 `AppendString` is never reached, and the result handler,
-`MenuManager.TrySetInputText` (`Pug.Other:269678`), does both of these in **one
+`MenuManager.TrySetInputText` (`Pug.Other:277766`), does both of these in **one
 synchronous callback**:
 
 ```csharp
@@ -1091,7 +1091,7 @@ consequences follow, and neither has a workaround inside your subclass, because
   has cleared the field — so the row can be put back before anything reads it.
   Measured working on game 1.2.1.5.
 - **The back key in a menu text field is Rewired action 6**, which
-  `IsMenuBackButtonDown()` reads (`Pug.Other:267169`). The binding lives in
+  `IsMenuBackButtonDown()` reads (`Pug.Other:275292`). The binding lives in
   Rewired asset data rather than in the decompile, so it was measured rather than
   read: one Escape press while a field was active produced exactly one hit
   (2026-09-19). Worth stating because `Manager.input.GetButtonDown(int)` returns
@@ -1103,7 +1103,7 @@ consequences follow, and neither has a workaround inside your subclass, because
   saying *why* is gone by then, every ending looks the same from inside the row.
 
 **`UIManager.HideAllInventoryAndCraftingUI` ends an edit by blanking it**
-(`Pug.Other:273386`):
+(`Pug.Other:281446`):
 
 ```csharp
 if (Manager.input.textInputIsActive)
@@ -1211,7 +1211,7 @@ feedback CK provides for exactly that.
 
 **That is a vanilla limit, not a structural one — but clearing one field is not
 how it is lifted.** `maxWidth` is enforced **twice, asymmetrically**: the
-per-frame trim in `Update` is gated on `maxWidth > 0f` (`Pug.Other:343398`),
+per-frame trim in `Update` is gated on `maxWidth > 0f` (`Pug.Other:358842`),
 while the rejection at the end of `AppendString` is not (`:343446`, plain
 `if (pugText.dimensions.width > maxWidth)`). Set `maxWidth = 0` on its own and
 that comparison is true for every non-empty string: the field then accepts
@@ -1235,7 +1235,7 @@ A row that scrolls therefore needs three pieces, not one:
 
 ### Glyph positions are not string positions
 
-`PugText.localCharacterEndPositions` (`Pug.Other:351285`) is a list of **glyph**
+`PugText.localCharacterEndPositions` (`Pug.Other:366755`) is a list of **glyph**
 end positions, and it is what places the caret: `Update` offsets the blinker by
 `localCharacterEndPositions[currentCharIndex - 1].x` (`:343387`). Recovering an
 index from a position — the nearest entry to where the caret sits — and then
@@ -1305,7 +1305,7 @@ divergence above load-bearing.
 The blinker's x is a basis plus a glyph offset, and the basis is three summands
 rather than one: `Update` computes `pugText.transform.position.x +
 pugText.dimensions.xMin + 1f / 32f` and only then adds the glyph end position
-(`Pug.Other:343386-343387` — the method itself opens at `:343376`, so this is
+(`Pug.Other:358830-358831` — the method itself opens at `:343376`, so this is
 its third statement, not its first). That addend is guarded: outside
 `0 < currentCharIndex <= localCharacterEndPositions.Count` it contributes `0f`,
 so a stale or empty list collapses the caret onto the bare basis for every
@@ -1350,7 +1350,7 @@ on that list.
 **Do not read those thirteen off `I2Languages.asset`, and do not read them as
 fixed.** The importer calls `ClearAllData()` — which empties `mLanguages` — and
 rebuilds the set from the `LanguageDataBlock`s in the object database
-(`Pug.Other:276441-276444`). The asset's own thirteen are discarded first; that
+(`Pug.Other:284755-284758`). The asset's own thirteen are discarded first; that
 the same thirteen come back is a result, not a guarantee. `AddLanguage(name,
 code)` then writes whatever code it is handed, with no whitelist — and a mod
 can reach it today, because CoreLib's localisation module calls exactly that
@@ -1364,7 +1364,7 @@ installed, not of the code — see also [the localisation table's format](locali
 
 `Input.GetKeyDown` is an edge: one frame per press. CK's typing path is not.
 While a field is active, `MenuManager.HandleTypingInput` polls its keys through
-`MenuManager.IsKeyDown` (`Pug.Other:269693-269702`), which is a key-repeat:
+`MenuManager.IsKeyDown` (`Pug.Other:277781-277790`), which is a key-repeat:
 
 ```csharp
 if (Input.GetKeyDown(keyCode) || (!checkOnlyOnPressedDown && Input.GetKey(keyCode) && (typingInputCooldown.isTimerElapsed || !typingInputCooldown.isRunning)))
@@ -1402,7 +1402,7 @@ tying them to the game's.
 `API.Reflection` reaches inside the sandbox (see [resolving a private member](sandbox.md#reaching-a-private-member-resolving-it-is-only-half-the-job)),
 and that route hands back a boxed *copy* of the struct — so reading
 `isTimerElapsed`, whose getter ticks the timer forward
-(`Pug.UnityExtensions:7805-7812` and `:7816`), leaves the game's own field
+(`Pug.UnityExtensions:7863-7870` and `:7816`), leaves the game's own field
 alone. The copy belongs to the **route**, not to the field: Harmony's `ref
 ___field` injection reaches the same kind of private `TimerSimple` by
 *reference*, where no such guarantee holds. A shipping third-party mod turns
@@ -1411,7 +1411,7 @@ that difference into a feature — it reads one of these cooldowns through
 which is only necessary because the read was a copy.
 
 **Read it in a prefix.** Anything downstream of `IsKeyDown` sees the post-`Start`
-state — `timer = 0f`, `isRunning = true` (`Pug.UnityExtensions:7866-7875`) — so
+state — `timer = 0f`, `isRunning = true` (`Pug.UnityExtensions:7924-7933`) — so
 `isTimerElapsed || !isRunning` is false there whether or not it *had* been ready.
 A prefix on `HandleTypingInput` reads it before any branch consumes it. That is
 not the only workable shape: `IsKeyDown` is an ordinary private method with a
@@ -1658,7 +1658,7 @@ registration — which is why this passage used to call the slot unused. It is
 not: `ControlMappingMenu` returns it from `GetHelpButtonsToShow()`
 (`Pug.ControlMapping:916-924`), which hands back two `[SerializeField]` lists
 verbatim, and the values live in the prefab
-(`ControlMappingMenu.prefab:2456-2457`):
+(`ControlMappingMenu.prefab:2459-2460`):
 
 ```
 _helpButtonList:           0600000005000000000000000100000002000000
@@ -1707,7 +1707,7 @@ The bar is refreshed every frame, so returning a freshly allocated `List` from
 that override looks wasteful and the obvious fix is a reused field. **That fix
 silently disables the bar.**
 
-`MenuHelperButtons.UpdateShowingButtons` (`Pug.Other:338896`) keeps the list it
+`MenuHelperButtons.UpdateShowingButtons` (`Pug.Other:351626`) keeps the list it
 is handed **by reference** — `currentButtonsToShowing = buttonsToShow`
 (`:338903`) — and its early-out asks:
 
@@ -1739,7 +1739,7 @@ working one.
 
 **Take `OpenProfile`, Rewired action id `223`.** Of the menu face-button
 actions it is the only one vanilla never evaluates anywhere. The id appears
-twice: its `RewiredConsts` definition (`Pug.Other:386497`), which is how you
+twice: its `RewiredConsts` definition (`Pug.Other:403181`), which is how you
 reach it, and a single evaluation inside
 `InputManager.IsOpenProfileButtonDown()` (`:267304`) — and *that* method has
 zero callers in the whole decompile. Nothing collides with you.
@@ -1803,7 +1803,7 @@ something. That is a **mode**, and it is reachable without a Harmony patch —
 but only on the keyboard/controller path, and only because of how CK routes
 input.
 
-**`MenuManager.UpdateInputAndApplyToCurrentMenu` (`Pug.Other:269869`) decides
+**`MenuManager.UpdateInputAndApplyToCurrentMenu` (`Pug.Other:277964`) decides
 nothing itself.** It reads the input, then hands every case to a method on the
 top menu — `SelectNextIndex()`, `SelectPrevIndex()`, `SkimLeft()`,
 `SkimRight()`, `OnCloseMenuRequest()`, `CanActivateCurrentOption()`. Whoever
@@ -2252,7 +2252,7 @@ was never built.
   0 while the UI sits on `"GUI"`, excluding everything.
 - **Read the target's layer and order off a live glyph, not the prefab.**
   `PugText.Render` copies `style.orderInLayer` onto every glyph renderer at
-  render time (`Pug.Other:350652`, with `maskInteraction` on the next line), and
+  render time (`Pug.Other:366126`, with `maskInteraction` on the next line), and
   a style asset shared between prefabs makes the serialized value a poor witness.
 
 The fourth trap is the opposite one, and it fails loudly somewhere else instead
@@ -2463,7 +2463,7 @@ can be intercepted from a subclass. This matters for any menu built from data �
 a list that filters to nothing, a screen whose rows all failed to wire.
 
 **1. `Activate()` itself, before any input.** With `rememberSelectedIndex` set
-on the prefab (`Pug.Other:342703-342715`):
+on the prefab (`Pug.Other:358131-358143`):
 
 ```csharp
 if (selectedIndex != MathUtilities.Clamp(selectedIndex, 0, menuOptions.Count - 1))
@@ -2482,11 +2482,11 @@ if (x > high) x = high;
 so with an empty list (`high = -1`) `Clamp(-1, 0, -1)` walks `-1` up to `0` and
 back down to `-1` and returns **-1** — equal to `selectedIndex`, so the "in
 range" branch runs and dereferences `menuOptions[-1]`. This fires on keyboard
-too, not just on a gamepad: `SystemIsUsingMouse` (`Pug.Other:267323`) compares
+too, not just on a gamepad: `SystemIsUsingMouse` (`Pug.Other:275446`) compares
 the *last active* controller, and opening a menu with Enter makes that the
 keyboard.
 
-**2. Left/right, through `SkimLeft`/`SkimRight`** (`Pug.Other:342977`, `:342995`)
+**2. Left/right, through `SkimLeft`/`SkimRight`** (`Pug.Other:358407`, `:342995`)
 when the menu has `placeOptionsHorizontally: 0`. Both are `internal` **and
 non-virtual**, so no override reaches them; both route into
 `SelectIndexInDirection` (`:342744`), which on a non-keyboard-first system calls
