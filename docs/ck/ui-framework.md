@@ -589,7 +589,7 @@ objectID, variation = variation, amount = 1, variationUpdateCount = 0 },
 auxDataIndex = 0 }`. Spawning an entity, or porting your element onto the slot
 grid, is the expensive wrong answer.
 
-The tooltip is positioned relative to the `pointer` transform (`Pug.Other:357077`) — it is
+The tooltip is positioned relative to the `pointer` transform (`Pug.Other:373656`) — it is
 **cursor-anchored**, so the selected element's own transform position is
 irrelevant and an off-screen proxy element works.
 
@@ -759,7 +759,7 @@ the static is sandbox-legal) and let the effect drive hover.
 **Selection reaches an option through `RadicalMenuOption.OnSelected`**
 (`Pug.Other:358675`): it fires the element-selected event, then its
 `selectionListeners`, then walks `menuOptionEffects`
-(`Pug.Other:343240`-`Pug.Other:343244`) and calls each effect's own
+(`Pug.Other:357745`-`Pug.Other:357750`) and calls each effect's own
 `OnSelected`, which first stops that effect's deselection wind-down timers
 (`Pug.Other:349593`-`Pug.Other:365061`; `OnDeselected` is what starts them,
 `Pug.Other:365078`-`Pug.Other:365079`) and then recolours its `PugText` and any
@@ -1290,7 +1290,7 @@ The protection is real, invisible in play, and easy to remove by accident.
 glyph renderers and clears `glyphs`, `glyphTransforms`, `glyphColorOverrides` and
 `displayedTextString` — and stops there, in both modes (`Pug.Other:367414-367438`).
 Emptying `localCharacterEndPositions` is `PugFont.Render`'s doing alone, and
-`PugText.Render` returns early on an empty string (`Pug.Other:351862-351866`) long before
+`PugText.Render` returns early on an empty string (`Pug.Other:367332-367336`) long before
 it gets that far. So a field the player has just emptied still carries the
 previous render's entries: `Count > 0` while the text length is `0`. Any
 soundness check comparing the two counts has to special-case empty text, or it
@@ -1380,8 +1380,8 @@ if (Input.GetKeyDown(keyCode) || (!checkOnlyOnPressedDown && Input.GetKey(keyCod
 ```
 
 A held key therefore fires on the press, then again every 0.05 s after a 0.3 s
-delay. Backspace, Delete and the two arrow keys all go through it (`Pug.Other:269628`,
-`Pug.Other:269632`, `Pug.Other:277727`, `Pug.Other:269663`); Return and KeypadEnter pass
+delay. Backspace, Delete and the two arrow keys all go through it (`Pug.Other:277692`,
+`Pug.Other:277696`, `Pug.Other:277727`, `Pug.Other:269663`); Return and KeypadEnter pass
 `checkOnlyOnPressedDown: true` (`Pug.Other:277690`), which suppresses the repeat for them
 alone.
 
@@ -1434,7 +1434,7 @@ running, which is exactly the failure being fixed. The mod's own test has to be
 
 That combination is an over-set of vanilla's per-key condition, because a prefix
 cannot know which branch will claim the frame: it reports ready in frames where
-Backspace (`Pug.Other:269628`), Delete (`Pug.Other:269632`) or the Return branch
+Backspace (`Pug.Other:277692`), Delete (`Pug.Other:277696`) or the Return branch
 (`Pug.Other:277690`) takes it and no arrow moves at all. Whether the surplus is
 harmless is a property of the patch and not of the game — it is, for one that
 recomputes an absolute target from the current state; it is not for one that
@@ -1443,7 +1443,7 @@ where a spurious fire at 20 Hz is its own defect.
 
 **The postfix route removes that surplus for a vanilla install, and it has been
 measured.** The chain holds six `IsKeyDown` calls on five lines —
-`Pug.Other:269628`, `Pug.Other:269632`, `Pug.Other:277690` twice, since Return
+`Pug.Other:277692`, `Pug.Other:277696`, `Pug.Other:277690` twice, since Return
 and KeypadEnter share a branch, `Pug.Other:277727` and `Pug.Other:269663` — and
 those are the only calls in the assembly. So once Backspace claims the frame the
 arrows are never asked about, and no arrow verdict exists to be surplus. What
@@ -1786,7 +1786,7 @@ is invisible, non-rebindable, global and of uncertain persistence.
 
 **Do not pick an action id because its name fits — pick it by category.**
 `RewiredConsts.Action` carries a `categoryName` on every constant
-(`Pug.Other:386480` ff.), and the category, not the name, decides whether your
+(`Pug.Other:402907` ff.), and the category, not the name, decides whether your
 poll ever sees anything: each one has its own controller maps, enabled and
 disabled as a set. The trap has a concrete shape. A settings screen wanting a
 "reset to defaults" prompt will find `ResetDefaults = 300` and read it as the
@@ -1826,7 +1826,7 @@ reinterpret it by overriding what the dispatcher calls. What is reachable:
 | `RadicalMenu.CanChangeIndex` | 342949 | `protected`, not virtual — callable, not overridable |
 
 **Vanilla does this itself.** `RadicalCreditsMenu` overrides
-`SelectNextIndex`/`SelectPrevIndex` (`Pug.Other:336687`, `Pug.Other:336692`) and
+`SelectNextIndex`/`SelectPrevIndex` (`Pug.Other:349324`, `Pug.Other:349329`) and
 returns `false` from both, so the credits scroll on their own and directional
 input does nothing. The pattern is CK's, not an exploit of it.
 
@@ -2081,7 +2081,7 @@ Two consequences when building controls of your own:
   flag, the footer falls back to `defaultHelpButtons`, which carry SELECT. So a
   menu whose selection the pointer just cleared shows an unchanged footer,
   hint included. Tested in game after predicting the opposite.
-- **`AttemptToPlayMenuSfx` (`Pug.Other:269300`) discards calls inside a 50 ms unscaled
+- **`AttemptToPlayMenuSfx` (`Pug.Other:277333`) discards calls inside a 50 ms unscaled
   cooldown** (`Pug.Other:277136`) and reports nothing. Two sounds triggered by one
   gesture collapse into one, so the same control can sound one time and not the
   next without anything about it having changed — which makes "it made no

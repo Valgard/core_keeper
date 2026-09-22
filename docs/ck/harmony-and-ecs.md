@@ -619,7 +619,7 @@ type binds the wrong method.
 mis-bind.** `BucketSlot`, `PaintToolSlot` and `WaterCanSlot`
 (`Pug.Other:312626`) all derive from `PlaceObjectSlot` and shadow both
 `UpdateEquipment` and `PlaceItem` with `public new static` members of their own
-(`Pug.Other:320805`, `Pug.Other:321747`, `Pug.Other:312634`). Because these are
+(`Pug.Other:320805`, `Pug.Other:321748`, `Pug.Other:323328`). Because these are
 statics there is no virtual dispatch to carry a patch across — the caller names
 the class outright, one branch per slot type (`Pug.Other:437883-437889`) — so
 the "sole caller" relation above holds for each class separately. A patch on
@@ -683,7 +683,7 @@ specifically mean tiles, or the consume branch being taken. The postfix firing
 is not that signal — and neither is entering `AddTile`, which returns without
 queuing anything for a `tileSet` outside `0..74` and skips the
 `tileUpdateBuffer.Add` outside creative mode for tileset 2 at the four
-positions around the core (`Pug.Other:264406-264431`).
+positions around the core (`Pug.Other:264406-264422`).
 
 This generalises to every equipment/input path in CK: assume the method is
 polled, and find the commit point.

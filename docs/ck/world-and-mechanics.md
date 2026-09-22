@@ -494,9 +494,15 @@ exist but are unreferenced in the shipped DLLs — **the player load bubble is n
 shrinkable by any in-game setting.**
 
 Client ghost relevancy is a much smaller and entirely separate thing: `SpawnRect
-(22,14)` / `DespawnRect (24,16)` (`Pug.Other:135800`). A scan that resolves the
-ServerWorld therefore sees entities out to 200-300 tiles, not the ~24-tile
-client ghost set; multiplayer world separation is covered in [multiplayer and server](multiplayer-and-server.md).
+(22,14)` / `DespawnRect (24,16)`. A scan that resolves the ServerWorld therefore
+sees entities out to 200-300 tiles, not the ~24-tile client ghost set;
+multiplayer world separation is covered in [multiplayer and server](multiplayer-and-server.md).
+
+**unverified** — those two names and their values were read from `1.2.1.5` and
+occur **nowhere** in the `1.3.0.2` checkout, so the mechanism was renamed,
+restructured or removed. The wider claim (server sees far more than the client
+ghost set) rests on the chunk-load radii above and is unaffected; what needs
+re-deriving is the ghost relevancy figure itself.
 
 ### `IncludeDisabledEntities` is mandatory for a world scan
 
@@ -740,14 +746,21 @@ two distinct consume sites:
 
 | Event | Where | What happens |
 |---|---|---|
-| Capture | `CageCattle()` `Pug.Other:421821` | Gated on `objectID == ObjectID.CattleCage`; calls `EntityUtility.DropPetInCage(...)` (`Pug.Other:404701`), `DestroyEntity(cattle)` (`Pug.Other:421867`), then `Create.ConsumeEntityAt(.., 1, destroy: true, ..)` (`Pug.Other:421871`) eats the empty box |
+| Capture | `CageCattle()` `Pug.Other:421821` | Gated on `objectID == ObjectID.CattleCage`; calls `EntityUtility.DropPetInCage(...)`, `DestroyEntity(cattle)` (`Pug.Other:421867`), then `Create.ConsumeEntityAt(.., 1, destroy: true, ..)` (`Pug.Other:421871`) eats the empty box |
 | Release | `PlaceItem()` `Pug.Other:322132` | The carried item is placed and consumed via `Create.ConsumeEntityAt(.., destroy: false, ..)`, amount from `objectDataCD2.amount` (`Pug.Other:322118-322121`); `Pug.Other:322055` is the `else` branch, not the consume |
 
 **There is no "filled box" item.** This is the natural assumption and it is
-wrong. `DropPetInCage` (`Pug.Other:254079`) spawns a `DroppedItem` that carries the
+wrong. `DropPetInCage` spawns a `DroppedItem` that carries the
 animal itself as an **`ObjectType.Creature` item**, preserving its auxiliary
 data — `NameCD`, `MealsEatenCD`, `BreedToggleCD` — while the cattle entity is
 destroyed. The box is gone; what you hold is the animal.
+
+**unverified** — `DropPetInCage` does not exist anywhere in the `1.3.0.2`
+checkout, and `CageCattle` (which still does) no longer calls it: its body was
+rebuilt around `IsValidEntityToCage` and a `SphereCastAll`. The described
+outcome may well still hold, since it is about what the dropped item *is*, but
+the mechanism above it was read from `1.2.1.5` and needs re-deriving before
+anything is built on the detail.
 
 That changes how you detect a release: test `objectType == Creature` **and**
 `CattleCD` on the prefab. Testing for a cage object finds nothing.

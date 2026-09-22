@@ -406,7 +406,7 @@ the whole assembly to `Harmony.PatchAll` (`PugMod.Loader:480`), which walks
 catching in between (`0Harmony:2148-2154`, `Pug.Other:9052-9062`). A target that cannot be resolved
 makes `PatchWithAttributes` throw `ArgumentException: Undefined target method for patch
 method …` (`Pug.Other:3177-3180`), and `Patch()` catches it only to run `[HarmonyCleanup]` before
-rethrowing it wrapped as a `HarmonyException` (`Pug.Other:3170-3175`, `Pug.Other:3305-3309`). The
+rethrowing it wrapped as a `HarmonyException` (`0Harmony:3371`, `Pug.Other:3305-3309`). The
 enumeration ends there: classes already processed stay patched, the rest are never
 reached — and `GetTypes()` guarantees no order, so *which* ones made it is not something
 the source tells you. The symptom is a half-patched game, not one missing feature.
