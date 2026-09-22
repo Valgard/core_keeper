@@ -126,12 +126,12 @@ def read_installed(cache_dir: Path) -> tuple[list[InstalledMod], list[str]]:
     folders -- CoreLib sat at 3177992_7710097 next to _7845185 -- and "highest
     modfile id wins" is a guess where state.json has the answer.
 
-    Returns warnings rather than raising for a damaged state.json: the running
-    game rewrites that file, so a read can legitimately land mid-write, and a
-    traceback there would make a routine lookup look like a broken tool. A
+    Returns warnings rather than raising for a state.json read that lands mid-write:
+    the running game rewrites that file, so a syntax error is transient and expected,
+    and a traceback there would make a routine lookup look like a broken tool. A
     missing cache DIRECTORY is the opposite case and does raise -- that is a
-    configuration error, and returning an empty list would read as "no such
-    mod" for every query.
+    configuration error, and returning an empty list would read as "no such mod" for
+    every query.
     """
     if not cache_dir.is_dir():
         raise FileNotFoundError(

@@ -97,16 +97,19 @@ def test_reads_an_installed_mod_with_its_three_names(tmp_path):
 
 def test_ignores_a_superseded_folder(tmp_path):
     # The cache keeps old folders; state.json names the live one. Taking the
-    # higher modfile id is a guess that happens to work.
+    # higher modfile id is a guess that happens to work, but only by luck.
+    # This fixture inverts the ids intentionally so the current folder carries
+    # the lower id and the stale one the higher. "Highest id wins" would pick
+    # the stale folder; reading state.json picks the right one.
     cache = _write_cache(
-        tmp_path, [(3177992, 7845185, "CoreLib", ["Scripts/CoreLibMod.cs"])]
+        tmp_path, [(3177992, 7710097, "CoreLib", ["Scripts/CoreLibMod.cs"])]
     )
-    stale = cache / "3177992_7710097"
+    stale = cache / "3177992_7845185"
     (stale / "Scripts").mkdir(parents=True)
 
     mods, _ = mod_source.read_installed(cache)
 
-    assert [m.folder.name for m in mods] == ["3177992_7845185"]
+    assert [m.folder.name for m in mods] == ["3177992_7710097"]
 
 
 def test_a_disabled_mod_is_still_found(tmp_path):
@@ -138,3 +141,25 @@ def test_missing_cache_directory_names_the_override(tmp_path):
         mod_source.read_installed(tmp_path / "nope" / "mods")
 
     assert "CK_BOTTLE_PATH" in str(excinfo.value)
+
+
+def test_bottle_path_uses_explicit_override_first(tmp_path, monkeypatch):
+    # CK_BOTTLE_PATH wins outright; CK_BOTTLE_NAME is only checked if the
+    # explicit override is not set.
+    monkeypatch.setenv("CK_BOTTLE_PATH", str(tmp_path / "explicit"))
+    monkeypatch.setenv("CK_BOTTLE_NAME", "Ignored")
+
+    path = mod_source.bottle_path()
+
+    assert path == tmp_path / "explicit"
+
+
+def test_bottle_path_defaults_to_core_keeper_when_name_not_set(monkeypatch):
+    # When CK_BOTTLE_PATH is not set and CK_BOTTLE_NAME is not set, the default
+    # name "Core Keeper" is used.
+    monkeypatch.delenv("CK_BOTTLE_PATH", raising=False)
+    monkeypatch.delenv("CK_BOTTLE_NAME", raising=False)
+
+    path = mod_source.bottle_path()
+
+    assert path.name == "Core Keeper"
