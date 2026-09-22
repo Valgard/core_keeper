@@ -321,3 +321,59 @@ def test_fetch_catalogue_follows_pagination_to_the_last_page(tmp_path, monkeypat
 
     mirrored = json.loads(mirror.read_text())
     assert [e["id"] for e in mirrored["entries"]] == [1, 2]
+
+
+def test_a_catalogue_of_the_wrong_shape_reads_as_absent(tmp_path):
+    # Valid JSON, wrong shape: "entries" is a list of ints rather than of
+    # objects. Membership-testing "id in 1" raises TypeError -- a shape the
+    # writer of this file never produces, but a damaged read of it could.
+    mirror = tmp_path / "catalogue.json"
+    mirror.write_text(json.dumps({"entries": [1, 2, 3]}))
+
+    assert mod_source.read_catalogue(mirror) == []
+
+
+def test_fetch_catalogue_gives_up_rather_than_looping_forever(tmp_path, monkeypatch):
+    # A server that keeps sending a non-empty page while perpetually
+    # reporting a result_total the running count never reaches must not hang
+    # the tool forever -- it must fail loudly instead, within a bounded
+    # number of requests.
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda sdk_path: ("https://fake.modio", 1, "key")
+    )
+    calls: list[str] = []
+
+    def fake_curl(url):
+        calls.append(url)
+        return json.dumps(
+            {"data": [{"id": len(calls)}], "result_total": 10**9}
+        ).encode()
+
+    monkeypatch.setattr(mod_source, "_curl", fake_curl)
+
+    mirror = tmp_path / "catalogue.json"
+    with pytest.raises(ValueError, match="incomplete"):
+        mod_source.fetch_catalogue(tmp_path / "sdk", mirror)
+
+    assert len(calls) == mod_source._MAX_PAGES
+    assert not mirror.exists()
+
+
+def test_fetch_catalogue_tolerates_a_present_but_null_page(tmp_path, monkeypatch):
+    # .get(key, default) only substitutes for an ABSENT key. A server that
+    # sends the key with an explicit null -- a real API violation, but one a
+    # network client cannot rule out -- used to raise TypeError from
+    # "entries += None" / "len(entries) >= None" instead of reading as an
+    # empty, complete page.
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda sdk_path: ("https://fake.modio", 1, "key")
+    )
+    monkeypatch.setattr(
+        mod_source,
+        "_curl",
+        lambda url: json.dumps({"data": None, "result_total": None}).encode(),
+    )
+
+    entries = mod_source.fetch_catalogue(tmp_path / "sdk", tmp_path / "catalogue.json")
+
+    assert entries == []

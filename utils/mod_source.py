@@ -274,6 +274,13 @@ _GAME_KEY = re.compile(r"gameKey:[ \t]*([A-Za-z0-9]{8,})[ \t]*$", re.MULTILINE)
 # The catalogue is small (312 mods when measured) but the API pages at 100.
 _PAGE = 100
 
+# Headroom, not a realistic ceiling: the real catalogue pages four times at
+# _PAGE=100. This exists for the case where mod.io keeps sending non-empty
+# pages while perpetually reporting a result_total the accumulated count
+# never reaches -- without a cap that loops forever with no message and no
+# way out, which is the failure shape a cap exists to rule out.
+_MAX_PAGES = 50
+
 
 @dataclasses.dataclass(frozen=True)
 class CatalogueEntry:
@@ -305,21 +312,34 @@ def read_catalogue(path: Path) -> list[CatalogueEntry]:
     A damaged file reads as absent rather than raising: the only way to get
     one is an interrupted fetch, and the right response to half a download is
     to download it again, not to fail every lookup until a human intervenes.
+    "Damaged" covers a missing file, truncated JSON, AND JSON that parses but
+    is the wrong shape (entries that is not a list, an entry that is not a
+    dict) -- there is no state of this file that means anything other than
+    "discard it and fetch again", so the catch is wide on purpose. Contrast
+    read_installed(), which narrows instead of widens: that file belongs to
+    the running game, not to this module, so a broad catch there would hide a
+    real defect in someone else's data rather than recover from our own.
     """
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return [
+            CatalogueEntry(
+                mod_id=entry["id"],
+                title=entry.get("name", ""),
+                slug=entry.get("name_id", ""),
+                modfile_id=entry.get("modfile"),
+            )
+            for entry in data.get("entries", [])
+            if "id" in entry
+        ]
+    except (
+        FileNotFoundError,
+        OSError,
+        json.JSONDecodeError,
+        AttributeError,
+        TypeError,
+    ):
         return []
-    return [
-        CatalogueEntry(
-            mod_id=entry["id"],
-            title=entry.get("name", ""),
-            slug=entry.get("name_id", ""),
-            modfile_id=entry.get("modfile"),
-        )
-        for entry in data.get("entries", [])
-        if "id" in entry
-    ]
 
 
 def _modio_config(sdk_path: Path) -> tuple[str, int, str]:
@@ -357,20 +377,39 @@ def fetch_catalogue(sdk_path: Path, path: Path) -> list[CatalogueEntry]:
     for the 30 KB that matters. Mirrored at all because the live search cannot
     do the job: _q matches the title alone, so a slug or an internal name
     returns nothing, and a title returns a ranked list rather than an answer.
+
+    Stops after _MAX_PAGES rather than looping forever, and raises instead of
+    writing a short mirror when that happens: a truncated catalogue would
+    otherwise present later as "that mod does not exist" for whatever
+    happened to sort last, which is worse than a loud failure now.
     """
     server, game, key = _modio_config(sdk_path)
     entries: list[dict] = []
     offset = 0
-    while True:
+    for _ in range(_MAX_PAGES):
         query = urllib.parse.urlencode(
             {"api_key": key, "_limit": _PAGE, "_offset": offset}
         )
         page = json.loads(_curl(f"{server}/games/{game}/mods?{query}"))
-        entries += page.get("data", [])
-        total = page.get("result_total", len(entries))
-        if len(entries) >= total or not page.get("data"):
+        # .get(key, default) only substitutes for an ABSENT key -- a server
+        # that sends the key with a null value (a real API violation, but one
+        # we are not in a position to rule out) needs the same fallback.
+        data = page.get("data")
+        if data is None:
+            data = []
+        entries += data
+        total = page.get("result_total")
+        if total is None:
+            total = len(entries)
+        if len(entries) >= total or not data:
             break
         offset += _PAGE
+    else:
+        raise ValueError(
+            f"mod.io catalogue still incomplete after {_MAX_PAGES} pages "
+            f"({len(entries)} entries fetched) — aborting instead of mirroring a "
+            "short catalogue that would later look like a missing mod"
+        )
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
