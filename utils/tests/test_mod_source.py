@@ -80,6 +80,19 @@ def _write_cache(root, mods, state_mods=None, state_disabled=()):
     return cache
 
 
+def _write_repo(workspace, repo, mod_name, mod_id, fake_id=None):
+    """Build a synthetic mod repository with asset and optional .envrc."""
+    editor = workspace / repo / "unity" / mod_name / "Editor"
+    editor.mkdir(parents=True)
+    (editor / f"{mod_name}_modio.asset").write_text(
+        f"MonoBehaviour:\n  m_Name: {mod_name}_modio\n  modId: {mod_id}\n"
+    )
+    (workspace / repo / "unity" / mod_name / f"{mod_name}Mod.cs").write_text("// mod")
+    if fake_id is not None:
+        (workspace / repo / ".envrc").write_text(f'export FAKE_MOD_ID="{fake_id}"\n')
+    return workspace / repo
+
+
 def test_reads_an_installed_mod_with_its_three_names(tmp_path):
     cache = _write_cache(
         tmp_path, [(3177992, 7845185, "CoreLib", ["Scripts/CoreLibMod.cs"])]
@@ -163,3 +176,43 @@ def test_bottle_path_defaults_to_core_keeper_when_name_not_set(monkeypatch):
     path = mod_source.bottle_path()
 
     assert path.name == "Core Keeper"
+
+
+def test_reads_the_real_mod_id_from_the_tracked_asset(tmp_path):
+    _write_repo(tmp_path, "faster-talents", "FasterTalents", 6065498)
+
+    own = mod_source.read_own_mods(tmp_path)
+
+    assert len(own) == 1
+    assert own[0].mod_name == "FasterTalents"
+    assert own[0].mod_id == 6065498
+    assert own[0].fake_id is None
+    assert own[0].source_path.name == "FasterTalents"
+
+
+def test_reads_the_fake_id_when_the_envrc_is_present(tmp_path):
+    _write_repo(
+        tmp_path, "mod-settings-menu", "ModSettingsMenu", 6211950, fake_id=9999991
+    )
+
+    own = mod_source.read_own_mods(tmp_path)
+
+    assert own[0].fake_id == 9999991
+
+
+def test_a_directory_without_a_modio_asset_is_not_a_mod_repo(tmp_path):
+    (tmp_path / "CoreKeeperModDocs" / "docs").mkdir(parents=True)
+
+    assert mod_source.read_own_mods(tmp_path) == []
+
+
+def test_an_unpublished_mod_id_of_zero_is_not_an_identity(tmp_path):
+    # new_mod.py scaffolds `modId: 0`, so every unpublished mod carries one.
+    # Treating 0 as an id would make two such repos collide on the same key.
+    _write_repo(tmp_path, "brand-new-mod", "BrandNewMod", 0)
+
+    own = mod_source.read_own_mods(tmp_path)
+
+    assert len(own) == 1
+    assert own[0].mod_id is None
+    assert own[0].mod_name == "BrandNewMod"

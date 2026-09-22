@@ -20,6 +20,12 @@ import re
 import unicodedata
 from pathlib import Path
 
+# Reading the real id, not the fake one. FAKE_MOD_ID identifies only a mod
+# with a dev build INSTALLED (2 of 13 when measured) and lives in a gitignored
+# .envrc; the real modId is in a tracked asset and present for all of them.
+_MODIO_ID = re.compile(r"^\s*modId:\s*(\d+)\s*$", re.MULTILINE)
+_FAKE_ID = re.compile(r'^\s*export\s+FAKE_MOD_ID="?(\d+)', re.MULTILINE)
+
 ORIGIN_INTERNAL = "internal name"
 ORIGIN_TITLE = "mod.io title"
 ORIGIN_SLUG = "slug"
@@ -103,6 +109,17 @@ class InstalledMod:
     def ships_source(self) -> bool:
         """Whether the mod carries a Scripts directory at all."""
         return self.source_path.is_dir()
+
+
+@dataclasses.dataclass(frozen=True)
+class OwnMod:
+    """A mod repository in this workspace, with the ids that name it."""
+
+    repo: Path
+    mod_name: str
+    mod_id: int | None
+    fake_id: int | None
+    source_path: Path
 
 
 def bottle_path() -> Path:
@@ -191,3 +208,42 @@ def read_installed(cache_dir: Path) -> tuple[list[InstalledMod], list[str]]:
             )
         )
     return mods, warnings
+
+
+def read_own_mods(workspace: Path) -> list[OwnMod]:
+    """Every sibling directory that is a mod repo, with the ids that name it.
+
+    A directory qualifies by carrying unity/<Mod>/Editor/<Mod>_modio.asset,
+    not by being a git repository: CoreKeeperModDocs is a checkout of someone
+    else's documentation and would otherwise read as a mod whose dev build is
+    parked somewhere.
+
+    `modId: 0` reads as no id. new_mod.py scaffolds exactly that, so it is the
+    state of every mod not yet published -- and two such repos indexed under
+    the id 0 would collide with each other for no reason. They stay findable
+    by name, which is all the identity they have yet.
+    """
+    mods: list[OwnMod] = []
+    for asset in sorted(workspace.glob("*/unity/*/Editor/*_modio.asset")):
+        mod_dir = asset.parent.parent
+        repo = mod_dir.parent.parent
+        match = _MODIO_ID.search(asset.read_text())
+        mod_id = int(match.group(1)) if match else 0
+
+        fake_id = None
+        envrc = repo / ".envrc"
+        if envrc.is_file():
+            fake_match = _FAKE_ID.search(envrc.read_text())
+            if fake_match:
+                fake_id = int(fake_match.group(1))
+
+        mods.append(
+            OwnMod(
+                repo=repo,
+                mod_name=mod_dir.name,
+                mod_id=mod_id or None,
+                fake_id=fake_id,
+                source_path=mod_dir,
+            )
+        )
+    return mods
