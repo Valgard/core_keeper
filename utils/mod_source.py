@@ -502,7 +502,7 @@ class Workspace:
 
     @staticmethod
     def _claimed_ids(mod: OwnMod) -> list[int]:
-        """The ids that name this repo: real, dev-build, or a synthetic one.
+        """The ids that name this mod: real, dev-build, or a synthetic one.
 
         A mod with neither a real id (never published) nor a dev-build id (no
         local dev build installed) would otherwise contribute nothing to the
@@ -512,15 +512,20 @@ class Workspace:
         name, which is all the identity they have yet". The synthetic id is
         negative so it can never collide with a real mod.io id (always
         positive) or a dev-build id (always >= FAKE_ID_MIN), and it is
-        derived from the repo path rather than the mod name so two
-        same-named mods in different repos still land on different keys. It
-        is never shown to a caller: _describe reports owner.mod_id, which
-        stays None for a mod that has no real id.
+        derived from the mod's own directory (source_path), NOT the
+        repository -- read_own_mods yields one entry per identity asset, so a
+        repository holding more than one mod directory under unity/ would
+        otherwise give two unpublished mods the same synthetic id from a
+        shared repo path, and the second would silently overwrite the first
+        in owner_of and the index. source_path is unique per mod regardless
+        of how many mods share a repo. It is never shown to a caller:
+        _describe reports owner.mod_id, which stays None for a mod that has
+        no real id.
         """
         claimed = [i for i in (mod.mod_id, mod.fake_id) if i is not None]
         if claimed:
             return claimed
-        return [-(abs(hash(str(mod.repo))) or 1)]
+        return [-(abs(hash(str(mod.source_path))) or 1)]
 
     @classmethod
     def build(

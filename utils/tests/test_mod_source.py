@@ -575,3 +575,29 @@ def test_an_ambiguous_own_mod_still_finds_its_own_catalogue_entry(tmp_path):
     assert own_candidate.title == "Widget Deluxe Edition"
     assert own_candidate.slug == "widget-deluxe-edition"
     assert own_candidate.modfile_id == 42
+
+
+def test_two_unpublished_mods_in_one_repo_stay_distinct(tmp_path):
+    # Regression: the synthetic id for an own mod with no real or fake id
+    # used to be derived from the REPOSITORY path. read_own_mods yields one
+    # entry per identity asset, and a repo can hold more than one mod
+    # directory under unity/ -- so two unpublished mods (modId: 0, no dev
+    # build) in the same repo derived the SAME synthetic id and silently
+    # overwrote each other in owner_of and the index. Deriving it from each
+    # mod's own source_path instead keeps them distinct.
+    ws = _workspace(
+        tmp_path,
+        own=[
+            ("multi-mod-repo", "ModAlpha", 0, None),
+            ("multi-mod-repo", "ModBeta", 0, None),
+        ],
+    )
+
+    alpha = ws.resolve("ModAlpha")
+    beta = ws.resolve("ModBeta")
+
+    assert alpha.kind == mod_source.KIND_OWN
+    assert beta.kind == mod_source.KIND_OWN
+    assert alpha.source_path.name == "ModAlpha"
+    assert beta.source_path.name == "ModBeta"
+    assert alpha.source_path != beta.source_path
