@@ -545,17 +545,24 @@ def test_an_ambiguous_own_mod_still_finds_its_own_catalogue_entry(tmp_path):
     # only the first id it happened to see in hits' dict-insertion order,
     # not from the id list `_group` had already collected for it. Here the
     # own mod's FAKE id is the one inserted first (it comes from the
-    # installed loop, which runs before the own loop) while the catalogue
-    # entry is keyed by the REAL id -- so describing this candidate from a
-    # single arbitrary id silently loses the catalogue match and its
-    # modfile_id, even though the resolution is correctly grouped and
-    # correctly flagged as KIND_OWN throughout.
+    # installed loop, which runs before the own loop touches the real id)
+    # while the catalogue entry -- carrying its OWN, different title, slug
+    # and modfile_id -- is keyed by the REAL id. A single-id description of
+    # this candidate can only ever see the dev build's own manifest, not the
+    # catalogue entry, so it silently substitutes the dev build's internal
+    # title/slug for the catalogue's and drops modfile_id outright, even
+    # though the resolution is correctly grouped and correctly flagged as
+    # KIND_OWN throughout. The catalogue title is deliberately spelled
+    # differently from the dev build's manifest name so the three assertions
+    # below cannot pass by coincidence -- a fixture where every name reads
+    # "Widget" would let the buggy fallback produce the right-looking text
+    # for the wrong reason.
     ws = _workspace(
         tmp_path,
         installed=[(9999500, 1, "Widget", ["Scripts/W.cs"])],
         own=[("widget-mod", "Widget", 5000000, 9999500)],
         catalogue=[
-            (5000000, "Widget", "widget", 42),
+            (5000000, "Widget Deluxe Edition", "widget-deluxe-edition", 42),
             (7000001, "Widget", "widget", 99),
         ],
     )
@@ -565,4 +572,6 @@ def test_an_ambiguous_own_mod_still_finds_its_own_catalogue_entry(tmp_path):
     assert isinstance(result, list)
     own_candidate = next(r for r in result if r.kind == mod_source.KIND_OWN)
     assert own_candidate.mod_id == 5000000
+    assert own_candidate.title == "Widget Deluxe Edition"
+    assert own_candidate.slug == "widget-deluxe-edition"
     assert own_candidate.modfile_id == 42
