@@ -761,7 +761,7 @@ the static is sandbox-legal) and let the effect drive hover.
 `selectionListeners`, then walks `menuOptionEffects`
 (`Pug.Other:343240`-`Pug.Other:343244`) and calls each effect's own
 `OnSelected`, which first stops that effect's deselection wind-down timers
-(`Pug.Other:349593`-`Pug.Other:349594`; `OnDeselected` is what starts them,
+(`Pug.Other:349593`-`Pug.Other:365061`; `OnDeselected` is what starts them,
 `Pug.Other:365078`-`Pug.Other:365079`) and then recolours its `PugText` and any
 `SpriteRenderer`s wired beside it (`Pug.Other:365069`-`Pug.Other:365073`). Note
 that the recolour dereferences the text without a guard, so an effect on a
@@ -1073,7 +1073,7 @@ different path (no `SetInputText` runs at all, so cancel-shaped tests pass), and
 member on your subclass is never dispatched and cannot be used to intercept them.
 
 **`Deactivate(bool commit)` throws its own parameter away.** The implementation is
-two lines and never reads it (`Pug.Other:343542`):
+two lines and never reads it (`Pug.Other:358991`):
 
 ```csharp
 public void Deactivate(bool commit)
@@ -1131,7 +1131,7 @@ also clears `activeInputField`, so CK's own `textInputIsActive` guard then finds
 nothing and the blanking never runs.
 
 **While a field is active, the menu is deaf.** `HandleTypingInput` returns `true`
-on every path (`Pug.Other:269675`), and its caller returns immediately when it does
+on every path (`Pug.Other:277658`), and its caller returns immediately when it does
 (`Pug.Other:277592`) — so all menu navigation and activation input is swallowed for as long
 as `Manager.input.activeInputField` is set. Useful in both directions: no other row
 can be selected or activated by keyboard or controller during an edit (the mouse is
@@ -1235,7 +1235,7 @@ A row that scrolls therefore needs three pieces, not one:
   `GUIUtility.systemCopyBuffer` straight to `AppendString` (`Pug.Other:277735-277737`),
   so removing the check without replacing it leaves an accidental Ctrl+V writing
   unbounded text into the field. `MaxCharactersForOnScreenKeyboard`
-  (`[field: SerializeField]`, `255` on a stock row, `Pug.Other:343354-343355`) is what the
+  (`[field: SerializeField]`, `255` on a stock row, `Pug.Other:358799-358800`) is what the
   on-screen-keyboard path already enforces, and the natural value to reuse.
 
 ### Glyph positions are not string positions

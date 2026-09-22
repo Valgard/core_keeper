@@ -366,7 +366,7 @@ its value.
 property (`Pug.Other:2321`) assigned only where the process creates a server
 world (`Pug.Other:2770`) and nulled on teardown (`Pug.Other:2869`); vanilla
 itself branches on it in at least eight places (`Pug.Other:2093`,
-`Pug.Other:2487`, `Pug.Other:2517`, …), and the SDK exposes the same object as
+`Pug.Other:2449`, `Pug.Other:2540`, …), and the SDK exposes the same object as
 `API.Server.World` (`ModAPIServer.World`, `Pug.Other:409003`). So a mod that
 needs to know whether it *is* the authority asks one question:
 

@@ -310,7 +310,7 @@ settles the question.
 **That table is a measurement, and no derivation has replaced it — one was tried
 and was wrong.** The tempting mechanism is: `StartEcs` is reached from
 `SceneHandler.Awake` (`Pug.Other:361075`, calls at
-`Pug.Other:361114`/`Pug.Other:377706` in the server build) while `IMod.Init()`
+`Pug.Other:382130`/`Pug.Other:377706` in the server build) while `IMod.Init()`
 comes from `Loader.Update` (`PugMod.Loader:1213`, `PugMod.Loader:1215`), so
 Unity's rule that every `Awake` precedes every `Update` fixes the order. **It
 does not.** `Loader.Update` is reached from two places, not one. Both go through

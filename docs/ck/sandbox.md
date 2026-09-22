@@ -213,7 +213,7 @@ on it:
   (`PugMod.Loader:570`). So the patch path's all-or-nothing rejection has no
   counterpart here: one refused type costs you that one call.
 - **A refusal throws rather than returning `false`** —
-  `InvalidOperationException` at your call site (`Pug.Other:392659` for
+  `InvalidOperationException` at your call site (`Pug.Other:409345` for
   `GetValue`). A `catch` cannot identify it as a refusal, because those three
   methods throw the same type for shape mistakes too: `Invoke` on a non-method,
   `GetValue`/`SetValue` on a member that is neither field nor property,

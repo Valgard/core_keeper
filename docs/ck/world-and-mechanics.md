@@ -272,7 +272,7 @@ would silently invert this, so re-verify after updates.
 
 In `ApplyAdd`, when the needed tile is missing or an invalid one is present, the
 tile is simply not set — instead `EntityUtility.DropNewEntity` puts the
-corresponding item into the world as a pickup (`Pug.Other:241661`), unless its
+corresponding item into the world as a pickup (`Pug.Other:256520`), unless its
 `objectType` is `NonObtainable`. So queueing a tile that then fails validation
 costs the player a walk to pick it back up, nothing more.
 
