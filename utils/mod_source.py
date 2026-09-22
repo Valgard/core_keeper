@@ -8,7 +8,9 @@ falls back to searching the filesystem.
 
 A mod carries three names that routinely disagree -- NameChests is "More
 Labels" on mod.io -- so the index covers all three at once rather than
-privileging the internal one, which resolves only 88 % of installed mods.
+privileging the internal one, which leaves a substantial minority of installed
+mods unresolvable. The measurement and the cases that defeat it are in
+docs/specs/2026-09-20-mod-source-lookup-design.md.
 """
 
 import re
