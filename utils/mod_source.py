@@ -478,12 +478,15 @@ class Workspace:
 
         # A repo claims both its ids: the real one names its subscription, the
         # fake one its dev build. Mapping both to the repo is what turns "dev
-        # build beside subscription" from an ambiguity into two locations.
+        # build beside subscription" from an ambiguity into two locations. A
+        # mod with neither (never published, no dev build installed -- what
+        # new_mod.py scaffolds, so the state of every mod not yet shipped)
+        # falls back to a synthetic id from _claimed_ids so it still lands in
+        # the index instead of silently having no identity at all.
         self.owner_of: dict[int, OwnMod] = {}
         for mod in own:
-            for claimed in (mod.mod_id, mod.fake_id):
-                if claimed is not None:
-                    self.owner_of[claimed] = mod
+            for claimed in self._claimed_ids(mod):
+                self.owner_of[claimed] = mod
 
         self.index = NameIndex()
         for mod in installed:
@@ -494,9 +497,30 @@ class Workspace:
             self.index.add(entry.title, entry.mod_id, ORIGIN_TITLE)
             self.index.add(entry.slug, entry.mod_id, ORIGIN_SLUG)
         for mod in own:
-            for claimed in (mod.mod_id, mod.fake_id):
-                if claimed is not None:
-                    self.index.add(mod.mod_name, claimed, ORIGIN_INTERNAL)
+            for claimed in self._claimed_ids(mod):
+                self.index.add(mod.mod_name, claimed, ORIGIN_INTERNAL)
+
+    @staticmethod
+    def _claimed_ids(mod: OwnMod) -> list[int]:
+        """The ids that name this repo: real, dev-build, or a synthetic one.
+
+        A mod with neither a real id (never published) nor a dev-build id (no
+        local dev build installed) would otherwise contribute nothing to the
+        index -- yet that is the state of every mod new_mod.py scaffolds,
+        which is precisely while someone is actively working on it, and
+        read_own_mods's own docstring already promises it stays "findable by
+        name, which is all the identity they have yet". The synthetic id is
+        negative so it can never collide with a real mod.io id (always
+        positive) or a dev-build id (always >= FAKE_ID_MIN), and it is
+        derived from the repo path rather than the mod name so two
+        same-named mods in different repos still land on different keys. It
+        is never shown to a caller: _describe reports owner.mod_id, which
+        stays None for a mod that has no real id.
+        """
+        claimed = [i for i in (mod.mod_id, mod.fake_id) if i is not None]
+        if claimed:
+            return claimed
+        return [-(abs(hash(str(mod.repo))) or 1)]
 
     @classmethod
     def build(
@@ -549,12 +573,18 @@ class Workspace:
 
         groups = self._group(hits)
         if len(groups) > 1:
-            return [self._describe(ids[0]) for ids in groups.values()]
-        return self._describe(min(next(iter(groups.values()))), all_ids=hits)
+            # Every candidate is described from its OWN id list, not just its
+            # first (dict-insertion-order, not sort-order) member -- an own
+            # mod's real id and fake id can both be in `hits` while this
+            # candidate is still only one of several genuinely different
+            # mods, and describing it from a single arbitrary id would hide
+            # whichever catalogue entry or dev-build note sits under the
+            # other one.
+            return [self._describe(min(ids), all_ids=ids) for ids in groups.values()]
+        (ids,) = groups.values()
+        return self._describe(min(ids), all_ids=ids)
 
-    def _describe(
-        self, mod_id: int, all_ids: dict[int, set[str]] | None = None
-    ) -> Resolution:
+    def _describe(self, mod_id: int, all_ids: list[int] | None = None) -> Resolution:
         """Build the Resolution for one already-resolved group of ids.
 
         Checked in this order -- own, then installed, then catalogue-only --
@@ -574,7 +604,7 @@ class Workspace:
                 (
                     self.installed[i]
                     for i in ids
-                    if i in self.installed and i >= FAKE_ID_MIN
+                    if i in self.installed and self.installed[i].is_fake_id
                 ),
                 None,
             )

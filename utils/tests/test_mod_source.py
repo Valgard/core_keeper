@@ -513,3 +513,56 @@ def test_an_own_mod_with_no_catalogue_entry_has_no_modfile_id(tmp_path):
 
     assert result.kind == mod_source.KIND_OWN
     assert result.modfile_id is None
+
+
+def test_a_query_matching_nothing_raises_lookup_error(tmp_path):
+    ws = _workspace(tmp_path, catalogue=[(1, "Some Mod", "somemod", 2)])
+
+    with pytest.raises(LookupError):
+        ws.resolve("NoSuchMod")
+
+
+def test_an_unpublished_own_mod_is_still_findable_by_name(tmp_path):
+    # new_mod.py scaffolds modId: 0 for every mod that has not shipped yet,
+    # which read_own_mods maps to None; with no local dev build installed
+    # either, this mod claims no id at all going into the index. That is the
+    # state of every mod someone is actively developing, and read_own_mods's
+    # own docstring already promises it: "They stay findable by name, which
+    # is all the identity they have yet."
+    ws = _workspace(
+        tmp_path,
+        own=[("brand-new-mod", "BrandNewMod", 0, None)],
+    )
+
+    result = ws.resolve("BrandNewMod")
+
+    assert result.kind == mod_source.KIND_OWN
+    assert result.mod_id is None
+
+
+def test_an_ambiguous_own_mod_still_finds_its_own_catalogue_entry(tmp_path):
+    # Regression: the candidates branch used to describe each candidate from
+    # only the first id it happened to see in hits' dict-insertion order,
+    # not from the id list `_group` had already collected for it. Here the
+    # own mod's FAKE id is the one inserted first (it comes from the
+    # installed loop, which runs before the own loop) while the catalogue
+    # entry is keyed by the REAL id -- so describing this candidate from a
+    # single arbitrary id silently loses the catalogue match and its
+    # modfile_id, even though the resolution is correctly grouped and
+    # correctly flagged as KIND_OWN throughout.
+    ws = _workspace(
+        tmp_path,
+        installed=[(9999500, 1, "Widget", ["Scripts/W.cs"])],
+        own=[("widget-mod", "Widget", 5000000, 9999500)],
+        catalogue=[
+            (5000000, "Widget", "widget", 42),
+            (7000001, "Widget", "widget", 99),
+        ],
+    )
+
+    result = ws.resolve("Widget")
+
+    assert isinstance(result, list)
+    own_candidate = next(r for r in result if r.kind == mod_source.KIND_OWN)
+    assert own_candidate.mod_id == 5000000
+    assert own_candidate.modfile_id == 42
