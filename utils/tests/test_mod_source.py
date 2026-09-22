@@ -2,6 +2,7 @@
 
 import json
 import urllib.parse
+from pathlib import Path
 
 import mod_source
 import pytest
@@ -670,8 +671,11 @@ def test_file_mode_answers_an_installed_mod_from_the_manifest(tmp_path):
 
     found = mod_source.find_file(result, "ConfigScope")
 
+    # Assert the FULL path to catch a regressed join base (source_path instead of parent).
+    # Manifest paths are relative to Scripts/, so ConfigScope.cs joins to source_path.parent.
     assert found.name == "ConfigScope.cs"
     assert found.is_absolute()
+    assert found.parent.name == "ConfigFile"
 
 
 def test_file_mode_returns_candidates_when_several_match(tmp_path):
@@ -685,6 +689,8 @@ def test_file_mode_returns_candidates_when_several_match(tmp_path):
 
     assert isinstance(found, list)
     assert len(found) == 2
+    assert all(isinstance(p, Path) for p in found)
+    assert {p.name for p in found} == {"ConfigFile.cs", "ConfigScope.cs"}
 
 
 def test_file_mode_walks_an_own_mods_repository(tmp_path):
@@ -696,3 +702,25 @@ def test_file_mode_walks_an_own_mods_repository(tmp_path):
     found = mod_source.find_file(result, "FasterTalentsMod")
 
     assert found.name == "FasterTalentsMod.cs"
+
+
+def test_file_mode_raises_when_mod_not_installed(tmp_path):
+    ws = _workspace(
+        tmp_path,
+        catalogue=[(4584153, "General Mod Config Menu", "generalconfigmenu", 7840263)],
+    )
+    result = ws.resolve("General Mod Config Menu")
+
+    with pytest.raises(LookupError, match="not installed"):
+        mod_source.find_file(result, "ConfigScope")
+
+
+def test_file_mode_raises_when_no_file_matches(tmp_path):
+    ws = _workspace(
+        tmp_path,
+        installed=[(3177992, 7845185, "CoreLib", ["Scripts/CoreLibMod.cs"])],
+    )
+    result = ws.resolve("CoreLib")
+
+    with pytest.raises(LookupError, match="no .cs file matching"):
+        mod_source.find_file(result, "NonExistentFile")

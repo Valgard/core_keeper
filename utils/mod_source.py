@@ -679,17 +679,15 @@ class Workspace:
         )
 
 
-def find_file(resolution: Resolution, needle: str) -> Path | list[str]:
-    """The full path of one source file, or every candidate when several match.
+def find_file(resolution: Resolution, needle: str) -> Path | list[Path]:
+    """The absolute path of the one .cs file whose filename contains needle.
 
-    Two paths, because the two kinds of hit carry their file list differently.
-    An installed mod has a ModManifest.json listing every file with its path,
-    so the answer needs no directory traversal at all. An own mod has none --
-    that manifest is build-generated and no repo contains one -- so its
-    unity/<Mod>/ is walked instead, which is small, local and bounded.
+    Returns the file's absolute path when exactly one matches. Returns a sorted
+    list of absolute paths when several match. Raises LookupError when none do
+    or when the mod is not installed.
 
-    Telling an agent the folder and leaving it to find the file is the second
-    half of the failure this tool exists to remove.
+    Matching is against the filename only (p.name), not the path -- so a needle
+    like "Config" finds ConfigScope.cs, not every file in a Config/ directory.
     """
     if resolution.source_path is None:
         raise LookupError(
@@ -698,18 +696,28 @@ def find_file(resolution: Resolution, needle: str) -> Path | list[str]:
         )
 
     if resolution.source_files:
-        matches = [f for f in resolution.source_files if needle.lower() in f.lower()]
+        # Installed mod: match against filename only, but keep the full relative path.
+        matches = sorted(
+            [
+                f
+                for f in resolution.source_files
+                if needle.lower() in Path(f).name.lower()
+            ]
+        )
         root = resolution.source_path.parent
     else:
-        matches = [
-            str(p.relative_to(resolution.source_path))
-            for p in sorted(resolution.source_path.rglob("*.cs"))
-            if needle.lower() in p.name.lower()
-        ]
+        # Own mod: walk the directory, match against filename only.
+        matches = sorted(
+            [
+                str(p.relative_to(resolution.source_path))
+                for p in resolution.source_path.rglob("*.cs")
+                if needle.lower() in p.name.lower()
+            ]
+        )
         root = resolution.source_path
 
     if not matches:
         raise LookupError(f"no .cs file matching {needle!r}")
     if len(matches) > 1:
-        return matches
+        return [root / m for m in matches]
     return (root / matches[0]).resolve()
