@@ -742,12 +742,16 @@ def download(
     short of a download can see. Two mods can normalise onto the same lookup
     key through different name spaces (AutoPlant3 is one mod's internal name
     and another mod's title), so the archive fetched here is what finally
-    settles it: when a ModManifest.json is found in it, resolution's
-    internal_name and provisional flag are updated from it, and a manifest
-    name that agrees with neither the queried title nor its slug is reported
-    back as a warning -- the mismatch is surfaced, not silently accepted as a
-    match. The extracted files are returned either way; a warning is a reason
-    to double-check, not a withheld answer.
+    settles it: when a ModManifest.json is found in it AND its name reads
+    cleanly, resolution's internal_name and provisional flag are updated from
+    it, and a manifest name that agrees with neither the queried title nor its
+    slug is reported back as a warning -- the mismatch is surfaced, not
+    silently accepted as a match. The extracted files are returned either way;
+    a warning is a reason to double-check, not a withheld answer. A manifest
+    that does not read cleanly (bad JSON, the wrong shape, a non-string name)
+    leaves resolution exactly as provisional as it arrived, with a warning
+    saying the identity could not be checked -- the download still succeeded,
+    only the check on top of it could not run.
     """
     server, game, key = _modio_config(sdk_path)
     url = (
@@ -756,7 +760,6 @@ def download(
     )
     payload = _curl(url)
 
-    into.mkdir(parents=True, exist_ok=True)
     target = into.resolve()
     with zipfile.ZipFile(io.BytesIO(payload)) as archive:
         # Validated in full BEFORE the first write. A member found bad halfway
@@ -776,21 +779,42 @@ def download(
                     f"refusing to extract {member!r} from mod {resolution.mod_id} "
                     f"— it would land outside {target}"
                 )
+        # Created only once every member is known-safe: a rejected or
+        # corrupted archive must not leave an empty directory behind for the
+        # next run to find and mistake for a completed download.
+        target.mkdir(parents=True, exist_ok=True)
         archive.extractall(target)
 
     warnings: list[str] = []
     manifest = target / "ModManifest.json"
     if manifest.is_file():
-        internal = json.loads(manifest.read_text(encoding="utf-8")).get("name", "")
-        resolution.internal_name = internal
-        resolution.provisional = False
-        if normalise(internal) not in {
-            normalise(resolution.title),
-            normalise(resolution.slug),
-        }:
+        # The archive is foreign data, so a manifest that is not valid JSON,
+        # not a JSON object, or whose "name" is not a string must not crash a
+        # download that otherwise already succeeded -- the files are on disk
+        # either way, and only the name comparison below becomes impossible.
+        # Caught narrowly, naming the errors a malformed manifest actually
+        # produces (read_catalogue's justification for a wide catch does not
+        # apply: this file is not our own cache, and a read failure that is
+        # NOT one of these shapes is a real defect worth seeing).
+        try:
+            internal = json.loads(manifest.read_text(encoding="utf-8")).get("name", "")
+            if not isinstance(internal, str):
+                raise TypeError(f"'name' is {type(internal).__name__}, not a string")
+        except (json.JSONDecodeError, AttributeError, TypeError) as error:
             warnings.append(
-                f"the downloaded mod calls itself {internal!r}, which matches "
-                f"neither {resolution.title!r} nor its slug {resolution.slug!r} "
-                "— check this is the mod you meant"
+                f"{manifest} carries no readable mod name ({error}) — the "
+                "downloaded mod's identity could not be checked against the query"
             )
+        else:
+            resolution.internal_name = internal
+            resolution.provisional = False
+            if normalise(internal) not in {
+                normalise(resolution.title),
+                normalise(resolution.slug),
+            }:
+                warnings.append(
+                    f"the downloaded mod calls itself {internal!r}, which matches "
+                    f"neither {resolution.title!r} nor its slug {resolution.slug!r} "
+                    "— check this is the mod you meant"
+                )
     return target, warnings

@@ -888,3 +888,132 @@ def test_download_survives_the_call_with_no_cleanup(tmp_path, monkeypatch):
 
     assert path.is_dir()
     assert sorted(p.name for p in (path / "Scripts").iterdir()) == ["A.cs", "B.cs"]
+
+
+def test_download_survives_an_unparseable_manifest(tmp_path, monkeypatch):
+    # Fix round 1, finding 1: the archive already unpacked successfully by the
+    # time the manifest is read -- the files the caller asked for are on disk
+    # and readable. A manifest that is not valid JSON must not throw that
+    # success away; it can only mean the provisional-hit check itself cannot
+    # run, which is a narrower failure than "the download failed".
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("ModManifest.json", "{not valid json")
+        zf.writestr("Scripts/A.cs", "// code")
+
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+
+    resolution = mod_source.Resolution(
+        kind=mod_source.KIND_CATALOGUE,
+        mod_id=1,
+        internal_name=None,
+        title="Widget",
+        slug="widget",
+        source_path=None,
+        provisional=True,
+    )
+
+    path, warnings = mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
+
+    assert (path / "Scripts" / "A.cs").is_file()
+    assert any("could not" in w.lower() for w in warnings)
+    # Left exactly as provisional as it arrived -- a name that could not be
+    # read is not evidence either way, so this must not silently settle it.
+    assert resolution.provisional is True
+
+
+def test_download_survives_a_manifest_that_is_not_an_object(tmp_path, monkeypatch):
+    # Valid JSON, wrong shape: a top-level list has no .get(), the same class
+    # of defect read_catalogue already guards against for the mirrored file.
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("ModManifest.json", json.dumps(["not", "an", "object"]))
+
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+
+    resolution = mod_source.Resolution(
+        kind=mod_source.KIND_CATALOGUE,
+        mod_id=1,
+        internal_name=None,
+        title="Widget",
+        slug="widget",
+        source_path=None,
+        provisional=True,
+    )
+
+    path, warnings = mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
+
+    assert path.is_dir()
+    assert any("could not" in w.lower() for w in warnings)
+    assert resolution.provisional is True
+
+
+def test_download_survives_a_null_manifest_name(tmp_path, monkeypatch):
+    # "name": null parses fine and .get("name", "") returns None (the key IS
+    # present, so the default never applies) -- a naive fix that mutates
+    # resolution before checking the type would leave internal_name set to
+    # None and provisional flipped to False even though nothing was actually
+    # verified. Asserting provisional stays True catches exactly that half-
+    # applied mutation, not just the crash.
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("ModManifest.json", json.dumps({"name": None}))
+
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+
+    resolution = mod_source.Resolution(
+        kind=mod_source.KIND_CATALOGUE,
+        mod_id=1,
+        internal_name=None,
+        title="Widget",
+        slug="widget",
+        source_path=None,
+        provisional=True,
+    )
+
+    path, warnings = mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
+
+    assert path.is_dir()
+    assert any("could not" in w.lower() for w in warnings)
+    assert resolution.provisional is True
+    assert resolution.internal_name is None
+
+
+def test_download_leaves_no_directory_behind_when_rejected(tmp_path, monkeypatch):
+    # Fix round 1, finding 2: mkdir used to run before the archive was opened
+    # or validated, so a traversal rejection left an empty `into` directory on
+    # disk -- litter in the cache that the next run could mistake for a
+    # completed download. The directory must only appear once every member is
+    # known-safe.
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("../escaped.cs", "// nope")
+
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+
+    resolution = mod_source.Resolution(
+        kind=mod_source.KIND_CATALOGUE,
+        mod_id=1,
+        internal_name=None,
+        title="Evil",
+        slug="evil",
+        source_path=None,
+        provisional=True,
+    )
+
+    with pytest.raises(ValueError):
+        mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
+
+    assert not (tmp_path / "dl").exists()
