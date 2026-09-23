@@ -613,14 +613,21 @@ class Workspace:
         # tool must never give. An id two directories claim identifies
         # neither, so it is withdrawn from both and reported; each keeps its
         # synthetic id and stays findable under its own name.
+        #
+        # Kept on the instance, not consumed here, because a warning printed
+        # to stderr is not an answer: _describe has to be able to put the
+        # contest into the resolution itself, which is what both renderers
+        # carry and what a dispatched agent reads.
         claims: dict[int, list[OwnMod]] = {}
         for mod in own:
             for claimed in self._claimed_ids(mod):
                 claims.setdefault(claimed, []).append(mod)
-        contested = {i for i, claimants in claims.items() if len(claimants) > 1}
-        for identifier in sorted(contested):
+        self.contested: dict[int, list[OwnMod]] = {
+            i: claimants for i, claimants in claims.items() if len(claimants) > 1
+        }
+        for identifier in sorted(self.contested):
             directories = ", ".join(
-                sorted(str(m.source_path) for m in claims[identifier])
+                sorted(str(m.source_path) for m in self.contested[identifier])
             )
             self.warnings.append(
                 f"mod id {identifier} is claimed by more than one mod directory "
@@ -634,7 +641,7 @@ class Workspace:
         self.owner_of: dict[int, OwnMod] = {}
         own_ids: list[tuple[OwnMod, list[int]]] = []
         for mod in own:
-            ids = [i for i in self._claimed_ids(mod) if i not in contested] or [
+            ids = [i for i in self._claimed_ids(mod) if i not in self.contested] or [
                 self._synthetic_id(mod)
             ]
             own_ids.append((mod, ids))
@@ -781,6 +788,28 @@ class Workspace:
         notes: list[str] = []
 
         if owner is not None:
+            # The mod_id below is reported straight off the OwnMod, and a
+            # contested one is still printed there -- it is what the repo's
+            # own asset says. So the resolution has to admit that the id
+            # names more than one directory. __init__ already warns, but a
+            # warning goes to stderr and is dropped, and this is the same
+            # shape of defect as a download proved wrong that renders clean:
+            # the tool knowing something the answer does not say.
+            for claimed in (owner.mod_id, owner.fake_id):
+                if claimed is None or claimed not in self.contested:
+                    continue
+                rivals = ", ".join(
+                    sorted(
+                        str(m.source_path)
+                        for m in self.contested[claimed]
+                        if m.source_path != owner.source_path
+                    )
+                )
+                notes.append(
+                    f"mod id {claimed} is claimed by another mod directory as well "
+                    f"({rivals}) — it identifies neither of them, so nothing "
+                    "installed or listed under that id is attributed to this mod"
+                )
             dev = next(
                 (
                     self.installed[i]
@@ -1439,8 +1468,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--workspace",
         type=Path,
-        default=_default_workspace(),
-        help="directory holding this repo's own mods (default: %(default)s)",
+        # Not `default=_default_workspace()`: argparse evaluates a default at
+        # add_argument time, so that git subprocess ran on EVERY invocation
+        # -- including the ones that pass --workspace explicitly and never
+        # look at the answer. None here, resolved below only when it is
+        # actually the value being used. The cost of spelling the default out
+        # in words rather than through %(default)s is that --help no longer
+        # prints the concrete path; the cost of the other arrangement was a
+        # process spawn per run.
+        default=None,
+        help="directory holding this repo's own mods "
+        "(default: the main checkout this file belongs to, resolved with git)",
     )
     args = parser.parse_args(argv)
     # Resolved here, once, rather than at each use site: an own mod's
@@ -1449,7 +1487,7 @@ def main(argv: list[str] | None = None) -> int:
     # Source line -- and AC2 requires every path in the output to be usable
     # in a dispatch prompt unchanged, which a path relative to some unknown
     # future cwd is not.
-    args.workspace = args.workspace.resolve()
+    args.workspace = (args.workspace or _default_workspace()).resolve()
 
     sdk_path = _sdk_path()
     catalogue_path = _catalogue_path()
@@ -1549,6 +1587,15 @@ def main(argv: list[str] | None = None) -> int:
             note for note in result.notes if not note.startswith("not installed")
         ]
 
+    # A refuted identity is reported through the exit code as well as through
+    # the output, and deliberately through the SAME code the ambiguity branch
+    # above returns: both mean "resolved, but a human has to decide", and this
+    # is the one that protects a caller which checks the code without parsing
+    # the payload -- a shell step in a dispatch, a script. It must stop rather
+    # than carry on with a mod this tool has proved is the wrong one. It adds
+    # to the status line, the notes and the JSON; it replaces none of them.
+    settled = 2 if result.identity == IDENTITY_CONTRADICTED else 0
+
     if args.file:
         try:
             found = find_file(result, args.file)
@@ -1563,11 +1610,14 @@ def main(argv: list[str] | None = None) -> int:
                 for path in found:
                     print(path)
             return 2
+        # Not 0 on a refuted identity either: the path is real, and it points
+        # into a mod that is not the one that was asked for, which is exactly
+        # the case where handing an agent a file path is most expensive.
         print(json.dumps(str(found)) if args.json else found)
-        return 0
+        return settled
 
     print(render_json(result) if args.json else render(result))
-    return 0
+    return settled
 
 
 if __name__ == "__main__":

@@ -1694,7 +1694,7 @@ def test_main_download_renders_a_name_mismatch_in_both_output_modes(
     )
 
     human = capsys.readouterr().out
-    assert code == 0
+    assert code == 2
     assert "downloaded, identity mismatch, source available" in human
     assert "SomethingElse" in human
 
@@ -1709,7 +1709,7 @@ def test_main_download_renders_a_name_mismatch_in_both_output_modes(
     )
 
     machine = json.loads(capsys.readouterr().out)
-    assert code == 0
+    assert code == 2
     assert machine["identity"] == mod_source.IDENTITY_CONTRADICTED
     assert any("SomethingElse" in note for note in machine["notes"])
 
@@ -1753,7 +1753,7 @@ def test_the_not_installed_note_is_dropped_without_dropping_the_mismatch(
     )
 
     machine = json.loads(capsys.readouterr().out)
-    assert code == 0
+    assert code == 2
     assert not any(note.startswith("not installed") for note in machine["notes"])
     assert any("SomethingElse" in note for note in machine["notes"])
 
@@ -2008,52 +2008,57 @@ def test_a_subscribed_but_undownloaded_mod_stays_silent(tmp_path):
     assert warnings == []
 
 
-def test_an_installed_mod_resolves_by_its_internal_name(tmp_path):
-    # The three-names fixture. NameChests ships as "More Labels" on mod.io
-    # with the slug "more-labels", and every one of the suite's installed-mod
-    # tests used to derive title and slug FROM the internal name -- so all
-    # three keys were the same string and the index could have covered the
-    # internal name alone without a single test noticing. Deleting the title
-    # and slug indexing from Workspace.__init__ left all 78 green.
-    ws = _workspace(
-        tmp_path,
-        installed=[
-            (
-                7146470,
-                8100000,
-                "NameChests",
-                ["Scripts/NameChestsMod.cs"],
-                "More Labels",
-                "more-labels",
-            )
-        ],
+_THREE_NAMES = (
+    7146470,
+    8100000,
+    "NameChests",
+    ["Scripts/NameChestsMod.cs"],
+    "More Labels",
+    "chest-labels",
+)
+
+
+def _three_name_workspace(tmp_path):
+    """One installed mod whose internal name, title and slug all differ.
+
+    NameChests ships as "More Labels" on mod.io, and every installed-mod test
+    in this suite used to derive title and slug FROM the internal name -- so
+    all three keys were one string, and the index could have covered the
+    internal name alone without a single test noticing.
+
+    The guard below is not decoration. The first version of this fixture used
+    the mod's real slug, "more-labels", which normalises to "morelabels" --
+    the same key as the title "More Labels", since normalise() strips the
+    hyphen and casefolds. The title and slug tests were then one test wearing
+    two names: either could be deleted without turning anything red. A
+    fixture meant to prove three name spaces are indexed has to be checked
+    for producing three keys, because it can look right and discriminate
+    nothing.
+    """
+    internal, title, slug = _THREE_NAMES[2], _THREE_NAMES[4], _THREE_NAMES[5]
+    assert len({mod_source.normalise(n) for n in (internal, title, slug)}) == 3, (
+        "the fixture's three names must normalise apart, or these tests overlap"
     )
+    return _workspace(tmp_path, installed=[_THREE_NAMES])
+
+
+def test_an_installed_mod_resolves_by_its_internal_name(tmp_path):
+    # The name the mod calls itself, readable only from its ModManifest.json.
+    ws = _three_name_workspace(tmp_path)
 
     result = ws.resolve("NameChests")
 
     assert result.mod_id == 7146470
     assert result.internal_name == "NameChests"
     assert result.title == "More Labels"
-    assert result.slug == "more-labels"
+    assert result.slug == "chest-labels"
 
 
 def test_an_installed_mod_resolves_by_its_modio_title(tmp_path):
     # The tool's opening example, and the one a human actually types: the
     # title is the only one of the three names shown in the game's mod menu
     # or on the mod.io page.
-    ws = _workspace(
-        tmp_path,
-        installed=[
-            (
-                7146470,
-                8100000,
-                "NameChests",
-                ["Scripts/NameChestsMod.cs"],
-                "More Labels",
-                "more-labels",
-            )
-        ],
-    )
+    ws = _three_name_workspace(tmp_path)
 
     result = ws.resolve("More Labels")
 
@@ -2065,21 +2070,9 @@ def test_an_installed_mod_resolves_by_its_modio_title(tmp_path):
 def test_an_installed_mod_resolves_by_its_slug(tmp_path):
     # The third name space, which is what a mod.io URL carries -- so it is
     # what gets pasted from a browser.
-    ws = _workspace(
-        tmp_path,
-        installed=[
-            (
-                7146470,
-                8100000,
-                "NameChests",
-                ["Scripts/NameChestsMod.cs"],
-                "More Labels",
-                "more-labels",
-            )
-        ],
-    )
+    ws = _three_name_workspace(tmp_path)
 
-    result = ws.resolve("more-labels")
+    result = ws.resolve("chest-labels")
 
     assert result.mod_id == 7146470
     assert result.internal_name == "NameChests"
@@ -2139,3 +2132,185 @@ def test_display_name_falls_back_to_the_mod_id_but_not_past_it(tmp_path):
 
     with pytest.raises(ValueError, match="cannot be named"):
         mod_source._display_name(dataclasses.replace(nameless, mod_id=None))
+
+
+# ---------------------------------------------------------------------------
+# Re-review residuals
+# ---------------------------------------------------------------------------
+
+
+def test_a_contested_id_is_admitted_in_the_resolution_itself(tmp_path):
+    # The Critical's shape, a second time and smaller: the wrong-mod hit is
+    # gone, but the surviving answer still printed the contested id as this
+    # mod's own with an empty notes list, and the only trace was a stderr
+    # warning main() prints and drops. A dispatched agent reads the payload,
+    # so what the tool knows has to be in the payload.
+    ws = _workspace(
+        tmp_path,
+        own=[
+            ("mod-alpha", "ModAlpha", 6065498, None),
+            ("mod-beta", "ModBeta", 6065498, None),
+        ],
+    )
+
+    alpha = ws.resolve("ModAlpha")
+
+    assert alpha.mod_id == 6065498
+    assert any("6065498" in note and "ModBeta" in note for note in alpha.notes)
+    # Both renderers, because they are two different readers of one fact.
+    assert "6065498" in mod_source.render(alpha)
+    payload = json.loads(mod_source.render_json(alpha))
+    assert any("ModBeta" in note for note in payload["notes"])
+
+
+def test_a_contested_dev_build_id_is_admitted_too(tmp_path):
+    # The note is attached per claimed id, not once per mod, so the fake id
+    # has to carry it as well -- an own mod can have a clean real id and a
+    # dev-build id that a sibling repo's .envrc duplicates.
+    ws = _workspace(
+        tmp_path,
+        own=[
+            ("mod-alpha", "ModAlpha", 6065498, 9999991),
+            ("mod-beta", "ModBeta", 6211950, 9999991),
+        ],
+    )
+
+    alpha = ws.resolve("ModAlpha")
+
+    assert alpha.mod_id == 6065498
+    assert any("9999991" in note and "ModBeta" in note for note in alpha.notes)
+
+
+def test_an_uncontested_own_mod_says_nothing_about_ids(tmp_path):
+    # The negative control: the note must appear because an id IS contested,
+    # not on every own mod. A note that is always there says nothing.
+    ws = _workspace(tmp_path, own=[("faster-talents", "FasterTalents", 6065498, None)])
+
+    result = ws.resolve("FasterTalents")
+
+    assert result.notes == []
+
+
+def test_main_exits_two_on_a_refuted_identity(tmp_path, capsys, monkeypatch):
+    # Sven's decision: exit 2, the same code an ambiguous query returns,
+    # because both mean "resolved, but a human has to decide". This is the
+    # channel that reaches a caller which never parses the payload -- a shell
+    # step in a dispatch -- and it must stop rather than carry on with a mod
+    # proved to be the wrong one.
+    payload = _archive(
+        {
+            "ModManifest.json": json.dumps({"name": "SomethingElse"}),
+            "Scripts/Menu.cs": "// code",
+        }
+    )
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setenv("SDK_PATH", str(tmp_path / "sdk"))
+    _write_main_catalogue(
+        tmp_path,
+        [(4584153, "General Mod Config Menu", "generalconfigmenu", 7840263)],
+    )
+    bottle = _write_bottle(tmp_path)
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(mod_source, "_curl", lambda url: payload)
+
+    code = mod_source.main(
+        ["General Mod Config Menu", "--download", "--workspace", str(tmp_path)]
+    )
+
+    assert code == 2
+    assert "identity mismatch" in capsys.readouterr().out
+
+    # File mode too, and for the same reason: a path into the wrong mod is
+    # the most expensive thing this tool can hand over, so it must not be the
+    # one branch that still reports success.
+    code = mod_source.main(
+        ["General Mod Config Menu", "Menu", "--download", "--workspace", str(tmp_path)]
+    )
+
+    assert code == 2
+    assert capsys.readouterr().out.strip().endswith("Menu.cs")
+
+
+def test_main_exits_zero_when_the_download_verifies(tmp_path, capsys, monkeypatch):
+    # The control for the code above: the same command on a mod whose
+    # manifest agrees must still be a plain success, or the exit code stops
+    # distinguishing anything.
+    payload = _archive(
+        {
+            "ModManifest.json": json.dumps({"name": "GeneralConfigMenu"}),
+            "Scripts/Menu.cs": "// code",
+        }
+    )
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setenv("SDK_PATH", str(tmp_path / "sdk"))
+    _write_main_catalogue(
+        tmp_path,
+        [(4584153, "General Mod Config Menu", "generalconfigmenu", 7840263)],
+    )
+    bottle = _write_bottle(tmp_path)
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(mod_source, "_curl", lambda url: payload)
+
+    code = mod_source.main(
+        ["General Mod Config Menu", "--download", "--workspace", str(tmp_path)]
+    )
+
+    assert code == 0
+    assert "downloaded, source available" in capsys.readouterr().out
+
+
+def test_main_does_not_resolve_a_default_workspace_it_was_given(
+    tmp_path, capsys, monkeypatch
+):
+    # _default_workspace() shells out to git. As argparse's own `default=` it
+    # was evaluated at add_argument time, so that subprocess ran on every
+    # single invocation -- including the ones that pass --workspace and never
+    # look at the answer. Recording the calls rather than asserting on timing
+    # is what makes this checkable at all.
+    calls = []
+    monkeypatch.setattr(
+        mod_source,
+        "_default_workspace",
+        lambda: calls.append(1) or tmp_path,
+    )
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    _write_main_catalogue(tmp_path)
+    bottle = _write_bottle(tmp_path, [(1, 2, "X", ["Scripts/X.cs"])])
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
+
+    code = mod_source.main(["X", "--workspace", str(tmp_path)])
+
+    assert code == 0
+    assert calls == []
+
+
+def test_main_still_resolves_a_default_workspace_when_none_is_given(
+    tmp_path, capsys, monkeypatch
+):
+    # The other half: made lazy, not removed. Without --workspace the default
+    # must still be computed, or every unqualified run stops finding this
+    # repository's own mods -- which is the defect the git resolution was
+    # added to fix in the first place.
+    calls = []
+    monkeypatch.setattr(
+        mod_source,
+        "_default_workspace",
+        lambda: calls.append(1) or tmp_path,
+    )
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    _write_main_catalogue(tmp_path)
+    bottle = _write_bottle(tmp_path)
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
+    _write_repo(tmp_path, "faster-talents", "FasterTalents", 6065498)
+
+    code = mod_source.main(["FasterTalents"])
+
+    assert code == 0
+    assert calls == [1]
+    assert "FasterTalents" in capsys.readouterr().out
