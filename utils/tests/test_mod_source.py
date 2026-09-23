@@ -52,7 +52,7 @@ def test_index_never_stores_an_empty_key():
     assert index.lookup("---") == {}
 
 
-def _write_cache(root, mods, state_mods=None, state_disabled=()):
+def _write_cache(root, mods, state_disabled=()):
     """Build a synthetic mod.io cache: folders, manifests and state.json."""
     cache = root / "mods"
     cache.mkdir(parents=True)
@@ -63,7 +63,7 @@ def _write_cache(root, mods, state_mods=None, state_disabled=()):
             json.dumps({"name": name, "files": [{"path": p} for p in files]})
         )
     entries = {}
-    for mod_id, modfile_id, name, _ in state_mods or mods:
+    for mod_id, modfile_id, name, _ in mods:
         entries[str(mod_id)] = {
             "currentModfile": {"id": modfile_id},
             "modObject": {"id": mod_id, "name": name, "name_id": name.lower()},
@@ -696,6 +696,10 @@ def test_file_mode_returns_candidates_when_several_match(tmp_path):
     assert isinstance(found, list)
     assert len(found) == 2
     assert all(isinstance(p, Path) for p in found)
+    # Both branches of find_file promise an ABSOLUTE path (the docstring
+    # says so for either count) -- the single-match branch called .resolve(),
+    # the multi-match one did not, and nothing here used to catch that.
+    assert all(p.is_absolute() for p in found)
     assert {p.name for p in found} == {"ConfigFile.cs", "ConfigScope.cs"}
 
 
@@ -1288,12 +1292,55 @@ def test_main_download_flag_fetches_an_uninstalled_mod(tmp_path, capsys, monkeyp
 
     out = capsys.readouterr().out
     assert code == 0
-    assert "not installed" not in out
+    # The manifest name verifies cleanly against the query, so this is a
+    # settled, downloaded-this-run mod -- neither "not installed" (it now is)
+    # nor "installed" (nothing was already there; THIS run fetched it). The
+    # pre-fix code selected the phrase on `provisional`, which a verified
+    # download flips to False -- landing on "installed, source available"
+    # here, indistinguishable from a mod that had been sitting installed all
+    # along. Asserting the exact phrase catches that; "not installed" not in
+    # out could not, since "installed, ..." also satisfies it.
+    assert "downloaded, source available" in out
     downloaded = (
         tmp_path / "cache" / "downloads" / "4584153_7840263" / "Scripts" / "Menu.cs"
     )
     assert downloaded.is_file()
     assert str(downloaded.parent) in out
+
+
+def test_main_download_flag_flags_an_unconfirmed_identity(
+    tmp_path, capsys, monkeypatch
+):
+    # The other half of the same branch: the archive's manifest cannot settle
+    # the identity check (unparseable JSON here, same as
+    # test_download_survives_an_unparseable_manifest), so provisional stays
+    # True. The output must say BOTH facts -- that this run downloaded the
+    # mod, and that its identity could not be confirmed -- rather than
+    # collapsing onto whichever single phrase `provisional` alone would pick.
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setenv("SDK_PATH", str(tmp_path / "sdk"))
+    _write_main_catalogue(
+        tmp_path, [(4584153, "General Mod Config Menu", "generalconfigmenu", 7840263)]
+    )
+    bottle = _write_bottle(tmp_path)
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
+
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("ModManifest.json", "{not valid json")
+        zf.writestr("Scripts/Menu.cs", "// code")
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+
+    code = mod_source.main(
+        ["General Mod Config Menu", "--download", "--workspace", str(tmp_path)]
+    )
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "downloaded, identity unconfirmed, source available" in out
 
 
 # ---------------------------------------------------------------------------
@@ -1386,3 +1433,90 @@ def test_render_json_includes_an_own_mods_walked_cs_files(tmp_path):
     payload = json.loads(mod_source.render_json(ws.resolve("FasterTalents")))
 
     assert payload["source_files"] == ["FasterTalentsMod.cs"]
+
+
+# ---------------------------------------------------------------------------
+# Final whole-branch review fixes
+# ---------------------------------------------------------------------------
+
+
+def test_default_workspace_resolves_a_worktree_to_the_main_checkout(
+    tmp_path, monkeypatch
+):
+    # Important 1: from inside a git worktree, `git rev-parse
+    # --git-common-dir` answers with the MAIN checkout's .git directory, not
+    # a worktree-private one -- that is the one directory every worktree of a
+    # repository shares. Its parent is the main checkout, which is where the
+    # sibling mod repos this default is FOR actually live; a worktree itself
+    # never contains them (separate git repos, excluded by the parent
+    # .gitignore, never checked out into a worktree). Pre-fix, this exact
+    # shape -- _default_workspace() falling back to __file__'s own directory
+    # -- is what made read_own_mods() find nothing from a worktree and report
+    # this workspace's own dev builds as foreign mods parked locally.
+    main_checkout = tmp_path / "core_keeper"
+    (main_checkout / ".git").mkdir(parents=True)
+    monkeypatch.setattr(
+        mod_source, "_git_common_dir", lambda start: str(main_checkout / ".git")
+    )
+
+    assert mod_source._default_workspace() == main_checkout
+
+
+def test_default_workspace_falls_back_when_git_cannot_answer(monkeypatch):
+    # Important 1's explicit requirement: no git binary, not a repository, a
+    # timeout -- all of these reach _git_common_dir() returning None, and
+    # this tool must keep resolving mods without git exactly as it always
+    # could, rather than crashing on argparse construction.
+    monkeypatch.setattr(mod_source, "_git_common_dir", lambda start: None)
+
+    assert (
+        mod_source._default_workspace()
+        == Path(mod_source.__file__).resolve().parent.parent
+    )
+
+
+def test_default_workspace_falls_back_when_the_answer_is_not_a_git_dir(
+    tmp_path, monkeypatch
+):
+    # Important 1's other explicit requirement: git answers, but with
+    # something that does not look like a real .git directory (wrong name
+    # here; a nonexistent path is the other half of the same check). Trusting
+    # it blindly could point the default at an arbitrary directory instead of
+    # falling back safely.
+    not_a_git_dir = tmp_path / "somewhere-else"
+    not_a_git_dir.mkdir()
+    monkeypatch.setattr(mod_source, "_git_common_dir", lambda start: str(not_a_git_dir))
+
+    assert (
+        mod_source._default_workspace()
+        == Path(mod_source.__file__).resolve().parent.parent
+    )
+
+
+def test_main_warns_with_the_weaker_fallback_when_the_mirror_already_exists(
+    tmp_path, capsys, monkeypatch
+):
+    # Minor 2: "proceeding with the cache and repos only, a mod that is not
+    # installed cannot be resolved" is false when a mirror already exists --
+    # Workspace.build reads catalogue_path regardless of whether the refresh
+    # attempted here succeeds, so the existing (possibly stale) mirror is
+    # still used and an uninstalled mod still resolves through it. --refresh
+    # forces this branch to run even though the mirror is present, and
+    # SDK_PATH being unset makes it fail immediately -- exactly the case
+    # where the old wording overclaimed.
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    monkeypatch.delenv("SDK_PATH", raising=False)
+    _write_main_catalogue(
+        tmp_path, [(4584153, "General Mod Config Menu", "generalconfigmenu", 7840263)]
+    )
+    bottle = _write_bottle(tmp_path)
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
+
+    code = mod_source.main(
+        ["General Mod Config Menu", "--refresh", "--workspace", str(tmp_path)]
+    )
+
+    captured = capsys.readouterr()
+    assert code == 0
+    assert "proceeding with the mirror as it stands" in captured.err
+    assert "cannot be resolved" not in captured.err

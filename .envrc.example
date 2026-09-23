@@ -100,6 +100,9 @@ export LOC_TABLE="/path/to/core_keeper/utils/ck-language-addresses.json"
 # Where mod_source.py keeps derived state — the mod.io catalogue mirror and
 # anything it downloads. Outside the repo on purpose: utils/ is un-ignored
 # wholesale, so a mirror there would be tracked and every refresh a diff.
+# Nothing prunes the downloads/ subdirectory -- a --download fetch is meant
+# to survive the run so an agent can read it afterward, so it stays until
+# cleared by hand: rm -rf "$CK_MOD_SOURCE_CACHE/downloads"
 # export CK_MOD_SOURCE_CACHE="$HOME/Library/Caches/ck-mod-source"
 
 # --- Project-local PATH additions -------------------------------------------

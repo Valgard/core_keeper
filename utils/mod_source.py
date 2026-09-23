@@ -19,6 +19,7 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import unicodedata
@@ -86,6 +87,10 @@ class NameIndex:
 # install-macos.sh gives every dev build an id above the real catalogue; the
 # same threshold server.sh uses, so the two agree on what a dev build is.
 FAKE_ID_MIN = 9999000
+
+# Same bound steam_identity.py's own git call uses -- long enough for a git
+# process to answer, short enough that a hung git does not hang this tool.
+GIT_TIMEOUT_SECONDS = 10
 
 
 @dataclasses.dataclass(frozen=True)
@@ -243,13 +248,13 @@ def read_own_mods(workspace: Path) -> list[OwnMod]:
     for asset in sorted(workspace.glob("*/unity/*/Editor/*_modio.asset")):
         mod_dir = asset.parent.parent
         repo = mod_dir.parent.parent
-        match = _MODIO_ID.search(asset.read_text())
+        match = _MODIO_ID.search(asset.read_text(encoding="utf-8"))
         mod_id = int(match.group(1)) if match else 0
 
         fake_id = None
         envrc = repo / ".envrc"
         if envrc.is_file():
-            fake_match = _FAKE_ID.search(envrc.read_text())
+            fake_match = _FAKE_ID.search(envrc.read_text(encoding="utf-8"))
             if fake_match:
                 candidate = int(fake_match.group(1))
                 if candidate >= FAKE_ID_MIN:
@@ -273,7 +278,11 @@ def read_own_mods(workspace: Path) -> list[OwnMod]:
 _MODIO_CONFIG = "Assets/Resources/mod.io/config.asset"
 _SERVER_URL = re.compile(r"^\s*serverURL:\s*(\S+)\s*$", re.MULTILINE)
 _GAME_ID = re.compile(r"^\s*gameId:\s*(\d+)\s*$", re.MULTILINE)
-_GAME_KEY = re.compile(r"gameKey:[ \t]*([A-Za-z0-9]{8,})[ \t]*$", re.MULTILINE)
+# Identical to steam_backfill.py's own GAME_KEY, on purpose: an
+# [A-Za-z0-9]{8,}-only pattern used to sit here, narrower than that twin's
+# \S+ for no reason tied to this file's own needs -- a key the other file
+# accepts must not be rejected here.
+_GAME_KEY = re.compile(r"^\s*gameKey:\s*(\S+)\s*$", re.MULTILINE)
 
 # The catalogue is small (312 mods when measured) but the API pages at 100.
 _PAGE = 100
@@ -348,7 +357,7 @@ def read_catalogue(path: Path) -> list[CatalogueEntry]:
 
 def _modio_config(sdk_path: Path) -> tuple[str, int, str]:
     """(serverURL, gameId, gameKey) out of the SDK's mod.io config asset."""
-    text = (sdk_path / _MODIO_CONFIG).read_text()
+    text = (sdk_path / _MODIO_CONFIG).read_text(encoding="utf-8")
     server, game, key = (
         _SERVER_URL.search(text),
         _GAME_ID.search(text),
@@ -447,6 +456,16 @@ class Resolution:
     modfile_id is the specific build a download would fetch -- only the
     catalogue mirror carries it, so it stays None whenever no catalogue entry
     matched any of the resolved mod's ids.
+
+    downloaded and provisional are independent facts about the SAME fetch,
+    not two names for one thing. downloaded says whether THIS RUN populated
+    source_path by fetching the mod (main() sets it once download() returns);
+    provisional says whether the archive's identity could be confirmed
+    against the query. A verified download and an unverified one differ in
+    how the identity check came out, not in whether a download happened --
+    collapsing the two onto provisional alone is how _status_phrase used to
+    report a verified download as "installed", as if it had already been
+    there before this run.
     """
 
     kind: str
@@ -457,6 +476,7 @@ class Resolution:
     source_path: Path | None
     modfile_id: int | None = None
     provisional: bool = False
+    downloaded: bool = False
     notes: list[str] = dataclasses.field(default_factory=list)
     source_files: list[str] = dataclasses.field(default_factory=list)
 
@@ -723,7 +743,7 @@ def find_file(resolution: Resolution, needle: str) -> Path | list[Path]:
     if not matches:
         raise LookupError(f"no .cs file matching {needle!r}")
     if len(matches) > 1:
-        return [root / m for m in matches]
+        return [(root / m).resolve() for m in matches]
     return (root / matches[0]).resolve()
 
 
@@ -870,6 +890,77 @@ def _sdk_path() -> Path | None:
     return Path(value) if value else None
 
 
+def _git_common_dir(start: Path) -> str | None:
+    """`git -C <start> rev-parse --git-common-dir`'s raw stdout, or None.
+
+    None covers every way git can fail to answer: no git binary, `start` is
+    not inside a repository, or the process errors out -- callers treat all
+    three alike. Kept apart from the path arithmetic in _default_workspace()
+    so a test can monkeypatch exactly this call and assert on the resolution
+    logic without a real worktree on disk.
+    """
+    if shutil.which("git") is None:
+        return None
+    # GIT_DIR / GIT_INDEX_FILE outrank -C and are inherited when this runs
+    # under a git hook, which would point git at whatever repository invoked
+    # US rather than at `start`'s own checkout -- the same hazard
+    # steam_identity.is_tracked and check_docs_links.markdown_files already
+    # defend against.
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(start), "rev-parse", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            timeout=GIT_TIMEOUT_SECONDS,
+            env=env,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode != 0:
+        return None
+    return completed.stdout.strip()
+
+
+def _default_workspace() -> Path:
+    """Where this repo's own mod repositories live -- git-resolved, worktree-safe.
+
+    Path(__file__).resolve().parent.parent is only correct OUTSIDE a git
+    worktree. CLAUDE.md mandates that all work happen in a worktree under
+    REPO_ROOT/.worktrees/, and a worktree is a small, isolated checkout that
+    does not contain the sibling mod repositories at all -- they are
+    separate git repos, excluded by the parent .gitignore and never checked
+    out into a worktree. So from inside one, __file__'s own directory has no
+    sibling mods to find, read_own_mods() returns empty, and every one of
+    this workspace's own mods -- including an installed dev build -- is
+    reported as a foreign mod merely parked locally. Both halves of that
+    contradiction lived in this same repository's CLAUDE.md: the rule that
+    tells a session to run this tool unqualified, and the rule that tells
+    every session to work from a worktree.
+
+    `git rev-parse --git-common-dir` answers the question a worktree
+    actually needs asked: it names the ONE .git directory every worktree of
+    a repository shares, so its parent is always the MAIN checkout -- where
+    the sibling mod repos actually sit -- whether this process happens to
+    run from the main checkout or from a worktree of it.
+
+    Falls back to the old __file__-based default whenever git cannot answer
+    (no git binary, not a repository, a timeout) or answers with something
+    that does not look like a real .git directory -- this tool must keep
+    working without git, exactly as it always could.
+    """
+    fallback = Path(__file__).resolve().parent.parent
+    here = Path(__file__).resolve().parent
+    raw = _git_common_dir(here)
+    if raw is None:
+        return fallback
+    common_dir = (here / raw).resolve()
+    if common_dir.name != ".git" or not common_dir.is_dir():
+        return fallback
+    return common_dir.parent
+
+
 def _display_name(resolution: Resolution) -> str:
     """The header name -- what a human most likely searched for.
 
@@ -904,6 +995,14 @@ def _status_phrase(resolution: Resolution) -> str:
     "not installed" once one exists -- the whole reason main() updates
     source_path in place after a successful fetch instead of building a new
     Resolution.
+
+    Selected on resolution.downloaded, NOT on provisional -- provisional only
+    says whether the archive's identity could be confirmed, and a verified
+    download (provisional False by the time this runs) is still something
+    THIS RUN fetched, not a mod that was already sitting installed. The two
+    facts are reported separately: "downloaded" states what happened, and an
+    unconfirmed identity is called out in addition to it rather than in place
+    of it.
     """
     if resolution.source_path is None:
         return "not installed" + (
@@ -913,13 +1012,17 @@ def _status_phrase(resolution: Resolution) -> str:
     availability = (
         "source available" if resolution.source_path.is_dir() else "no source shipped"
     )
-    if resolution.kind == KIND_OWN:
-        return f"own mod in this workspace, {availability}"
-    if resolution.kind == KIND_PARKED:
-        return f"installed (temporary/foreign), {availability}"
-    if resolution.provisional:
-        return f"downloaded, {availability}"
-    return f"installed, {availability}"
+    if resolution.downloaded:
+        status = "downloaded" + (
+            ", identity unconfirmed" if resolution.provisional else ""
+        )
+    elif resolution.kind == KIND_OWN:
+        status = "own mod in this workspace"
+    elif resolution.kind == KIND_PARKED:
+        status = "installed (temporary/foreign)"
+    else:
+        status = "installed"
+    return f"{status}, {availability}"
 
 
 def _names_line(resolution: Resolution) -> str:
@@ -962,6 +1065,14 @@ def _source_count(resolution: Resolution) -> int | None:
 
     source_files comes straight from the manifest for an installed or parked
     mod -- no directory walk needed; otherwise this counts _walked_source_files.
+
+    The label is one word ("Size") but the two paths answer different
+    questions: for an installed or parked mod it is what the manifest says
+    actually SHIPS, while for an own mod (no manifest exists to read) it is
+    every .cs found under unity/<Mod>/, Editor-only scripts included, which
+    never ship at all. Both are correct answers -- to different questions --
+    so a comparison across kinds (own mod vs. its own published build) is not
+    apples to apples even though the rendered line looks identical.
     """
     if resolution.source_files:
         return len(resolution.source_files)
@@ -1063,7 +1174,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--workspace",
         type=Path,
-        default=Path(__file__).resolve().parent.parent,
+        default=_default_workspace(),
         help="directory holding this repo's own mods (default: %(default)s)",
     )
     args = parser.parse_args(argv)
@@ -1078,19 +1189,28 @@ def main(argv: list[str] | None = None) -> int:
     sdk_path = _sdk_path()
     catalogue_path = _catalogue_path()
     if args.refresh or not catalogue_path.is_file():
+        # Checked once, before any fetch attempt: Workspace.build reads
+        # catalogue_path regardless of whether the fetch below runs or
+        # succeeds, so an EXISTING mirror is still used -- possibly stale,
+        # but still usable, and an uninstalled mod still resolves through
+        # it. The stronger claim ("proceeding with cache and repos only, a
+        # mod that is not installed cannot be resolved") is true only when
+        # there is no mirror at all to fall back on.
+        fallback = (
+            "proceeding with the mirror as it stands"
+            if catalogue_path.is_file()
+            else "proceeding with the cache and repos only, a mod that is "
+            "not installed cannot be resolved"
+        )
         if sdk_path is None:
-            print(
-                "warning: SDK_PATH is not set — proceeding with the cache and "
-                "repos only, a mod that is not installed cannot be resolved",
-                file=sys.stderr,
-            )
+            print(f"warning: SDK_PATH is not set — {fallback}", file=sys.stderr)
         else:
             try:
                 fetch_catalogue(sdk_path, catalogue_path)
             except (ValueError, OSError) as error:
                 print(
                     f"warning: could not refresh the mod.io catalogue ({error}) "
-                    "— proceeding with the cache and repos only",
+                    f"— {fallback}",
                     file=sys.stderr,
                 )
 
@@ -1147,6 +1267,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"warning: {warning}", file=sys.stderr)
         scripts = downloaded / "Scripts"
         result.source_path = scripts if scripts.is_dir() else downloaded
+        # Set here, not inferred later from provisional -- _status_phrase
+        # needs to say "downloaded" regardless of whether the identity check
+        # download() just ran could confirm the manifest name, and
+        # provisional alone cannot carry that: a verified download already
+        # flips provisional back to False.
+        result.downloaded = True
         # The "not installed" note _describe attached before the fetch is now
         # stale -- the mod just was installed, right here -- and notes are the
         # only place render() surfaces it, so leaving it in would print a

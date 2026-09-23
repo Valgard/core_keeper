@@ -421,10 +421,12 @@ Neither mode is wired into `pre-commit`: capturing is a deliberate act after
 verifying a citation, not something a routine commit should trigger. Run the
 comparison after a game update and before trusting `docs/ck/` again.
 
-`utils/mod_source.py <name>` resolves a mod's internal name, mod.io title, or
-slug to where its source lives — this workspace's own repos, the mod.io
-cache, or a mirrored mod.io catalogue for a mod that isn't installed locally;
-see [Reverse engineering](docs/ck/reverse-engineering.md#every-installed-mod-is-readable-source).
+## Mod source lookup
+
+`uv run utils/mod_source.py <name>` resolves a mod's internal name, mod.io
+title, or slug to where its source lives — this workspace's own repos, the
+mod.io cache, or a mirrored mod.io catalogue for a mod that isn't installed
+locally; see [Reverse engineering](docs/ck/reverse-engineering.md#every-installed-mod-is-readable-source).
 
 ## Python tooling and its tests
 
