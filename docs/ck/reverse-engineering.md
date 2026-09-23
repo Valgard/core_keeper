@@ -330,6 +330,10 @@ code rather than inferring from behaviour. Two locations hold the same sources:
 | `…/mod.io/5289/mods/<modId>_<modfileId>/Scripts/` | The downloaded mod file as published — the `<modfileId>` pins the exact release |
 | `ModLoader/<ModName>/Scripts/` | What the loader extracted from it to compile — **client only**. A dedicated server extracts to `ModLoader/DedicatedServer/<GUID>/` instead, with a fresh GUID minted per mod load: the path differs on every start, and its name does not say which mod it holds |
 
+The table gives the shape; `utils/mod_source.py` gives the numbers — it
+resolves a mod's name to its `<modId>_<modfileId>`, which is the step neither
+this chapter nor `platforms.md` provides.
+
 The exception is a mod that ships a **precompiled assembly** rather than
 sources — an asset-only mod, or one declaring a `.dll` under
 `accessesExtraAssemblies`. For those you are back to a decompile.

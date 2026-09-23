@@ -95,6 +95,13 @@ Read it rather than reproducing it here; what follows is what this file adds.
   patches too, and without Patch 2 its mods load but never compile, which the
   client then rejects as `Error/BadProtocolVersion` ("Game version mismatch").
   Rationale + canonical commands in the `corekeeper-roslyn-locale-bug` memory.
+- **Before dispatching an agent at another mod's source, resolve the path and
+  put it in the dispatch.** `uv run utils/mod_source.py <name>` answers from
+  the mod.io cache, this workspace's own repos and a mirrored mod.io
+  catalogue — `--download` fetches a mod that is not installed. Without the
+  path in the prompt an agent searches the filesystem instead, which on this
+  machine means the SMB shares and the Time Machine volume under `/Volumes`,
+  and it does not terminate early even when the mod is local.
 
 ## SDK quirks (apply to every mod)
 

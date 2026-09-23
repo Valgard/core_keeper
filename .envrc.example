@@ -97,6 +97,11 @@ export STEAM_DEPS_MAP="/path/to/core_keeper/utils/steam-dependencies.json"
 # Harmless for non-localised mods (their generator run is a no-op).
 export LOC_TABLE="/path/to/core_keeper/utils/ck-language-addresses.json"
 
+# Where mod_source.py keeps derived state — the mod.io catalogue mirror and
+# anything it downloads. Outside the repo on purpose: utils/ is un-ignored
+# wholesale, so a mirror there would be tracked and every refresh a diff.
+# export CK_MOD_SOURCE_CACHE="$HOME/Library/Caches/ck-mod-source"
+
 # --- Project-local PATH additions -------------------------------------------
 
 # ilspycmd is a .NET global tool under ~/.dotnet/tools, not on macOS PATH by
