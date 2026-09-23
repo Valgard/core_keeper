@@ -1,7 +1,10 @@
 """Unit tests for resolving a Core Keeper mod name to its source location."""
 
+import dataclasses
+import hashlib
 import io
 import json
+import shutil
 import urllib.parse
 import zipfile
 from pathlib import Path
@@ -52,21 +55,38 @@ def test_index_never_stores_an_empty_key():
     assert index.lookup("---") == {}
 
 
+def _installed_row(entry):
+    """One _write_cache row, with the two optional name fields filled in.
+
+    A row is (mod_id, modfile_id, internal_name, files) or, when a test needs
+    the three names to DIFFER, (mod_id, modfile_id, internal_name, files,
+    title, slug). The short form derives title and slug from the internal
+    name, which is convenient and was also why ~30 installed-mod tests could
+    not touch this tool's central case: NameChests ships as "More Labels" on
+    mod.io, and a fixture whose three names all agree cannot tell an index
+    that covers all three from one that indexes the internal name alone.
+    """
+    mod_id, modfile_id, name, files = entry[:4]
+    title, slug = entry[4:6] if len(entry) > 4 else (name, name.lower())
+    return mod_id, modfile_id, name, files, title, slug
+
+
 def _write_cache(root, mods, state_disabled=()):
     """Build a synthetic mod.io cache: folders, manifests and state.json."""
     cache = root / "mods"
     cache.mkdir(parents=True)
-    for mod_id, modfile_id, name, files in mods:
+    rows = [_installed_row(entry) for entry in mods]
+    for mod_id, modfile_id, name, files, _, _ in rows:
         folder = cache / f"{mod_id}_{modfile_id}"
         (folder / "Scripts").mkdir(parents=True)
         (folder / "ModManifest.json").write_text(
             json.dumps({"name": name, "files": [{"path": p} for p in files]})
         )
     entries = {}
-    for mod_id, modfile_id, name, _ in mods:
+    for mod_id, modfile_id, _, _, title, slug in rows:
         entries[str(mod_id)] = {
             "currentModfile": {"id": modfile_id},
-            "modObject": {"id": mod_id, "name": name, "name_id": name.lower()},
+            "modObject": {"id": mod_id, "name": title, "name_id": slug},
         }
     (root / "state.json").write_text(
         json.dumps(
@@ -381,6 +401,25 @@ def test_fetch_catalogue_tolerates_a_present_but_null_page(tmp_path, monkeypatch
     assert entries == []
 
 
+def _catalogue_row(entry):
+    """One mirrored catalogue entry: (id, title, slug, modfile) or + md5.
+
+    The md5 is optional because most tests do not care what --download would
+    check the bytes against, and a mirror written before this tool captured
+    the field omits it entirely -- which must keep reading as "unknown"
+    rather than as a damaged mirror.
+    """
+    mod_id, title, slug, modfile = entry[:4]
+    md5 = entry[4] if len(entry) > 4 else ""
+    return {
+        "id": mod_id,
+        "name": title,
+        "name_id": slug,
+        "modfile": modfile,
+        "md5": md5,
+    }
+
+
 def _workspace(tmp_path, installed=(), own=(), catalogue=()):
     """Build a Workspace from synthetic sources, skipping any source unused by the test."""
     cache = _write_cache(tmp_path / "bottle", list(installed)) if installed else None
@@ -390,14 +429,7 @@ def _workspace(tmp_path, installed=(), own=(), catalogue=()):
         _write_repo(repos, repo, mod_name, mod_id, fake_id)
     mirror = tmp_path / "catalogue.json"
     mirror.write_text(
-        json.dumps(
-            {
-                "entries": [
-                    {"id": i, "name": n, "name_id": s, "modfile": f}
-                    for i, n, s, f in catalogue
-                ]
-            }
-        )
+        json.dumps({"entries": [_catalogue_row(entry) for entry in catalogue]})
     )
     return mod_source.Workspace.build(
         cache_dir=cache, workspace=repos, catalogue_path=mirror
@@ -477,7 +509,7 @@ def test_a_catalogue_only_hit_is_provisional(tmp_path):
     result = ws.resolve("General Mod Config Menu")
 
     assert result.kind == mod_source.KIND_CATALOGUE
-    assert result.provisional is True
+    assert result.identity == mod_source.IDENTITY_UNCHECKED
     assert result.internal_name is None
 
 
@@ -757,19 +789,23 @@ def test_download_verifies_the_manifest_name_against_the_query(tmp_path, monkeyp
         title="General Mod Config Menu",
         slug="generalconfigmenu",
         source_path=None,
-        provisional=True,
+        identity=mod_source.IDENTITY_UNCHECKED,
     )
 
     path, warnings = mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
 
     assert (path / "Scripts" / "A.cs").is_file()
     assert any("SomethingElse" in w for w in warnings)
-    # The point of the check: the resolution itself is settled from the
-    # manifest that just arrived, not left in its pre-download provisional
-    # state -- a caller inspecting `resolution` after the call must see the
-    # same answer the returned warnings describe.
+    # The point of the check: the mismatch is recorded on the RESOLUTION, not
+    # only in the returned warnings. main() prints those warnings once to
+    # stderr and drops them, while the resolution is what both renderers
+    # carry and what a dispatched agent acts on. The pre-fix code set
+    # `provisional = False` -- "identity confirmed" -- unconditionally and
+    # ran the comparison afterwards, so this same download rendered as a
+    # clean, settled answer with an empty notes list.
     assert resolution.internal_name == "SomethingElse"
-    assert resolution.provisional is False
+    assert resolution.identity == mod_source.IDENTITY_CONTRADICTED
+    assert any("SomethingElse" in note for note in resolution.notes)
 
 
 def test_download_matches_via_the_slug_when_the_title_differs(tmp_path, monkeypatch):
@@ -777,6 +813,12 @@ def test_download_matches_via_the_slug_when_the_title_differs(tmp_path, monkeypa
     # slug. An implementation that only compared against the title would warn
     # here even though the mod that arrived is unambiguously the right one --
     # title and slug diverge (as they routinely do), and only the slug agrees.
+    #
+    # This is also the suite's one fully clean download: the mirror knows the
+    # md5, the bytes match it, and the name agrees. Asserting NO warnings at
+    # all is only meaningful while that stays true -- if the hash were left
+    # out of the fixture, the "could not be verified" warning would sit here
+    # and the assertion would have to be weakened to a substring check.
     archive = io.BytesIO()
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("ModManifest.json", json.dumps({"name": "GeneralConfigMenu"}))
@@ -793,12 +835,15 @@ def test_download_matches_via_the_slug_when_the_title_differs(tmp_path, monkeypa
         title="General Mod Config Menu",
         slug="generalconfigmenu",
         source_path=None,
-        provisional=True,
+        modfile_md5=hashlib.md5(archive.getvalue()).hexdigest(),
+        identity=mod_source.IDENTITY_UNCHECKED,
     )
 
     _, warnings = mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
 
     assert warnings == []
+    assert resolution.identity == mod_source.IDENTITY_CONFIRMED
+    assert resolution.notes == []
 
 
 def test_download_refuses_paths_outside_the_target(tmp_path, monkeypatch):
@@ -818,7 +863,7 @@ def test_download_refuses_paths_outside_the_target(tmp_path, monkeypatch):
         title="Evil",
         slug="evil",
         source_path=None,
-        provisional=True,
+        identity=mod_source.IDENTITY_UNCHECKED,
     )
 
     with pytest.raises(ValueError):
@@ -850,7 +895,7 @@ def test_download_refuses_an_absolute_path_member(tmp_path, monkeypatch):
         title="Evil",
         slug="evil",
         source_path=None,
-        provisional=True,
+        identity=mod_source.IDENTITY_UNCHECKED,
     )
 
     with pytest.raises(ValueError):
@@ -885,7 +930,7 @@ def test_download_survives_the_call_with_no_cleanup(tmp_path, monkeypatch):
         title="Widget",
         slug="widget",
         source_path=None,
-        provisional=True,
+        identity=mod_source.IDENTITY_UNCHECKED,
     )
 
     path, _ = mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
@@ -917,16 +962,17 @@ def test_download_survives_an_unparseable_manifest(tmp_path, monkeypatch):
         title="Widget",
         slug="widget",
         source_path=None,
-        provisional=True,
+        identity=mod_source.IDENTITY_UNCHECKED,
     )
 
     path, warnings = mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
 
     assert (path / "Scripts" / "A.cs").is_file()
     assert any("could not" in w.lower() for w in warnings)
-    # Left exactly as provisional as it arrived -- a name that could not be
-    # read is not evidence either way, so this must not silently settle it.
-    assert resolution.provisional is True
+    # A name that could not be read is not evidence either way. The download
+    # must neither settle the identity nor claim it was refuted -- those are
+    # the two neighbouring states, and this is the one between them.
+    assert resolution.identity == mod_source.IDENTITY_UNCONFIRMABLE
 
 
 def test_download_survives_a_manifest_that_is_not_an_object(tmp_path, monkeypatch):
@@ -948,23 +994,23 @@ def test_download_survives_a_manifest_that_is_not_an_object(tmp_path, monkeypatc
         title="Widget",
         slug="widget",
         source_path=None,
-        provisional=True,
+        identity=mod_source.IDENTITY_UNCHECKED,
     )
 
     path, warnings = mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
 
     assert path.is_dir()
     assert any("could not" in w.lower() for w in warnings)
-    assert resolution.provisional is True
+    assert resolution.identity == mod_source.IDENTITY_UNCONFIRMABLE
 
 
 def test_download_survives_a_null_manifest_name(tmp_path, monkeypatch):
     # "name": null parses fine and .get("name", "") returns None (the key IS
     # present, so the default never applies) -- a naive fix that mutates
     # resolution before checking the type would leave internal_name set to
-    # None and provisional flipped to False even though nothing was actually
-    # verified. Asserting provisional stays True catches exactly that half-
-    # applied mutation, not just the crash.
+    # None while recording the identity as settled, even though nothing was
+    # actually verified. Asserting the identity stays UNCONFIRMABLE catches
+    # exactly that half-applied mutation, not just the crash.
     archive = io.BytesIO()
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("ModManifest.json", json.dumps({"name": None}))
@@ -981,14 +1027,14 @@ def test_download_survives_a_null_manifest_name(tmp_path, monkeypatch):
         title="Widget",
         slug="widget",
         source_path=None,
-        provisional=True,
+        identity=mod_source.IDENTITY_UNCHECKED,
     )
 
     path, warnings = mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
 
     assert path.is_dir()
     assert any("could not" in w.lower() for w in warnings)
-    assert resolution.provisional is True
+    assert resolution.identity == mod_source.IDENTITY_UNCONFIRMABLE
     assert resolution.internal_name is None
 
 
@@ -1014,7 +1060,7 @@ def test_download_leaves_no_directory_behind_when_rejected(tmp_path, monkeypatch
         title="Evil",
         slug="evil",
         source_path=None,
-        provisional=True,
+        identity=mod_source.IDENTITY_UNCHECKED,
     )
 
     with pytest.raises(ValueError):
@@ -1047,7 +1093,13 @@ def test_render_says_when_the_internal_name_is_unknown(tmp_path):
     )
     text = mod_source.render(ws.resolve("General Mod Config Menu"))
 
-    assert "unknown" in text.lower()
+    # Specifically the INTERNAL name. Searching the whole render for the word
+    # passes on any line that happens to carry it -- the slug or the title
+    # could be the unknown one, or a note could merely use the word -- so it
+    # would stay green even if the field this test is named for were filled
+    # in with something. _names_line renders the field as "internal <value>".
+    names = next(line for line in text.splitlines() if "Names" in line)
+    assert "internal unknown" in names
 
 
 def test_render_reports_an_own_mods_file_count_by_walking_its_directory(tmp_path):
@@ -1120,14 +1172,7 @@ def _write_main_catalogue(tmp_path, entries=()):
     mirror = tmp_path / "cache" / "catalogue.json"
     mirror.parent.mkdir(parents=True, exist_ok=True)
     mirror.write_text(
-        json.dumps(
-            {
-                "entries": [
-                    {"id": i, "name": n, "name_id": s, "modfile": f}
-                    for i, n, s, f in entries
-                ]
-            }
-        )
+        json.dumps({"entries": [_catalogue_row(entry) for entry in entries]})
     )
     return mirror
 
@@ -1213,7 +1258,20 @@ def test_main_file_argument_prints_the_resolved_absolute_path(
 
     out = capsys.readouterr().out.strip()
     assert code == 0
-    assert out.endswith("Scripts/Util/ConfigScope.cs")
+    # Pinned whole, against the fixture's own known root, for the same reason
+    # test_file_mode_answers_an_installed_mod_from_the_manifest is: a tail
+    # check cannot see a regressed join base. Manifest paths are relative to
+    # the mod FOLDER, so the right answer ends
+    # .../3177992_7845185/Scripts/Util/ConfigScope.cs, while joining onto
+    # source_path (that folder's own Scripts/) ends
+    # .../3177992_7845185/Scripts/Scripts/Util/ConfigScope.cs -- and an
+    # endswith on the last three segments is satisfied by both. That defect
+    # was fixed at the unit layer and left uncaught here.
+    assert out == str(
+        bottle
+        / "drive_c/users/Public/mod.io/5289/mods/3177992_7845185"
+        / "Scripts/Util/ConfigScope.cs"
+    )
     assert Path(out).is_absolute()
 
 
@@ -1295,11 +1353,12 @@ def test_main_download_flag_fetches_an_uninstalled_mod(tmp_path, capsys, monkeyp
     # The manifest name verifies cleanly against the query, so this is a
     # settled, downloaded-this-run mod -- neither "not installed" (it now is)
     # nor "installed" (nothing was already there; THIS run fetched it). The
-    # pre-fix code selected the phrase on `provisional`, which a verified
-    # download flips to False -- landing on "installed, source available"
-    # here, indistinguishable from a mod that had been sitting installed all
-    # along. Asserting the exact phrase catches that; "not installed" not in
-    # out could not, since "installed, ..." also satisfies it.
+    # pre-fix code selected the phrase on the identity flag alone, which a
+    # verified download sets to confirmed -- landing on "installed, source
+    # available" here, indistinguishable from a mod that had been sitting
+    # installed all along. Asserting the exact phrase catches that;
+    # "not installed" not in out could not, since "installed, ..." also
+    # satisfies it.
     assert "downloaded, source available" in out
     downloaded = (
         tmp_path / "cache" / "downloads" / "4584153_7840263" / "Scripts" / "Menu.cs"
@@ -1313,10 +1372,10 @@ def test_main_download_flag_flags_an_unconfirmed_identity(
 ):
     # The other half of the same branch: the archive's manifest cannot settle
     # the identity check (unparseable JSON here, same as
-    # test_download_survives_an_unparseable_manifest), so provisional stays
-    # True. The output must say BOTH facts -- that this run downloaded the
-    # mod, and that its identity could not be confirmed -- rather than
-    # collapsing onto whichever single phrase `provisional` alone would pick.
+    # test_download_survives_an_unparseable_manifest), so the identity stays
+    # UNCONFIRMABLE. The output must say BOTH facts -- that this run
+    # downloaded the mod, and that its identity could not be confirmed --
+    # rather than collapsing onto whichever single phrase one flag would pick.
     monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
     monkeypatch.setenv("SDK_PATH", str(tmp_path / "sdk"))
     _write_main_catalogue(
@@ -1390,7 +1449,7 @@ def test_download_raises_a_value_error_for_a_corrupt_archive(tmp_path, monkeypat
         title="Widget",
         slug="widget",
         source_path=None,
-        provisional=True,
+        identity=mod_source.IDENTITY_UNCHECKED,
     )
 
     with pytest.raises(ValueError):
@@ -1520,3 +1579,563 @@ def test_main_warns_with_the_weaker_fallback_when_the_mirror_already_exists(
     assert code == 0
     assert "proceeding with the mirror as it stands" in captured.err
     assert "cannot be resolved" not in captured.err
+
+
+# ---------------------------------------------------------------------------
+# Review gate fixes
+# ---------------------------------------------------------------------------
+
+
+def _catalogue_resolution(**overrides):
+    """A catalogue-only resolution, the one shape download() accepts.
+
+    Only the fields a test actually varies are worth spelling out at each
+    call site; everything else is the state Workspace._describe produces for
+    a hit that exists in the mirror and nowhere else.
+    """
+    fields = {
+        "kind": mod_source.KIND_CATALOGUE,
+        "mod_id": 4584153,
+        "internal_name": None,
+        "title": "General Mod Config Menu",
+        "slug": "generalconfigmenu",
+        "source_path": None,
+        "modfile_id": 7840263,
+        "identity": mod_source.IDENTITY_UNCHECKED,
+    }
+    fields.update(overrides)
+    return mod_source.Resolution(**fields)
+
+
+def _archive(members):
+    """A zip archive as bytes, built from {member path: content}."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zf:
+        for name, content in members.items():
+            zf.writestr(name, content)
+    return buffer.getvalue()
+
+
+def test_a_contradicted_identity_reaches_both_renderers(tmp_path, monkeypatch):
+    # THE critical one. download() detects that the archive is a different
+    # mod, and that finding has to survive into what a dispatched agent is
+    # handed -- which is the resolution, not the warning list main() prints
+    # once to stderr and drops. Pre-fix, `provisional = False` was set
+    # unconditionally one line before the comparison ran, so render() printed
+    # "downloaded, source available" with no notes at all and render_json()
+    # emitted "provisional": false with "notes": [] -- a clean bill of health
+    # for a download the tool had already proved wrong.
+    payload = _archive(
+        {
+            "ModManifest.json": json.dumps({"name": "SomethingElse"}),
+            "Scripts/A.cs": "// code",
+        }
+    )
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(mod_source, "_curl", lambda url: payload)
+    resolution = _catalogue_resolution(
+        modfile_md5=hashlib.md5(payload).hexdigest(),
+    )
+
+    target, _ = mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
+
+    # main() does exactly this much after a download; do it here so render()
+    # sees the same resolution the CLI would hand it.
+    resolution.source_path = target / "Scripts"
+    resolution.downloaded = True
+
+    text = mod_source.render(resolution)
+    assert "identity mismatch" in text
+    assert "SomethingElse" in text
+
+    payload_json = json.loads(mod_source.render_json(resolution))
+    assert payload_json["identity"] == mod_source.IDENTITY_CONTRADICTED
+    assert any("SomethingElse" in note for note in payload_json["notes"])
+
+
+def test_main_download_renders_a_name_mismatch_in_both_output_modes(
+    tmp_path, capsys, monkeypatch
+):
+    # The same defect at the layer that matters: this is the exact command a
+    # session runs before dispatching an agent, and its whole output used to
+    # read as a settled answer. Both output modes are checked, because a
+    # caller reading --json never sees stderr at all.
+    payload = _archive(
+        {
+            "ModManifest.json": json.dumps({"name": "SomethingElse"}),
+            "Scripts/Menu.cs": "// code",
+        }
+    )
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setenv("SDK_PATH", str(tmp_path / "sdk"))
+    _write_main_catalogue(
+        tmp_path,
+        [
+            (
+                4584153,
+                "General Mod Config Menu",
+                "generalconfigmenu",
+                7840263,
+                hashlib.md5(payload).hexdigest(),
+            )
+        ],
+    )
+    bottle = _write_bottle(tmp_path)
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(mod_source, "_curl", lambda url: payload)
+
+    code = mod_source.main(
+        ["General Mod Config Menu", "--download", "--workspace", str(tmp_path)]
+    )
+
+    human = capsys.readouterr().out
+    assert code == 0
+    assert "downloaded, identity mismatch, source available" in human
+    assert "SomethingElse" in human
+
+    code = mod_source.main(
+        [
+            "General Mod Config Menu",
+            "--download",
+            "--json",
+            "--workspace",
+            str(tmp_path),
+        ]
+    )
+
+    machine = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert machine["identity"] == mod_source.IDENTITY_CONTRADICTED
+    assert any("SomethingElse" in note for note in machine["notes"])
+
+
+def test_the_not_installed_note_is_dropped_without_dropping_the_mismatch(
+    tmp_path, capsys, monkeypatch
+):
+    # main() strips the stale "not installed" note after a download. It used
+    # to strip any note CONTAINING that phrase, which was harmless while
+    # download() wrote nothing into notes -- and would silently swallow the
+    # mismatch note now that it does, if that note ever phrased itself with
+    # those words. Both halves are asserted together: the stale note gone,
+    # the new one still there.
+    payload = _archive(
+        {
+            "ModManifest.json": json.dumps({"name": "SomethingElse"}),
+            "Scripts/Menu.cs": "// code",
+        }
+    )
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setenv("SDK_PATH", str(tmp_path / "sdk"))
+    _write_main_catalogue(
+        tmp_path,
+        [(4584153, "General Mod Config Menu", "generalconfigmenu", 7840263)],
+    )
+    bottle = _write_bottle(tmp_path)
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(mod_source, "_curl", lambda url: payload)
+
+    code = mod_source.main(
+        [
+            "General Mod Config Menu",
+            "--download",
+            "--json",
+            "--workspace",
+            str(tmp_path),
+        ]
+    )
+
+    machine = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert not any(note.startswith("not installed") for note in machine["notes"])
+    assert any("SomethingElse" in note for note in machine["notes"])
+
+
+def test_download_verifies_the_archive_against_the_catalogues_md5(
+    tmp_path, monkeypatch
+):
+    # The check the design mandates twice and the module did not have: an
+    # archive whose bytes are not what mod.io says they are is not this mod's
+    # source, whatever it happens to unpack into, so it is not unpacked at
+    # all. Nothing may be left on disk either -- the next run would find the
+    # directory and take it for a completed download.
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(
+        mod_source,
+        "_curl",
+        lambda url: _archive({"ModManifest.json": json.dumps({"name": "Widget"})}),
+    )
+    resolution = _catalogue_resolution(modfile_md5="0" * 32)
+
+    with pytest.raises(ValueError, match="md5"):
+        mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
+
+    assert not (tmp_path / "dl").exists()
+
+
+def test_download_says_when_it_cannot_verify_the_bytes(tmp_path, monkeypatch):
+    # A mirror written before this tool captured the hash, or an entry mod.io
+    # sends without one, cannot be checked. That is not an error -- an old
+    # mirror resolves names exactly as well as a new one, and forcing a
+    # refetch to download anything would be worse. But it must not pass in
+    # silence: "verified" and "unverifiable" are different answers, and the
+    # note is what carries the difference into the payload.
+    payload = _archive({"ModManifest.json": json.dumps({"name": "GeneralConfigMenu"})})
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(mod_source, "_curl", lambda url: payload)
+    resolution = _catalogue_resolution(modfile_md5="")
+
+    target, warnings = mod_source.download(
+        resolution, tmp_path / "sdk", tmp_path / "dl"
+    )
+
+    assert target.is_dir()
+    assert any("no md5" in w for w in warnings)
+    assert any("no md5" in note for note in resolution.notes)
+    # The bytes being uncheckable says nothing about the NAME, which was
+    # checked and agreed -- the two verdicts are independent.
+    assert resolution.identity == mod_source.IDENTITY_CONFIRMED
+
+
+def test_download_refuses_a_resolution_it_is_not_for(tmp_path):
+    # Every line after the guard assumes a catalogue-only hit with no source
+    # of its own: called on an own mod, this would unpack a foreign archive
+    # straight over a repository in this workspace. One `if` in main() is
+    # what used to stand between those two facts.
+    own = _catalogue_resolution(
+        kind=mod_source.KIND_OWN,
+        internal_name="FasterTalents",
+        source_path=tmp_path / "repo",
+    )
+    with pytest.raises(ValueError, match="catalogue-only"):
+        mod_source.download(own, tmp_path / "sdk", tmp_path / "dl")
+
+    already_fetched = _catalogue_resolution(source_path=tmp_path / "somewhere")
+    with pytest.raises(ValueError, match="catalogue-only"):
+        mod_source.download(already_fetched, tmp_path / "sdk", tmp_path / "dl")
+
+
+def test_fetch_catalogue_captures_each_modfiles_md5(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda sdk_path: ("https://fake.modio", 1, "key")
+    )
+    monkeypatch.setattr(
+        mod_source,
+        "_curl",
+        lambda url: json.dumps(
+            {
+                "data": [
+                    {
+                        "id": 1,
+                        "name": "Mod One",
+                        "name_id": "modone",
+                        "modfile": {"id": 10, "filehash": {"md5": "a" * 32}},
+                    },
+                    # A mod with no published build: mod.io sends `modfile`
+                    # as null, and steam_backfill reads the same field
+                    # through the same two `or {}` guards for that reason.
+                    {"id": 2, "name": "Mod Two", "name_id": "modtwo", "modfile": None},
+                ],
+                "result_total": 2,
+            }
+        ).encode(),
+    )
+
+    entries = mod_source.fetch_catalogue(tmp_path / "sdk", tmp_path / "catalogue.json")
+
+    assert {e.mod_id: e.md5 for e in entries} == {1: "a" * 32, 2: ""}
+
+
+def test_a_mirror_written_before_md5_was_captured_still_reads(tmp_path):
+    # Schema change, not a schema break: the field is simply absent from an
+    # older mirror. Reading that as damaged would discard a perfectly good
+    # catalogue and force a refetch for a field no lookup needs.
+    mirror = tmp_path / "catalogue.json"
+    mirror.write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {
+                        "id": 4584153,
+                        "name": "General Mod Config Menu",
+                        "name_id": "generalconfigmenu",
+                        "modfile": 7840263,
+                    }
+                ]
+            }
+        )
+    )
+
+    entries = mod_source.read_catalogue(mirror)
+
+    assert len(entries) == 1
+    assert entries[0].md5 == ""
+
+
+def test_a_resolution_carries_the_modfile_md5_from_the_catalogue(tmp_path):
+    # The hash has to travel the same route modfile_id does, or download()
+    # can never check anything: the mirror is the only place it exists.
+    ws = _workspace(
+        tmp_path,
+        catalogue=[
+            (4584153, "General Mod Config Menu", "generalconfigmenu", 7840263, "b" * 32)
+        ],
+    )
+
+    result = ws.resolve("General Mod Config Menu")
+
+    assert result.modfile_md5 == "b" * 32
+
+
+def test_fetch_catalogue_refuses_an_early_empty_page(tmp_path, monkeypatch):
+    # The function's own docstring promised it raises rather than mirroring a
+    # short catalogue, and only the never-ending-page case was guarded. A
+    # server that reports 9 mods and then sends an empty page used to break
+    # out of the loop and write the one entry it had -- after which every
+    # missing mod reads as "that mod does not exist", which is the one answer
+    # this tool must never give.
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda sdk_path: ("https://fake.modio", 1, "key")
+    )
+
+    def fake_curl(url):
+        offset = int(
+            urllib.parse.parse_qs(urllib.parse.urlparse(url).query)["_offset"][0]
+        )
+        page = (
+            {"data": [], "result_total": 9}
+            if offset
+            else {
+                "data": [
+                    {"id": 1, "name": "Mod One", "name_id": "modone", "modfile": None}
+                ],
+                "result_total": 9,
+            }
+        )
+        return json.dumps(page).encode()
+
+    monkeypatch.setattr(mod_source, "_curl", fake_curl)
+
+    mirror = tmp_path / "catalogue.json"
+    with pytest.raises(ValueError, match="empty page"):
+        mod_source.fetch_catalogue(tmp_path / "sdk", mirror)
+
+    assert not mirror.exists()
+
+
+def test_two_mod_directories_claiming_one_id_are_reported_not_merged(tmp_path):
+    # Copying a repo is how a mod gets started here, and a <Mod>_modio.asset
+    # that was never reset leaves both copies claiming one mod.io id. The id
+    # then mapped to whichever directory the loop reached last, so a query
+    # for ModAlpha answered with ModBeta's path AND ModBeta's name -- a
+    # confident wrong answer, not an ambiguity report. A contested id
+    # identifies neither mod, so each stays findable under its own name.
+    ws = _workspace(
+        tmp_path,
+        own=[
+            ("mod-alpha", "ModAlpha", 6065498, None),
+            ("mod-beta", "ModBeta", 6065498, None),
+        ],
+    )
+
+    assert any("6065498" in w for w in ws.warnings)
+    assert any("ModAlpha" in w and "ModBeta" in w for w in ws.warnings)
+
+    alpha = ws.resolve("ModAlpha")
+    beta = ws.resolve("ModBeta")
+
+    assert alpha.source_path.name == "ModAlpha"
+    assert alpha.internal_name == "ModAlpha"
+    assert beta.source_path.name == "ModBeta"
+    assert beta.internal_name == "ModBeta"
+
+
+def test_a_shared_dev_build_id_is_contested_the_same_way(tmp_path):
+    # FAKE_MOD_ID lives in a hand-maintained .envrc, so the same copy-paste
+    # produces the same collision there. Nothing about the id's origin makes
+    # one of the two claimants the right answer.
+    ws = _workspace(
+        tmp_path,
+        own=[
+            ("mod-alpha", "ModAlpha", 0, 9999991),
+            ("mod-beta", "ModBeta", 0, 9999991),
+        ],
+    )
+
+    assert any("9999991" in w for w in ws.warnings)
+    assert ws.resolve("ModAlpha").source_path.name == "ModAlpha"
+    assert ws.resolve("ModBeta").source_path.name == "ModBeta"
+
+
+def test_a_current_folder_without_a_manifest_is_reported(tmp_path):
+    # The state the design's own failure table describes, and the one the
+    # superseded CoreLib folder was in. Dropping it without a word makes the
+    # mod read as "not installed" when the truth is "installed, but its
+    # identity cannot be read" -- a wrong answer standing in for a missing
+    # one. The folder still exists, which is what tells this case apart from
+    # a subscription that has simply not been downloaded yet.
+    cache = _write_cache(tmp_path, [(3177992, 7845185, "CoreLib", ["Scripts/C.cs"])])
+    (cache / "3177992_7845185" / "ModManifest.json").unlink()
+
+    mods, warnings = mod_source.read_installed(cache)
+
+    assert mods == []
+    assert any("3177992_7845185" in w and "ModManifest.json" in w for w in warnings)
+
+
+def test_a_subscribed_but_undownloaded_mod_stays_silent(tmp_path):
+    # The other half of the same branch: state.json lists every subscribed
+    # mod, including ones whose folder does not exist yet. Warning about
+    # those would put a line of noise on every ordinary run, which is how a
+    # warning channel stops being read.
+    cache = _write_cache(tmp_path, [(3177992, 7845185, "CoreLib", ["Scripts/C.cs"])])
+    shutil.rmtree(cache / "3177992_7845185")
+
+    mods, warnings = mod_source.read_installed(cache)
+
+    assert mods == []
+    assert warnings == []
+
+
+def test_an_installed_mod_resolves_by_its_internal_name(tmp_path):
+    # The three-names fixture. NameChests ships as "More Labels" on mod.io
+    # with the slug "more-labels", and every one of the suite's installed-mod
+    # tests used to derive title and slug FROM the internal name -- so all
+    # three keys were the same string and the index could have covered the
+    # internal name alone without a single test noticing. Deleting the title
+    # and slug indexing from Workspace.__init__ left all 78 green.
+    ws = _workspace(
+        tmp_path,
+        installed=[
+            (
+                7146470,
+                8100000,
+                "NameChests",
+                ["Scripts/NameChestsMod.cs"],
+                "More Labels",
+                "more-labels",
+            )
+        ],
+    )
+
+    result = ws.resolve("NameChests")
+
+    assert result.mod_id == 7146470
+    assert result.internal_name == "NameChests"
+    assert result.title == "More Labels"
+    assert result.slug == "more-labels"
+
+
+def test_an_installed_mod_resolves_by_its_modio_title(tmp_path):
+    # The tool's opening example, and the one a human actually types: the
+    # title is the only one of the three names shown in the game's mod menu
+    # or on the mod.io page.
+    ws = _workspace(
+        tmp_path,
+        installed=[
+            (
+                7146470,
+                8100000,
+                "NameChests",
+                ["Scripts/NameChestsMod.cs"],
+                "More Labels",
+                "more-labels",
+            )
+        ],
+    )
+
+    result = ws.resolve("More Labels")
+
+    assert result.mod_id == 7146470
+    assert result.internal_name == "NameChests"
+    assert result.source_path.name == "Scripts"
+
+
+def test_an_installed_mod_resolves_by_its_slug(tmp_path):
+    # The third name space, which is what a mod.io URL carries -- so it is
+    # what gets pasted from a browser.
+    ws = _workspace(
+        tmp_path,
+        installed=[
+            (
+                7146470,
+                8100000,
+                "NameChests",
+                ["Scripts/NameChestsMod.cs"],
+                "More Labels",
+                "more-labels",
+            )
+        ],
+    )
+
+    result = ws.resolve("more-labels")
+
+    assert result.mod_id == 7146470
+    assert result.internal_name == "NameChests"
+
+
+def test_render_tells_an_uninstalled_mod_how_to_obtain_it(tmp_path):
+    # AC1 asks the report to name the way to obtain a mod that is not
+    # installed, and nothing pinned the clause that does it -- deleting it
+    # left all 78 tests green. An agent handed a Source line that says only
+    # "not installed" has nothing to act on.
+    ws = _workspace(
+        tmp_path,
+        catalogue=[(4584153, "General Mod Config Menu", "generalconfigmenu", 7840263)],
+    )
+
+    text = mod_source.render(ws.resolve("General Mod Config Menu"))
+
+    source = next(line for line in text.splitlines() if "Source" in line)
+    assert "--download" in source
+
+
+def test_status_phrase_refuses_a_kind_it_does_not_know(tmp_path):
+    # A silent "installed" used to sit at the end of that chain, which is
+    # plausible for any input and therefore the wrong default: it would
+    # report an unknown kind, and a catalogue hit that acquired a source_path
+    # without a download, as an ordinary installed mod.
+    source = tmp_path / "somewhere"
+    source.mkdir()
+    resolution = _catalogue_resolution(kind="something-new", source_path=source)
+
+    with pytest.raises(ValueError, match="something-new"):
+        mod_source._status_phrase(resolution)
+
+
+def test_display_name_falls_back_to_the_mod_id_but_not_past_it(tmp_path):
+    # The mod-id fallback is reachable: an installed mod whose manifest name
+    # and whose state.json profile name are both empty has neither name and
+    # always has an id. What sat below it -- a fixed "(unpublished mod)" for
+    # an own mod with no id -- was not: an own mod's internal name is its own
+    # directory name, so that case returns one check earlier. Verified by
+    # building the exact scenario the docstring named.
+    nameless = mod_source.Resolution(
+        kind=mod_source.KIND_INSTALLED,
+        mod_id=77,
+        internal_name="",
+        title="",
+        slug="",
+        source_path=None,
+    )
+    assert mod_source._display_name(nameless) == "mod 77"
+
+    unpublished = _workspace(
+        tmp_path, own=[("brand-new-mod", "BrandNewMod", 0, None)]
+    ).resolve("BrandNewMod")
+    assert unpublished.mod_id is None
+    assert mod_source._display_name(unpublished) == "BrandNewMod"
+
+    with pytest.raises(ValueError, match="cannot be named"):
+        mod_source._display_name(dataclasses.replace(nameless, mod_id=None))

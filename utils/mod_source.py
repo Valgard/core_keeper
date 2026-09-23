@@ -15,6 +15,7 @@ docs/specs/2026-09-20-mod-source-lookup-design.md.
 
 import argparse
 import dataclasses
+import hashlib
 import io
 import json
 import os
@@ -84,8 +85,12 @@ class NameIndex:
         return self._keys.get(normalise(query), {})
 
 
-# install-macos.sh gives every dev build an id above the real catalogue; the
-# same threshold server.sh uses, so the two agree on what a dev build is.
+# new_mod.py is what ALLOCATES a dev-build id: it counts down from 9999999,
+# skipping the values sibling repos already use, and writes the result into the
+# new mod's .envrc. install-macos.sh only reads that value back
+# (`${FAKE_MOD_ID:?must be set in the mod's .envrc}`) -- it hands out nothing.
+# The threshold below is the one utils/server.sh uses verbatim, so this tool
+# and that one agree on what counts as a dev build.
 FAKE_ID_MIN = 9999000
 
 # Same bound steam_identity.py's own git call uses -- long enough for a git
@@ -95,7 +100,14 @@ GIT_TIMEOUT_SECONDS = 10
 
 @dataclasses.dataclass(frozen=True)
 class InstalledMod:
-    """One mod installed in the cache, with all names and metadata from state.json."""
+    """One mod installed in the cache, read from TWO files rather than one.
+
+    state.json -- the game's own record -- supplies mod_id, the live modfile
+    (and with it the folder), the mod.io title and slug, and whether the mod
+    is disabled. ModManifest.json INSIDE that folder supplies internal_name
+    and source_files; state.json carries neither, which is exactly why an
+    uninstalled mod's internal name is unknowable without a download.
+    """
 
     mod_id: int
     modfile_id: int
@@ -160,6 +172,11 @@ def read_installed(cache_dir: Path) -> tuple[list[InstalledMod], list[str]]:
     missing cache DIRECTORY is the opposite case and does raise -- that is a
     configuration error, and returning an empty list would read as "no such mod" for
     every query.
+
+    The warnings carry one more thing besides a file that could not be read: a mod
+    whose current folder is on disk but holds no ModManifest.json. It is left out of
+    the returned list either way, and saying so is what separates "not installed"
+    from "installed, but nothing here can be read".
     """
     if not cache_dir.is_dir():
         raise FileNotFoundError(
@@ -195,6 +212,21 @@ def read_installed(cache_dir: Path) -> tuple[list[InstalledMod], list[str]]:
         folder = cache_dir / f"{mod_id}_{modfile_id}"
         manifest = folder / "ModManifest.json"
         if not manifest.is_file():
+            # A folder that does not exist at all is ordinary and silent:
+            # state.json lists every subscribed mod, including ones whose
+            # download has not happened yet. A folder that EXISTS without a
+            # manifest is not -- that is the shape the superseded CoreLib
+            # folder had -- and dropping it without a word makes the mod read
+            # as "not installed" when the truth is "installed, but its
+            # identity could not be checked". The first is a wrong answer, the
+            # second a missing one, and this tool may only ever give the
+            # second.
+            if folder.is_dir():
+                warnings.append(
+                    f"{folder} is the current folder for mod {mod_id} but carries no "
+                    "ModManifest.json — its internal name and file list cannot be "
+                    "read, so this mod is left out of the index entirely"
+                )
             continue
         try:
             data = json.loads(manifest.read_text(encoding="utf-8"))
@@ -297,12 +329,21 @@ _MAX_PAGES = 50
 
 @dataclasses.dataclass(frozen=True)
 class CatalogueEntry:
-    """One mod as mod.io's catalogue lists it, reduced to what a lookup needs."""
+    """One mod as mod.io's catalogue lists it, reduced to what a lookup needs.
+
+    md5 is the live modfile's own `filehash.md5`, carried so that --download
+    can check the bytes it receives against what mod.io says they are. It
+    defaults to the empty string, which means "this mirror does not know" --
+    either because mod.io omitted the field or because the mirror was written
+    before this tool captured it. That is not an error and must not force a
+    refetch: an old mirror resolves names exactly as well as a new one.
+    """
 
     mod_id: int
     title: str
     slug: str
     modfile_id: int | None
+    md5: str = ""
 
 
 def cache_root() -> Path:
@@ -341,6 +382,11 @@ def read_catalogue(path: Path) -> list[CatalogueEntry]:
                 title=entry.get("name", ""),
                 slug=entry.get("name_id", ""),
                 modfile_id=entry.get("modfile"),
+                # `or ""` rather than a .get() default: a mirror written
+                # before this field existed omits the key, and a mod.io entry
+                # with no hash sends it as null -- both mean "unknown", and
+                # only the first would be caught by the default alone.
+                md5=entry.get("md5") or "",
             )
             for entry in data.get("entries", [])
             if "id" in entry
@@ -391,10 +437,16 @@ def fetch_catalogue(sdk_path: Path, path: Path) -> list[CatalogueEntry]:
     do the job: _q matches the title alone, so a slug or an internal name
     returns nothing, and a title returns a ranked list rather than an answer.
 
-    Stops after _MAX_PAGES rather than looping forever, and raises instead of
-    writing a short mirror when that happens: a truncated catalogue would
-    otherwise present later as "that mod does not exist" for whatever
-    happened to sort last, which is worse than a loud failure now.
+    A short mirror is never written. There are two ways the paging can fail to
+    complete -- the server keeps sending pages without the count ever reaching
+    result_total (bounded by _MAX_PAGES), or it sends an EMPTY page while the
+    count is still short of it -- and both raise. They have to be treated
+    alike because their consequence is identical and silent: a catalogue
+    missing whatever happened to sort after the gap presents later as "that
+    mod does not exist", not as "the fetch went wrong".
+
+    Also captures each entry's modfile md5, which --download verifies the
+    bytes it receives against.
     """
     server, game, key = _modio_config(sdk_path)
     entries: list[dict] = []
@@ -414,8 +466,14 @@ def fetch_catalogue(sdk_path: Path, path: Path) -> list[CatalogueEntry]:
         total = page.get("result_total")
         if total is None:
             total = len(entries)
-        if len(entries) >= total or not data:
+        if len(entries) >= total:
             break
+        if not data:
+            raise ValueError(
+                f"mod.io sent an empty page at offset {offset} after {len(entries)} "
+                f"of a reported {total} mods — aborting instead of mirroring a short "
+                "catalogue that would later look like a missing mod"
+            )
         offset += _PAGE
     else:
         raise ValueError(
@@ -434,6 +492,14 @@ def fetch_catalogue(sdk_path: Path, path: Path) -> list[CatalogueEntry]:
                         "name": e.get("name", ""),
                         "name_id": e.get("name_id", ""),
                         "modfile": (e.get("modfile") or {}).get("id"),
+                        # Read exactly the way steam_backfill.py reads the
+                        # same field off the same object -- `or {}` twice,
+                        # because mod.io sends both `modfile` and `filehash`
+                        # as null for a mod with no published build.
+                        "md5": ((e.get("modfile") or {}).get("filehash") or {}).get(
+                            "md5"
+                        )
+                        or "",
                     }
                     for e in entries
                 ]
@@ -448,6 +514,14 @@ KIND_INSTALLED = "installed"
 KIND_PARKED = "parked"
 KIND_CATALOGUE = "catalogue"
 
+# Whether the mod that was resolved is provably the mod that was asked for.
+# Four values rather than a boolean, because the check has four outcomes and
+# the two a boolean merges are the two furthest apart -- see Resolution.
+IDENTITY_CONFIRMED = "confirmed"
+IDENTITY_UNCHECKED = "unchecked"
+IDENTITY_UNCONFIRMABLE = "unconfirmable"
+IDENTITY_CONTRADICTED = "contradicted"
+
 
 @dataclasses.dataclass
 class Resolution:
@@ -455,17 +529,38 @@ class Resolution:
 
     modfile_id is the specific build a download would fetch -- only the
     catalogue mirror carries it, so it stays None whenever no catalogue entry
-    matched any of the resolved mod's ids.
+    matched any of the resolved mod's ids. modfile_md5 is that same build's
+    hash from that same entry, and is what --download checks the bytes it
+    receives against; "" means the mirror does not know it.
 
-    downloaded and provisional are independent facts about the SAME fetch,
-    not two names for one thing. downloaded says whether THIS RUN populated
+    downloaded and identity are independent facts about the SAME fetch, not
+    two names for one thing. downloaded says whether THIS RUN populated
     source_path by fetching the mod (main() sets it once download() returns);
-    provisional says whether the archive's identity could be confirmed
-    against the query. A verified download and an unverified one differ in
-    how the identity check came out, not in whether a download happened --
-    collapsing the two onto provisional alone is how _status_phrase used to
-    report a verified download as "installed", as if it had already been
-    there before this run.
+    identity says how the check against the archive's own ModManifest.json
+    came out. A verified download and a refuted one differ in the check's
+    RESULT, not in whether a download happened -- collapsing the two onto one
+    flag is how _status_phrase used to report a verified download as
+    "installed", as if it had already been there before this run.
+
+    identity has four values because the check has four outcomes:
+
+    - IDENTITY_CONFIRMED -- the name comes from local ground truth (an own
+      mod's own directory, an installed mod's own manifest), or a downloaded
+      manifest agreed with the query. The default, because every kind except
+      a catalogue-only hit starts here.
+    - IDENTITY_UNCHECKED -- a catalogue-only hit. Its internal name exists
+      only inside a ModManifest.json, and nothing short of a download can see
+      one, so the check has not run and cannot.
+    - IDENTITY_UNCONFIRMABLE -- a download happened, but its manifest could
+      not be read (bad JSON, wrong shape, a non-string name), so the check
+      could not run on what did arrive.
+    - IDENTITY_CONTRADICTED -- the check RAN and the downloaded mod calls
+      itself something that is neither the queried title nor its slug.
+
+    The last two are why this is not a boolean. "Could not be confirmed" and
+    "was refuted" are one value in a boolean and opposite answers to the only
+    question this tool exists to answer, and a renderer given the boolean can
+    only report the weaker of the two.
     """
 
     kind: str
@@ -475,7 +570,8 @@ class Resolution:
     slug: str
     source_path: Path | None
     modfile_id: int | None = None
-    provisional: bool = False
+    modfile_md5: str = ""
+    identity: str = IDENTITY_CONFIRMED
     downloaded: bool = False
     notes: list[str] = dataclasses.field(default_factory=list)
     source_files: list[str] = dataclasses.field(default_factory=list)
@@ -507,9 +603,42 @@ class Workspace:
         # new_mod.py scaffolds, so the state of every mod not yet shipped)
         # falls back to a synthetic id from _claimed_ids so it still lands in
         # the index instead of silently having no identity at all.
-        self.owner_of: dict[int, OwnMod] = {}
+        #
+        # Two mod directories claiming the SAME id is a state that really
+        # occurs: copying a repo is how a mod gets started here, and a
+        # <Mod>_modio.asset or a FAKE_MOD_ID that was never reset leaves both
+        # copies claiming one id. It used to be settled by whichever one this
+        # loop reached last -- so a query for the one answered with the
+        # other's path and name, which is precisely the wrong answer this
+        # tool must never give. An id two directories claim identifies
+        # neither, so it is withdrawn from both and reported; each keeps its
+        # synthetic id and stays findable under its own name.
+        claims: dict[int, list[OwnMod]] = {}
         for mod in own:
             for claimed in self._claimed_ids(mod):
+                claims.setdefault(claimed, []).append(mod)
+        contested = {i for i, claimants in claims.items() if len(claimants) > 1}
+        for identifier in sorted(contested):
+            directories = ", ".join(
+                sorted(str(m.source_path) for m in claims[identifier])
+            )
+            self.warnings.append(
+                f"mod id {identifier} is claimed by more than one mod directory "
+                f"({directories}) — a copied repo whose <Mod>_modio.asset or "
+                "FAKE_MOD_ID was never reset looks exactly like this. That id now "
+                "identifies neither of them: each stays findable under its own name, "
+                "and no installed build or catalogue entry carrying it is attributed "
+                "to either"
+            )
+
+        self.owner_of: dict[int, OwnMod] = {}
+        own_ids: list[tuple[OwnMod, list[int]]] = []
+        for mod in own:
+            ids = [i for i in self._claimed_ids(mod) if i not in contested] or [
+                self._synthetic_id(mod)
+            ]
+            own_ids.append((mod, ids))
+            for claimed in ids:
                 self.owner_of[claimed] = mod
 
         self.index = NameIndex()
@@ -520,12 +649,29 @@ class Workspace:
         for entry in catalogue:
             self.index.add(entry.title, entry.mod_id, ORIGIN_TITLE)
             self.index.add(entry.slug, entry.mod_id, ORIGIN_SLUG)
-        for mod in own:
-            for claimed in self._claimed_ids(mod):
+        for mod, ids in own_ids:
+            for claimed in ids:
                 self.index.add(mod.mod_name, claimed, ORIGIN_INTERNAL)
 
     @staticmethod
-    def _claimed_ids(mod: OwnMod) -> list[int]:
+    def _synthetic_id(mod: OwnMod) -> int:
+        """An id for a mod that has none of its own, unique to its directory.
+
+        Negative, so it can never collide with a real mod.io id (always
+        positive) or a dev-build id (always >= FAKE_ID_MIN). Derived from the
+        mod's own directory (source_path), NOT the repository --
+        read_own_mods yields one entry per identity asset, so a repository
+        holding more than one mod directory under unity/ would otherwise give
+        two unpublished mods the same synthetic id from a shared repo path,
+        and the second would silently overwrite the first in owner_of and the
+        index. source_path is unique per mod regardless of how many mods
+        share a repo. It is never shown to a caller: _describe reports
+        owner.mod_id, which stays None for a mod that has no real id.
+        """
+        return -(abs(hash(str(mod.source_path))) or 1)
+
+    @classmethod
+    def _claimed_ids(cls, mod: OwnMod) -> list[int]:
         """The ids that name this mod: real, dev-build, or a synthetic one.
 
         A mod with neither a real id (never published) nor a dev-build id (no
@@ -533,23 +679,13 @@ class Workspace:
         index -- yet that is the state of every mod new_mod.py scaffolds,
         which is precisely while someone is actively working on it, and
         read_own_mods's own docstring already promises it stays "findable by
-        name, which is all the identity they have yet". The synthetic id is
-        negative so it can never collide with a real mod.io id (always
-        positive) or a dev-build id (always >= FAKE_ID_MIN), and it is
-        derived from the mod's own directory (source_path), NOT the
-        repository -- read_own_mods yields one entry per identity asset, so a
-        repository holding more than one mod directory under unity/ would
-        otherwise give two unpublished mods the same synthetic id from a
-        shared repo path, and the second would silently overwrite the first
-        in owner_of and the index. source_path is unique per mod regardless
-        of how many mods share a repo. It is never shown to a caller:
-        _describe reports owner.mod_id, which stays None for a mod that has
-        no real id.
+        name, which is all the identity they have yet".
+
+        These are the ids the mod CLAIMS, not necessarily the ones it gets:
+        __init__ withdraws any that a second mod directory claims too.
         """
         claimed = [i for i in (mod.mod_id, mod.fake_id) if i is not None]
-        if claimed:
-            return claimed
-        return [-(abs(hash(str(mod.source_path))) or 1)]
+        return claimed or [cls._synthetic_id(mod)]
 
     @classmethod
     def build(
@@ -618,23 +754,30 @@ class Workspace:
             # mods, and describing it from a single arbitrary id would hide
             # whichever catalogue entry or dev-build note sits under the
             # other one.
-            return [self._describe(min(ids), all_ids=ids) for ids in groups.values()]
+            return [self._describe(ids) for ids in groups.values()]
         (ids,) = groups.values()
-        return self._describe(min(ids), all_ids=ids)
+        return self._describe(ids)
 
-    def _describe(self, mod_id: int, all_ids: list[int] | None = None) -> Resolution:
+    def _describe(self, ids: list[int]) -> Resolution:
         """Build the Resolution for one already-resolved group of ids.
+
+        Takes the whole group, where it used to take a representative id AND
+        the group beside it. Both call sites passed the group and its own
+        minimum, so the pair could only ever disagree through a caller's
+        mistake -- and the fallback that covered an omitted group was
+        unreachable from either of them.
 
         Checked in this order -- own, then installed, then catalogue-only --
         because a repo in this workspace is the strongest evidence available,
         an installed copy is the next best (it is what actually runs), and a
         catalogue-only hit is what is left once neither exists locally.
         """
-        owner = self.owner_of.get(mod_id)
-        ids = sorted(all_ids or [mod_id])
+        ids = sorted(ids)
+        owner = self.owner_of.get(ids[0])
         installed = next((self.installed[i] for i in ids if i in self.installed), None)
         entry = next((self.catalogue[i] for i in ids if i in self.catalogue), None)
         modfile_id = entry.modfile_id if entry else None
+        modfile_md5 = entry.md5 if entry else ""
         notes: list[str] = []
 
         if owner is not None:
@@ -656,6 +799,7 @@ class Workspace:
                 slug=entry.slug if entry else (installed.slug if installed else ""),
                 source_path=owner.source_path,
                 modfile_id=modfile_id,
+                modfile_md5=modfile_md5,
                 notes=notes,
             )
 
@@ -680,6 +824,7 @@ class Workspace:
                 slug=installed.slug,
                 source_path=installed.source_path,
                 modfile_id=modfile_id,
+                modfile_md5=modfile_md5,
                 notes=notes,
                 source_files=installed.source_files,
             )
@@ -692,7 +837,8 @@ class Workspace:
             slug=entry.slug,
             source_path=None,
             modfile_id=modfile_id,
-            provisional=True,
+            modfile_md5=modfile_md5,
+            identity=IDENTITY_UNCHECKED,
             notes=[
                 (
                     "not installed — internal name unknown, it exists only in a "
@@ -730,13 +876,15 @@ def find_file(resolution: Resolution, needle: str) -> Path | list[Path]:
         )
         root = resolution.source_path.parent
     else:
-        # Own mod: walk the directory, match against filename only.
+        # Own mod, or one this run downloaded: no manifest to read a file list
+        # out of, so it comes from the walk _walked_source_files does. Shared
+        # rather than repeated, so the path this hands back and the .cs count
+        # the report prints beside it can never come from two different
+        # traversals of the same directory.
         matches = sorted(
-            [
-                str(p.relative_to(resolution.source_path))
-                for p in resolution.source_path.rglob("*.cs")
-                if needle.lower() in p.name.lower()
-            ]
+            f
+            for f in _walked_source_files(resolution)
+            if needle.lower() in Path(f).name.lower()
         )
         root = resolution.source_path
 
@@ -752,35 +900,87 @@ def download(
 ) -> tuple[Path, list[str]]:
     """Fetch one mod's published build and settle whether it is the mod asked for.
 
+    Only ever for a catalogue-only resolution that has no source of its own.
+    main()'s branch already establishes that, and the guard below establishes
+    it again, because everything after it assumes it: called on any other
+    resolution this would fetch a foreign archive and unpack it over an
+    installed mod's cache folder or a repository in this workspace. A
+    precondition that holds only because the single caller happens to satisfy
+    it is not an enforced one.
+
     steam_backfill's download_release deletes its own scratch directory once
     the bytes are re-uploaded -- it only ever needed the bytes in transit. The
     unpacked copy here is the opposite case: it IS the answer this tool exists
     to give, so it stays under `into` for an agent to read after this function
     returns, rather than being cleaned up on the way out.
 
-    A hit that comes only from the catalogue mirror is provisional
-    (Resolution.provisional) because its internal name is unknowable ahead of
-    time -- that name exists only inside a ModManifest.json, which nothing
-    short of a download can see. Two mods can normalise onto the same lookup
-    key through different name spaces (AutoPlant3 is one mod's internal name
-    and another mod's title), so the archive fetched here is what finally
-    settles it: when a ModManifest.json is found in it AND its name reads
-    cleanly, resolution's internal_name and provisional flag are updated from
-    it, and a manifest name that agrees with neither the queried title nor its
-    slug is reported back as a warning -- the mismatch is surfaced, not
-    silently accepted as a match. The extracted files are returned either way;
-    a warning is a reason to double-check, not a withheld answer. A manifest
-    that does not read cleanly (bad JSON, the wrong shape, a non-string name)
-    leaves resolution exactly as provisional as it arrived, with a warning
-    saying the identity could not be checked -- the download still succeeded,
-    only the check on top of it could not run.
+    Two checks run, in the order in which their failures matter.
+
+    The BYTES are checked first, against the md5 the catalogue mirror carries
+    for this modfile -- the same check steam_backfill.download_release makes,
+    for the same reason. An archive whose bytes are not what mod.io says they
+    are is not unpacked at all, so that one raises. A mirror that does not
+    know the hash (written before this tool captured it, or an entry mod.io
+    sends without one) cannot check: that is reported rather than passed over
+    in silence, but it does not stop the download, since an old mirror
+    resolves names exactly as well as a new one.
+
+    The IDENTITY is checked second, once the files are on disk, and it is what
+    makes a provisional hit final. A catalogue-only hit's internal name is
+    unknowable ahead of time -- it exists only inside a ModManifest.json,
+    which nothing short of a download can see -- and two mods can normalise
+    onto one lookup key through different name spaces (AutoPlant3 is one
+    mod's internal name and another mod's title). So the archive settles it,
+    into one of the three outcomes Resolution.identity distinguishes: the
+    manifest name agrees with the queried title or slug (CONFIRMED), it could
+    not be read at all (UNCONFIRMABLE), or it names a different mod
+    (CONTRADICTED).
+
+    Every outcome other than CONFIRMED is written to resolution.notes as well
+    as to the returned warnings, and that duplication is the point. The
+    warnings are printed once to stderr and dropped; the resolution is what
+    both renderers carry, and what a dispatched agent is handed. A download
+    this tool has ALREADY PROVED is a different mod must not reach that agent
+    as a clean answer.
+
+    The extracted files come back in all three cases: the caller asked for
+    them and they are on disk. A refuted identity is a reason to distrust the
+    answer, not a reason to withhold what was fetched.
     """
+    if resolution.kind != KIND_CATALOGUE or resolution.source_path is not None:
+        raise ValueError(
+            "download() only ever fetches a catalogue-only resolution that has no "
+            f"source of its own; this one is {resolution.kind!r} with source_path "
+            f"{resolution.source_path}"
+        )
+
     server, game, key = _modio_config(sdk_path)
     url = (
         f"{server}/games/{game}/mods/{resolution.mod_id}/files/"
         f"{resolution.modfile_id}/download?api_key={key}"
     )
     payload = _curl(url)
+
+    warnings: list[str] = []
+    if resolution.modfile_md5:
+        digest = hashlib.md5(payload).hexdigest()
+        if digest != resolution.modfile_md5:
+            # Raised before the archive is opened, let alone extracted: bytes
+            # that are not the bytes mod.io published are not this mod's
+            # source, whatever they unpack into.
+            raise ValueError(
+                f"mod {resolution.mod_id}'s modfile {resolution.modfile_id} arrived "
+                f"with md5 {digest}, mod.io says {resolution.modfile_md5} — refusing "
+                "to unpack it"
+            )
+    else:
+        unverified = (
+            "the mirrored catalogue carries no md5 for this build, so the bytes that "
+            "arrived could not be checked against mod.io — re-run with --refresh to "
+            "record it"
+        )
+        warnings.append(unverified)
+        resolution.notes.append(unverified)
 
     target = into.resolve()
     try:
@@ -826,7 +1026,6 @@ def download(
             "truncated in transit"
         ) from error
 
-    warnings: list[str] = []
     manifest = target / "ModManifest.json"
     if manifest.is_file():
         # The archive is foreign data, so a manifest that is not valid JSON,
@@ -842,22 +1041,52 @@ def download(
             if not isinstance(internal, str):
                 raise TypeError(f"'name' is {type(internal).__name__}, not a string")
         except (json.JSONDecodeError, AttributeError, TypeError) as error:
-            warnings.append(
-                f"{manifest} carries no readable mod name ({error}) — the "
-                "downloaded mod's identity could not be checked against the query"
+            # internal_name is deliberately left untouched: a name that could
+            # not be read is not evidence, and half-applying the update would
+            # put an unverified string where a verified one belongs.
+            resolution.identity = IDENTITY_UNCONFIRMABLE
+            unreadable = (
+                f"{manifest} carries no readable mod name ({error}) — the downloaded "
+                "mod's identity could not be checked against the query"
             )
+            warnings.append(unreadable)
+            resolution.notes.append(unreadable)
         else:
             resolution.internal_name = internal
-            resolution.provisional = False
-            if normalise(internal) not in {
+            if normalise(internal) in {
                 normalise(resolution.title),
                 normalise(resolution.slug),
             }:
-                warnings.append(
+                resolution.identity = IDENTITY_CONFIRMED
+            else:
+                # The check ran and came back negative. That is a stronger
+                # statement than "could not confirm", and the resolution has
+                # to carry it: this used to set identity to confirmed one
+                # line above and then report the contradiction into a warning
+                # list that main() prints and discards, so both renderers
+                # showed a clean, settled answer for a download already
+                # proved to be a different mod.
+                resolution.identity = IDENTITY_CONTRADICTED
+                mismatch = (
                     f"the downloaded mod calls itself {internal!r}, which matches "
                     f"neither {resolution.title!r} nor its slug {resolution.slug!r} "
-                    "— check this is the mod you meant"
+                    "— this is not the mod that was asked for, or mod.io's listing "
+                    "and the build disagree"
                 )
+                warnings.append(mismatch)
+                resolution.notes.append(mismatch)
+    else:
+        # An archive with no manifest at all. The download succeeded, so the
+        # resolution is no longer UNCHECKED ("no download has happened"); the
+        # check simply had nothing to run against, which is what
+        # UNCONFIRMABLE says.
+        resolution.identity = IDENTITY_UNCONFIRMABLE
+        absent = (
+            "the downloaded archive contains no ModManifest.json — the mod's "
+            "identity could not be checked against the query"
+        )
+        warnings.append(absent)
+        resolution.notes.append(absent)
     return target, warnings
 
 
@@ -882,9 +1111,14 @@ def _catalogue_path() -> Path:
 def _sdk_path() -> Path | None:
     """SDK_PATH from the environment, or None when it is not set.
 
-    Only the catalogue fetch and --download need it -- every other lookup
-    (cache, repos, an already-mirrored catalogue) works without it, so its
-    absence is a warning at the call site, never a hard failure here.
+    None rather than an exception, because the two call sites need opposite
+    things from the same absence and only they can decide which. The
+    catalogue refresh warns and carries on: every lookup that does not need a
+    fresh mirror still works without it. A --download cannot carry on at all
+    -- the mod.io server URL, game id and read-only key live in that SDK
+    asset and there is nowhere else to read them from -- so main() prints an
+    error there and exits 1. Absent is therefore a hard failure on exactly
+    one of the two paths.
     """
     value = os.environ.get("SDK_PATH")
     return Path(value) if value else None
@@ -967,10 +1201,20 @@ def _display_name(resolution: Resolution) -> str:
     Title first, not the internal name: it is the name that exists for every
     kind except a brand-new own mod with no catalogue entry, whereas the
     internal name is exactly the field a catalogue-only hit does NOT have
-    (Workspace._describe leaves it None until a download settles it). Falls
-    all the way to the mod id, and then to a fixed string, for the one case
-    that has neither -- an own mod with no real id, no dev build and no
-    catalogue entry, which is the state new_mod.py scaffolds.
+    (Workspace._describe leaves it None until a download settles it).
+
+    The mod id is the last fallback and is genuinely reachable: an installed
+    mod whose ModManifest.json carries an empty "name" and whose state.json
+    profile carries an empty one too has neither name, and always has an id.
+    What cannot occur is no name AND no id -- mod_id is None only for an own
+    mod, and an own mod's internal name is its own directory name, which the
+    glob that found it cannot have matched empty. A fixed "(unpublished mod)"
+    used to sit below this, claiming to cover exactly the state new_mod.py
+    scaffolds; that state returns at the internal-name check two lines above
+    and never reached it. So the impossible case now raises instead of being
+    given a plausible-looking name: a resolution that can name itself in no
+    way at all is a defect in whatever built it, and a fixed string would
+    print over it.
     """
     if resolution.title:
         return resolution.title
@@ -978,7 +1222,10 @@ def _display_name(resolution: Resolution) -> str:
         return resolution.internal_name
     if resolution.mod_id is not None:
         return f"mod {resolution.mod_id}"
-    return "(unpublished mod)"
+    raise ValueError(
+        "this resolution carries no title, no internal name and no mod id, so it "
+        "cannot be named at all — no source this tool reads can produce that"
+    )
 
 
 def _status_phrase(resolution: Resolution) -> str:
@@ -996,32 +1243,47 @@ def _status_phrase(resolution: Resolution) -> str:
     source_path in place after a successful fetch instead of building a new
     Resolution.
 
-    Selected on resolution.downloaded, NOT on provisional -- provisional only
-    says whether the archive's identity could be confirmed, and a verified
-    download (provisional False by the time this runs) is still something
-    THIS RUN fetched, not a mod that was already sitting installed. The two
-    facts are reported separately: "downloaded" states what happened, and an
-    unconfirmed identity is called out in addition to it rather than in place
-    of it.
+    Selected on resolution.downloaded, NOT on identity -- identity only says
+    how the check on the archive came out, and a verified download is still
+    something THIS RUN fetched, not a mod that was already sitting installed.
+    The two facts are reported separately: "downloaded" states what happened,
+    and the identity is called out in addition to it rather than in place of
+    it. It takes three phrasings, because a check that could not run and a
+    check that came back negative are not the same news -- the second is the
+    one an agent must not read past.
     """
     if resolution.source_path is None:
         return "not installed" + (
-            ", provisional match" if resolution.provisional else ""
+            ", provisional match" if resolution.identity == IDENTITY_UNCHECKED else ""
         )
 
     availability = (
         "source available" if resolution.source_path.is_dir() else "no source shipped"
     )
     if resolution.downloaded:
-        status = "downloaded" + (
-            ", identity unconfirmed" if resolution.provisional else ""
-        )
+        if resolution.identity == IDENTITY_CONTRADICTED:
+            status = "downloaded, identity mismatch"
+        elif resolution.identity == IDENTITY_CONFIRMED:
+            status = "downloaded"
+        else:
+            status = "downloaded, identity unconfirmed"
     elif resolution.kind == KIND_OWN:
         status = "own mod in this workspace"
     elif resolution.kind == KIND_PARKED:
         status = "installed (temporary/foreign)"
-    else:
+    elif resolution.kind == KIND_INSTALLED:
         status = "installed"
+    else:
+        # Everything above is exhaustive over what this module builds, and a
+        # silent "installed" used to sit here for whatever was left. That
+        # phrase is plausible for any input, which is what makes it the wrong
+        # default: it would report a kind this function has never heard of,
+        # and a catalogue-only resolution that acquired a source_path without
+        # going through a download, as an ordinary installed mod.
+        raise ValueError(
+            f"cannot describe a {resolution.kind!r} resolution that has a source path "
+            "without having been downloaded this run"
+        )
     return f"{status}, {availability}"
 
 
@@ -1047,10 +1309,11 @@ def _walked_source_files(resolution: Resolution) -> list[str]:
     An own mod carries no manifest (ModManifest.json is build-generated, per
     read_own_mods's own docstring), and neither does a freshly downloaded
     catalogue-only mod the moment after main() points its source_path at the
-    unpacked archive -- both need this walk instead, the same one find_file's
-    own-mod branch already does. Shared by _source_count (render()'s Size
-    line) and _resolution_payload (render_json()'s source_files) so the two
-    outputs cannot silently disagree about what "the same facts" means.
+    unpacked archive -- both need this walk instead. The one traversal every
+    caller that needs it shares: find_file's own-mod branch, _source_count
+    (render()'s Size line) and _resolution_payload (render_json()'s
+    source_files), so none of those three can disagree with another about
+    what "the same facts" means.
     """
     if resolution.source_path is None or not resolution.source_path.is_dir():
         return []
@@ -1088,10 +1351,12 @@ def render(resolution: Resolution) -> str:
     failure was eight subagents sent to verify a claim about CoreLib: 19 of
     23 across the run were never told where its source was, and seven fell
     back to `find /` for up to 12h49m. A correct answer nobody can paste into
-    a prompt as it stands changes nothing -- so every line here is either an
-    absolute path or a name the query itself supplied, and nothing requires
-    the reader to already know a mod id, a cache directory layout, or which
-    of the three name spaces (internal, mod.io title, slug) actually matched.
+    a prompt as it stands changes nothing -- so the Source line is always an
+    absolute path, the Names line spells the mod out in every name space it
+    is known in, and the rest (the status clause, Size, Notes) is prose that
+    stands on its own. Nothing here asks the reader to already know a mod id,
+    a cache directory layout, or which of the three name spaces (internal,
+    mod.io title, slug) actually matched.
     """
     lines = [f"{_display_name(resolution)}  —  {_status_phrase(resolution)}"]
 
@@ -1267,19 +1532,22 @@ def main(argv: list[str] | None = None) -> int:
             print(f"warning: {warning}", file=sys.stderr)
         scripts = downloaded / "Scripts"
         result.source_path = scripts if scripts.is_dir() else downloaded
-        # Set here, not inferred later from provisional -- _status_phrase
-        # needs to say "downloaded" regardless of whether the identity check
-        # download() just ran could confirm the manifest name, and
-        # provisional alone cannot carry that: a verified download already
-        # flips provisional back to False.
+        # Set here, not inferred later from identity -- _status_phrase needs
+        # to say "downloaded" regardless of how the identity check came out,
+        # and identity alone cannot carry that: a verified download reads
+        # CONFIRMED, exactly like a mod that was never fetched at all.
         result.downloaded = True
         # The "not installed" note _describe attached before the fetch is now
         # stale -- the mod just was installed, right here -- and notes are the
         # only place render() surfaces it, so leaving it in would print a
-        # downloaded mod as still not installed. Only a catalogue-only result
-        # ever reaches this branch (source_path was None to get here), and
-        # that note text is the one _describe attaches for exactly that case.
-        result.notes = [note for note in result.notes if "not installed" not in note]
+        # downloaded mod as still not installed. Matched on the note's OPENING
+        # words rather than anywhere in it: download() puts its own notes into
+        # this same list, and one of them has to survive this filter even
+        # though it reports that the downloaded archive is *not* the mod that
+        # was asked for.
+        result.notes = [
+            note for note in result.notes if not note.startswith("not installed")
+        ]
 
     if args.file:
         try:
