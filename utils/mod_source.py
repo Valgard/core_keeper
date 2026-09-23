@@ -763,29 +763,48 @@ def download(
     payload = _curl(url)
 
     target = into.resolve()
-    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
-        # Validated in full BEFORE the first write. A member found bad halfway
-        # through extractall() would leave every member before it on disk --
-        # a partial write is still a write, and this archive comes from a
-        # foreign server, so a member name cannot be trusted before it is
-        # checked against the directory it is about to land in.
-        for member in archive.namelist():
-            # `target / member` discards `target` outright when `member` is
-            # itself absolute -- that is pathlib's own join rule for `/`, not
-            # a bug here -- but the joined result then fails is_relative_to
-            # exactly like a "../" traversal does, so this one check catches
-            # both kinds of escape without telling them apart.
-            destination = (target / member).resolve()
-            if not destination.is_relative_to(target):
-                raise ValueError(
-                    f"refusing to extract {member!r} from mod {resolution.mod_id} "
-                    f"— it would land outside {target}"
-                )
-        # Created only once every member is known-safe: a rejected or
-        # corrupted archive must not leave an empty directory behind for the
-        # next run to find and mistake for a completed download.
-        target.mkdir(parents=True, exist_ok=True)
-        archive.extractall(target)
+    try:
+        # The whole archive lifecycle -- open, list, extract -- is inside this
+        # try: a truncated or corrupted response can raise BadZipFile at any
+        # of those three points, not only at construction, and all of them
+        # mean the same thing to a caller: the download did not produce a
+        # usable archive. Re-raised as ValueError so main()'s existing
+        # `except (ValueError, OSError)` around this call already handles it
+        # -- without this, BadZipFile (neither a ValueError nor an OSError)
+        # would escape as a raw traceback instead of a clean error message,
+        # the same class of gap the manifest read below is already guarded
+        # against.
+        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+            # Validated in full BEFORE the first write. A member found bad
+            # halfway through extractall() would leave every member before it
+            # on disk -- a partial write is still a write, and this archive
+            # comes from a foreign server, so a member name cannot be trusted
+            # before it is checked against the directory it is about to land
+            # in.
+            for member in archive.namelist():
+                # `target / member` discards `target` outright when `member`
+                # is itself absolute -- that is pathlib's own join rule for
+                # `/`, not a bug here -- but the joined result then fails
+                # is_relative_to exactly like a "../" traversal does, so this
+                # one check catches both kinds of escape without telling them
+                # apart.
+                destination = (target / member).resolve()
+                if not destination.is_relative_to(target):
+                    raise ValueError(
+                        f"refusing to extract {member!r} from mod {resolution.mod_id} "
+                        f"— it would land outside {target}"
+                    )
+            # Created only once every member is known-safe: a rejected or
+            # corrupted archive must not leave an empty directory behind for
+            # the next run to find and mistake for a completed download.
+            target.mkdir(parents=True, exist_ok=True)
+            archive.extractall(target)
+    except zipfile.BadZipFile as error:
+        raise ValueError(
+            f"mod {resolution.mod_id}'s modfile {resolution.modfile_id} download is "
+            f"not a valid zip archive ({error}) — it may have been corrupted or "
+            "truncated in transit"
+        ) from error
 
     warnings: list[str] = []
     manifest = target / "ModManifest.json"
@@ -918,20 +937,36 @@ def _names_line(resolution: Resolution) -> str:
     return f'internal {internal} · mod.io "{title}" · slug {slug} · modId {mod_id}'
 
 
+def _walked_source_files(resolution: Resolution) -> list[str]:
+    """.cs files under source_path, relative to it -- the fallback for when
+    source_files is empty and there is no manifest to have populated it from.
+
+    An own mod carries no manifest (ModManifest.json is build-generated, per
+    read_own_mods's own docstring), and neither does a freshly downloaded
+    catalogue-only mod the moment after main() points its source_path at the
+    unpacked archive -- both need this walk instead, the same one find_file's
+    own-mod branch already does. Shared by _source_count (render()'s Size
+    line) and _resolution_payload (render_json()'s source_files) so the two
+    outputs cannot silently disagree about what "the same facts" means.
+    """
+    if resolution.source_path is None or not resolution.source_path.is_dir():
+        return []
+    return sorted(
+        str(p.relative_to(resolution.source_path))
+        for p in resolution.source_path.rglob("*.cs")
+    )
+
+
 def _source_count(resolution: Resolution) -> int | None:
     """How many .cs files ship, or None when that cannot be known.
 
     source_files comes straight from the manifest for an installed or parked
-    mod -- no directory walk needed. An own mod carries no manifest
-    (ModManifest.json is build-generated, per read_own_mods's own docstring),
-    and neither does a freshly downloaded catalogue-only mod the moment after
-    main() points its source_path at the unpacked archive -- both fall back
-    to counting the same way find_file's own-mod branch already does.
+    mod -- no directory walk needed; otherwise this counts _walked_source_files.
     """
     if resolution.source_files:
         return len(resolution.source_files)
     if resolution.source_path is not None and resolution.source_path.is_dir():
-        return sum(1 for _ in resolution.source_path.rglob("*.cs"))
+        return len(_walked_source_files(resolution))
     return None
 
 
@@ -971,18 +1006,24 @@ def render(resolution: Resolution) -> str:
 
 
 def _resolution_payload(resolution: Resolution) -> dict:
-    """Resolution as a JSON-safe dict.
+    """Resolution as a JSON-safe dict, carrying the same facts render() does.
 
     dataclasses.asdict copies a Path field verbatim rather than converting
     it, and json.dumps cannot encode one -- so it is stringified explicitly
     here, on the one field known to hold a Path, rather than through a
     default= hook that would silently apply to any OTHER field that later
-    became one.
+    became one. source_files is filled the same way render()'s Size line is
+    (_walked_source_files) when it arrived empty -- an own mod, or a freshly
+    downloaded catalogue-only mod, has no manifest to have populated it from,
+    and asdict() alone would leave it at [] even though render() shows a
+    nonzero .cs count for the very same resolution.
     """
     payload = dataclasses.asdict(resolution)
     payload["source_path"] = (
         str(resolution.source_path) if resolution.source_path is not None else None
     )
+    if not payload["source_files"]:
+        payload["source_files"] = _walked_source_files(resolution)
     return payload
 
 
@@ -1026,6 +1067,13 @@ def main(argv: list[str] | None = None) -> int:
         help="directory holding this repo's own mods (default: %(default)s)",
     )
     args = parser.parse_args(argv)
+    # Resolved here, once, rather than at each use site: an own mod's
+    # source_path is derived from args.workspace (read_own_mods's glob), so a
+    # relative --workspace would otherwise flow straight into the printed
+    # Source line -- and AC2 requires every path in the output to be usable
+    # in a dispatch prompt unchanged, which a path relative to some unknown
+    # future cwd is not.
+    args.workspace = args.workspace.resolve()
 
     sdk_path = _sdk_path()
     catalogue_path = _catalogue_path()
@@ -1063,10 +1111,14 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if isinstance(result, list):
-        print(f"{len(result)} mods match {args.mod!r} — which one?")
+        # Gated the same way the file-ambiguity branch below already is: the
+        # count line is prose for a human, and printing it unconditionally
+        # ahead of the JSON array is exactly what makes --json output on this
+        # branch unparseable as JSON.
         if args.json:
             print(json.dumps([_resolution_payload(r) for r in result]))
         else:
+            print(f"{len(result)} mods match {args.mod!r} — which one?")
             for candidate in result:
                 print()
                 print(render(candidate))

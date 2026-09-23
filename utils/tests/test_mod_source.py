@@ -1294,3 +1294,95 @@ def test_main_download_flag_fetches_an_uninstalled_mod(tmp_path, capsys, monkeyp
     )
     assert downloaded.is_file()
     assert str(downloaded.parent) in out
+
+
+# ---------------------------------------------------------------------------
+# Fix round 1
+# ---------------------------------------------------------------------------
+
+
+def test_main_resolves_a_relative_workspace_to_an_absolute_source_path(
+    tmp_path, capsys, monkeypatch
+):
+    # Finding 1: an own mod's Source line is derived from args.workspace, so
+    # a relative --workspace used to flow straight through to it -- a path an
+    # agent cannot paste into a dispatch prompt unchanged (AC2), since it
+    # would resolve against whatever directory that agent happens to start
+    # in, or not at all.
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    _write_main_catalogue(tmp_path)
+    bottle = _write_bottle(tmp_path)
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
+    _write_repo(tmp_path, "faster-talents", "FasterTalents", 6065498)
+    monkeypatch.chdir(tmp_path)
+
+    code = mod_source.main(["FasterTalents", "--workspace", "."])
+
+    out = capsys.readouterr().out
+    assert code == 0
+    source_line = next(line for line in out.splitlines() if "Source" in line)
+    printed_path = source_line.split(None, 1)[1].strip()
+    assert Path(printed_path).is_absolute()
+
+
+def test_download_raises_a_value_error_for_a_corrupt_archive(tmp_path, monkeypatch):
+    # Finding 2: zipfile.BadZipFile is neither a ValueError nor an OSError --
+    # main()'s download branch only catches those two, so an uncaught
+    # BadZipFile from a truncated or corrupted response would have escaped as
+    # a raw traceback instead of "error: download failed (...)". download()
+    # re-raises it as ValueError so every caller gets one uniform error type.
+    monkeypatch.setattr(
+        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
+    )
+    monkeypatch.setattr(mod_source, "_curl", lambda url: b"not a zip file at all")
+
+    resolution = mod_source.Resolution(
+        kind=mod_source.KIND_CATALOGUE,
+        mod_id=1,
+        internal_name=None,
+        title="Widget",
+        slug="widget",
+        source_path=None,
+        provisional=True,
+    )
+
+    with pytest.raises(ValueError):
+        mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
+
+
+def test_main_json_flag_on_ambiguity_emits_only_json(tmp_path, capsys, monkeypatch):
+    # Finding 3: the file-ambiguity branch already gates its "N files match"
+    # preamble to the non-json case; the mod-ambiguity branch printed its own
+    # preamble unconditionally, which is exactly the case a machine consumer
+    # of --json most needs to parse cleanly. json.loads on the FULL captured
+    # stdout fails outright if any text precedes the array.
+    monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
+    _write_main_catalogue(
+        tmp_path,
+        [
+            (1, "Tool Resizer", "tool-resizer", 1),
+            (2, "ToolResizer", "toolresizer", 2),
+        ],
+    )
+    bottle = _write_bottle(tmp_path)
+    monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
+
+    code = mod_source.main(["ToolResizer", "--json", "--workspace", str(tmp_path)])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 2
+    assert {entry["mod_id"] for entry in payload} == {1, 2}
+
+
+def test_render_json_includes_an_own_mods_walked_cs_files(tmp_path):
+    # Finding 4: render_json's docstring claims "the same facts as render()",
+    # but asdict() alone left source_files at [] for KIND_OWN (no manifest to
+    # have populated it from) while render() prints a nonzero .cs count for
+    # the same resolution via a directory walk. Pin the walked result itself,
+    # not just its length, so a fix that only patches the count elsewhere
+    # (e.g. adds a separate "source_count" field) still fails this.
+    ws = _workspace(tmp_path, own=[("faster-talents", "FasterTalents", 6065498, None)])
+
+    payload = json.loads(mod_source.render_json(ws.resolve("FasterTalents")))
+
+    assert payload["source_files"] == ["FasterTalentsMod.cs"]
