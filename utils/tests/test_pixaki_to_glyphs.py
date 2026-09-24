@@ -23,7 +23,8 @@ def _blank(w=257, h=144):
 
 
 def _paint_rect(img, cell_index, dx, dy, w, h, colour=MAGENTA):
-    """Paint a w×h block at (dx, dy) inside the given cell."""
+    # the multiplication sign below is deliberate typography, not a stray character.
+    """Paint a w×h block at (dx, dy) inside the given cell."""  # noqa: RUF002
     x0 = (cell_index % 32) * 8
     y0 = (cell_index // 32) * 12
     for yy in range(h):
