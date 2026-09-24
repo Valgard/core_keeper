@@ -706,7 +706,7 @@ def test_parse_args_requires_every_publish_relevant_option(drop):
 @pytest.mark.parametrize("value", ["4", "-1", "two"])
 def test_parse_args_rejects_a_required_on_outside_the_flags_enum(value):
     with pytest.raises(SystemExit):
-        nm.parse_args(_MIN_ARGS + ["--required-on", value])
+        nm.parse_args([*_MIN_ARGS, "--required-on", value])
 
 
 @pytest.mark.parametrize("value", [0, 1, 2, 3])
@@ -717,13 +717,13 @@ def test_every_accepted_required_on_has_a_label(value):
     # REQUIRED_ON_LABELS[required_on] once scaffolding has succeeded, so a value
     # argparse accepts but the table lacks is a KeyError at the very end of an
     # otherwise complete run.
-    ns = nm.parse_args(_MIN_ARGS + ["--required-on", str(value)])
+    ns = nm.parse_args([*_MIN_ARGS, "--required-on", str(value)])
     assert ns.required_on == value
     assert value in nm.REQUIRED_ON_LABELS
 
 
 def test_parse_args_defaults_and_flags():
-    ns = nm.parse_args(_MIN_ARGS + ["--corelib"])
+    ns = nm.parse_args([*_MIN_ARGS, "--corelib"])
     assert ns.kebab == "faster-pet-talents"
     assert ns.summary == "Does X"
     assert ns.required_on == 1
