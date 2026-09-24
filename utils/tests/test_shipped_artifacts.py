@@ -92,11 +92,14 @@ def regenerated(tmp_path_factory):
 
 
 def test_pillow_matches_the_pin_in_pyproject():
-    # Byte-identity is the acceptance check every test below relies on, and
-    # PNG bytes are encoder-dependent -- so an unpinned Pillow would turn a
-    # real change and an environment difference into the same failure. This
-    # also catches the likelier accident: running the suite outside the
-    # project environment, where the pin does not apply at all.
+    """The installed Pillow version matches pyproject.toml's exact pin.
+
+    Byte-identity is the acceptance check every test below relies on, and PNG
+    bytes are encoder-dependent -- so an unpinned Pillow would turn a real
+    change and an environment difference into the same failure. This also
+    catches the likelier accident: running the suite outside the project
+    environment, where the pin does not apply at all.
+    """
     deps = tomllib.loads(PYPROJECT.read_text())["project"]["dependencies"]
     pinned = next((d.split("==", 1)[1] for d in deps if d.lower().startswith("pillow==")), None)
     assert pinned, f"{PYPROJECT.name} no longer pins pillow to an exact version"
@@ -107,11 +110,13 @@ def test_pillow_matches_the_pin_in_pyproject():
 
 
 def test_regenerated_atlas_is_byte_identical_to_the_shipped_png(regenerated):
+    """Re-running the generator from the master reproduces the shipped atlas PNG byte-for-byte."""
     sheet, _, _ = regenerated
     assert _sha256(sheet) == _sha256(ATLAS)
 
 
 def test_regenerated_kerning_is_byte_identical_to_the_shipped_matrix(regenerated):
+    """Re-running the generator reproduces the shipped kerning matrix byte-for-byte."""
     _, kerning, _ = regenerated
     assert _sha256(kerning) == _sha256(KERNING)
     # 384 x 384 -- the size the runtime rejects the file for not being.
@@ -119,6 +124,7 @@ def test_regenerated_kerning_is_byte_identical_to_the_shipped_matrix(regenerated
 
 
 def test_widths_constant_matches_what_the_generator_prints(regenerated):
+    """The Widths constant pasted into the C# patch matches what the generator currently prints."""
     _, _, stdout = regenerated
     generated = _digit_rows(stdout)
     constant = re.search(r"Widths\s*=\s*(.*?);", PATCH.read_text(), re.S)
@@ -127,12 +133,15 @@ def test_widths_constant_matches_what_the_generator_prints(regenerated):
 
 
 def test_the_printed_widths_block_is_pasteable_verbatim(regenerated):
-    # The digit comparison above tolerates any layout; this pins the layout
-    # itself. The generator emits what CSharpier would produce (leading `+` on
-    # each continuation line at printWidth 160), so pasting is the last step of
-    # a regeneration. With a trailing `+` the block had to be reformatted
-    # afterwards -- a hand-touch on a string where one lost digit shifts every
-    # later cell's advance and kerning row with nothing to catch it.
+    """The generator's Widths block appears verbatim in the patch file, not just matching digits.
+
+    The digit comparison above tolerates any layout; this pins the layout
+    itself. The generator emits what CSharpier would produce (leading `+` on
+    each continuation line at printWidth 160), so pasting is the last step of
+    a regeneration. With a trailing `+` the block had to be reformatted
+    afterwards -- a hand-touch on a string where one lost digit shifts every
+    later cell's advance and kerning row with nothing to catch it.
+    """
     _, _, stdout = regenerated
     start = stdout.index("        private const string Widths =")
     block = stdout[start : stdout.index(";", start) + 1]
@@ -143,9 +152,12 @@ def test_the_printed_widths_block_is_pasteable_verbatim(regenerated):
 
 
 def test_widths_constant_is_exactly_one_digit_per_cell(regenerated):
-    # A short or long paste shifts every glyph after the error, and the
-    # runtime never checks the length. Asserted as the literal 384 rather
-    # than g.CELLS: a test that reads the constant it verifies cannot catch
-    # that constant being wrong.
+    """The Widths constant has exactly one digit per cell -- 384, the literal count, not g.CELLS.
+
+    A short or long paste shifts every glyph after the error, and the runtime
+    never checks the length. Asserted against the literal 384 rather than
+    g.CELLS, because a test that reads the constant it is verifying cannot
+    catch that constant itself being wrong.
+    """
     constant = re.search(r"Widths\s*=\s*(.*?);", PATCH.read_text(), re.S)
     assert len(_digit_rows(constant.group(1))) == 384
