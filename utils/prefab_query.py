@@ -16,7 +16,8 @@ CLI:
   prefab_query.py <prefab> names              # all named GameObjects (name -> fileID)
   prefab_query.py <prefab> sprite <fileID>    # the m_Sprite of a SpriteRenderer fileID
   prefab_query.py <prefab> tree [Name]        # GO hierarchy + component types + active flag
-  prefab_query.py <prefab> verify             # orphans / broken m_Script / dangling refs (exit 1 if any)
+  prefab_query.py <prefab> verify             # orphans / broken m_Script / dangling refs
+                                               # (exit 1 if any)
   prefab_query.py refresh-ids                 # regenerate ck-script-ids.json from the decompile
 """
 
@@ -57,13 +58,15 @@ def _md4(msg):
         X = list(struct.unpack("<16I", msg[off : off + 64]))
         aa, bb, cc, dd = a, b, c, d
 
-        def F(x, y, z):
+        # Named F/G/H to match RFC 1320's own names for MD4's three round
+        # functions — renaming to lowercase would break the mapping to the spec.
+        def F(x, y, z):  # noqa: N802
             return (x & y) | (~x & z)
 
-        def G(x, y, z):
+        def G(x, y, z):  # noqa: N802
             return (x & y) | (x & z) | (y & z)
 
-        def H(x, y, z):
+        def H(x, y, z):  # noqa: N802
             return x ^ y ^ z
 
         for i in (0, 4, 8, 12):
@@ -225,7 +228,8 @@ if not SCRIPT_FILEID:
 
 def load(path):
     """Return {fileID(str): (classID(str), body(dict))}."""
-    text = open(path).read()
+    with open(path) as fh:
+        text = fh.read()
     objs = {}
     for chunk in re.split(r"^--- ", text, flags=re.M)[1:]:
         header, _, body = chunk.partition("\n")
@@ -260,7 +264,7 @@ def find_go(objs, name):
 
 
 def components(objs, go_fid):
-    cid, body = objs[go_fid]
+    _cid, body = objs[go_fid]
     return [str(c["component"]["fileID"]) for c in body["GameObject"].get("m_Component", [])]
 
 
@@ -318,7 +322,7 @@ def comp_label(objs, comp_fid):
 
 
 def print_tree(objs, fid, depth=0):
-    cid, body = objs.get(fid, (None, None))
+    _cid, body = objs.get(fid, (None, None))
     go = (body or {}).get("GameObject", {}) if body else {}
     name = go.get("m_Name") or "(unnamed)"
     mark = "" if go.get("m_IsActive", 1) else "  [inactive]"
@@ -346,7 +350,7 @@ def dump_go(objs, name):
     if not fid:
         print(f"GameObject '{name}' not found")
         return
-    cid, body = objs[fid]
+    _cid, body = objs[fid]
     go = body["GameObject"]
     print(f"{name}  (fileID {fid})  active={go.get('m_IsActive')}")
     for c in components(objs, fid):
