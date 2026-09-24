@@ -11,13 +11,16 @@ import refresh_game_versions as rg
 
 
 def test_a_build_only_steam_knows_is_reported_as_missing():
+    """A build only Steam's feed knows about is reported missing, with nothing from mod.io."""
     report = rg.compare(known=["1.2.1.5"], steam={"1.2.1.6": "2026-07-01"}, modio=[])
 
     assert "1.2.1.6" in report.missing
 
 
 def test_a_build_only_modio_knows_is_reported_too():
-    """Steam drops day-one hotfixes that never got their own post, so mod.io is
+    """A build that only mod.io's tags know about is reported missing too.
+
+    Steam drops day-one hotfixes that never got their own post, so mod.io is
     not merely a cross-check -- it contributes builds of its own.
     """
     report = rg.compare(known=["1.2.1.5"], steam={}, modio=["1.1.0.1"])
@@ -33,7 +36,9 @@ def test_spellings_that_differ_only_in_padding_are_the_same_build():
 
 
 def test_a_version_in_two_far_apart_entries_is_flagged_as_a_suspected_typo():
-    """`Hotfix 0.7.5.1` appears twice: 2024-03-11, between 0.7.4.0 and 0.7.4.2,
+    """A version recorded on two dates far apart is flagged as a suspected typo.
+
+    `Hotfix 0.7.5.1` appears twice: 2024-03-11, between 0.7.4.0 and 0.7.4.2,
     and 2024-06-05 where it belongs. The first is a mistyped 0.7.4.1, and no
     rule short of reading the dates can tell -- so it is reported, not fixed.
     """
@@ -48,13 +53,16 @@ def test_a_version_in_two_far_apart_entries_is_flagged_as_a_suspected_typo():
 
 
 def test_a_list_that_matches_both_feeds_reports_nothing():
+    """A version confirmed by both feeds reports neither missing nor a suspect."""
     report = rg.compare(known=["1.2.1.5"], steam={"1.2.1.5": "2026-06-08"}, modio=["1.2.1.5"])
 
     assert not report.missing and not report.suspects
 
 
 def test_a_missing_build_keeps_the_date_steam_gave_it():
-    """`missing` holds the padded spelling while `steam` is keyed by the raw
+    """A missing build's date comes from Steam's raw key, not the canonical spelling.
+
+    `missing` holds the padded spelling while `steam` is keyed by the raw
     title, and either side can be the short one — mod.io writes `0.7.4`, Steam
     writes `0.7.5` for what the list calls `0.7.5.0`. Looking the date up by the
     raw key reported such builds as mod.io-only, losing the release date, which
@@ -79,7 +87,9 @@ def _event(gid, name, day, kind=rg.EVENT_SMALL_UPDATE):
 
 
 def test_major_updates_are_parsed_too_not_only_small_ones():
-    """The reason this module reads store events instead of GetNewsForApp: the
+    """Major updates are parsed, not only ones tagged as small updates.
+
+    The reason this module reads store events instead of GetNewsForApp: the
     news API tags small updates and leaves major ones untagged, so filtering it
     by tags=patchnotes drops every major release -- 1.2.0.3 among them.
     """
@@ -98,6 +108,7 @@ def test_major_updates_are_parsed_too_not_only_small_ones():
 
 
 def test_events_that_are_not_updates_are_ignored():
+    """An event whose type is not one of the two update kinds is ignored entirely."""
     versions, _ = rg.parse_events(
         [_event(1, "Core Keeper 2026 Roadmap: 1.3 and beyond", "2026-01-01", 28)]
     )
@@ -106,6 +117,7 @@ def test_events_that_are_not_updates_are_ignored():
 
 
 def test_the_same_version_on_two_days_is_recorded_as_a_duplicate():
+    """A version seen on two dates is recorded as a duplicate, keyed by the earliest sighting."""
     events = [
         _event(1, "Hotfix 0.7.5.1", "2024-03-11"),
         _event(2, "Hotfix 0.7.5.1", "2024-06-05"),
@@ -125,7 +137,9 @@ def test_a_bare_two_segment_number_in_a_title_is_not_a_version():
 
 
 def test_a_mod_io_answer_without_the_version_group_is_an_error_not_an_empty_list():
-    """An expired game key answers with a well-formed JSON error object, which
+    """A mod.io answer with no Game Version group raises, not read as an empty version list.
+
+    An expired game key answers with a well-formed JSON error object, which
     has no tag_options — returning [] for that reported 'mod.io knows no
     versions', and the run then ended with 'both feeds agree'.
     """
@@ -134,6 +148,7 @@ def test_a_mod_io_answer_without_the_version_group_is_an_error_not_an_empty_list
 
 
 def test_the_version_group_is_read_when_it_is_there():
+    """The Game Version group's tags are read, and tags from other groups are not mixed in."""
     game = {
         "tag_options": [
             {"name": "Type", "tags": ["Visual"]},
@@ -145,7 +160,9 @@ def test_the_version_group_is_read_when_it_is_there():
 
 
 def test_two_entries_on_nearby_days_are_not_a_suspected_typo():
-    """Without this the threshold is unasserted: `if True` in its place passed
+    """Two entries close together in time are not flagged as a suspected typo.
+
+    Without this the threshold is unasserted: `if True` in its place passed
     the whole suite, because only the flagging half was ever tested.
     """
     report = rg.compare(
@@ -159,14 +176,18 @@ def test_two_entries_on_nearby_days_are_not_a_suspected_typo():
 
 
 def test_the_gap_is_measured_regardless_of_the_order_the_dates_arrive_in():
-    """They arrive in feed order, not sorted, so dropping the sort turns an
+    """The date gap is measured correctly regardless of the order the dates arrive in.
+
+    They arrive in feed order, not sorted, so dropping the sort turns an
     86-day gap into -86 and the heuristic silently stops firing.
     """
     assert rg._spread_days(["2024-06-05", "2024-03-11"]) == 86
 
 
 def test_the_shipped_version_list_is_sorted_newest_first_without_duplicates():
-    """Curated by hand from two feeds that disagree, so ordering and duplicates
+    """The shipped version list is sorted newest first, with no duplicate entries.
+
+    Curated by hand from two feeds that disagree, so ordering and duplicates
     are the failure modes a reader would not notice.
     """
     import discord_post as dp
