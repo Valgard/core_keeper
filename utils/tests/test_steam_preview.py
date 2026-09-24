@@ -15,10 +15,11 @@ from PIL import Image
 
 
 def _flat_logo(tmp_path, side=1024):
-    """A stand-in logo with nothing for a size assertion to trip over: a single
-    solid colour, which PNG compresses to a few hundred bytes at any
-    resolution. Only fit for a test that needs a *valid small image*, not a
-    hard-to-compress one -- see `_incompressible_logo` for that.
+    """A stand-in logo with nothing for a size assertion to trip over.
+
+    A single solid colour, which PNG compresses to a few hundred bytes at
+    any resolution. Only fit for a test that needs a *valid small image*,
+    not a hard-to-compress one -- see `_incompressible_logo` for that.
     """
     img = Image.new("RGBA", (side, side), (10, 80, 90, 255))
     path = tmp_path / "logo.png"
@@ -76,11 +77,12 @@ def _band_logo(tmp_path, seed=20260826):
 
 
 def test_the_limit_is_the_decimal_megabyte_not_the_binary_one(tmp_path):
-    """Valve documents "roughly one megabyte" and never says which one. This
-    fixture is sized to fall between the two, so accepting it at full resolution
-    is the binary reading and stepping down is the decimal one -- and only the
-    decimal one is safe, because the cost of guessing wrong is paid after the
-    Workshop item has already been created.
+    """Valve documents "roughly one megabyte" and never says which reading is meant.
+
+    This fixture is sized to fall between the two, so accepting it at full
+    resolution is the binary reading and stepping down is the decimal one --
+    and only the decimal one is safe, because the cost of guessing wrong is
+    paid after the Workshop item has already been created.
     """
     src = _band_logo(tmp_path)
     dest = tmp_path / "preview.png"
@@ -92,11 +94,13 @@ def test_the_limit_is_the_decimal_megabyte_not_the_binary_one(tmp_path):
 
 
 def test_the_ladder_yields_the_largest_rung_that_fits(tmp_path):
-    """`derive_preview` promises the *largest* preview that fits, and the only
-    thing enforcing that is LADDER descending. Reversing it still returns
-    something that fits -- the smallest rung fits trivially -- so a test that
-    only asserts "fits" cannot see the difference. This one names the rung above
-    the chosen one and shows it does not fit, which is what "largest" means.
+    """`derive_preview` promises the *largest* preview that fits, not merely one that fits.
+
+    The only thing enforcing that is LADDER descending. Reversing it still
+    returns something that fits -- the smallest rung fits trivially -- so a
+    test that only asserts "fits" cannot see the difference. This one names
+    the rung above the chosen one and shows it does not fit, which is what
+    "largest" means.
     """
     src = _incompressible_logo(tmp_path)
     dest = tmp_path / "preview.png"
@@ -116,21 +120,26 @@ def test_the_ladder_yields_the_largest_rung_that_fits(tmp_path):
 
 
 def test_a_small_image_is_taken_at_full_resolution(tmp_path):
+    """A logo smaller than the ladder's top rung is used at its own resolution.
+
+    It must not be upscaled to 1024² first.
+    """
     src = _flat_logo(tmp_path, side=64)
     dest = tmp_path / "preview.png"
 
     size, how = steam_preview.derive_preview(src, dest)
 
     assert dest.is_file()
-    assert "1024" not in how  # not upscaled
+    assert "1024" not in how
     assert size < steam_preview.LIMIT
 
 
 def test_it_steps_down_until_the_result_fits(tmp_path):
-    """1024² lossless is 3,658,908 bytes for this fixture (measured) -- well
-    over the default limit under either reading of "1 MB" -- so the default can
-    only be met after the ladder has actually come down in resolution, not by
-    accepting the first candidate tried.
+    """The default limit can only be met once the ladder actually comes down in resolution.
+
+    1024² lossless is 3,658,908 bytes for this fixture (measured) -- well
+    over the default limit under either reading of "1 MB" -- so it is not
+    met by accepting the first candidate tried.
     """
     src = _incompressible_logo(tmp_path)
     dest = tmp_path / "preview.png"
@@ -146,6 +155,12 @@ def test_it_steps_down_until_the_result_fits(tmp_path):
 
 
 def test_transparency_survives(tmp_path):
+    """The alpha channel survives resizing and re-encoding.
+
+    The Workshop item page composites the preview onto its own
+    background, so a flattened, opaque result would not be composited
+    correctly.
+    """
     img = Image.new("RGBA", (256, 256), (0, 0, 0, 0))
     img.paste(Image.new("RGBA", (64, 64), (255, 200, 0, 255)), (96, 96))
     src = tmp_path / "logo.png"
@@ -158,11 +173,14 @@ def test_transparency_survives(tmp_path):
 
 
 def test_quantisation_is_the_last_resort_not_the_first(tmp_path):
-    """At limit=400,000, 640² quantised is 399,169 bytes (measured) -- it would
-    also clear this limit, at four times the pixel count of the 256² lossless
-    result. The only way lossless still wins is that the lossless loop runs
-    through the whole ladder before the quantised loop is even entered, which
-    is exactly the preference this test exists to prove.
+    """A larger quantised rung would also clear the limit, but the lossless loop still wins.
+
+    At limit=400,000, 640² quantised is 399,169 bytes (measured) -- it
+    would also clear this limit, at four times the pixel count of the
+    256² lossless result. The only way lossless still wins is that the
+    lossless loop runs through the whole ladder before the quantised loop
+    is even entered, which is exactly the preference this test exists to
+    prove.
     """
     src = _incompressible_logo(tmp_path)
     dest = tmp_path / "preview.png"
@@ -174,11 +192,13 @@ def test_quantisation_is_the_last_resort_not_the_first(tmp_path):
 
 
 def test_the_quantised_path_can_succeed(tmp_path):
-    """No lossless rung fits under 100,000 bytes -- even the smallest, 256², is
-    180,054 bytes (measured) -- but quantised 256² is 45,429 bytes. This is the
-    one test in the suite that takes a *successful* return out of the
-    quantised branch; the impossible-limit test below only ever watches it
-    fail on every rung.
+    """No lossless rung fits under 100,000 bytes, but quantised 256² does.
+
+    Even the smallest lossless rung, 256², is 180,054 bytes (measured),
+    while quantised 256² is 45,429 bytes. This is the one test in the
+    suite that takes a *successful* return out of the quantised branch;
+    the impossible-limit test below only ever watches it fail on every
+    rung.
     """
     src = _incompressible_logo(tmp_path)
     dest = tmp_path / "preview.png"
@@ -190,6 +210,11 @@ def test_the_quantised_path_can_succeed(tmp_path):
 
 
 def test_an_impossible_limit_is_reported_rather_than_silently_shipped(tmp_path):
+    """A limit no rung can meet, lossless or quantised, raises ValueError.
+
+    The alternative would be shipping an over-limit preview that Steam
+    rejects only after the Workshop item already exists.
+    """
     src = _incompressible_logo(tmp_path)
     dest = tmp_path / "preview.png"
 
