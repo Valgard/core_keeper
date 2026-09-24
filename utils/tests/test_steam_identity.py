@@ -37,6 +37,7 @@ MonoBehaviour:
 
 
 def test_reads_the_file_id(tmp_path):
+    """The stored `fileId:` line is read back as an int."""
     asset = tmp_path / "DisableDurability_Steam.asset"
     asset.write_text(ASSET)
 
@@ -46,6 +47,12 @@ def test_reads_the_file_id(tmp_path):
 # modName is the literal field in the *_Steam.asset YAML (the SDK window's own
 # lookup key), not a choice of ours.
 def test_a_stale_modName_does_not_affect_the_read(tmp_path):  # noqa: N802
+    """A stale modName field must not affect reading the id.
+
+    modName is the SDK window's own lookup key and goes stale by design
+    (CoreKeeperModSDK#11) — this module addresses the asset by path, never
+    by that field.
+    """
     asset = tmp_path / "DisableDurability_Steam.asset"
     asset.write_text(
         ASSET.replace("modName: Disable Durability", "modName: something else entirely")
@@ -55,10 +62,16 @@ def test_a_stale_modName_does_not_affect_the_read(tmp_path):  # noqa: N802
 
 
 def test_a_missing_asset_reads_as_no_id(tmp_path):
+    """A missing asset file reads as no id, rather than raising — that is a mod's first publish."""
     assert steam_identity.read_file_id(tmp_path / "absent.asset") is None
 
 
 def test_a_zero_id_reads_as_no_id(tmp_path):
+    """A stored fileId of 0 reads as no id.
+
+    That is the value TEMPLATE writes before anything has ever been
+    published.
+    """
     asset = tmp_path / "x_Steam.asset"
     asset.write_text(ASSET.replace("fileId: 3790345467", "fileId: 0"))
 
@@ -66,6 +79,10 @@ def test_a_zero_id_reads_as_no_id(tmp_path):
 
 
 def test_writing_updates_an_existing_asset_and_leaves_the_rest_alone(tmp_path):
+    """Writing a new id to an existing asset updates only the fileId line.
+
+    Every other field (modOwner, m_Name, …) is left exactly as it was.
+    """
     asset = tmp_path / "DisableDurability_Steam.asset"
     asset.write_text(ASSET)
 
@@ -78,6 +95,10 @@ def test_writing_updates_an_existing_asset_and_leaves_the_rest_alone(tmp_path):
 
 
 def test_writing_creates_the_asset_when_absent(tmp_path):
+    """Writing to a path with no asset yet creates one from TEMPLATE.
+
+    The id, the object's own name, and modName are all filled in.
+    """
     asset = tmp_path / "NewMod_Steam.asset"
 
     steam_identity.write_file_id(asset, 99)
@@ -90,6 +111,11 @@ def test_writing_creates_the_asset_when_absent(tmp_path):
 
 
 def test_creating_the_asset_also_writes_its_meta(tmp_path):
+    """Creating a new asset also writes its .meta, with a fresh GUID and Unity's own importer shape.
+
+    A GUID carrier that only exists after the Editor is next opened is
+    one the repo cannot hold.
+    """
     asset = tmp_path / "NewMod_Steam.asset"
 
     steam_identity.write_file_id(asset, 99)
@@ -103,6 +129,10 @@ def test_creating_the_asset_also_writes_its_meta(tmp_path):
 
 
 def test_two_created_assets_do_not_share_a_guid(tmp_path):
+    """Two assets created in the same run get distinct GUIDs.
+
+    Not the same one reused across meta files.
+    """
     first = tmp_path / "A" / "A_Steam.asset"
     second = tmp_path / "B" / "B_Steam.asset"
 
@@ -116,8 +146,11 @@ def test_two_created_assets_do_not_share_a_guid(tmp_path):
 
 
 def test_updating_an_asset_leaves_an_existing_meta_untouched(tmp_path):
-    # The GUID is Unity's, and once it exists something may reference it. A
-    # publish updates the id inside the asset and must not touch its identity.
+    """Updating an existing asset's id leaves an already-existing .meta completely untouched.
+
+    The GUID is Unity's identity for the asset, and once it exists
+    something may reference it — a publish must never replace it.
+    """
     asset = tmp_path / "DisableDurability_Steam.asset"
     asset.write_text(ASSET)
     meta = asset.with_suffix(".asset.meta")
@@ -129,7 +162,11 @@ def test_updating_an_asset_leaves_an_existing_meta_untouched(tmp_path):
 
 
 def test_creating_an_asset_beside_an_existing_meta_keeps_that_meta(tmp_path):
-    # Asset deleted, meta left behind: its GUID is still the one Unity knows.
+    """Creating an asset where a .meta already exists keeps that meta's GUID, not a new one.
+
+    The asset was deleted, the meta left behind, and Unity still knows
+    the old GUID.
+    """
     asset = tmp_path / "NewMod_Steam.asset"
     meta = asset.with_suffix(".asset.meta")
     meta.write_text("fileFormatVersion: 2\nguid: 0123456789abcdef0123456789abcdef\n")
@@ -140,6 +177,10 @@ def test_creating_an_asset_beside_an_existing_meta_keeps_that_meta(tmp_path):
 
 
 def test_creating_fills_every_field_the_sdk_window_reads(tmp_path):
+    """Creating a new asset with modOwner, selectedPath and tags supplied writes all three.
+
+    Not just the id — these are the fields only the SDK window reads.
+    """
     asset = tmp_path / "NewMod_Steam.asset"
 
     steam_identity.write_file_id(
@@ -157,9 +198,14 @@ def test_creating_fills_every_field_the_sdk_window_reads(tmp_path):
 
 
 def test_updating_refreshes_those_fields_too(tmp_path):
-    # The SDK window's own values go stale — the build path moved once already.
-    # A publish knows the current ones, so it corrects them rather than leaving
-    # the window pointed at a directory that no longer exists.
+    """Updating an existing asset refreshes selectedPath and the tags, but leaves modName alone.
+
+    The SDK window's own values go stale on their own — the build path
+    moved once already — and a publish knows the current ones, so it
+    corrects them rather than leaving the window pointed at a directory
+    that no longer exists. The old tags are replaced, not appended to,
+    and modName stays the window's own value, not ours to touch.
+    """
     asset = tmp_path / "DisableDurability_Steam.asset"
     asset.write_text(ASSET)
 
@@ -175,13 +221,15 @@ def test_updating_refreshes_those_fields_too(tmp_path):
     assert "selectedPath: /new/path/DisableDurability" in text
     assert "tags:\n  - Client\n" in text
     assert "/var/folders" not in text
-    assert "- Script" not in text  # the old list is replaced, not appended to
-    assert "modName: Disable Durability" in text  # still not ours to touch
+    assert "- Script" not in text
+    assert "modName: Disable Durability" in text
 
 
 def test_omitted_fields_are_left_exactly_as_they_were(tmp_path):
-    # A caller without a live Steam session cannot know modOwner; passing
-    # nothing must not blank out what is already there.
+    """Omitting modOwner, selectedPath and tags on a write must not blank out what is already there.
+
+    A caller without a live Steam session cannot know modOwner at all.
+    """
     asset = tmp_path / "DisableDurability_Steam.asset"
     asset.write_text(ASSET)
 
@@ -194,6 +242,10 @@ def test_omitted_fields_are_left_exactly_as_they_were(tmp_path):
 
 
 def test_an_empty_tag_list_is_written_as_the_sdk_writes_it(tmp_path):
+    """An empty tag list is written as the single-line `tags: []`, matching the SDK's own shape.
+
+    Not as an empty multi-line sequence.
+    """
     asset = tmp_path / "NewMod_Steam.asset"
 
     steam_identity.write_file_id(asset, 99, tags=[])
@@ -202,6 +254,10 @@ def test_an_empty_tag_list_is_written_as_the_sdk_writes_it(tmp_path):
 
 
 def test_writing_refuses_an_existing_file_it_does_not_recognize(tmp_path):
+    """An existing file with no `fileId:` line is refused, not silently replaced by a template.
+
+    It is left byte-for-byte unmodified when the refusal happens.
+    """
     asset = tmp_path / "Unrecognized_Steam.asset"
     original = "this is not a Steam asset at all\n"
     asset.write_text(original)
@@ -209,16 +265,17 @@ def test_writing_refuses_an_existing_file_it_does_not_recognize(tmp_path):
     with pytest.raises(ValueError, match="fileId"):
         steam_identity.write_file_id(asset, 99)
 
-    # The whole point of the guard: an unrecognized file must be left exactly
-    # as it was, never silently replaced by a fresh template.
     assert asset.read_text() == original
 
 
 def test_a_permission_error_is_not_read_as_no_id(tmp_path):
-    # Only a MISSING file may read as "no id". An existing file that cannot be
-    # read for some other reason is a real problem with an asset that DOES
-    # exist, and folding it into "no id" would make a publish create a second
-    # Workshop item over one whose id merely could not be read.
+    """Only a missing file may read as "no id".
+
+    A permission error on a file that exists is a real problem and must
+    propagate, not be folded into "no id" — that would make a publish
+    create a second Workshop item over one whose id merely could not be
+    read.
+    """
     asset = tmp_path / "DisableDurability_Steam.asset"
     asset.write_text(ASSET)
     asset.chmod(0)
@@ -231,11 +288,16 @@ def test_a_permission_error_is_not_read_as_no_id(tmp_path):
 
 
 def test_ensure_recognizable_accepts_a_missing_asset(tmp_path):
-    # A mod's first publish: nothing to recognize yet, nothing to reject.
+    """A missing asset is accepted without complaint.
+
+    A mod's first publish has nothing to recognise yet, and nothing to
+    reject.
+    """
     steam_identity.ensure_recognizable(tmp_path / "absent.asset")
 
 
 def test_ensure_recognizable_accepts_a_valid_asset(tmp_path):
+    """A valid, recognisable asset passes through ensure_recognizable without raising."""
     asset = tmp_path / "DisableDurability_Steam.asset"
     asset.write_text(ASSET)
 
@@ -243,8 +305,11 @@ def test_ensure_recognizable_accepts_a_valid_asset(tmp_path):
 
 
 def test_ensure_recognizable_rejects_what_write_file_id_would_refuse(tmp_path):
-    # The whole point: this must raise on the SAME files write_file_id
-    # refuses, and it must do so before any Steam call, not after.
+    """ensure_recognizable raises on exactly the files write_file_id would refuse.
+
+    Checked before any Steam call, not after, so a bad asset aborts
+    before a Workshop item is even created.
+    """
     asset = tmp_path / "Unrecognized_Steam.asset"
     asset.write_text("this is not a Steam asset at all\n")
 
@@ -253,10 +318,12 @@ def test_ensure_recognizable_rejects_what_write_file_id_would_refuse(tmp_path):
 
 
 def test_the_id_is_written_even_if_the_template_stops_carrying_it(tmp_path, monkeypatch):
-    # Guards the write that looks redundant on the create path. It is what makes
-    # the id arrive by one mechanism on both paths, so deleting it as dead code
-    # would leave creation depending on TEMPLATE's {file_id} alone — and re.sub
-    # is silent on a non-match, so nothing else here would notice.
+    """The id-substitution step fills in the id even without a `{file_id}` placeholder in TEMPLATE.
+
+    Guards the line that looks redundant on the create path: re.sub is
+    silent on a non-match, so nothing else here would notice it stopped
+    working.
+    """
     monkeypatch.setattr(
         steam_identity,
         "TEMPLATE",
@@ -270,6 +337,7 @@ def test_the_id_is_written_even_if_the_template_stops_carrying_it(tmp_path, monk
 
 
 def test_the_asset_path_is_where_a_mod_repo_keeps_it(tmp_path):
+    """asset_path computes the same unity/<Mod>/<Mod>_Steam.asset layout every mod repo uses."""
     assert (
         steam_identity.asset_path(tmp_path, "DisableDurability")
         == tmp_path / "unity" / "DisableDurability" / "DisableDurability_Steam.asset"
@@ -299,6 +367,7 @@ def repo(tmp_path):
 
 @needs_git
 def test_a_committed_asset_is_seen_as_tracked(repo):
+    """A committed (staged) asset is reported as tracked."""
     subprocess.run(["git", "-C", str(repo.parent), "add", repo.name], check=True, env=GIT_ENV)
 
     assert steam_identity.is_tracked(repo) is True
@@ -306,12 +375,16 @@ def test_a_committed_asset_is_seen_as_tracked(repo):
 
 @needs_git
 def test_an_untracked_asset_is_seen_as_untracked(repo):
+    """An asset that exists in a repo but was never `git add`-ed is reported as untracked."""
     assert steam_identity.is_tracked(repo) is False
 
 
 def test_outside_a_repo_the_question_has_no_answer(tmp_path):
-    # Not False: "git cannot tell us" and "git says no" must not collapse into
-    # one, or an unusual setup would be reported as a hazard it is not in.
+    """Outside any git repository, is_tracked answers None, not False.
+
+    Collapsing "git cannot tell us" into "git says no" would report an
+    unusual setup as a hazard it is not actually in.
+    """
     asset = tmp_path / "Loose_Steam.asset"
     asset.write_text(ASSET)
 
@@ -320,10 +393,13 @@ def test_outside_a_repo_the_question_has_no_answer(tmp_path):
 
 @needs_git
 def test_without_git_the_question_has_no_answer(repo, monkeypatch):
-    # Deliberately an asset that IS in a repo and IS untracked, so a real
-    # answer of False is available — and must still come back as None once the
-    # binary is gone. In a non-repo directory both paths return None and the
-    # test could not tell them apart.
+    """With no git binary on PATH, is_tracked answers None even for a genuinely untracked asset.
+
+    Deliberately an asset that IS in a repo and IS untracked, so a real
+    False answer is available here and must still be suppressed — a
+    non-repo directory, where both paths already return None, could not
+    prove that.
+    """
     monkeypatch.setattr(steam_identity.shutil, "which", lambda _: None)
 
     assert steam_identity.is_tracked(repo) is None
@@ -334,11 +410,14 @@ def test_without_git_the_question_has_no_answer(repo, monkeypatch):
 def test_an_inherited_GIT_DIR_does_not_answer_for_another_repo(  # noqa: N802
     repo, tmp_path, monkeypatch
 ):
-    # GIT_DIR and GIT_INDEX_FILE outrank -C. Inherited from whatever invoked
-    # the publish, they would have git answer about a different repository —
-    # and the answer that costs something is the false "tracked", which would
-    # withhold the warning on the one asset that needs it. Same defence
-    # check_docs_wrapping.markdown_files already documents.
+    """An inherited GIT_DIR/GIT_INDEX_FILE must not make is_tracked answer for a foreign repo.
+
+    GIT_DIR and GIT_INDEX_FILE outrank -C, and could be inherited from
+    whatever invoked the publish. The costly wrong answer is a false
+    "tracked", which would withhold the warning on the one asset that
+    actually needs it. Same defence check_docs_wrapping.markdown_files
+    already documents.
+    """
     subprocess.run(["git", "-C", str(repo.parent), "add", repo.name], check=True, env=GIT_ENV)
     decoy = tmp_path / "decoy"
     subprocess.run(["git", "init", "-q", str(decoy)], check=True, env=GIT_ENV)
@@ -350,17 +429,21 @@ def test_an_inherited_GIT_DIR_does_not_answer_for_another_repo(  # noqa: N802
 
 @needs_git
 def test_ensure_recognizable_warns_about_an_untracked_asset(repo, capsys):
+    """An untracked asset gets a warning that carries the fix, not just the diagnosis.
+
+    This is read in the middle of a publish, by someone who is not
+    thinking about git.
+    """
     steam_identity.ensure_recognizable(repo)
 
     err = capsys.readouterr().err
     assert "not tracked by git" in err
-    # The message has to carry the fix, not just the diagnosis: this is read
-    # in the middle of a publish, by someone who is not thinking about git.
     assert f"git add {repo}" in err
 
 
 @needs_git
 def test_ensure_recognizable_stays_quiet_about_a_tracked_asset(repo, capsys):
+    """A tracked asset produces no warning at all."""
     subprocess.run(["git", "-C", str(repo.parent), "add", repo.name], check=True, env=GIT_ENV)
 
     steam_identity.ensure_recognizable(repo)
@@ -369,6 +452,10 @@ def test_ensure_recognizable_stays_quiet_about_a_tracked_asset(repo, capsys):
 
 
 def test_ensure_recognizable_stays_quiet_when_git_cannot_answer(tmp_path, capsys):
+    """When git cannot answer at all (no repository here), ensure_recognizable stays quiet.
+
+    Rather than warning on an unanswerable question.
+    """
     asset = tmp_path / "Loose_Steam.asset"
     asset.write_text(ASSET)
 
@@ -378,8 +465,11 @@ def test_ensure_recognizable_stays_quiet_when_git_cannot_answer(tmp_path, capsys
 
 
 def test_ensure_recognizable_says_nothing_about_an_asset_that_does_not_exist(tmp_path, capsys):
-    # A mod's first publish. There is no file to track yet, so a warning here
-    # would be advice about something that does not exist.
+    """A missing asset produces no warning.
+
+    A mod's first publish has no file to track yet, and a warning here
+    would be advice about something that does not exist.
+    """
     steam_identity.ensure_recognizable(tmp_path / "absent.asset")
 
     assert capsys.readouterr().err == ""
@@ -387,8 +477,11 @@ def test_ensure_recognizable_says_nothing_about_an_asset_that_does_not_exist(tmp
 
 @needs_git
 def test_a_bad_asset_is_refused_before_it_is_judged_on_tracking(repo, capsys):
-    # Order matters: an asset that will not hold an id at all is the bigger
-    # problem, and burying that raise under a git note would read as advice.
+    """A bad asset (no fileId line) is refused before its tracking status is ever checked.
+
+    Order matters: the bigger problem must not be buried under a git
+    note that would read as mere advice.
+    """
     repo.write_text("this is not a Steam asset at all\n")
 
     with pytest.raises(ValueError, match="fileId"):
