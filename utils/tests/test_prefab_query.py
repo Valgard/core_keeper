@@ -1,3 +1,5 @@
+"""Tests for prefab_query.py, the Unity prefab/scene YAML inspection CLI."""
+
 import json
 
 import prefab_query as pq
@@ -5,6 +7,12 @@ import pytest
 
 
 def test_fileid_known_anchors():
+    r"""Pin fileid()'s MD4-based hash against script IDs already live in the SDK.
+
+    A change to the hash construction (the "s\0\0\0" prefix, the digest
+    truncation, or the signed-int32 interpretation) would surface here
+    instead of only as a wrong label in prefab_query's CLI output.
+    """
     assert pq.fileid("PugText") == 1873953792
     assert pq.fileid("LinearLayoutUIComponent") == -2136513284
     assert pq.fileid("WrapperUIComponent") == -601971722
@@ -13,6 +21,12 @@ def test_fileid_known_anchors():
 
 
 def test_is_component_transitive():
+    """is_component() must classify direct, indirect, dead-end and cyclic base chains correctly.
+
+    A base chain that never reaches MonoBehaviour/ScriptableObject is False,
+    and a cycle (A -> B -> A) must terminate as False rather than recursing
+    forever.
+    """
     base_of = {
         "PugText": "UIComponentMonoBehaviour",
         "UIComponentMonoBehaviour": "MonoBehaviour",  # indirect -> True
@@ -31,6 +45,12 @@ def test_is_component_transitive():
 
 
 def test_parse_decompile_collects_decls(tmp_path):
+    """parse_decompile() tracks the enclosing namespace by brace depth, keeping only the first base.
+
+    A namespaced class (Widget) is attributed to "Foo", a top-level class
+    (Global) to the empty namespace, and a class with two bases (Global :
+    Widget, IThing) records only the first — the token is_component() walks.
+    """
     (tmp_path / "Fake.decompiled.cs").write_text(
         "namespace Foo {\n"
         "  public class Widget : MonoBehaviour {\n"
@@ -49,6 +69,12 @@ def test_parse_decompile_collects_decls(tmp_path):
 
 
 def test_build_script_ids_components_only():
+    """build_script_ids() keeps only classes tracing back to a MonoBehaviour/ScriptableObject root.
+
+    Helper derives from Plain, a non-component, so it is excluded even though
+    it is a distinct class from Plain itself — classification follows the
+    base chain, not mere absence from the non-component set.
+    """
     decls = [
         ("", "Comp", "MonoBehaviour"),
         ("", "Plain", None),
@@ -59,13 +85,15 @@ def test_build_script_ids_components_only():
 
 
 def test_build_script_ids_same_name_different_namespace():
-    # Both are components (different namespaces -> different fileIDs) => both kept.
-    # A non-component sharing the name (base None) is excluded, not confused with
-    # the component variant.
+    """Two same-named components in different namespaces are both kept under their own fileIDs.
+
+    A third class sharing the same name but not deriving from a component
+    root is dropped rather than confused with either component variant.
+    """
     decls = [
         ("NsA", "Runner", "MonoBehaviour"),
         ("NsB", "Runner", "MonoBehaviour"),
-        ("NsC", "Runner", None),  # not a component -> dropped, no false positive
+        ("NsC", "Runner", None),
     ]
     result = pq.build_script_ids(decls)
     assert result == {
@@ -75,6 +103,11 @@ def test_build_script_ids_same_name_different_namespace():
 
 
 def test_build_script_ids_collision_raises(monkeypatch):
+    """Two distinct classes forced to the same fileID raise ValueError naming the collision.
+
+    Without this guard, the second class would silently overwrite the
+    first's entry in the output map instead of surfacing the hash clash.
+    """
     decls = [("", "Foo", "MonoBehaviour"), ("", "Bar", "MonoBehaviour")]
     monkeypatch.setattr(pq, "fileid", lambda name, namespace="": 42)
     with pytest.raises(ValueError, match="collision"):
@@ -82,16 +115,32 @@ def test_build_script_ids_collision_raises(monkeypatch):
 
 
 def test_load_script_ids_missing(tmp_path):
+    """A missing ck-script-ids.json is tolerated as an empty map rather than raising.
+
+    Without this, prefab_query would traceback at import before the first
+    `refresh-ids` run instead of merely falling back to short guid labels.
+    """
     assert pq._load_script_ids(str(tmp_path / "nope.json")) == {}
 
 
 def test_load_script_ids_corrupt(tmp_path):
+    """A corrupt ck-script-ids.json is tolerated as an empty map, not an unhandled JSONDecodeError.
+
+    Tolerating it lets `refresh-ids` overwrite the file instead of every
+    command tracebacking at import.
+    """
     bad = tmp_path / "corrupt.json"
     bad.write_text("{ not valid json", encoding="utf-8")
     assert pq._load_script_ids(str(bad)) == {}
 
 
 def test_refresh_ids_end_to_end(tmp_path):
+    """refresh_ids() writes the components the decompile scan found; Helper stays out.
+
+    Helper is not a component and must be absent from both the returned
+    mapping and the JSON written to disk, which must match the mapping
+    exactly.
+    """
     decomp = tmp_path / "decomp"
     decomp.mkdir()
     (decomp / "Fake.decompiled.cs").write_text(
@@ -110,11 +159,17 @@ def test_refresh_ids_end_to_end(tmp_path):
 
 
 def test_refresh_ids_missing_decompile(tmp_path):
+    """refresh_ids() exits (SystemExit) instead of tracebacking on a missing decompile dir."""
     with pytest.raises(SystemExit):
         pq.refresh_ids(str(tmp_path / "absent"), str(tmp_path / "ids.json"))
 
 
 def test_comp_label_resolves_and_falls_back(monkeypatch):
+    """comp_label() resolves a known fileID via SCRIPT_FILEID, else falls back to a short guid.
+
+    An unresolvable fileID (999) must not raise or render blank — it renders
+    as "MonoBehaviour[<8-char guid prefix>]" so the CLI output stays usable.
+    """
     monkeypatch.setattr(pq, "SCRIPT_FILEID", {"1873953792": "PugText"})
     objs = {
         "10": (
@@ -131,6 +186,12 @@ def test_comp_label_resolves_and_falls_back(monkeypatch):
 
 
 def test_generated_json_covers_known_repo_ids():
+    """The committed ck-script-ids.json still maps a handful of fileIDs several mod repos rely on.
+
+    A regeneration that silently dropped or renamed one of these entries
+    would be caught here, rather than only when a mod repo's prefab shows a
+    guid label or a missing component in-game.
+    """
     ids = pq._load_script_ids()
     assert ids.get("1873953792") == "PugText"
     assert ids.get("197547074") == "UIScrollWindow"
