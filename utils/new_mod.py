@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Deterministic new-mod scaffold generator (see
-docs/specs/2026-06-28-new-mod-scaffold-generator-design.md).
+"""Deterministic new-mod scaffold generator.
+
+See docs/specs/2026-06-28-new-mod-scaffold-generator-design.md.
 """
 
 import argparse
@@ -111,8 +112,9 @@ def new_guid() -> str:
 
 
 def next_fake_mod_id(existing_ids) -> int:
-    """The next free fake mod.io ID: one below the lowest existing, or the base
-    if none are in use yet.
+    """The next free fake mod.io ID: one below the lowest existing id in use.
+
+    Falls back to the base value when none are in use yet.
     """
     if not existing_ids:
         return _FAKE_MOD_ID_BASE
@@ -123,9 +125,10 @@ def next_fake_mod_id(existing_ids) -> int:
 
 
 def build_runtime_asmdef(mod_name: str, dll_names, corelib: bool = False) -> str:
-    """The mod's runtime assembly definition: the 14 Unity references plus the
-    live-scanned game DLLs as precompiled references. Mirrors the object the
-    wizard assembles in ModBuilderWindow.cs:96-119.
+    """The mod's runtime assembly definition: 14 Unity references plus the live-scanned game DLLs.
+
+    Precompiled references, mirroring the object the wizard assembles in
+    ModBuilderWindow.cs:96-119.
 
     A CoreLib mod needs *two* separate wirings, and having only one is a
     scaffold that fails late: the `.asset` dependency makes the loader require
@@ -154,9 +157,10 @@ def build_runtime_asmdef(mod_name: str, dll_names, corelib: bool = False) -> str
 
 
 def build_editor_asmdef(mod_name: str) -> str:
-    """The mod's Editor assembly definition — Editor-only, references the
-    runtime assembly plus the SDK editor assemblies, pulls in the modio plugin
-    so the shared CLI*Helper sources compile.
+    """The mod's Editor assembly definition — Editor-only.
+
+    References the runtime assembly plus the SDK editor assemblies, and pulls
+    in the modio plugin so the shared CLI*Helper sources compile.
     """
     data = {
         "name": f"{mod_name}.Editor",
@@ -179,8 +183,10 @@ def build_editor_asmdef(mod_name: str) -> str:
 
 
 def _render_dependencies(dependencies) -> str:
-    """The `dependencies:` value inside the metadata block — `[]` when empty,
-    otherwise a YAML list of `- modName: X` / `required: N` entries.
+    """The `dependencies:` value inside the metadata block.
+
+    `[]` when empty, otherwise a YAML list of `- modName: X` / `required: N`
+    entries.
     """
     if not dependencies:
         return "    dependencies: []"
@@ -199,9 +205,11 @@ def build_asset_yaml(
     *,
     required_on: int,
 ) -> str:
-    """The ModBuilderSettings `.asset` — the build entry point. Binds the SDK
-    ModBuilderSettings class verbatim; `metadata.guid` must be freshly unique
-    per mod or the loader crashes with "Data block loader already added".
+    """The ModBuilderSettings `.asset` — the build entry point.
+
+    Binds the SDK ModBuilderSettings class verbatim; `metadata.guid` must be
+    freshly unique per mod or the loader crashes with "Data block loader
+    already added".
 
     `required_on` is deliberately keyword-only and has **no default**. It used
     to default to 3, which is how three published mods ended up needlessly
@@ -245,9 +253,11 @@ MonoBehaviour:
 
 
 def build_modio_asset_yaml(mod_name: str, modsettings_guid: str, mod_id: int = 0) -> str:
-    """The `<Mod>_modio.asset` — holds the mod.io ID and cross-references this
-    mod's ModBuilderSettings asset by its (freshly-generated) `.asset.meta`
-    GUID. `modId` is 0 until the first publish assigns the real one.
+    """The `<Mod>_modio.asset` — holds the mod.io ID and its cross-reference.
+
+    Cross-references this mod's ModBuilderSettings asset by its
+    (freshly-generated) `.asset.meta` GUID. `modId` is 0 until the first
+    publish assigns the real one.
     """
     return f"""%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
@@ -306,17 +316,19 @@ DefaultImporter:
 
 
 def build_script_meta(guid: str) -> str:
-    """Minimal C# script .meta — just the GUID carrier. Unity regenerates the
-    MonoImporter block on import; the existing mods all use this minimal form.
+    """Minimal C# script .meta — just the GUID carrier.
+
+    Unity regenerates the MonoImporter block on import; the existing mods all
+    use this minimal form.
     """
     return f"fileFormatVersion: 2\nguid: {guid}\n"
 
 
 def build_native_asset_meta(guid: str) -> str:
-    """ScriptableObject .asset .meta — NativeFormatImporter pointing at the
-    MonoBehaviour main object (fileID 11400000).
+    """ScriptableObject .asset .meta — NativeFormatImporter pointing at fileID 11400000.
 
-    Taken from steam_identity rather than spelled out again, because the copy
+    That fileID is the MonoBehaviour main object. Taken from steam_identity
+    rather than spelled out again, because the copy
     that used to live here dropped the trailing space Unity writes after
     `userData:`, `assetBundleName:` and `assetBundleVariant:`. Every scaffolded
     asset therefore carried a `.meta` Unity rewrote on the first import —
@@ -339,8 +351,9 @@ AssemblyDefinitionImporter:
 
 
 def build_texture_meta(guid: str) -> str:
-    """PNG .meta — the TextureImporter block (captured from a working mod's
-    logo.png.meta), with a fresh GUID. Imports the placeholder as a texture so
+    """PNG .meta — the TextureImporter block, captured from a working mod's logo.png.meta.
+
+    A fresh GUID each time. Imports the placeholder as a texture so
     `_modio.asset`/the build never see a missing asset.
     """
     return f"""fileFormatVersion: 2
@@ -454,9 +467,11 @@ TextureImporter:
 
 
 def build_bootstrap_cs(mod_name: str) -> str:
-    """The IMod bootstrap. The loader instantiates this on game start and calls
-    the lifecycle methods; Harmony patch classes are auto-discovered, so there
-    is no PatchAll() call. The author adds patch + config classes later.
+    """The IMod bootstrap.
+
+    The loader instantiates this on game start and calls the lifecycle
+    methods; Harmony patch classes are auto-discovered, so there is no
+    PatchAll() call. The author adds patch + config classes later.
     """
     return f"""using PugMod;
 using UnityEngine;
@@ -496,9 +511,10 @@ namespace {mod_name}
 
 
 def build_envrc(mod_name: str, kebab: str, summary: str, fake_mod_id: int, modio_type: str) -> str:
-    """The mod's environment file. Machine-shared paths (SDK_PATH, UNITY_BIN,
-    …) are inherited from the parent core_keeper/.envrc; only the project-
-    inherent identity vars live here. Used for both `.envrc` (gitignored) and
+    """The mod's environment file: only the project-inherent identity vars.
+
+    Machine-shared paths (SDK_PATH, UNITY_BIN, …) are inherited from the
+    parent core_keeper/.envrc instead. Used for both `.envrc` (gitignored) and
     `.envrc.example` (tracked) — the identity is the same in both.
 
     This file is part of the *publish* contract, not just the build one:
@@ -599,9 +615,11 @@ export LOC_OUT="$PWD/unity/$MOD_NAME/Localization/Generated"
 
 
 def build_gitignore(mod_name: str) -> str:
-    """The mod's .gitignore. The Editor-helper sources are symlinked in by
-    link.sh and their .meta are Unity-generated; neither belongs in the repo,
-    so they are ignored by their mod-name-specific paths.
+    """The mod's .gitignore.
+
+    The Editor-helper sources are symlinked in by link.sh and their .meta are
+    Unity-generated; neither belongs in the repo, so they are ignored by their
+    mod-name-specific paths.
     """
     return f"""# macOS
 .DS_Store
@@ -675,8 +693,10 @@ def build_steam_description(display_name: str, summary: str) -> str:
 
 
 def build_changelog() -> str:
-    """A starter CHANGELOG. The publish helper reads the top `## [x.y.z]` as the
-    version, so a new mod starts at 0.1.0.
+    """A starter CHANGELOG.
+
+    The publish helper reads the top `## [x.y.z]` as the version, so a new
+    mod starts at 0.1.0.
     """
     return """# Changelog
 
@@ -715,10 +735,11 @@ def build_localization_yaml(mod_name: str) -> str:
 
 
 def build_csharpierrc() -> str:
-    """The formatting-gate CSharpier config. `printWidth` is deliberately 160,
-    not CSharpier's default of 100 — matches every existing mod repo (see the
-    parent CLAUDE.md's Formatting gate section). Identical across mods, so
-    unparameterized.
+    """The formatting-gate CSharpier config.
+
+    `printWidth` is deliberately 160, not CSharpier's default of 100 —
+    matches every existing mod repo (see the parent CLAUDE.md's Formatting
+    gate section). Identical across mods, so unparameterized.
     """
     return """{
     "printWidth": 160
@@ -754,8 +775,7 @@ def build_csharpierignore() -> str:
 
 
 def build_precommit_config() -> str:
-    """The repo's three gates, all at `pre-commit` and `pre-push`, matching
-    every existing mod repo.
+    """The repo's three gates, all at `pre-commit` and `pre-push`, matching every existing mod repo.
 
     `csharpier check` blocks, it does not rewrite. `docs-links` runs the
     parent repo's checker over this repo — a dead relative link or an
@@ -834,10 +854,11 @@ def build_precommit_config() -> str:
 
 
 def build_dotnet_tools_json() -> str:
-    """The pinned CSharpier tool manifest. Lives under `.config/`, not the
-    repo root — `dotnet new tool-manifest` writes it to the root under .NET
-    10, but the convention here is to move it; `dotnet tool restore` accepts
-    either location.
+    """The pinned CSharpier tool manifest.
+
+    Lives under `.config/`, not the repo root — `dotnet new tool-manifest`
+    writes it to the root under .NET 10, but the convention here is to move
+    it; `dotnet tool restore` accepts either location.
     """
     return """{
   "version": 1,
@@ -868,8 +889,9 @@ def _png_chunk(tag: bytes, data: bytes) -> bytes:
 
 
 def placeholder_png_bytes(size: int = 64) -> bytes:
-    """A real, valid solid-colour RGBA PNG to stand in until a real logo is
-    dropped in. Built from stdlib (zlib) — no image library dependency.
+    """A real, valid solid-colour RGBA PNG to stand in until a real logo is dropped in.
+
+    Built from stdlib (zlib) — no image library dependency.
     """
     pixel = bytes((40, 40, 40, 255))
     raw = b"".join(b"\x00" + pixel * size for _ in range(size))  # filter byte 0 per row
@@ -886,10 +908,11 @@ def placeholder_png_bytes(size: int = 64) -> bytes:
 
 
 def scan_dlls(sdk_path) -> list:
-    """The game/SDK DLL basenames for the runtime asmdef's precompiled
-    references. Scans `Assets/Plugins/CoreKeeper` and `…/CoreKeeperModSDK`
-    recursively — exactly the dirs the wizard scans — so the set stays current
-    across game updates. Returns sorted, de-duplicated basenames.
+    """The game/SDK DLL basenames for the runtime asmdef's precompiled references.
+
+    Scans `Assets/Plugins/CoreKeeper` and `…/CoreKeeperModSDK` recursively —
+    exactly the dirs the wizard scans — so the set stays current across game
+    updates. Returns sorted, de-duplicated basenames.
     """
     sdk = pathlib.Path(sdk_path)
     roots = [
@@ -918,10 +941,11 @@ def build_plan(
     name: str | None = None,
     display_name: str | None = None,
 ):
-    """Assemble the complete (relpath, content) plan for a new mod. Content is
-    str for text files and bytes for the PNG. All GUIDs are minted here so the
-    one cross-reference — the modio asset pointing at the .asset.meta GUID —
-    stays internally consistent.
+    """Assemble the complete (relpath, content) plan for a new mod.
+
+    Content is str for text files and bytes for the PNG. All GUIDs are minted
+    here so the one cross-reference — the modio asset pointing at the
+    .asset.meta GUID — stays internally consistent.
     """
     mod_name = name or derive_pascal(kebab)
     display = display_name or derive_title(kebab)
@@ -996,6 +1020,7 @@ def build_plan(
 
 def write_plan(plan, dest_dir) -> None:
     """Write a build_plan() result under *dest_dir*, creating parent dirs.
+
     str content is written as UTF-8 text, bytes content as binary.
     """
     dest = pathlib.Path(dest_dir)
@@ -1055,8 +1080,9 @@ def resolve_mods_dir():
 
 
 def resolve_sdk_path(mods_dir, environ):
-    """SDK_PATH from the environment, falling back to parsing the parent
-    core_keeper/.envrc. Returns None if neither yields it.
+    """SDK_PATH from the environment, falling back to parsing the parent core_keeper/.envrc.
+
+    Returns None if neither yields it.
     """
     if environ.get("SDK_PATH"):
         return environ["SDK_PATH"]
@@ -1097,10 +1123,11 @@ def scaffold(
     dry_run=False,
     finalize=True,
 ):
-    """Top-level orchestration: validate, derive identity, scan DLLs, allocate
-    the fake mod.io ID, build the file plan, and (unless dry_run) write it +
-    git-init + link into the SDK. Returns a result dict for the caller to
-    report. Raises FileExistsError if the target already exists.
+    """Top-level orchestration: validate, scan DLLs, allocate the fake mod.io ID, build the plan.
+
+    Then, unless dry_run, write it, git-init, and link into the SDK. Returns a
+    result dict for the caller to report. Raises FileExistsError if the target
+    already exists.
     """
     validate_kebab(kebab)
     modio_types = parse_modio_type(modio_type)
@@ -1148,6 +1175,15 @@ def scaffold(
 
 
 def parse_args(argv=None):
+    """Parse the scaffold CLI's arguments.
+
+    `--required-on` and `--modio-type` are `required=True`, with no default:
+    build_asset_yaml's own docstring explains why a default `requiredOn`
+    quietly produced mods that block joining unmodded servers, and
+    CLIPublishHelper aborts the publish outright when CK_MODIO_TYPE is unset
+    (docs/publishing.md). Both fail loudly here, at scaffold time, instead of
+    shipping a mod whose manifest is wrong from its first commit.
+    """
     p = argparse.ArgumentParser(
         description="Scaffold a new, buildable Core Keeper mod (no Unity Editor)."
     )
@@ -1199,6 +1235,15 @@ def parse_args(argv=None):
 
 
 def main(argv=None) -> int:
+    """CLI entry point: resolve the SDK path, scaffold the mod, report the result.
+
+    SDK_PATH resolution happens here rather than inside scaffold(), so a
+    missing one is reported before any file is touched. The exit code follows
+    what happened, not dry-run vs. real: 1 for a missing SDK_PATH or a
+    scaffold() failure (a bad kebab name, an existing target), 0 whenever
+    scaffold() actually ran — a dry run that only prints the plan is success
+    too.
+    """
     ns = parse_args(argv)
     mods_dir = resolve_mods_dir()
     sdk_path = resolve_sdk_path(mods_dir, os.environ)

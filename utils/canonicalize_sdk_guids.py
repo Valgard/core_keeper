@@ -48,6 +48,12 @@ def current():
 
 
 def main():
+    """Dispatch snapshot/check/apply; anything else prints the module docstring as usage.
+
+    No separate help text: the three-command usage block already lives in the
+    module docstring above, and a second copy here would drift from it the
+    next time a command changes.
+    """
     cmd = sys.argv[1] if len(sys.argv) > 1 else "check"
     cur = current()
 

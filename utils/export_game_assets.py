@@ -88,6 +88,13 @@ SDK_REQUIRES_FILE = "Resources/I2Languages.asset"  # missing -> importer throws
 
 
 def game_dir() -> Path:
+    """The installed game's directory: CK_GAME_DIR, or CK_BOTTLE_PATH/GAME_SUBPATH.
+
+    CK_GAME_DIR is the escape hatch for a layout this repo's usual CrossOver
+    bottle convention does not describe; everything else gets there through
+    the bottle path, which the rest of this repo already treats as the
+    standard way to name a CrossOver install.
+    """
     if env := os.environ.get("CK_GAME_DIR"):
         return Path(env)
     bottle = Path(os.environ.get("CK_BOTTLE_PATH", DEFAULT_BOTTLE))
@@ -95,6 +102,7 @@ def game_dir() -> Path:
 
 
 def assetripper_binary() -> Path:
+    """Path to the AssetRipper.GUI.Free binary: ASSETRIPPER_DIR, or the default checkout."""
     root = Path(os.environ.get("ASSETRIPPER_DIR", DEFAULT_ASSETRIPPER))
     return root / "AssetRipper.GUI.Free"
 
@@ -116,6 +124,7 @@ def build_scope(data_dir: Path, scope_root: Path) -> list[str]:
 
 
 def free_port() -> int:
+    """An OS-assigned free TCP port, for AssetRipper's --port when none was given."""
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
@@ -133,6 +142,14 @@ def post(port: int, endpoint: str, **fields) -> None:
 
 
 def wait_for_api(port: int, proc: subprocess.Popen, seconds: int = 60) -> None:
+    """Block until AssetRipper's HTTP API answers, or raise why it never will.
+
+    Two distinct failures, told apart rather than merged into one timeout: the
+    process exiting early (a crash, a bad --port) fails immediately with its
+    exit code, while a process that is merely slow to start fails only after
+    the deadline — so the exception says which one happened without grepping
+    stderr, which the caller sends to DEVNULL.
+    """
     for _ in range(seconds):
         if proc.poll() is not None:
             raise RuntimeError(f"AssetRipper exited early (code {proc.returncode})")
@@ -182,6 +199,15 @@ def report_counts(export_dir: Path) -> None:
 
 
 def main() -> int:
+    """Drive one export end-to-end: build the scope, run AssetRipper, verify the result.
+
+    Exit codes distinguish where it stopped: 2 for a precondition this repo's
+    own environment must supply (no game data, no AssetRipper binary, a
+    non-empty target without --force), 1 for an export the SDK importer would
+    reject once produced, 0 for one it would accept. AssetRipper always runs
+    headless and is torn down in `finally`, so the temporary scope and the
+    subprocess are cleaned up whether the export succeeded, failed, or raised.
+    """
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )

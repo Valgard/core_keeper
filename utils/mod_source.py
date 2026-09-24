@@ -66,6 +66,7 @@ class NameIndex:
     """
 
     def __init__(self) -> None:
+        """Start empty; every entry arrives through add()."""
         self._keys: dict[str, dict[int, set[str]]] = {}
 
     def add(self, key_source: str, mod_id: int, origin: str) -> None:
@@ -582,6 +583,13 @@ class Workspace:
         catalogue: list[CatalogueEntry],
         warnings: list[str],
     ) -> None:
+        """Index installed and catalogue mods by id; resolve which id each own mod claims.
+
+        The interesting part — a mod id two own-mod directories both claim is
+        withdrawn from both rather than settled by iteration order, which used
+        to silently answer a query for one mod with another's path — is
+        explained inline below, at the point it happens.
+        """
         self.installed = {m.mod_id: m for m in installed}
         self.own = own
         self.catalogue = {c.mod_id: c for c in catalogue}
@@ -1309,10 +1317,10 @@ def _names_line(resolution: Resolution) -> str:
 
 
 def _walked_source_files(resolution: Resolution) -> list[str]:
-    """.cs files under source_path, relative to it -- the fallback for when
-    source_files is empty and there is no manifest to have populated it from.
+    """.cs files under source_path, relative to it -- the fallback for an unpopulated source_files.
 
-    An own mod carries no manifest (ModManifest.json is build-generated, per
+    Used when source_files is empty and there is no manifest to have
+    populated it from. An own mod carries no manifest (ModManifest.json is build-generated, per
     read_own_mods's own docstring), and neither does a freshly downloaded
     catalogue-only mod the moment after main() points its source_path at the
     unpacked archive -- both need this walk instead. The one traversal every

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Import a decompiled Core Keeper vanilla prefab into a mod's `unity/` tree,
-made SDK/Editor-usable.
+"""Import a decompiled vanilla prefab into a mod's `unity/` tree, SDK/Editor-usable.
 
 The AssetRipper Resources export (see the `reference_ck_assetripper_resources_unpack`
 memory) is a read-only data dump: its prefabs reference game classes under
@@ -84,6 +83,13 @@ def index_meta():
 
 
 def guids_in(path):
+    """Every GUID referenced in this file, or empty if it cannot be read.
+
+    An unreadable file is treated as referencing nothing rather than raising:
+    main()'s transitive walk calls this on paths it has just discovered from
+    another file's own references, and a dangling one must not abort the
+    whole import.
+    """
     try:
         with open(path, errors="ignore") as fh:
             return set(GUID_RE.findall(fh.read()))
@@ -92,6 +98,13 @@ def guids_in(path):
 
 
 def locate(name):
+    """The prefab's path: as given if it already resolves, otherwise found by basename.
+
+    Implements the `PrefabName|path/to.prefab` usage documented above — a bare
+    name is looked up by walking RES/Assets, since the AssetRipper export's
+    own directory layout is not something a caller should have to know by
+    heart.
+    """
     if os.path.isfile(name):
         return name
     want = name if name.endswith(".prefab") else name + ".prefab"
@@ -102,6 +115,17 @@ def locate(name):
 
 
 def main():
+    """Copy a prefab and its transitive asset deps into dest, remapping script GUIDs.
+
+    Three passes, each needing the one before: build the assembly-GUID remap
+    and locate the prefab; walk its guid references to find every asset it
+    transitively needs (assets only — script refs are remapped in place
+    rather than copied, since the SDK already has the class); then copy
+    everything found and rewrite the AssetRipper assembly GUIDs to the SDK's
+    own. A wrong argument count prints the module docstring rather than an
+    argparse usage line, since Usage is already documented there and a second
+    copy would drift from it.
+    """
     if len(sys.argv) != 3:
         print(__doc__)
         sys.exit(2)
