@@ -32,6 +32,7 @@ import re
 import subprocess
 import sys
 import textwrap
+from itertools import pairwise
 from pathlib import Path
 
 FENCE = re.compile(r"^\s*(```|~~~)")
@@ -294,7 +295,7 @@ def defects(para, width):
             head = line[: width + 1].rstrip()
             if " " in head[20:]:
                 found.append((offset, f"{visible_len(line)} visible columns, target {width}"))
-    for offset, (line, nxt) in enumerate(zip(para, para[1:])):
+    for offset, (line, nxt) in enumerate(pairwise(para)):
         # a link belongs on the line it started on, however long that makes
         # it — so a line ending just before one is a break in the wrong place
         if LINK_TOKEN.match(first_token(nxt)):
