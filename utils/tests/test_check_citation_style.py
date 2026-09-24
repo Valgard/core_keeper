@@ -70,8 +70,17 @@ class TestAccepts:
         assert not flagged("the whole `Pug.Other` family of assemblies")
 
     def test_a_plain_colon_in_prose_is_not_a_citation(self):
-        """An ordinary prose colon, with no digits nearby, is not flagged as a citation."""
-        assert not flagged("the rule is this: every reference carries its assembly")
+        """A colon directly followed by digits, but with no backticks at all, is not a citation.
+
+        The old fixture ("the rule is this: every reference carries its
+        assembly") had neither a digit nor a colon-then-number shape
+        anywhere in it, so BARE's mandatory backticks were never exercised —
+        the sentence could not have matched even with them dropped entirely.
+        This one has both ingredients BARE looks for (a colon immediately
+        followed by digits) with no backticks in sight, so it only stays
+        unflagged while the backtick requirement is actually enforced.
+        """
+        assert not flagged("the id is this:419767, and that colon is not an assembly")
 
 
 class TestProblemsIn:
