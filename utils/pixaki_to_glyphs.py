@@ -110,9 +110,9 @@ def _bbox(img, index, predicate):
 
 
 def _is_rects_colour(rgba):
-    """A loose per-channel threshold for the Rects layer's magenta (Pixaki
-    paints it RGB 229, 59, 223) -- not an exact match, to tolerate
-    anti-aliased edges.
+    """A loose per-channel threshold for the Rects layer's Pixaki magenta (RGB 229, 59, 223).
+
+    Not an exact match, to tolerate anti-aliased edges.
     """
     r, g, b, a = rgba
     return a > 0 and r > 140 and b > 140 and g < 130
@@ -295,6 +295,16 @@ def validate(rects_img, atlas_img, cell_count=CELLS):
 
 
 def main(argv=None):
+    """CLI entry point: validate the master, then emit the requested artifacts.
+
+    --check-only refuses to combine with --sheet/--kerning rather than simply
+    ignoring them — accepting the combination used to write neither file while
+    printing OK, which reads exactly like a successful regeneration and would
+    go unnoticed until the stale artifacts shipped. Every invariant check runs
+    before any file is written, including the width bound below, so a failure
+    never leaves a partial regeneration behind for "refusing to emit" to be
+    untrue about.
+    """
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--pixaki", required=True, help="path to the .pixaki master")
     ap.add_argument("--sheet", help="write the Atlas layer here as PNG")

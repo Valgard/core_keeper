@@ -181,6 +181,12 @@ def report(path, want=None, names_only=False):
 
 
 def main():
+    """CLI entry point: parse args and print report()'s lines.
+
+    `description` takes only the module docstring's first line, not the whole
+    thing -- the rest is this tool's rationale for a reader of the source, not
+    something `--help` should dump onto a terminal.
+    """
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("pixaki", help="the .pixaki master, in either packaging")
     ap.add_argument("--layer", help="report only the layer with this exact name")

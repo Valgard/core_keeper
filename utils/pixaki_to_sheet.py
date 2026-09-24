@@ -73,6 +73,8 @@ def load_config(pixaki_path):
 
 @dataclass
 class Layer:
+    """One visible, named layer collect_layers() found: its drawing and declared size."""
+
     name: str
     drawing_id: str
     w: int
@@ -80,8 +82,9 @@ class Layer:
 
 
 def collect_layers(doc, exclude_top):
-    """Return the visible, named, drawing-bearing layers, skipping the
-    excluded top-level groups and any hidden layer.
+    """Return the visible, named, drawing-bearing layers.
+
+    Skips the excluded top-level groups and any hidden layer.
     """
     sp = doc["sprites"][0]
     cel_size = {c["identifier"]: tuple(c["frame"][1]) for c in sp.get("cels", []) if c.get("frame")}
@@ -163,6 +166,14 @@ def normalize(layer, drawings):
 
 
 def pixel_key(img):
+    """A dedup key: pixel content plus size, so a byte match at a different shape does not collide.
+
+    tobytes() alone is not enough: two different (w, h) can produce the same
+    byte length and, for a plain fill, the same bytes — an 8x4 solid colour
+    reads identically to a 4x8 one. The size suffix keeps such a pair as two
+    sprites, since dedup() and build_sheet() both use this to decide "is this
+    the same sprite" before either sprite's actual w/h comes into it.
+    """
     return hashlib.sha1(img.tobytes()).hexdigest() + f"_{img.width}x{img.height}"
 
 
@@ -179,8 +190,10 @@ def dedup(layers, drawings):
 
 
 def assign_names(items):
-    """items: list of (key, img_or_None, w, h, base_name).
-    Returns {key: final_name}; appends ' WxH' when a base name repeats.
+    """Return {key: final_name} from (key, img_or_None, w, h, base_name) items.
+
+    Appends ' WxH' only when a base name repeats — the common case keeps the
+    plain name, and only an actual collision pays for the disambiguation.
     """
     from collections import Counter
 
@@ -233,8 +246,10 @@ def _validate_pins(pins, placed_named):
 
 
 def pack(sprites, sheet_w=128, gutter=2):
-    """sprites: list of (key, img_or_None, w, h) in the caller's deterministic order.
-    Returns (placements: list of (key, x, y_bottomleft, w, h), sheet_w, sheet_h).
+    """Shelf-pack sprites, row by row, in the caller's given deterministic order.
+
+    `sprites` is (key, img_or_None, w, h); returns (placements: list of
+    (key, x, y_bottomleft, w, h), sheet_w, sheet_h).
     """
     cur_x, row_h, top = gutter, 0, gutter
     placed_top = []  # (key, x, top, w, h)
@@ -251,8 +266,10 @@ def pack(sprites, sheet_w=128, gutter=2):
 
 
 def _pad(img, target_w, target_h, anchor):
-    """Return img on a transparent target_w x target_h canvas. anchor is
-    'bottom' (centred x, bottom y), a (left, top) offset tuple, or top-left.
+    """Return img on a transparent target_w x target_h canvas.
+
+    anchor is 'bottom' (centred x, bottom y), a (left, top) offset tuple, or
+    top-left.
     """
     canvas = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
     if anchor == "bottom":
@@ -307,9 +324,9 @@ def _sprite_block(s):
 
 
 def render_meta(template_meta_path, new_guid, placements_named):
-    """Reuse the template header/tail verbatim; replace guid + the whole
-    spriteSheet block. placements_named: list of dict(name, internal_id, x, y,
-    w, h, border).
+    """Reuse the template header/tail verbatim; replace guid and the whole spriteSheet block.
+
+    placements_named: list of dict(name, internal_id, x, y, w, h, border).
     """
     import re
 
@@ -348,6 +365,7 @@ def render_meta(template_meta_path, new_guid, placements_named):
 
 def build_sheet(pixaki_path, out_png, template_meta=None, guid=None):
     """Build the sheet PNG + .meta. Returns (mapping name->internalID, guid).
+
     guid: force the sheet GUID (so prefab refs stay valid); else derive from path.
     template_meta: defaults to out_png + '.meta'.
     """
@@ -413,6 +431,12 @@ def build_sheet(pixaki_path, out_png, template_meta=None, guid=None):
 
 
 def main():
+    """CLI entry point: build the sheet, printing the id mapping.
+
+    --mapping-out exists for a caller other than a human at a terminal — a
+    build script that needs the name->internalID table without scraping it
+    back out of this function's own stdout.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("pixaki")
     ap.add_argument("out_png")

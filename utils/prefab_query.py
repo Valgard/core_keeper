@@ -93,8 +93,9 @@ def _md4(msg):
 
 
 def fileid(name, namespace=""):
-    """Unity script fileID: signed int32 of the first 4 bytes of
-    MD4("s\\0\\0\\0" + namespace + className).
+    r"""Unity script fileID: MD4("s\0\0\0" + namespace + className), as a signed int32.
+
+    Only the first 4 bytes of the digest are used.
     """
     data = b"s\x00\x00\x00" + (namespace + name).encode("utf-8")
     return struct.unpack("<i", _md4(data)[:4])[0]
@@ -125,11 +126,13 @@ _DECL_RE = re.compile(
 
 
 def parse_decompile(decomp_dir):
-    """Scan *.decompiled.cs -> list of (namespace, className, baseToken). Tracks
-    the current namespace via brace depth; baseToken is the class's first base
-    (base class or interface) or None. Same-named classes in different namespaces
-    are kept as SEPARATE entries — not deduplicated — so build_script_ids emits
-    each one's fileID and the collision guard sees every declaration.
+    """Scan *.decompiled.cs -> list of (namespace, className, baseToken).
+
+    Tracks the current namespace via brace depth; baseToken is the class's
+    first base (base class or interface) or None. Same-named classes in
+    different namespaces are kept as SEPARATE entries — not deduplicated — so
+    build_script_ids emits each one's fileID and the collision guard sees
+    every declaration.
     """
     decls = []
     for path in sorted(glob.glob(os.path.join(decomp_dir, "*.decompiled.cs"))):
@@ -156,11 +159,12 @@ def parse_decompile(decomp_dir):
 
 
 def build_script_ids(decls):
-    """{str(fileID): className} for the MonoBehaviour/ScriptableObject-derived
-    classes among decls (a list of (namespace, name, base)). Each class is
-    classified by ITS OWN base, so a non-component that merely shares a simple
-    name with a component is excluded. Raises ValueError listing every colliding
-    pair if two distinct classes hash to the same fileID.
+    """{str(fileID): className} for the MonoBehaviour/ScriptableObject-derived classes in decls.
+
+    decls is a list of (namespace, name, base). Each class is classified by
+    ITS OWN base, so a non-component that merely shares a simple name with a
+    component is excluded. Raises ValueError listing every colliding pair if
+    two distinct classes hash to the same fileID.
     """
     base_of = {}
     for _ns, name, base in decls:
@@ -186,6 +190,7 @@ _IDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ck-script-
 
 def _load_script_ids(path=_IDS_PATH):
     """Load the {fileID: className} map; {} if the file is absent or unreadable.
+
     Tolerating a corrupt file lets `refresh-ids` overwrite it instead of every
     command tracebacking at import.
     """
@@ -250,6 +255,7 @@ def _go_name(body):
 
 
 def go_name(objs, fid):
+    """The GameObject at fid's m_Name, or None if fid is missing or not a GameObject."""
     cid, body = objs.get(fid, (None, None))
     if cid == "1" and body:
         return body["GameObject"].get("m_Name", "")
@@ -257,6 +263,7 @@ def go_name(objs, fid):
 
 
 def find_go(objs, name):
+    """The fileID of the first GameObject named `name`, or None."""
     for fid, (cid, body) in objs.items():
         if cid == "1" and body and body["GameObject"].get("m_Name") == name:
             return fid
@@ -264,11 +271,13 @@ def find_go(objs, name):
 
 
 def components(objs, go_fid):
+    """The fileIDs of every component attached to this GameObject, Transform included."""
     _cid, body = objs[go_fid]
     return [str(c["component"]["fileID"]) for c in body["GameObject"].get("m_Component", [])]
 
 
 def transform_of(objs, go_fid):
+    """The fileID of this GameObject's own Transform component, or None."""
     for c in components(objs, go_fid):
         if objs.get(c, (None,))[0] == "4":
             return c
@@ -276,6 +285,13 @@ def transform_of(objs, go_fid):
 
 
 def children(objs, go_fid):
+    """The fileIDs of this GameObject's direct children, silently skipping a dangling one.
+
+    This walks the tree; it does not audit it. A child transform that points
+    at nothing in the file is dropped here rather than raised, so print_tree
+    and the reachability scan in verify() both get a usable hierarchy — it is
+    verify() that reports the dangling reference as a problem.
+    """
     t = transform_of(objs, go_fid)
     if not t:
         return []
@@ -309,8 +325,10 @@ def roots(objs):
 
 
 def comp_label(objs, comp_fid):
-    """Human-readable type for a component fileID: the Unity class name, or for a
-    MonoBehaviour the resolved CK script name (else a short guid).
+    """Human-readable type for a component fileID.
+
+    The Unity class name, or for a MonoBehaviour the resolved CK script name
+    (else a short guid).
     """
     cid, body = objs.get(comp_fid, (None, None))
     if cid != "114":
@@ -322,6 +340,12 @@ def comp_label(objs, comp_fid):
 
 
 def print_tree(objs, fid, depth=0):
+    """Print this GameObject and its component types, then recurse into its children.
+
+    Skips the implicit Transform in the component listing — every GameObject
+    has exactly one, so naming it on every line would be noise rather than
+    information.
+    """
     _cid, body = objs.get(fid, (None, None))
     go = (body or {}).get("GameObject", {}) if body else {}
     name = go.get("m_Name") or "(unnamed)"
@@ -346,6 +370,7 @@ def sprite_of(objs, go_fid):
 
 
 def dump_go(objs, name):
+    """Print one GameObject's fileID, active flag, components, and direct children."""
     fid = find_go(objs, name)
     if not fid:
         print(f"GameObject '{name}' not found")
@@ -368,9 +393,11 @@ def dump_go(objs, name):
 
 
 def verify(objs):
-    """Integrity checks: orphan GameObjects (unreachable from any root), broken
-    m_Script refs (fileID 0), and dangling component/child fileIDs (referenced but
-    absent from the file). Prints findings; returns the problem count (0 == clean).
+    """Integrity checks: orphan GameObjects, broken m_Script refs, dangling component/child fileIDs.
+
+    Orphans are GameObjects unreachable from any root; broken m_Script refs
+    have fileID 0; dangling fileIDs are referenced but absent from the file.
+    Prints findings; returns the problem count (0 == clean).
     """
     problems = 0
 
@@ -433,6 +460,12 @@ def verify(objs):
 
 
 def main():
+    """Dispatch to one of the CLI's subcommands (see the module docstring's CLI section).
+
+    `refresh-ids` is handled before the shared `path, cmd = sys.argv[1],
+    sys.argv[2]` parse below, since it takes no prefab argument at all — it
+    operates on the decompile and the committed ck-script-ids.json instead.
+    """
     if len(sys.argv) >= 2 and sys.argv[1] == "refresh-ids":
         decomp = os.environ.get(
             "CK_DECOMPILE_DIR",
