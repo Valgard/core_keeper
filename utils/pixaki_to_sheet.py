@@ -355,7 +355,7 @@ def build_sheet(pixaki_path, out_png, template_meta=None, guid=None):
     template_meta = template_meta or (out_png + ".meta")
     doc, drawings = load_pixaki(pixaki_path)
     layers = collect_layers(doc, cfg["exclude"])
-    distinct, name_to_key = dedup(layers, drawings)
+    distinct, _name_to_key = dedup(layers, drawings)
     # base name per key = first layer that produced it (recompute the key per
     # layer; name_to_key is lossy when one name maps to several distinct keys,
     # e.g. the 8x8/6x6 sort-icon size pairs)
@@ -389,21 +389,22 @@ def build_sheet(pixaki_path, out_png, template_meta=None, guid=None):
         sheet.alpha_composite(img_by_key[key], (x, top))
         nm = names[key]
         placed_named.append(
-            dict(
-                name=nm,
-                internal_id=internal_id(nm, cfg["internalIds"]),
-                x=x,
-                y=y_bl,
-                w=w,
-                h=h,
-                border=border_for(key_base[key], w, h, cfg["sliced"], cfg["borderOverride"]),
-            )
+            {
+                "name": nm,
+                "internal_id": internal_id(nm, cfg["internalIds"]),
+                "x": x,
+                "y": y_bl,
+                "w": w,
+                "h": h,
+                "border": border_for(key_base[key], w, h, cfg["sliced"], cfg["borderOverride"]),
+            }
         )
     _validate_pins(cfg["internalIds"], placed_named)  # fail loud before any write
     sheet.save(out_png)
     new_guid = guid or cfg["guid"] or hashlib.sha1(out_png.encode()).hexdigest()[:32]
-    # Render (which READS template_meta) BEFORE opening the output for write: an in-place regen
-    # defaults template_meta to out_png+".meta", so opening it "w" first would truncate the template.
+    # Render (which READS template_meta) BEFORE opening the output for write: an in-place
+    # regen defaults template_meta to out_png+".meta", so opening it "w" first would
+    # truncate the template.
     meta_text = render_meta(template_meta, new_guid, placed_named)
     with open(out_png + ".meta", "w") as f:
         f.write(meta_text)
