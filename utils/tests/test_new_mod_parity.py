@@ -176,6 +176,7 @@ def test_reads_each_repo_not_the_ambient_git_environment(monkeypatch):
 
 
 def test_generator_writes_every_file_all_mods_track():
+    """Every file every mod repo tracks is scaffolded too, apart from a few hand-kept exceptions."""
     universal = _universal([_tracked(repo, pascal) for repo, pascal in MODS])
     generated = {_normalise(p, PROBE_PASCAL) for p in _plan()}
     missing = universal - generated - DELIBERATELY_OMITTED
@@ -190,6 +191,7 @@ def test_generator_writes_every_file_all_mods_track():
 
 
 def test_generated_envrc_exports_every_universal_variable():
+    """Every variable every mod's .envrc.example exports is exported by the generated one too."""
     universal = _universal([_exports(_read(repo, ".envrc.example")) for repo, _ in MODS])
     generated = _exports(_plan()[".envrc.example"])
     missing = universal - generated
@@ -204,6 +206,7 @@ def test_generated_envrc_exports_every_universal_variable():
 
 
 def test_asset_metadata_keys_match_the_repos():
+    """The generated .asset's metadata keys match every mod repo's exactly -- no more, no less."""
     universal = _universal([_metadata_keys(_asset(*mod)) for mod in MODS])
     generated = _metadata_keys(_plan()[f"unity/{PROBE_PASCAL}.asset"])
     assert generated == universal, (
@@ -214,6 +217,7 @@ def test_asset_metadata_keys_match_the_repos():
 
 
 def test_asset_settings_keys_match_the_repos():
+    """The generated .asset's build-switch keys match exactly what every mod repo has."""
     universal = _universal([_settings_keys(_asset(*mod)) for mod in MODS])
     generated = _settings_keys(_plan()[f"unity/{PROBE_PASCAL}.asset"])
     assert generated == universal, (
@@ -227,6 +231,7 @@ def test_asset_settings_keys_match_the_repos():
 
 
 def test_runtime_asmdef_covers_every_universal_reference():
+    """Every reference every mod's runtime asmdef carries is present in the generated one too."""
     per_mod = [refs for refs in (_runtime_refs(*mod) for mod in MODS) if refs]
     universal = _universal(per_mod)
     generated = set(
@@ -240,9 +245,12 @@ def test_runtime_asmdef_covers_every_universal_reference():
 
 
 def test_corelib_flag_wires_both_halves_the_family_wires():
-    # Loader dependency (.asset) and compile-time reference (.asmdef) are
-    # separate; --corelib used to set only the first, so the mod loaded CoreLib
-    # and could not compile against it.
+    """--corelib wires both the loader dependency and the compile-time reference every mod pairs.
+
+    Loader dependency (.asset) and compile-time reference (.asmdef) are
+    separate; --corelib used to set only the first, so the mod loaded CoreLib
+    and could not compile against it.
+    """
     for repo, pascal in MODS:
         if "modName: CoreLib" not in _asset(repo, pascal):
             continue
@@ -267,6 +275,7 @@ def test_corelib_flag_wires_both_halves_the_family_wires():
 
 
 def test_csharpierrc_matches_the_repos_verbatim():
+    """The generated .csharpierrc is byte-identical to every mod repo's, when they all agree."""
     contents = {_read(repo, ".csharpierrc") for repo, _ in MODS}
     if len(contents) != 1:
         pytest.skip(
@@ -277,6 +286,8 @@ def test_csharpierrc_matches_the_repos_verbatim():
 
 
 def test_csharpierignore_patterns_match_the_repos():
+    """Every mod repo's .csharpierignore carries the same patterns the generator writes."""
+
     def patterns(text):
         return [
             line.strip()
@@ -295,8 +306,11 @@ def test_csharpierignore_patterns_match_the_repos():
 
 
 def test_precommit_config_contains_the_shared_csharpier_block():
-    # A mod may append its own hooks (complete-tiny-font guards its font
-    # artifacts), so the shared block has to be contained, not equal.
+    """Every mod's pre-commit config contains the shared CSharpier block, not equal to it.
+
+    A mod may append its own hooks (complete-tiny-font guards its font
+    artifacts), so containment, not equality, is the right comparison.
+    """
     generated = nm.build_precommit_config()
     for repo, _ in MODS:
         text = _read(repo, ".pre-commit-config.yaml")
@@ -307,6 +321,7 @@ def test_precommit_config_contains_the_shared_csharpier_block():
 
 
 def test_csharpier_pin_matches_every_repo():
+    """The generated CSharpier pin matches what every mod repo pins, when they all agree."""
     pins = set()
     for repo, _ in MODS:
         text = _read(repo, ".config/dotnet-tools.json")
