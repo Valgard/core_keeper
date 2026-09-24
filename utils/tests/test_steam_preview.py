@@ -123,6 +123,14 @@ def test_a_small_image_is_taken_at_full_resolution(tmp_path):
     """A logo smaller than the ladder's top rung is used at its own resolution.
 
     It must not be upscaled to 1024² first.
+
+    Pins the exact rung chosen (64², the source's own side) rather than only
+    excluding 1024²: `_flat_logo` compresses to a few hundred bytes at EVERY
+    resolution, so the size assertion alone cannot tell 64² apart from any
+    other sub-1024 rung. A `_targets` defect that picked some other ladder
+    rung below 1024 — 512², say, instead of falling back to the source's own
+    size when none of the ladder's fixed rungs are small enough — would still
+    satisfy "1024 not in how" and go unnoticed.
     """
     src = _flat_logo(tmp_path, side=64)
     dest = tmp_path / "preview.png"
@@ -130,7 +138,7 @@ def test_a_small_image_is_taken_at_full_resolution(tmp_path):
     size, how = steam_preview.derive_preview(src, dest)
 
     assert dest.is_file()
-    assert "1024" not in how
+    assert how == "64² lossless"
     assert size < steam_preview.LIMIT
 
 
