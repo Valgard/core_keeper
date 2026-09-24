@@ -41,7 +41,8 @@ on disk are Brotli. In Python, one call over the whole file works:
 
 ```python
 import brotli
-raw = brotli.decompress(open(path, "rb").read())   # e.g. 1.5 MB → 23 MB
+
+raw = brotli.decompress(open(path, "rb").read())  # e.g. 1.5 MB → 23 MB
 ```
 
 Feeding it to `gzip` fails, which reads as a corrupt save and is not.
