@@ -24,6 +24,7 @@ the environment rather than an argument because it holds the whole Workshop
 description.
 """
 
+import contextlib
 import json
 import os
 import sys
@@ -104,10 +105,8 @@ def main(argv: list[str], env: Mapping[str, str] | None = None) -> int:
     # Steam was not initialised, and a bundle that could not be parsed is no
     # reason to erase a path and a tag list that were right before this run.
     bundle = {}
-    try:
+    with contextlib.suppress(ValueError):
         bundle = json.loads(env.get("CK_STEAM_BUNDLE") or "{}")
-    except ValueError:
-        pass
 
     try:
         steam_identity.write_file_id(
