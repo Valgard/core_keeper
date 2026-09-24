@@ -147,11 +147,11 @@ class TestProcess:
 
         original = "# T\n\n" + "word " * 40 + "\nend.\n"
         p = write(tmp_path, "a.md", original)
-        problems, rewrapped = mod.process(p, fix=True)
+        _problems, rewrapped = mod.process(p, fix=True)
         assert rewrapped == 1
         after = p.read_text()
         assert re.sub(r"\s+", " ", after).strip() == re.sub(r"\s+", " ", original).strip()
-        assert max(len(l) for l in after.splitlines()) <= 80
+        assert max(len(line) for line in after.splitlines()) <= 80
 
     def test_fix_leaves_a_code_block_intact(self, tmp_path):
         original = '# T\n\nA sentence. Each:\n```json\n{ "a": 1 }\n```\n'
@@ -200,9 +200,9 @@ class TestProcess:
     def test_fix_rewraps_a_single_line_paragraph(self, tmp_path):
         original = "# T\n\n" + "word " * 40 + "\n"
         p = write(tmp_path, "a.md", original)
-        problems, rewrapped = mod.process(p, fix=True)
+        _problems, rewrapped = mod.process(p, fix=True)
         assert rewrapped == 1
-        assert max(len(l) for l in p.read_text().splitlines()) <= 80
+        assert max(len(line) for line in p.read_text().splitlines()) <= 80
 
     def test_a_lone_short_paragraph_stays_untouched(self, tmp_path):
         # one line is not by itself a defect — only an over-long one is
@@ -261,8 +261,8 @@ class TestListItems:
         )
         mod.process(p, fix=True)
         lines = p.read_text().splitlines()
-        assert not any(l.lstrip().startswith("- -") for l in lines)
-        assert sum(l.lstrip().startswith("- ") for l in lines) == 1
+        assert not any(line.lstrip().startswith("- -") for line in lines)
+        assert sum(line.lstrip().startswith("- ") for line in lines) == 1
 
     def test_rewrap_preserves_the_words(self, tmp_path):
         import re
@@ -275,7 +275,9 @@ class TestListItems:
     def test_continuation_lines_keep_their_indent(self, tmp_path):
         p = write(tmp_path, "a.md", "# T\n\n- " + "word " * 30 + "end.\n")
         mod.process(p, fix=True)
-        body = [l for l in p.read_text().splitlines() if l.strip() and not l.startswith("#")]
+        body = [
+            line for line in p.read_text().splitlines() if line.strip() and not line.startswith("#")
+        ]
         assert body[0].startswith("- ")
         for line in body[1:]:
             assert line.startswith("  ") and not line.lstrip().startswith("-")
@@ -285,7 +287,7 @@ class TestListItems:
         original = "# T\n\n```\ncode\n```\n\n- " + "word " * 30 + "[l](t.md) end.\n"
         p = write(tmp_path, "a.md", original)
         mod.process(p, fix=True)
-        assert not any(l.lstrip().startswith("- -") for l in p.read_text().splitlines())
+        assert not any(line.lstrip().startswith("- -") for line in p.read_text().splitlines())
 
     def test_check_mode_reports_an_overlong_list_item(self, tmp_path):
         # regression: check mode used to skip straight past the defect the
@@ -323,7 +325,7 @@ class TestListItems:
     def test_fix_rejoins_a_list_item_that_broke_too_early(self, tmp_path):
         original = "# T\n\n- a short lead\n  " + "word " * 12 + "end.\n"
         p = write(tmp_path, "a.md", original)
-        problems, rewrapped = mod.process(p, fix=True)
+        _problems, rewrapped = mod.process(p, fix=True)
         assert rewrapped == 1
         assert p.read_text().splitlines()[2].startswith("- a short lead word")
 
@@ -366,7 +368,7 @@ class TestVisibleWidth:
         lines = mod.wrap_tokens(text, 80)
         # the source line may overshoot; what must not happen is a visible line
         # that stops far short of the target
-        assert all(mod.visible_len(l) <= 80 for l in lines)
+        assert all(mod.visible_len(line) <= 80 for line in lines)
         assert mod.visible_len(lines[0]) > 60
 
 
@@ -378,7 +380,9 @@ class TestFixpoint:
     line to start short — and the short-line rule then reported it.
     """
 
-    CASES = [
+    # Read-only fixture data, never mutated or appended to below -- no
+    # cross-instance sharing hazard for RUF012 to catch.
+    CASES = [  # noqa: RUF012
         "One mechanic solves two problems: **click-outside-to-close** and "
         "[mouse-wheel ownership](#mouse-wheel-ownership-is-decided-by-the-hover-flag). "
         "Note the direction: screen to world is fine and useful; the dead end "
@@ -415,7 +419,7 @@ class TestFixpoint:
     def test_wrapping_is_idempotent(self):
         for text in self.CASES:
             once = mod.wrap_tokens(text, 80)
-            twice = mod.wrap_tokens(" ".join(l.strip() for l in once), 80)
+            twice = mod.wrap_tokens(" ".join(line.strip() for line in once), 80)
             assert once == twice
 
 
