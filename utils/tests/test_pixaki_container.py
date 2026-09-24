@@ -26,13 +26,15 @@ PAYLOAD = {
 
 @pytest.fixture(params=PIXAKI_FORMS)
 def packaging(request):
+    """Run the fixtures and tests that use it once per pixaki packaging form (zip, directory)."""
     return request.param
 
 
 @pytest.fixture
 def container(packaging, tmp_path):
-    """The same payload, once per packaging -- with the directory members a
-    real export carries, so the two forms differ here the way they really do.
+    """The same payload, once per packaging, with the directory members a real export carries.
+
+    That gives the two forms a chance to differ here the way they really do.
     """
     return write_pixaki(
         tmp_path / f"m-{packaging}.pixaki",
@@ -60,9 +62,11 @@ def test_namelist_lists_every_file_and_only_an_archive_its_directories(container
 
 
 def test_a_missing_member_raises_each_backend_s_own_error(container, packaging):
-    """The forms deliberately do not agree here either. Pinning it keeps the
-    difference intentional rather than incidental: a later `except KeyError`
-    would run green against every archive and fall over on the first package.
+    """The forms deliberately do not agree here either.
+
+    Pinning it keeps the difference intentional rather than incidental: a
+    later `except KeyError` would run green against every archive and fall
+    over on the first package.
     """
     with (
         open_pixaki(container) as c,
@@ -72,7 +76,9 @@ def test_a_missing_member_raises_each_backend_s_own_error(container, packaging):
 
 
 def test_a_member_name_cannot_read_outside_the_package(container, packaging):
-    """An archive gets this for free -- `ZipFile` resolves a name against its
+    """Escaping the package root via '..' must be blocked by both backends alike.
+
+    An archive gets this for free -- `ZipFile` resolves a name against its
     own namespace, where '..' matches nothing -- while joining onto a real
     directory walks straight out of the package. Left alone, the adapter would
     be strictly MORE permissive than the thing it replaces, which is a poor
@@ -91,35 +97,46 @@ def test_a_member_name_cannot_read_outside_the_package(container, packaging):
 
 
 def test_open_pixaki_fails_loudly_on_a_path_that_does_not_exist(tmp_path):
-    """Guards the dispatch itself. `if not os.path.isfile(path)` reads like a
-    harmless rewrite of `if os.path.isdir(path)` and passes the whole suite --
-    but under it a mistyped path becomes an EMPTY container (os.walk on a
-    missing root yields nothing at all), and the failure then surfaces later,
-    somewhere else, and says less.
+    """Guards the dispatch itself.
+
+    `if not os.path.isfile(path)` reads like a harmless rewrite of
+    `if os.path.isdir(path)` and passes the whole suite -- but under it a
+    mistyped path becomes an EMPTY container (os.walk on a missing root
+    yields nothing at all), and the failure then surfaces later, somewhere
+    else, and says less.
     """
     with pytest.raises(FileNotFoundError):
         open_pixaki(tmp_path / "nope.pixaki")
 
 
 def test_read_returns_the_stored_bytes(container):
+    """`read()` returns exactly the bytes stored for a member, unmodified by either backend."""
     with open_pixaki(container) as c:
         assert c.read("images/drawings/D1.png") == PAYLOAD["images/drawings/D1.png"]
 
 
 def test_open_returns_a_binary_stream(container):
+    """`open()` hands back a binary stream, not a text one.
+
+    `json.load` accepts a text stream just as happily, so this test passed
+    even while the stream was opened in text mode until the read bytes
+    were pinned as `b"{"` rather than `"{"`.
+    """
     with open_pixaki(container) as c:
         with c.open("document.json") as handle:
-            # b"{", not "{": json.load takes a text stream just as happily, so
-            # opening in text mode passed this test until the bytes were named.
             assert handle.read(1) == b"{"
         with c.open("document.json") as handle:
             assert json.load(handle) == {"sprites": []}
 
 
 def test_open_pixaki_accepts_a_path_object_as_well_as_a_string(container):
-    # The tools hand it argparse strings, the tests hand it pathlib paths. Both
-    # spelled out here: the Path half used to be covered only incidentally, by
-    # the other tests happening to pass the fixture through unconverted.
+    """`open_pixaki()` accepts both a pathlib Path and a plain string.
+
+    The tools hand it argparse strings, the tests hand it pathlib paths.
+    Both are spelled out here explicitly: the Path half used to be covered
+    only incidentally, by other tests happening to pass the fixture through
+    unconverted.
+    """
     with open_pixaki(container) as c:
         assert c.read("metadata.json") == PAYLOAD["metadata.json"]
     with open_pixaki(str(container)) as c:
@@ -127,13 +144,15 @@ def test_open_pixaki_accepts_a_path_object_as_well_as_a_string(container):
 
 
 def test_namelist_raises_rather_than_dropping_an_unreadable_subtree(tmp_path):
-    """`os.walk`'s default is to ignore scan errors, which makes a whole
-    unreadable subtree vanish from the listing without a word. `load_pixaki`
-    would then return a drawings dict that is quietly short, and the tool dies
-    much later on a bare `KeyError: '<uuid>'` that names neither a file nor a
-    cause. A ZIP cannot fail this way -- either the constructor throws or the
-    listing is complete -- so the backend has to raise here to keep the
-    docstring's "every FILE below the root" true.
+    """`os.walk`'s default of ignoring scan errors must not silently drop a subtree.
+
+    Left alone, that default makes a whole unreadable subtree vanish from
+    the listing without a word. `load_pixaki` would then return a drawings
+    dict that is quietly short, and the tool dies much later on a bare
+    `KeyError: '<uuid>'` that names neither a file nor a cause. A ZIP cannot
+    fail this way -- either the constructor throws or the listing is
+    complete -- so the backend has to raise here to keep the docstring's
+    "every FILE below the root" true.
     """
     package = write_pixaki(tmp_path / "m.pixaki", PAYLOAD, "directory")
     unreadable = package / "images" / "drawings"
@@ -148,8 +167,11 @@ def test_namelist_raises_rather_than_dropping_an_unreadable_subtree(tmp_path):
 
 
 def test_write_pixaki_rejects_an_unknown_packaging(tmp_path):
-    # Guards the equivalence tests in the two tool suites: a typo'd form that
-    # silently fell through to "directory" would have them compare a packaging
-    # with itself, and they could no longer fail.
+    """An unknown packaging name raises rather than silently falling through to "directory".
+
+    Guards the equivalence tests in the two tool suites: a typo'd form
+    that silently fell through to "directory" would have them compare a
+    packaging with itself, and they could no longer fail.
+    """
     with pytest.raises(ValueError, match=re.escape("unknown .pixaki packaging 'dir'")):
         write_pixaki(tmp_path / "m.pixaki", PAYLOAD, "dir")
