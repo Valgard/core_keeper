@@ -9,6 +9,7 @@ to guess — far more than about what it produces.
 
 import json
 import pathlib
+import re
 
 import pytest
 import steam_backfill
@@ -74,7 +75,7 @@ def test_a_modfile_with_no_changelog_entry_is_refused():
     # Never falls back to mod.io's own stored text: that field comes back
     # HTML-escaped ("-&gt;" for "->"), so a fallback would ship escaped markup
     # into a change note that no API can edit afterwards.
-    with pytest.raises(ValueError, match="1.1.0"):
+    with pytest.raises(ValueError, match=re.escape("1.1.0")):
         steam_backfill.pair_releases([MODFILE_A, MODFILE_B], ENTRIES[1:])
 
 
@@ -216,7 +217,7 @@ def test_an_empty_assumption_is_a_statement_not_a_missing_one():
 def test_an_assumption_about_a_version_that_was_never_published_is_refused():
     releases = _releases()
 
-    with pytest.raises(ValueError, match="9.9.9"):
+    with pytest.raises(ValueError, match=re.escape("9.9.9")):
         steam_backfill.resume_state(42, _item(""), ["9.9.9"], releases)
 
 

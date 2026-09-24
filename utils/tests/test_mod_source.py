@@ -4,6 +4,7 @@ import dataclasses
 import hashlib
 import io
 import json
+import re
 import shutil
 import urllib.parse
 import zipfile
@@ -746,7 +747,7 @@ def test_file_mode_raises_when_no_file_matches(tmp_path):
     )
     result = ws.resolve("CoreLib")
 
-    with pytest.raises(LookupError, match="no .cs file matching"):
+    with pytest.raises(LookupError, match=re.escape("no .cs file matching")):
         mod_source.find_file(result, "NonExistentFile")
 
 
