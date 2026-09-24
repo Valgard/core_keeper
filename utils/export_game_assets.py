@@ -125,7 +125,10 @@ def post(port: int, endpoint: str, **fields) -> None:
     """POST form fields. The endpoint is positional so a field may be named `path`."""
     data = urllib.parse.urlencode(fields).encode()
     req = urllib.request.Request(f"http://127.0.0.1:{port}{endpoint}", data=data, method="POST")
-    with urllib.request.urlopen(req, timeout=900):
+    # scheme is always the hardcoded "http://127.0.0.1" above; endpoint is a literal
+    # from this script's own call sites (never external input), so there is no
+    # `file:`/custom-scheme risk for S310 to catch.
+    with urllib.request.urlopen(req, timeout=900):  # noqa: S310
         pass
 
 
@@ -229,7 +232,8 @@ def main() -> int:
                     file=sys.stderr,
                 )
         print(
-            f"Scope:  {scope_root / 'CoreKeeper_Data'}  ({len(SCOPE) - len(missing)}/{len(SCOPE)} Schichten)"
+            f"Scope:  {scope_root / 'CoreKeeper_Data'}  "
+            f"({len(SCOPE) - len(missing)}/{len(SCOPE)} Schichten)"
         )
 
         print(f"Start:  {binary.name} headless auf Port {port}")
