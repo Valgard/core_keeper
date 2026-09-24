@@ -27,7 +27,8 @@ reported rather than guessed at — and so is an asset name that matches more
 than one file, rather than picking between them.
 
 Usage:
-    uv run utils/check_citation_drift.py --capture --game-version VERSION [--decompile PATH] [repo-root]
+    uv run utils/check_citation_drift.py --capture --game-version VERSION \
+        [--decompile PATH] [repo-root]
     uv run utils/check_citation_drift.py [--decompile PATH] [repo-root]
 """
 
