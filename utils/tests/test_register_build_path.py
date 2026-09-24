@@ -57,7 +57,9 @@ def test_registering_the_same_path_twice_does_not_duplicate_it():
     assert message == "already registered"
 
 
-def test_reregistering_moves_the_path_last_so_LastOrDefault_finds_it():
+# LastOrDefault is the C# LINQ method this behaviour exists for -- renaming would
+# sever the name from the API it verifies.
+def test_reregistering_moves_the_path_last_so_LastOrDefault_finds_it():  # noqa: N802
     start = asset("/builds/DisableDurability", "/builds/FasterTalents")
 
     text, _ = rbp.register(start, "/builds/DisableDurability")

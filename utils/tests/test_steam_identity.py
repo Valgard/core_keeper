@@ -43,7 +43,9 @@ def test_reads_the_file_id(tmp_path):
     assert steam_identity.read_file_id(asset) == 3790345467
 
 
-def test_a_stale_modName_does_not_affect_the_read(tmp_path):
+# modName is the literal field in the *_Steam.asset YAML (the SDK window's own
+# lookup key), not a choice of ours.
+def test_a_stale_modName_does_not_affect_the_read(tmp_path):  # noqa: N802
     asset = tmp_path / "DisableDurability_Steam.asset"
     asset.write_text(
         ASSET.replace("modName: Disable Durability", "modName: something else entirely")
@@ -328,7 +330,10 @@ def test_without_git_the_question_has_no_answer(repo, monkeypatch):
 
 
 @needs_git
-def test_an_inherited_GIT_DIR_does_not_answer_for_another_repo(repo, tmp_path, monkeypatch):
+# GIT_DIR is git's own environment variable name, not a choice of ours.
+def test_an_inherited_GIT_DIR_does_not_answer_for_another_repo(  # noqa: N802
+    repo, tmp_path, monkeypatch
+):
     # GIT_DIR and GIT_INDEX_FILE outrank -C. Inherited from whatever invoked
     # the publish, they would have git answer about a different repository —
     # and the answer that costs something is the false "tracked", which would

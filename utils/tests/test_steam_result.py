@@ -206,7 +206,9 @@ def test_a_stray_brace_line_after_the_result_does_not_displace_it(scenario, caps
     assert "Workshop item 4242424242 (updated)" in capsys.readouterr().out
 
 
-def test_a_later_json_object_without_a_fileId_does_not_displace_it(scenario):
+# fileId is the literal JSON key ck-workshop's own output uses, not a choice of
+# ours.
+def test_a_later_json_object_without_a_fileId_does_not_displace_it(scenario):  # noqa: N802
     # Same hazard, one step subtler: valid JSON, wrong object.
     code, asset = scenario(
         result_line(4242424242, created=False, success=True)
