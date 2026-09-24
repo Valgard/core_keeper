@@ -132,6 +132,10 @@ def _asset_with_dependencies(*declared):
 
 
 def test_the_topmost_changelog_entry_is_the_version():
+    """parse_changelog() returns the topmost `## [x.y.z]` entry's version and body.
+
+    Ignoring older releases below it.
+    """
     version, body = steam_bundle.parse_changelog(CHANGELOG)
 
     assert version == "1.1.1"
@@ -140,8 +144,10 @@ def test_the_topmost_changelog_entry_is_the_version():
 
 
 def test_every_changelog_entry_is_available_in_file_order():
-    # steam_backfill submits one Workshop history entry per published version,
-    # and the note on each has to be that version's own.
+    """steam_backfill submits one Workshop history entry per published version.
+
+    The note on each entry has to be that version's own.
+    """
     assert steam_bundle.changelog_entries(CHANGELOG) == [
         ("1.1.1", "### Added\n\n- A thing.\n- Another thing."),
         ("1.1.0", "### Added\n\n- Older, must not be picked."),
@@ -149,19 +155,24 @@ def test_every_changelog_entry_is_available_in_file_order():
 
 
 def test_a_changelog_with_no_entry_yields_no_entries_rather_than_raising():
-    # parse_changelog owns the "there is no release" error, because it is the
-    # one that cannot answer without an entry. A backfill over a repository
-    # whose changelog is empty has nothing to submit, which is not the same
-    # failure.
+    """parse_changelog() owns the "there is no release" error; changelog_entries() does not.
+
+    A backfill over a repository whose changelog is empty has nothing to
+    submit, which is not the same failure as a changelog with no entry
+    when one was expected.
+    """
     assert steam_bundle.changelog_entries("# Changelog\n\nNothing yet.\n") == []
 
 
 def test_a_release_override_replaces_the_version_and_its_notes(tmp_path):
-    # The pair moves together on purpose: a version carrying another version's
-    # notes is the one mistake a Workshop history has no API to correct. The
-    # override's version has to reach the note's own heading too — that heading
-    # is the only thing telling two entries in the history apart, so a stale one
-    # would label a whole backfill with the current release's number.
+    """The version and its notes move together on purpose.
+
+    A version carrying another version's notes is the one mistake a
+    Workshop history has no API to correct. The override's version has to
+    reach the note's own heading too — that heading is the only thing
+    telling two entries in the history apart, so a stale one would label a
+    whole backfill with the current release's number.
+    """
     bundle = steam_bundle.build_bundle(
         _repo(tmp_path),
         _env(tmp_path),
@@ -176,10 +187,13 @@ def test_a_release_override_replaces_the_version_and_its_notes(tmp_path):
 
 
 def test_item_metadata_is_absent_from_the_bundle_unless_asked_for(tmp_path):
-    # Load-bearing, not tidiness: Facepunch only calls SetItemMetadata when
-    # WithMetaData was used, so an absent key is what leaves an item's existing
-    # record alone. A publish that sent one unconditionally would erase the
-    # backfill's progress record on the next ordinary release.
+    """Load-bearing, not tidiness.
+
+    Facepunch only calls SetItemMetadata when WithMetaData was used, so an
+    absent `metadata` key is what leaves an item's existing record alone.
+    A publish that sent one unconditionally would erase the backfill's
+    progress record on the next ordinary release.
+    """
     repo, env, preview = _repo(tmp_path), _env(tmp_path), tmp_path / "preview.png"
 
     plain = steam_bundle.build_bundle(repo, env, preview)
@@ -190,12 +204,18 @@ def test_item_metadata_is_absent_from_the_bundle_unless_asked_for(tmp_path):
 
 
 def test_the_title_is_the_display_name_not_the_internal_name(tmp_path):
+    """The bundle's title comes from the asset's `displayName`, not the internal `name`."""
     bundle = steam_bundle.build_bundle(_repo(tmp_path), _env(tmp_path), tmp_path / "p.png")
 
     assert bundle["title"] == "Disable Durability"
 
 
 def test_the_title_falls_back_to_the_internal_name(tmp_path):
+    """Without a `displayName`, the title falls back to the internal `name`.
+
+    Not left blank — the SDK's own settings GUI cannot set `displayName`
+    at all, so this is the normal state of a freshly created mod.
+    """
     repo = _repo(tmp_path, asset=ASSET.replace("    displayName: Disable Durability\n", ""))
 
     bundle = steam_bundle.build_bundle(repo, _env(tmp_path), tmp_path / "p.png")
@@ -204,6 +224,10 @@ def test_the_title_falls_back_to_the_internal_name(tmp_path):
 
 
 def test_tags_combine_all_three_groups(tmp_path):
+    """The bundle's tags union three groups: mod.io type, Application Type, Access Type.
+
+    All three combined into one flat list.
+    """
     bundle = steam_bundle.build_bundle(_repo(tmp_path), _env(tmp_path), tmp_path / "p.png")
 
     assert set(bundle["tags"]) == {
@@ -220,23 +244,27 @@ def test_tags_combine_all_three_groups(tmp_path):
 # (metadata.requiredOn) -- these names name the field they test, not a choice
 # of ours.
 def test_requiredOn_1_is_client_only():  # noqa: N802
+    """requiredOn=1 (Client) tags the item Client-only, not both sides."""
     tags = steam_bundle.derive_tags({"requiredOn": 1, "skipSafetyChecks": 0}, "Visual")
 
     assert "Client" in tags and "Server" not in tags
 
 
 def test_requiredOn_0_produces_no_application_type_tag():  # noqa: N802
+    """requiredOn=0 produces neither tag — a mod gating neither side gets no Application Type."""
     tags = steam_bundle.derive_tags({"requiredOn": 0, "skipSafetyChecks": 0}, "Visual")
 
     assert "Client" not in tags and "Server" not in tags
 
 
 def test_an_empty_field_reads_as_absent_not_as_the_next_line():
-    # A key with no value must not swallow the newline and capture whatever
-    # follows. displayName is the one that matters most: the SDK's settings GUI
-    # cannot set it, so empty is the normal state of a freshly created mod —
-    # and build_bundle uses it as the Workshop item's TITLE. Reading the line
-    # below would publish an item titled "skipSafetyChecks: 0".
+    """A key with no value must not swallow the newline and capture whatever follows.
+
+    `displayName` is the one that matters most: the SDK's settings GUI
+    cannot set it, so empty is the normal state of a freshly created mod,
+    and build_bundle() uses it as the Workshop item's title. Reading the
+    line below would publish an item titled "skipSafetyChecks: 0".
+    """
     asset = (
         "MonoBehaviour:\n"
         "  metadata:\n"
@@ -255,19 +283,24 @@ def test_an_empty_field_reads_as_absent_not_as_the_next_line():
 
 
 def test_requiredOn_is_read_bitwise_not_looked_up():  # noqa: N802 (see above)
-    # The SDK's own settings GUI writes -1 ("Everything") when "Client and
-    # Server" is picked, and the mod.io side reads the field bitwise, so it
-    # tags both. Anything that maps whole values instead drops the tags for
-    # that one input — and Steam discards a missing tag without a word.
+    """The SDK's own settings GUI writes -1 ("Everything") for "Client and Server".
+
+    The mod.io side reads the field bitwise, so it tags both sides.
+    Anything that maps whole values instead drops the tags for that one
+    input — and Steam discards a missing tag without a word.
+    """
     tags = steam_bundle.derive_tags({"requiredOn": -1, "skipSafetyChecks": 0}, "Visual")
 
     assert "Client" in tags and "Server" in tags
 
 
 def test_an_unknown_application_type_warns_instead_of_going_out_silently(capsys):
-    # 0 is legitimate — a mod that gates nothing — but it is also what an unset
-    # field reads as, and only the author can tell the two apart. mod.io says so
-    # on its own path; saying it on one platform only is how they diverge.
+    """0 is legitimate — a mod that gates nothing — but also what an unset field reads as.
+
+    Only the author can tell the two apart. mod.io already warns on its
+    own path; saying it on one platform only is how the two publish
+    targets diverge.
+    """
     steam_bundle.derive_tags({"requiredOn": 0, "skipSafetyChecks": 0}, "Visual")
 
     err = capsys.readouterr().err
@@ -275,12 +308,17 @@ def test_an_unknown_application_type_warns_instead_of_going_out_silently(capsys)
 
 
 def test_elevated_access_changes_the_access_tag():
+    """skipSafetyChecks=1 tags the item "Script (Elevated Access)" instead of plain "Script"."""
     tags = steam_bundle.derive_tags({"requiredOn": 1, "skipSafetyChecks": 1}, "Library")
 
     assert "Script (Elevated Access)" in tags and "Script" not in tags
 
 
 def test_a_new_mod_gets_hidden_visibility_and_no_file_id(tmp_path):
+    """A mod with no existing Workshop item gets fileId 0 and hidden visibility.
+
+    The state a brand-new item is created in.
+    """
     bundle = steam_bundle.build_bundle(_repo(tmp_path), _env(tmp_path), tmp_path / "p.png")
 
     assert bundle["fileId"] == 0
@@ -288,6 +326,10 @@ def test_a_new_mod_gets_hidden_visibility_and_no_file_id(tmp_path):
 
 
 def test_an_existing_mod_keeps_its_visibility(tmp_path):
+    """A mod with an already-written fileId keeps its existing id and reports "unchanged".
+
+    Not reset to hidden.
+    """
     repo = _repo(tmp_path)
     asset = repo / "unity" / "DisableDurability" / "DisableDurability_Steam.asset"
     import steam_identity
@@ -301,14 +343,18 @@ def test_an_existing_mod_keeps_its_visibility(tmp_path):
 
 
 def test_check_prerequisites_passes_without_a_built_content_folder(tmp_path):
-    # The whole point: this must be callable BEFORE the mod.io build runs,
-    # when MOD_INSTALL_PATH/<mod> does not exist yet.
+    """check_prerequisites() must be callable before the mod.io build runs.
+
+    That is the whole point: it runs when MOD_INSTALL_PATH/<mod> does not
+    exist yet.
+    """
     repo = _repo(tmp_path)
 
     steam_bundle.check_prerequisites(repo, _preflight_env())
 
 
 def test_check_prerequisites_reports_a_missing_description_by_name(tmp_path):
+    """A missing steam-description.txt is reported by its filename, not a bare exception."""
     repo = _repo(tmp_path, description=None)
 
     with pytest.raises(ValueError, match=re.escape("steam-description.txt")):
@@ -316,6 +362,7 @@ def test_check_prerequisites_reports_a_missing_description_by_name(tmp_path):
 
 
 def test_check_prerequisites_reports_an_unrecognized_identity_asset(tmp_path):
+    """An existing `_Steam.asset` with no `fileId:` line is reported, not treated as fresh."""
     repo = _repo(tmp_path)
     identity = repo / "unity" / "DisableDurability" / "DisableDurability_Steam.asset"
     identity.write_text("this is not a Steam asset at all\n")
@@ -325,6 +372,7 @@ def test_check_prerequisites_reports_an_unrecognized_identity_asset(tmp_path):
 
 
 def test_check_prerequisites_reports_an_unresolvable_required_dependency(tmp_path):
+    """A required dependency with no cached Workshop id aborts the preflight, naming it."""
     repo = _repo(tmp_path, asset=_asset_with_dependencies(("CoreLib", True)))
 
     with pytest.raises(ValueError, match="CoreLib"):
@@ -332,9 +380,12 @@ def test_check_prerequisites_reports_an_unresolvable_required_dependency(tmp_pat
 
 
 def test_build_bundle_calls_check_prerequisites_first(tmp_path):
-    # A missing description must surface even though the content folder is
-    # ALSO missing (build_bundle checks that one itself) — check_prerequisites
-    # runs first, so its error is the one that surfaces.
+    """A missing description must surface even though the content folder is ALSO missing.
+
+    build_bundle() checks the content folder itself, but
+    check_prerequisites() runs first, so its error is the one that
+    surfaces.
+    """
     repo = _repo(tmp_path, description=None)
     env = _env(tmp_path, MOD_INSTALL_PATH=str(tmp_path / "nowhere"))
 
@@ -343,9 +394,12 @@ def test_build_bundle_calls_check_prerequisites_first(tmp_path):
 
 
 def test_an_unrecognized_identity_asset_aborts_before_any_upload(tmp_path):
-    # steam_identity's guard, called from here: an existing _Steam.asset without
-    # a 'fileId:' line must be caught before the bundle is even assembled, not
-    # discovered only after a Workshop item was already created from it.
+    """steam_identity's guard, called from build_bundle().
+
+    An existing `_Steam.asset` without a `fileId:` line must be caught
+    before the bundle is even assembled, not discovered only after a
+    Workshop item was already created from it.
+    """
     repo = _repo(tmp_path)
     identity = repo / "unity" / "DisableDurability" / "DisableDurability_Steam.asset"
     identity.parent.mkdir(parents=True, exist_ok=True)
@@ -356,6 +410,7 @@ def test_an_unrecognized_identity_asset_aborts_before_any_upload(tmp_path):
 
 
 def test_a_missing_description_is_reported_by_name(tmp_path):
+    """The same missing-description report as check_prerequisites(), via build_bundle()."""
     repo = _repo(tmp_path, description=None)
 
     with pytest.raises(ValueError, match=re.escape("steam-description.txt")):
@@ -363,9 +418,11 @@ def test_a_missing_description_is_reported_by_name(tmp_path):
 
 
 def test_the_content_is_the_build_modio_published_when_one_is_reported(tmp_path):
-    # CLIPublishHelper builds into a fresh temporary directory and publishes
-    # THAT to mod.io. Steam has to upload the same one, or the two platforms
-    # ship different code under the same version number.
+    """CLIPublishHelper builds into a fresh temporary directory and publishes THAT to mod.io.
+
+    Steam has to upload the same one, or the two platforms ship different
+    code under the same version number.
+    """
     repo = _repo(tmp_path)
     published = tmp_path / "published-build"
     published.mkdir()
@@ -377,8 +434,10 @@ def test_the_content_is_the_build_modio_published_when_one_is_reported(tmp_path)
 
 
 def test_without_a_reported_build_the_local_install_is_used(tmp_path):
-    # --steam-only runs no mod.io build, so there is no fresh directory to
-    # point at and the last local build is the only thing there is to publish.
+    """--steam-only runs no mod.io build, so there is no fresh directory to point at.
+
+    The last local build is the only thing there is to publish.
+    """
     repo = _repo(tmp_path)
     env = _env(tmp_path)
 
@@ -388,23 +447,27 @@ def test_without_a_reported_build_the_local_install_is_used(tmp_path):
 
 
 def test_a_missing_content_folder_is_reported(tmp_path):
+    """A missing content folder is reported, matched against the message's own wording.
+
+    Not against words that also occur in the interpolated path: "content"
+    is in pytest's tmp_path name (derived from this test's own name) and
+    "nowhere" is in the path passed in, so a looser pattern passed even
+    for an unrelated message.
+    """
     repo = _repo(tmp_path)
     env = _env(tmp_path, MOD_INSTALL_PATH=str(tmp_path / "nowhere"))
 
-    # Matched against the message's own wording, not against words that also
-    # occur in the interpolated path: `content` is in pytest's tmp_path name
-    # (derived from this test's own name) and `nowhere` is in the path passed
-    # in, so the previous pattern passed even for an unrelated message.
     with pytest.raises(ValueError, match="no built content at"):
         steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
 
 
 def test_dependencies_come_from_the_asset_not_hardcoded_empty():
-    # The interface promises "list[tuple[str, bool]]" — a fixture whose asset
-    # always declares zero dependencies (as ASSET does above) cannot tell an
-    # implementation that reads metadata.dependencies apart from one that just
-    # returns []. disable-durability itself already depends on CoreLib and
-    # ModSettingsMenu, so this is not a hypothetical case.
+    """A fixture that always declares zero dependencies cannot tell a real reader from a stub.
+
+    The interface promises `list[tuple[str, bool]]`; disable-durability
+    itself already depends on CoreLib and ModSettingsMenu, so this is not
+    a hypothetical case.
+    """
     asset = _asset_with_dependencies(("CoreLib", True), ("ModSettingsMenu", False))
 
     assert steam_bundle.parse_dependencies(asset) == [
@@ -414,6 +477,11 @@ def test_dependencies_come_from_the_asset_not_hardcoded_empty():
 
 
 def test_a_declared_dependency_is_resolved_from_the_cache(tmp_path):
+    """A dependency declared in the asset resolves to its cached Workshop fileId.
+
+    Carried into the bundle's `dependencies` list along with its
+    `required` flag.
+    """
     repo = _repo(tmp_path, asset=_asset_with_dependencies(("CoreLib", True)))
     cache = tmp_path / "deps.json"
     cache.write_text('{"CoreLib": 3000000001}')
@@ -425,6 +493,7 @@ def test_a_declared_dependency_is_resolved_from_the_cache(tmp_path):
 
 
 def test_an_unresolvable_required_dependency_aborts(tmp_path):
+    """A required dependency the cache has no entry for aborts build_bundle(), naming it."""
     repo = _repo(tmp_path, asset=_asset_with_dependencies(("CoreLib", True)))
     cache = tmp_path / "deps.json"
     cache.write_text("{}")
@@ -435,9 +504,11 @@ def test_an_unresolvable_required_dependency_aborts(tmp_path):
 
 
 def test_an_unresolvable_required_dependency_with_no_cache_names_the_env_var(tmp_path):
-    # Distinct from the case above: here STEAM_DEPS_MAP itself is unset, so
-    # there is no cache_path to name. The message must say so instead of
-    # rendering "None" as if it were a real, actionable file path.
+    """Distinct from the case above: here STEAM_DEPS_MAP itself is unset, so there is no cache path.
+
+    The message must say so instead of rendering "None" as if it were a
+    real, actionable file path.
+    """
     repo = _repo(tmp_path, asset=_asset_with_dependencies(("CoreLib", True)))
     env = _env(tmp_path)
 
@@ -446,11 +517,14 @@ def test_an_unresolvable_required_dependency_with_no_cache_names_the_env_var(tmp
 
 
 def test_an_unresolvable_optional_dependency_does_not_abort_the_publish(tmp_path):
-    # Severity follows the .asset's own `required` flag: optional means the
-    # publish goes ahead without it, where required aborts. What the resulting
-    # dependency list should say is a separate question, asked below by
-    # test_declared_but_unresolved_dependencies_are_not_reported_as_none — this
-    # one used to assert [] there, which was the wipe.
+    """Severity follows the .asset's own `required` flag: optional means the publish goes ahead.
+
+    What the resulting dependency list should then say is a separate
+    question, asked by
+    test_declared_but_unresolved_dependencies_are_not_reported_as_none
+    below — this test used to assert `[]` there, which was the
+    silent-wipe bug.
+    """
     repo = _repo(tmp_path, asset=_asset_with_dependencies(("SomeOptional", False)))
     cache = tmp_path / "deps.json"
     cache.write_text("{}")
@@ -462,10 +536,11 @@ def test_an_unresolvable_optional_dependency_does_not_abort_the_publish(tmp_path
 
 
 def test_the_optional_skip_warning_goes_to_stderr_not_stdout(tmp_path, capsys):
-    # upload.sh captures the caller's whole stdout as the JSON bundle for the
-    # .NET tool. A warning line printed to stdout ahead of that JSON would
-    # corrupt the capture and fail the entire publish over a merely-skipped
-    # dependency.
+    """upload.sh captures the caller's whole stdout as the JSON bundle for the .NET tool.
+
+    A warning line printed to stdout ahead of that JSON would corrupt the
+    capture and fail the entire publish over a merely-skipped dependency.
+    """
     repo = _repo(tmp_path, asset=_asset_with_dependencies(("SomeOptional", False)))
     cache = tmp_path / "deps.json"
     cache.write_text("{}")
@@ -479,6 +554,7 @@ def test_the_optional_skip_warning_goes_to_stderr_not_stdout(tmp_path, capsys):
 
 
 def test_a_malformed_dependency_cache_is_reported_by_name(tmp_path):
+    """A dependency cache that is not valid JSON is reported by its own filename."""
     repo = _repo(tmp_path, asset=_asset_with_dependencies(("CoreLib", True)))
     cache = tmp_path / "deps.json"
     cache.write_text("not json")
@@ -489,6 +565,7 @@ def test_a_malformed_dependency_cache_is_reported_by_name(tmp_path):
 
 
 def test_a_non_numeric_cached_id_is_reported_by_mod_and_file(tmp_path):
+    """A cached id that is not a number is reported naming both the dependency and the cache."""
     repo = _repo(tmp_path, asset=_asset_with_dependencies(("CoreLib", True)))
     cache = tmp_path / "deps.json"
     cache.write_text('{"CoreLib": "not-a-number"}')
@@ -500,6 +577,7 @@ def test_a_non_numeric_cached_id_is_reported_by_mod_and_file(tmp_path):
 
 
 def test_declared_dependencies_are_parsed_with_their_required_flag():
+    """parse_dependencies() reads each `modName`/`required` pair from the YAML."""
     deps = steam_bundle.parse_dependencies(
         "    dependencies:\n    - modName: CoreLib\n      required: 1\n"
         "    - modName: Other\n      required: 0\n  modPath: x\n"
@@ -509,16 +587,18 @@ def test_declared_dependencies_are_parsed_with_their_required_flag():
 
 
 def test_the_bundle_is_exactly_these_values(tmp_path):
-    # The one test that pins the whole dict. Every other test here reads a
-    # single key, which leaves the rest free to be wrong: a preview that is
-    # never derived, a previewPath aimed at the 1024² logo, a description taken
-    # from CHANGELOG.md, version and changelog swapped, or a contentPath at the
-    # install ROOT — which would upload every mod in the family into one
-    # Workshop item. All five survived the per-key tests; none survives this.
-    #
-    # `changelog` is BBCode here and Markdown nowhere: a Workshop change note is
-    # BBCode, and this bundle is the last place the two dialects could still be
-    # confused. steam_changenote owns what the conversion produces.
+    """The one test that pins the whole dict; every other test here reads a single key.
+
+    Reading only one key leaves the rest free to be wrong: a preview that
+    is never derived, a previewPath aimed at the 1024² logo, a description
+    taken from CHANGELOG.md, version and changelog swapped, or a
+    contentPath at the install root — which would upload every mod in the
+    family into one Workshop item. All five survived the per-key tests;
+    none survives this. `changelog` is BBCode here and Markdown nowhere: a
+    Workshop change note is BBCode, and this bundle is the last place the
+    two dialects could still be confused — steam_changenote owns what the
+    conversion produces.
+    """
     repo = _repo(tmp_path)
     env = _env(tmp_path)
     preview = tmp_path / "preview.png"
@@ -545,14 +625,18 @@ def test_the_bundle_is_exactly_these_values(tmp_path):
 
 
 def test_check_prerequisites_reports_a_missing_mod_name(tmp_path):
+    """MOD_NAME missing from the environment is reported by name."""
     with pytest.raises(ValueError, match="MOD_NAME"):
         steam_bundle.check_prerequisites(_repo(tmp_path), {})
 
 
 def test_check_prerequisites_reports_a_missing_logo(tmp_path):
-    # The logo is the only source the preview has. Missing, the publish would
-    # get as far as deriving one and fail there — with the mod.io release for
-    # this same run already out, which is exactly what the preflight prevents.
+    """The logo is the only source the preview has.
+
+    Missing, the publish would get as far as deriving one and fail there
+    — with the mod.io release for this same run already out, which is
+    exactly what the preflight prevents.
+    """
     repo = _repo(tmp_path)
     (repo / "unity" / "DisableDurability" / "Editor" / "logo.png").unlink()
 
@@ -561,6 +645,7 @@ def test_check_prerequisites_reports_a_missing_logo(tmp_path):
 
 
 def test_check_prerequisites_reports_a_missing_changelog(tmp_path):
+    """A repository with no CHANGELOG.md at all is reported by that filename."""
     repo = _repo(tmp_path)
     (repo / "CHANGELOG.md").unlink()
 
@@ -569,10 +654,13 @@ def test_check_prerequisites_reports_a_missing_changelog(tmp_path):
 
 
 def test_check_prerequisites_reports_a_changelog_with_no_entry(tmp_path):
-    # Distinct from the file being absent: it is there and unreadable as a
-    # version. The preflight parses rather than merely stat-ing it, because the
-    # version and the change note both come out of that parse — and until this
-    # test, no test in the suite reached parse_changelog's own error at all.
+    """Distinct from the file being absent: it is there and unreadable as a version.
+
+    The preflight parses rather than merely stat-ing it, because the
+    version and the change note both come out of that parse — and until
+    this test, no test in the suite reached parse_changelog's own error at
+    all.
+    """
     repo = _repo(tmp_path, changelog="# Changelog\n\nNothing released yet.\n")
 
     with pytest.raises(ValueError, match=r"## \[x\.y\.z\]"):
@@ -580,10 +668,12 @@ def test_check_prerequisites_reports_a_changelog_with_no_entry(tmp_path):
 
 
 def test_check_prerequisites_requires_a_mod_type(tmp_path):
-    # On the normal path CLIPublishHelper aborts on an empty CK_MODIO_TYPE, but
-    # --steam-only never runs it, and derive_tags turns an empty value into an
-    # empty category list without a word. Steam then discards nothing, because
-    # nothing was sent: the item goes up with no category tags at all.
+    """CLIPublishHelper aborts on an empty CK_MODIO_TYPE, but --steam-only never runs it.
+
+    derive_tags() turns an empty value into an empty category list without
+    a word, and Steam then discards nothing because nothing was sent — the
+    item goes up with no category tags at all.
+    """
     repo = _repo(tmp_path)
 
     with pytest.raises(ValueError, match="CK_MODIO_TYPE"):
@@ -591,9 +681,12 @@ def test_check_prerequisites_requires_a_mod_type(tmp_path):
 
 
 def test_a_mod_type_of_only_separators_is_refused(tmp_path):
-    # "|" splits into empty parts that derive_tags drops, so a value can be
-    # non-empty and still name no category. Checking for a set value would pass
-    # this; the check has to be that a category actually comes out.
+    """A "|"-only value splits into empty parts that derive_tags() drops.
+
+    So it is non-empty yet names no category. Checking for a set value
+    would pass this; the check has to be that a category actually comes
+    out.
+    """
     repo = _repo(tmp_path)
 
     with pytest.raises(ValueError, match="CK_MODIO_TYPE"):
@@ -601,19 +694,25 @@ def test_a_mod_type_of_only_separators_is_refused(tmp_path):
 
 
 def test_no_declared_dependencies_means_sync_an_empty_list(tmp_path):
-    # Nothing declared is a complete picture of "this mod has none", so the
-    # full sync on the other side should run and remove anything stale.
+    """Nothing declared is a complete picture of "this mod has none".
+
+    So the full sync on the other side should run and remove anything
+    stale — an empty list here, not None.
+    """
     bundle = steam_bundle.build_bundle(_repo(tmp_path), _env(tmp_path), tmp_path / "p.png")
 
     assert bundle["dependencies"] == []
 
 
 def test_declared_but_unresolved_dependencies_are_not_reported_as_none(tmp_path):
-    # The dangerous case. ck-workshop treats the list as authoritative and
-    # removes every dependency not in it, then reports success — so an empty
-    # list from "declared two, resolved neither" wipes the item's dependencies
-    # while saying the publish went fine. null is the one value that means
-    # "unknown": Program.cs early-returns on it and skips the sync entirely.
+    """The dangerous case.
+
+    ck-workshop treats the dependency list as authoritative and removes
+    every dependency not in it, then reports success — so an empty list
+    from "declared some, resolved none" would wipe the item's dependencies
+    while saying the publish went fine. `null` is the one value that means
+    "unknown": Program.cs early-returns on it and skips the sync entirely.
+    """
     repo = _repo(tmp_path, asset=_asset_with_dependencies(("SomeOptional", False)))
     cache = tmp_path / "deps.json"
     cache.write_text("{}")
@@ -625,10 +724,13 @@ def test_declared_but_unresolved_dependencies_are_not_reported_as_none(tmp_path)
 
 
 def test_a_partly_resolved_dependency_list_is_not_a_full_sync(tmp_path):
-    # Same hazard one step subtler: CoreLib resolves, the other does not. The
-    # list is now a floor rather than a picture, and syncing it would still
-    # remove an item a human had attached for the entry that failed to resolve.
-    # Sync only what is complete; the skipped entry has already been warned about.
+    """Same hazard one step subtler: one dependency resolves, the other does not.
+
+    The list is now a floor rather than a complete picture, and syncing it
+    would still remove an item a human had attached for the entry that
+    failed to resolve. Sync only what is complete; the skipped entry has
+    already been warned about.
+    """
     repo = _repo(
         tmp_path,
         asset=_asset_with_dependencies(("CoreLib", False), ("SomeOptional", False)),
@@ -643,10 +745,12 @@ def test_a_partly_resolved_dependency_list_is_not_a_full_sync(tmp_path):
 
 
 def test_the_optional_skip_warning_is_printed_once_per_run(tmp_path, capsys):
-    # build_bundle calls check_prerequisites, and both used to resolve the
-    # dependencies themselves, so one bundle printed the same warning twice.
-    # A warning repeated without anything having happened in between reads as
-    # two separate skips and teaches the operator to skim past it.
+    """build_bundle() calls check_prerequisites(), and both used to resolve dependencies themselves.
+
+    That duplication printed the same warning twice per run. A warning
+    repeated without anything having happened in between reads as two
+    separate skips and teaches the operator to skim past it.
+    """
     repo = _repo(tmp_path, asset=_asset_with_dependencies(("SomeOptional", False)))
     cache = tmp_path / "deps.json"
     cache.write_text("{}")
@@ -658,9 +762,11 @@ def test_the_optional_skip_warning_is_printed_once_per_run(tmp_path, capsys):
 
 
 def test_the_preflight_still_raises_on_the_first_missing_required_dependency(tmp_path):
-    # The guard on the fix above: resolving once must not be achieved by having
-    # check_prerequisites stop resolving. It is the preflight's job to refuse a
-    # required dependency it cannot map, before the mod.io release goes out.
+    """The guard on the fix above: resolving once must not cost check_prerequisites() its resolving.
+
+    It is the preflight's job to refuse a required dependency it cannot
+    map, before the mod.io release goes out.
+    """
     repo = _repo(tmp_path, asset=_asset_with_dependencies(("CoreLib", True)))
     cache = tmp_path / "deps.json"
     cache.write_text("{}")
@@ -700,15 +806,15 @@ REAL_ASSETS = _real_mod_assets()
     ),
 )
 def test_the_parsers_hold_against_every_real_mod_asset():
-    """The fixture at the top of this file is one asset, frozen. This is all of
-    them, as they are today.
+    """Measured against every sibling mod's real asset, not just the one frozen fixture above.
 
-    A regex over a whole YAML document is only as good as the documents it has
-    met, and the fixture cannot grow a field while the real ones do: the Editor
-    rewrites these files, and a mod added next month brings whatever it brings.
-    So this asserts properties rather than values -- asserting the values would
-    only restate the files -- and each property is one a parser reading the
-    wrong key, or stopping early, would violate.
+    A regex over a whole YAML document is only as good as the documents it
+    has met, and the fixture cannot grow a field while the real ones do:
+    the Editor rewrites these files, and a mod added next month brings
+    whatever it brings. So this asserts properties rather than values —
+    asserting the values would only restate the files — and each property
+    is one a parser reading the wrong key, or stopping early, would
+    violate.
     """
     for name, text in REAL_ASSETS:
         metadata = steam_bundle._read_metadata(text)
