@@ -74,7 +74,8 @@ def version_line(supported, known):
         in_minor = {v for v in (_norm(k) for k in known) if v[:2] == (major, minor)}
         if in_minor <= set(sup):
             return f"**Compatible with Core Keeper {major}.{minor}.x** — {span}."
-    return f"**Compatible with Core Keeper {_fmt(sup[0])} – {_fmt(sup[-1])}**"
+    # en dash: deliberate range typography in the rendered post, not a stray character
+    return f"**Compatible with Core Keeper {_fmt(sup[0])} – {_fmt(sup[-1])}**"  # noqa: RUF001
 
 
 def download_links(slug, steam_id):
@@ -152,7 +153,7 @@ def render_update(changelog, *, supported, known):
     # bullets with it.
     blocks = []
     for b in body.strip().split("\n\n"):
-        kept = "\n".join(l for l in _unwrap(b).split("\n") if not l.startswith("###"))
+        kept = "\n".join(line for line in _unwrap(b).split("\n") if not line.startswith("###"))
         if kept.strip():
             blocks.append(kept)
     # The version line keeps its own bold markers, so it gets its own line
