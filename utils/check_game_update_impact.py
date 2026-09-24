@@ -97,6 +97,13 @@ IDENTIFIER = re.compile(r"(?<![.\w])([A-Z][A-Za-z0-9_]{2,})\b")
 
 
 def version_key(name: str) -> tuple:
+    """Sort key for a decompile state dir name: its version as a tuple, oldest first.
+
+    find_states() only ever calls this after confirming STATE_DIR matches, but
+    the guard stays here rather than trusting the caller: an empty tuple for a
+    non-match sorts before every real version instead of raising, which is the
+    safer failure for a sort key.
+    """
     m = STATE_DIR.match(name)
     return tuple(int(p) for p in m.group(1).split(".")) if m else ()
 
@@ -110,11 +117,24 @@ def find_states() -> list[Path]:
 
 
 def strip_comments(text: str) -> str:
+    """Remove /* */ and // comments before scan_mod's regex scanners see the source.
+
+    A commented-out HarmonyPatch call or an example nameof() in a doc comment
+    would otherwise be scanned as a real binding, inflating what the mod
+    appears to depend on.
+    """
     text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
     return re.sub(r"//[^\n]*", "", text)
 
 
 def mod_dirs(only: str | None) -> list[Path]:
+    """Repo-root directories that are mods: not in NOT_A_MOD, and carrying a unity/ tree.
+
+    The unity/ check is what actually distinguishes a mod from any other
+    top-level directory here — NOT_A_MOD only rules out the ones known by
+    name, so a future non-mod directory still needs the unity/ test to keep
+    from being mistaken for one.
+    """
     out = []
     for d in sorted(REPO.iterdir()):
         if not d.is_dir() or d.name in NOT_A_MOD or d.name.startswith("."):
@@ -128,6 +148,13 @@ def mod_dirs(only: str | None) -> list[Path]:
 
 
 def mod_sources(mod: Path):
+    """Yield (path, text) for every .cs file in this mod, skipping worktrees.
+
+    A `.worktrees/` checkout under a mod is the same source checked out a
+    second time for isolated work elsewhere — scanning it would double-count
+    every binding the mod makes, or count one a worktree branch has already
+    removed.
+    """
     for cs in sorted(mod.rglob("*.cs")):
         if "/.worktrees/" in str(cs):
             continue
@@ -168,6 +195,12 @@ def scan_mod(mod: Path) -> dict:
 
 
 def declared_types(state: Path) -> set[str]:
+    """Every type name declared anywhere in this decompiled state, by TYPE_DECL alone.
+
+    Flat glob, not rglob: a decompile state's *.decompiled.cs files sit one
+    per assembly at the top level, never nested, so a recursive walk would
+    find nothing more than this does.
+    """
     names: set[str] = set()
     for f in state.glob("*.decompiled.cs"):
         try:
@@ -234,6 +267,14 @@ def best(declarations: set[str]) -> str:
 
 
 def main() -> int:
+    """Compare two decompiled states and report which mods' bindings broke.
+
+    Defaults to the two newest states under $CK_DECOMPILE_ROOT when --old/--new
+    are not given. The exit code follows `findings`, not `unresolved`: an
+    unresolved binding is a gap in this script's own parsing, reported
+    separately so it cannot be mistaken for a broken mod, and never turns the
+    exit code non-zero by itself — only an actual finding does.
+    """
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )

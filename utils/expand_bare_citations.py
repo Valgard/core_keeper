@@ -154,6 +154,15 @@ def expand(chapter_path, apply):
 
 
 def main():
+    """Report (or, with --apply, rewrite) every chapter's bare citations.
+
+    Dry-run by default, matching every other checker/fixer pair in this
+    directory — seeing the plan before anything is rewritten matters more here
+    than anywhere else, since a bad expansion turns a merely-unverified
+    citation into a wrong one. The exit code follows `unresolved_all`, not
+    `total`: a run that found nothing left to expand is success even when
+    `--apply` was never passed.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("root", nargs="?", default=".")
     ap.add_argument("--apply", action="store_true")

@@ -171,6 +171,16 @@ def rewrite_chapter(path, mapping):
 
 
 def main():
+    """Classify every citation as unchanged, moved, ambiguous, gone, unresolvable, or unrecorded.
+
+    Two passes over the citations, matching the comment above `first_pass`
+    below: the first settles every citation whose recorded text occurs
+    exactly once in its assembly, then the second reuses those as anchors to
+    place a citation whose text recurs (a bare `{`, say) by nearest distance.
+    Always exits 0 — this is a report; --apply is what turns "moved" findings
+    into a rewrite, and even then it never touches "gone" or "ambiguous"
+    ones, which stay for a human.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("root", nargs="?", default=".")
     ap.add_argument("--decompile", default=str(DEFAULT_DECOMPILE))

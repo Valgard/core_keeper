@@ -79,8 +79,7 @@ def mask_fences(text):
 
 
 def markdown_files(root):
-    """Tracked and untracked-but-not-ignored *.md, so foreign repositories
-    nested here are never reached.
+    """Tracked and untracked-but-not-ignored *.md, so foreign repos nested here are never reached.
 
     Returns (existing, missing). A tracked file that is gone from the working
     tree is a finding, not a crash: that is exactly the state of a deleted .md
@@ -197,6 +196,12 @@ def check_handbook_complete(files, root):
 
 
 def main(argv):
+    """Run every check over the repository's scoped Markdown and report what fails.
+
+    A tracked file missing from the working tree is reported here, before
+    check() ever sees it — check() reads every file it is given, so keeping a
+    known-missing path out of that list is what lets it stay that simple.
+    """
     root = Path(argv[1] if len(argv) > 1 else ".").resolve()
     files, missing = markdown_files(root)
     problems = [f"{p.relative_to(root)}  tracked but not on disk" for p in missing]

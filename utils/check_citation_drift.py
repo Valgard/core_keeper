@@ -72,8 +72,10 @@ SOURCE_CLONES = ("CoreLib-source-*",)
 
 
 def _stripped_lines(path, first, last):
-    """Read lines first..last from path, stripped — the shared tail of every
-    resolution path below, once each has found which file to read.
+    """Read lines first..last from path, stripped.
+
+    The shared tail of every resolution path below, once each has found which
+    file to read.
     """
     lines = path.read_text(errors="replace").splitlines()
     return [line.strip() for line in lines[first - 1 : last]]
@@ -126,13 +128,12 @@ def key_of(assembly, first, last):
 
 
 def collect(root, decompile):
-    """Resolve every citation in docs/ck/, returning the corpus, the failures,
-    and the set of every citation key seen — resolvable or not.
+    """Resolve every citation in docs/ck/: the corpus, the failures, and every key seen.
 
-    That third set is what lets a caller tell "unresolvable right now" apart
-    from "not cited anywhere any more": a citation whose assembly disappeared
-    is still sitting in the handbook, so it belongs in `seen` even though it
-    never makes it into `corpus`.
+    That third value — seen, resolvable or not — is what lets a caller tell
+    "unresolvable right now" apart from "not cited anywhere any more": a
+    citation whose assembly disappeared is still sitting in the handbook, so
+    it belongs in `seen` even though it never makes it into `corpus`.
 
     Chapters are read directly from docs/ck rather than from `git ls-files`,
     unlike check_docs_links: the handbook is one directory of tracked files,
@@ -159,8 +160,9 @@ def render(lines):
 
 
 def compare(corpus, snapshot, cited):
-    """Report drift between the corpus and the snapshot, in three distinct shapes:
-    a citation whose recorded line text no longer matches what is there now, a
+    """Report drift between the corpus and the snapshot, in three distinct shapes.
+
+    A citation whose recorded line text no longer matches what is there now, a
     citation the snapshot has never seen, and a snapshot entry for a citation
     that has genuinely dropped out of the handbook.
 
@@ -186,6 +188,14 @@ DEFAULT_SNAPSHOT = Path(__file__).resolve().parent / "ck-citation-snapshot.json"
 
 
 def main(argv):
+    """Parse args and run the capture or compare mode the module docstring describes.
+
+    The exit code tracks whether the requested action could run, not whether it
+    found drift: a missing decompile tree or a missing snapshot is 1, and so is
+    a compare that turns up problems — but a capture always returns 0, even when
+    it leaves unresolved citations behind. Those are a handbook defect to fix,
+    not a reason to refuse recording what did resolve.
+    """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("root", nargs="?", default=".")
     parser.add_argument("--capture", action="store_true", help="record, do not compare")

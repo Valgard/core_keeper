@@ -98,10 +98,12 @@ def mask_links(text):
 
 
 def unmask_links(line, links):
+    """Undo mask_links: replace each placeholder tag with the link it stands for."""
     return re.sub(rf"{PAD}(\d+){PAD}{PAD}*", lambda m: links[int(m.group(1))], line)
 
 
 def unglue(text):
+    """Undo glue_links: turn each placeholder space back into a real one."""
     return text.replace(GLUE, " ")
 
 
@@ -315,6 +317,15 @@ def defects(para, width):
 
 
 def process(path, fix):
+    """Check (or, with fix, rewrite) one file's wrapping; return (problems, count fixed).
+
+    Prose paragraphs and list items are walked in two separate passes rather
+    than a shared one, because a list item's wrap has to preserve its bullet
+    and hanging indent while defects() applies the identical checks to both —
+    there is nothing left for a merged path to buy. The second pass reads
+    `lines` only after the first has rebuilt it, so a --fix run that rewraps a
+    paragraph and then a list sees the paragraph's own rewritten text.
+    """
     lines = path.read_text().splitlines()
     width = target_width(lines)
     problems, rewrapped, out, last = [], 0, [], 0
@@ -396,6 +407,12 @@ FROZEN = (
 
 
 def display(path):
+    """Render `path` relative to the repo root, for messages a reader can act on.
+
+    Falls back to the raw path when it is not underneath the repo at all —
+    which happens in tests, and must not raise instead of merely being less
+    tidy.
+    """
     try:
         return str(path.resolve().relative_to(Path(__file__).resolve().parent.parent))
     except ValueError:
@@ -403,6 +420,13 @@ def display(path):
 
 
 def markdown_files(root):
+    """Tracked and untracked-but-not-ignored *.md under root, minus the FROZEN paths.
+
+    Mirrors check_docs_links' function of the same name, without its
+    existing/missing split: every path returned here has already passed
+    `is_file()`, so there is no "tracked but gone from disk" case left to
+    report.
+    """
     # GIT_DIR and GIT_INDEX_FILE outrank -C, and a hook runs with both set:
     # inherited, this would list the hook's repository no matter which root
     # was asked for. Strip them so -C means what it says.
@@ -447,6 +471,14 @@ def expand(args):
 
 
 def main(argv):
+    """Check or (with --fix) rewrite the wrapping of every requested file.
+
+    With no path argument, scans the whole repository via markdown_files();
+    given paths, expand() resolves each one — a file as itself, a directory as
+    the root of a nested repository to scan on its own terms, which is how a
+    mod repo's pre-commit hook reaches this script's checks over its own tree
+    rather than the parent's.
+    """
     fix = "--fix" in argv
     args = [a for a in argv[1:] if not a.startswith("--")]
     root = Path(__file__).resolve().parent.parent

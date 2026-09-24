@@ -79,6 +79,11 @@ def problems_in(path):
 
 
 def main():
+    """Report every unverifiable reference across docs/ck/ and fail if any exist.
+
+    A checkout with no docs/ck chapters at all exits 0 rather than 1 — that is
+    a repository without the handbook, not a handbook with violations in it.
+    """
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".")
     chapters = sorted((root / "docs" / "ck").glob("*.md"))
     if not chapters:
