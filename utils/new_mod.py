@@ -773,7 +773,21 @@ def build_precommit_config() -> str:
     start there at all, so for a second time these gates were absent from
     exactly the path a defect would be introduced on.
     """
-    return """repos:
+    # Split across two source lines each so neither exceeds the line-length gate;
+    # the generated file must stay byte-identical to what every mod repo already
+    # has committed (test_precommit_config_contains_the_shared_csharpier_block
+    # asserts containment), so this is plain literal concatenation, not a reflow.
+    docs_links_entry = (
+        'bash -c \'d=$PWD; while [ "$d" != / ] && [ ! -e "$d/utils/check_docs_links.py" ]; do '
+        'd=$(dirname "$d"); done; exec uv run --frozen --project "$d" '
+        '"$d/utils/check_docs_links.py" .\''
+    )
+    docs_wrapping_entry = (
+        'bash -c \'d=$PWD; while [ "$d" != / ] && [ ! -e "$d/utils/check_docs_wrapping.py" ]; do '
+        'd=$(dirname "$d"); done; exec uv run --frozen --project "$d" '
+        '"$d/utils/check_docs_wrapping.py" .\''
+    )
+    return f"""repos:
     - repo: local
       hooks:
           - id: csharpier
@@ -799,7 +813,7 @@ def build_precommit_config() -> str:
           # job. Walking up finds the same directory from either place.
           - id: docs-links
             name: docs links
-            entry: bash -c 'd=$PWD; while [ "$d" != / ] && [ ! -e "$d/utils/check_docs_links.py" ]; do d=$(dirname "$d"); done; exec uv run --frozen --project "$d" "$d/utils/check_docs_links.py" .'
+            entry: {docs_links_entry}
             language: system
             pass_filenames: false
             files: \\.md$
@@ -809,7 +823,7 @@ def build_precommit_config() -> str:
 
           - id: docs-wrapping
             name: docs wrapping
-            entry: bash -c 'd=$PWD; while [ "$d" != / ] && [ ! -e "$d/utils/check_docs_wrapping.py" ]; do d=$(dirname "$d"); done; exec uv run --frozen --project "$d" "$d/utils/check_docs_wrapping.py" .'
+            entry: {docs_wrapping_entry}
             language: system
             pass_filenames: false
             files: \\.md$
@@ -901,8 +915,8 @@ def build_plan(
     required_on: int,
     modio_type: str,
     corelib: bool = False,
-    name: str = None,
-    display_name: str = None,
+    name: str | None = None,
+    display_name: str | None = None,
 ):
     """Assemble the complete (relpath, content) plan for a new mod. Content is
     str for text files and bytes for the PNG. All GUIDs are minted here so the
