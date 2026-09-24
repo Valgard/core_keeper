@@ -84,8 +84,11 @@ def scenario(tmp_path):
 
 
 def test_an_empty_result_file_is_not_an_error(scenario, capsys):
-    # ck-workshop crashed before it could report anything at all. Nothing was
-    # created, so there is nothing to lose and nothing to say.
+    """Empty output is treated as "nothing was created", not as an error.
+
+    ck-workshop crashed before it could report anything at all here, so the
+    existing id is left untouched and nothing is printed.
+    """
     code, asset = scenario("")
 
     assert code == 0
@@ -94,6 +97,11 @@ def test_an_empty_result_file_is_not_an_error(scenario, capsys):
 
 
 def test_a_stream_with_no_json_line_is_not_an_error(scenario, capsys):
+    """Output made only of banner/log lines is the same case as an empty file.
+
+    No `{`-prefixed result line appears anywhere, so this must not be
+    mistaken for a parse failure.
+    """
     code, asset = scenario("  Title:   Disable Durability\nSteamworks: something\n")
 
     assert code == 0
@@ -102,7 +110,11 @@ def test_a_stream_with_no_json_line_is_not_an_error(scenario, capsys):
 
 
 def test_a_zero_file_id_persists_nothing(scenario, capsys):
-    # The tool reports fileId 0 when it never got as far as creating an item.
+    """A reported fileId of 0 leaves the asset byte-for-byte untouched.
+
+    The tool reports fileId 0 when it never got as far as creating an item,
+    so nothing may be written — not even an unchanged id field.
+    """
     code, asset = scenario(result_line(0, created=False, success=False) + "\n")
 
     assert code == 0
@@ -114,6 +126,11 @@ def test_a_zero_file_id_persists_nothing(scenario, capsys):
 
 
 def test_a_successful_creation_writes_the_id_and_reports_it(scenario, capsys):
+    """A freshly created item's id is written even to an asset that did not exist yet.
+
+    The "(created, hidden)" status reaches stdout, not stderr, since the
+    whole publish succeeded.
+    """
     code, asset = scenario(
         "  Item:    new (hidden)\n" + result_line(4242424242, created=True, success=True) + "\n",
         asset_text=None,
@@ -127,6 +144,11 @@ def test_a_successful_creation_writes_the_id_and_reports_it(scenario, capsys):
 
 
 def test_a_successful_update_reports_updated(scenario, capsys):
+    """A successful update is reported as "(updated)", not "(created, hidden)".
+
+    The two cases must stay distinguishable in the log rather than sharing
+    one status word.
+    """
     code, asset = scenario(result_line(3790345467, created=False, success=True) + "\n")
 
     assert code == 0
@@ -135,8 +157,12 @@ def test_a_successful_update_reports_updated(scenario, capsys):
 
 
 def test_an_id_created_before_a_failed_publish_is_still_saved(scenario, capsys):
-    # CreateItem already ran, so the item is live whether or not the rest of
-    # the publish was. This is the branch the duplicate hazard lives in.
+    """An id created before the rest of the publish failed must still be saved.
+
+    CreateItem already ran, so the item is live on Steam whether or not the
+    rest of the publish was — this is the branch the duplicate-item hazard
+    lives in.
+    """
     code, asset = scenario(result_line(4242424242, created=True, success=False) + "\n")
 
     assert code == 0
@@ -148,6 +174,11 @@ def test_an_id_created_before_a_failed_publish_is_still_saved(scenario, capsys):
 
 
 def test_a_failed_update_re_saves_the_id_and_says_so(scenario, capsys):
+    """A failed update to an existing item re-saves the id and says "already existed".
+
+    Kept distinct from the creation-failure message above so the two
+    failure causes are never conflated.
+    """
     code, asset = scenario(result_line(3790345467, created=False, success=False) + "\n")
 
     assert code == 0
@@ -162,9 +193,11 @@ def test_a_failed_update_re_saves_the_id_and_says_so(scenario, capsys):
 
 
 def test_an_unparsable_bundle_still_saves_the_id(scenario, capsys):
-    # The bundle only carries the fields the SDK window reads. Failing to parse
-    # it must not cost the id, and must not blank out a path and a tag list
-    # that were right before this run.
+    """An unparsable CK_STEAM_BUNDLE must not cost the id.
+
+    It must also not blank out a path and a tag list that were already
+    right in the asset before this run.
+    """
     code, asset = scenario(
         result_line(4242424242, created=False, success=True) + "\n",
         bundle="{not json at all",
@@ -179,6 +212,11 @@ def test_an_unparsable_bundle_still_saves_the_id(scenario, capsys):
 
 
 def test_a_refused_asset_exits_1_with_both_guidance_lines(scenario, capsys):
+    """A live item's id must appear in both stderr lines when it cannot be saved.
+
+    By the time anyone reads this, the tool's own output has scrolled
+    past, and the repeated id is what they retype by hand.
+    """
     code, asset = scenario(
         result_line(4242424242, created=True, success=True) + "\n",
         asset_text="this is not a Steam asset at all\n",
@@ -186,17 +224,18 @@ def test_a_refused_asset_exits_1_with_both_guidance_lines(scenario, capsys):
 
     assert code == 1
     err = capsys.readouterr().err
-    # The id itself has to appear in both lines: by the time anyone reads this
-    # the tool's own output has scrolled past, and this is what they retype.
     assert "Workshop item 4242424242 is live" in err
     assert f"Fix {asset} by hand" in err
     assert "'fileId:' line set to 4242424242" in err
 
 
 def test_a_stray_brace_line_after_the_result_does_not_displace_it(scenario, capsys):
-    # The stream carries ck-workshop's stderr too, so a brace-leading
-    # diagnostic printed after the result — native Steamworks logging during
-    # Shutdown, say — must not be mistaken for the result and throw.
+    """A `{`-prefixed line printed after the real result must not displace it.
+
+    The stream carries the tool's stderr too, so a diagnostic such as
+    native Steamworks logging during Shutdown must not be mistaken for the
+    result and thrown at.
+    """
     code, asset = scenario(
         result_line(4242424242, created=False, success=True) + "\n{ Steamworks shutdown trace\n"
     )
@@ -209,7 +248,11 @@ def test_a_stray_brace_line_after_the_result_does_not_displace_it(scenario, caps
 # fileId is the literal JSON key ck-workshop's own output uses, not a choice of
 # ours.
 def test_a_later_json_object_without_a_fileId_does_not_displace_it(scenario):  # noqa: N802
-    # Same hazard, one step subtler: valid JSON, wrong object.
+    """Same hazard as the stray brace line, one step subtler: valid JSON, wrong object.
+
+    A later object without a `fileId` key (e.g. a progress report) must not
+    overwrite the real result found earlier in the stream.
+    """
     code, asset = scenario(
         result_line(4242424242, created=False, success=True)
         + "\n"
@@ -225,6 +268,12 @@ def test_a_later_json_object_without_a_fileId_does_not_displace_it(scenario):  #
 
 
 def test_the_bundle_fills_the_fields_only_the_sdk_window_reads(scenario):
+    """The fields only the SDK window reads are filled from two different sources.
+
+    modOwner comes from the result object and selectedPath from
+    CK_STEAM_BUNDLE — a publish is the only point that knows their current
+    values.
+    """
     code, asset = scenario(result_line(4242424242, created=True, success=True) + "\n")
 
     assert code == 0
@@ -234,8 +283,12 @@ def test_the_bundle_fills_the_fields_only_the_sdk_window_reads(scenario):
 
 
 def test_a_zero_mod_owner_leaves_the_stored_one_alone(scenario):
-    # modOwner is 0 whenever Steam was not initialised. Writing that would
-    # erase a value the SDK window needs and this run simply does not know.
+    """A reported modOwner of 0 must not overwrite the value already stored.
+
+    modOwner is 0 whenever Steam was not initialised, and writing that
+    would erase a value the SDK window still needs and this run simply
+    does not know.
+    """
     code, asset = scenario(result_line(4242424242, created=False, success=True, mod_owner=0) + "\n")
 
     assert code == 0
@@ -250,10 +303,11 @@ needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git not inst
 
 @needs_git
 def test_an_asset_created_by_this_run_is_flagged_as_untracked(tmp_path, capsys):
-    # The moment docs/publishing.md is actually about: "Commit it once, right
-    # after the first Steam publish." check_prerequisites cannot cover this —
-    # it ran before the file existed — so the warning has to happen here or
-    # nowhere, and here the file holds a brand-new public item's only id.
+    """An asset this run itself creates is flagged as untracked.
+
+    check_prerequisites ran before the file existed and could not have
+    warned about it, yet it now holds a brand-new public item's only id.
+    """
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True, env=GIT_ENV)
     asset = steam_identity.asset_path(tmp_path, MOD)
     asset.parent.mkdir(parents=True)
@@ -274,8 +328,12 @@ def test_an_asset_created_by_this_run_is_flagged_as_untracked(tmp_path, capsys):
 
 @needs_git
 def test_an_asset_that_already_existed_is_not_flagged_again(tmp_path, capsys):
-    # check_prerequisites already said it this run, before the mod.io release.
-    # Saying it twice per publish is how it stops being read at all.
+    """An asset that already existed is not flagged a second time.
+
+    check_prerequisites already said it this run, before the mod.io
+    release, and saying it twice per publish is how a warning stops being
+    read at all.
+    """
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True, env=GIT_ENV)
     asset = steam_identity.asset_path(tmp_path, MOD)
     asset.parent.mkdir(parents=True)
@@ -293,19 +351,27 @@ def test_an_asset_that_already_existed_is_not_flagged_again(tmp_path, capsys):
 
 
 def test_an_unreadable_result_file_reports_rather_than_traces(tmp_path, capsys):
+    """An unreadable result file exits non-zero, unlike the "nothing was created" branches.
+
+    Those establish that nothing was created; this one establishes
+    nothing at all — the id may be sitting in the file we could not open,
+    and a non-zero exit is what keeps upload.sh from deleting it.
+    """
     code = steam_result.main(
         ["steam_result.py", str(tmp_path / "absent.txt"), str(tmp_path)],
         env={"MOD_NAME": MOD},
     )
 
-    # Non-zero, unlike branches 1-3: those establish that nothing was created,
-    # while this one establishes nothing at all — the id may be sitting in a
-    # file we could not open, and upload.sh keeps that file on a non-zero exit.
     assert code == 1
     assert "could not be read" in capsys.readouterr().err
 
 
 def test_a_missing_mod_name_reports_rather_than_traces(tmp_path, capsys):
+    """A missing MOD_NAME fails loudly with the variable's name in the message.
+
+    The alternative would be crashing later with a confusing lookup error,
+    or silently skipping the save.
+    """
     result = tmp_path / "result.txt"
     result.write_text(result_line(42, created=True, success=True) + "\n")
 
@@ -316,5 +382,10 @@ def test_a_missing_mod_name_reports_rather_than_traces(tmp_path, capsys):
 
 
 def test_wrong_arguments_report_rather_than_trace(capsys):
+    """A wrong argument count reports a usage message and exits 1.
+
+    The alternative is an unhandled exception from an out-of-range argv
+    access.
+    """
     assert steam_result.main(["steam_result.py"], env={}) == 1
     assert "usage:" in capsys.readouterr().err
