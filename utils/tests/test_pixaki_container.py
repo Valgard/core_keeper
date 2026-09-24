@@ -9,6 +9,7 @@ deliberate, while one that merely happens is indistinguishable from a bug.
 
 import json
 import os
+import re
 
 import pytest
 from conftest import PIXAKI_DIRECTORIES
@@ -63,9 +64,11 @@ def test_a_missing_member_raises_each_backend_s_own_error(container, packaging):
     difference intentional rather than incidental: a later `except KeyError`
     would run green against every archive and fall over on the first package.
     """
-    with open_pixaki(container) as c:
-        with pytest.raises(KeyError if packaging == "zip" else FileNotFoundError):
-            c.read("images/drawings/nope.png")
+    with (
+        open_pixaki(container) as c,
+        pytest.raises(KeyError if packaging == "zip" else FileNotFoundError),
+    ):
+        c.read("images/drawings/nope.png")
 
 
 def test_a_member_name_cannot_read_outside_the_package(container, packaging):
@@ -80,9 +83,11 @@ def test_a_member_name_cannot_read_outside_the_package(container, packaging):
     read.
     """
     (container.parent / "outside.txt").write_bytes(b"not part of the package")
-    with open_pixaki(container) as c:
-        with pytest.raises(KeyError if packaging == "zip" else ValueError):
-            c.read("../outside.txt")
+    with (
+        open_pixaki(container) as c,
+        pytest.raises(KeyError if packaging == "zip" else ValueError),
+    ):
+        c.read("../outside.txt")
 
 
 def test_open_pixaki_fails_loudly_on_a_path_that_does_not_exist(tmp_path):
@@ -137,12 +142,14 @@ def test_namelist_raises_rather_than_dropping_an_unreadable_subtree(tmp_path):
         with open_pixaki(package) as container, pytest.raises(PermissionError):
             container.namelist()
     finally:
-        os.chmod(unreadable, 0o755)  # else tmp_path cleanup fails
+        # restore, don't loosen: back to the mode it had before line 135 -- else
+        # tmp_path cleanup fails on the still-unreadable directory
+        os.chmod(unreadable, 0o755)  # noqa: S103
 
 
 def test_write_pixaki_rejects_an_unknown_packaging(tmp_path):
     # Guards the equivalence tests in the two tool suites: a typo'd form that
     # silently fell through to "directory" would have them compare a packaging
     # with itself, and they could no longer fail.
-    with pytest.raises(ValueError, match="unknown .pixaki packaging 'dir'"):
+    with pytest.raises(ValueError, match=re.escape("unknown .pixaki packaging 'dir'")):
         write_pixaki(tmp_path / "m.pixaki", PAYLOAD, "dir")
