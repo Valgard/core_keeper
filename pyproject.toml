@@ -73,6 +73,24 @@ ignore = [
 
     # Docstring rules - allow some flexibility while maintaining quality
     "D104",    # Missing docstring in public package (allow empty __init__.py files)
+
+    # Security rules that do not apply to a local toolbox, added beyond
+    # salesbuddy's list because this repo's tools exist to drive other programs
+    # and to speak protocols whose hash formats are not ours to choose. Each
+    # was checked against its actual call sites before being disabled:
+    "S603",    # subprocess call - every one here passes a LIST, never a shell
+               # string, and `shell=True` appears nowhere. S603 fires on the
+               # call regardless of form, so it flags the pattern that is
+               # already the safe one.
+    "S607",    # partial executable path - `git`, `curl`, `dotnet` and `unity`
+               # are meant to come from PATH. Hardcoding absolute paths would
+               # break on every machine but the one they were written on.
+    "S324",    # insecure hash - md5 verifies a download against the checksum
+               # mod.io publishes, and sha1/md5 derive Unity GUIDs. Both
+               # formats are dictated by the system on the other end; neither
+               # is a security decision this code gets to make.
+    "S311",    # non-cryptographic random - used for test fixtures and jitter,
+               # never for anything an attacker would care about.
 ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided
