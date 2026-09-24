@@ -40,7 +40,8 @@ def current():
         sys.exit(1)
     for f in sorted(os.listdir(PLUGINS)):
         if f.endswith(".dll.meta"):
-            mo = GUID_LINE.search(open(os.path.join(PLUGINS, f)).read())
+            with open(os.path.join(PLUGINS, f)) as fh:
+                mo = GUID_LINE.search(fh.read())
             if mo:
                 out[f[:-5]] = mo.group(1)  # strip ".meta" -> "X.dll"
     return out
@@ -51,14 +52,16 @@ def main():
     cur = current()
 
     if cmd == "snapshot":
-        json.dump(cur, open(SNAP, "w"), indent=2, sort_keys=True)
+        with open(SNAP, "w") as fh:
+            json.dump(cur, fh, indent=2, sort_keys=True)
         print(f"snapshot: saved {len(cur)} DLL GUIDs -> {SNAP}")
         return
 
     if not os.path.exists(SNAP):
         print(f"no snapshot at {SNAP} — run 'snapshot' first")
         sys.exit(1)
-    want = json.load(open(SNAP))
+    with open(SNAP) as fh:
+        want = json.load(fh)
     drift = {k: (cur.get(k), v) for k, v in want.items() if cur.get(k) != v}
     missing = [k for k in want if k not in cur]
 
@@ -78,10 +81,12 @@ def main():
             if c is None:
                 continue  # DLL absent in this SDK — nothing to pin
             p = os.path.join(PLUGINS, dll + ".meta")
-            txt = open(p).read()
+            with open(p) as fh:
+                txt = fh.read()
             new = GUID_LINE.sub(f"guid: {w}", txt, count=1)
             if new != txt:
-                open(p, "w").write(new)
+                with open(p, "w") as fh:
+                    fh.write(new)
                 n += 1
         print(f"apply: pinned {n} DLL GUID(s) to canonical")
         if n:
