@@ -132,7 +132,7 @@ def main():
                 assets.add(tgt)
                 queue.append(tgt)
 
-    to_copy = [start] + sorted(assets)
+    to_copy = [start, *sorted(assets)]
     for src in to_copy:
         rel = src[len(RES) + 1 :]
         dst = os.path.join(dest, rel)
@@ -147,14 +147,16 @@ def main():
     missing = {}
     for src in to_copy:
         dst = os.path.join(dest, src[len(RES) + 1 :])
-        txt = open(dst, errors="ignore").read()
+        with open(dst, errors="ignore") as fh:
+            txt = fh.read()
         n = 0
         for ar_g, sdk_g in remap.items():
             if ar_g in txt:
                 n += txt.count(ar_g)
                 txt = txt.replace(ar_g, sdk_g)
         if n:
-            open(dst, "w").write(txt)
+            with open(dst, "w") as fh:
+                fh.write(txt)
             remapped_refs += n
             remapped_files += 1
         for g in guids_in(dst):
