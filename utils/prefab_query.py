@@ -250,10 +250,6 @@ def load(path):
     return objs
 
 
-def _go_name(body):
-    return (body or {}).get("GameObject", body).get("m_Name") if body else None
-
-
 def go_name(objs, fid):
     """The GameObject at fid's m_Name, or None if fid is missing or not a GameObject."""
     cid, body = objs.get(fid, (None, None))
