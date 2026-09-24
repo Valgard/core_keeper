@@ -6,6 +6,8 @@ set that drifts, a changelog that says something else — each is a defect this
 module exists to make impossible.
 """
 
+import re
+
 import new_mod
 import pytest
 import steam_bundle
@@ -214,13 +216,16 @@ def test_tags_combine_all_three_groups(tmp_path):
     }
 
 
-def test_requiredOn_1_is_client_only():
+# requiredOn is the literal field name in the ModBuilderSettings .asset YAML
+# (metadata.requiredOn) -- these names name the field they test, not a choice
+# of ours.
+def test_requiredOn_1_is_client_only():  # noqa: N802
     tags = steam_bundle.derive_tags({"requiredOn": 1, "skipSafetyChecks": 0}, "Visual")
 
     assert "Client" in tags and "Server" not in tags
 
 
-def test_requiredOn_0_produces_no_application_type_tag():
+def test_requiredOn_0_produces_no_application_type_tag():  # noqa: N802
     tags = steam_bundle.derive_tags({"requiredOn": 0, "skipSafetyChecks": 0}, "Visual")
 
     assert "Client" not in tags and "Server" not in tags
@@ -249,7 +254,7 @@ def test_an_empty_field_reads_as_absent_not_as_the_next_line():
     assert metadata["requiredOn"] == 3
 
 
-def test_requiredOn_is_read_bitwise_not_looked_up():
+def test_requiredOn_is_read_bitwise_not_looked_up():  # noqa: N802 (see above)
     # The SDK's own settings GUI writes -1 ("Everything") when "Client and
     # Server" is picked, and the mod.io side reads the field bitwise, so it
     # tags both. Anything that maps whole values instead drops the tags for
@@ -306,7 +311,7 @@ def test_check_prerequisites_passes_without_a_built_content_folder(tmp_path):
 def test_check_prerequisites_reports_a_missing_description_by_name(tmp_path):
     repo = _repo(tmp_path, description=None)
 
-    with pytest.raises(ValueError, match="steam-description.txt"):
+    with pytest.raises(ValueError, match=re.escape("steam-description.txt")):
         steam_bundle.check_prerequisites(repo, _preflight_env())
 
 
@@ -333,7 +338,7 @@ def test_build_bundle_calls_check_prerequisites_first(tmp_path):
     repo = _repo(tmp_path, description=None)
     env = _env(tmp_path, MOD_INSTALL_PATH=str(tmp_path / "nowhere"))
 
-    with pytest.raises(ValueError, match="steam-description.txt"):
+    with pytest.raises(ValueError, match=re.escape("steam-description.txt")):
         steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
 
 
@@ -353,7 +358,7 @@ def test_an_unrecognized_identity_asset_aborts_before_any_upload(tmp_path):
 def test_a_missing_description_is_reported_by_name(tmp_path):
     repo = _repo(tmp_path, description=None)
 
-    with pytest.raises(ValueError, match="steam-description.txt"):
+    with pytest.raises(ValueError, match=re.escape("steam-description.txt")):
         steam_bundle.build_bundle(repo, _env(tmp_path), tmp_path / "p.png")
 
 
@@ -559,7 +564,7 @@ def test_check_prerequisites_reports_a_missing_changelog(tmp_path):
     repo = _repo(tmp_path)
     (repo / "CHANGELOG.md").unlink()
 
-    with pytest.raises(ValueError, match="CHANGELOG.md"):
+    with pytest.raises(ValueError, match=re.escape("CHANGELOG.md")):
         steam_bundle.check_prerequisites(repo, _preflight_env())
 
 
