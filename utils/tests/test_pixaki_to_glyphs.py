@@ -67,9 +67,13 @@ def _pixaki(path, layers, size=(257, 144), offset=(0, 0), form="zip"):
 
 
 def test_load_layers_composites_each_layer_at_its_cel_offset(tmp_path):
-    # A Pixaki drawing is stored cropped to its own bounds; the cel's frame
-    # origin is where it belongs on the canvas. Getting that offset wrong
-    # shifts every cell index by a constant, so pin it with a 1px marker.
+    """load_layers() composites each cropped drawing at its cel's frame origin, not at (0, 0).
+
+    A Pixaki drawing is stored cropped to its own bounds; the cel's frame
+    origin is where it belongs on the canvas. Getting that offset wrong
+    would shift every cell index by a constant, so this pins it with a 1px
+    marker at a non-zero offset.
+    """
     rects_drawing = Image.new("RGBA", (1, 1), MAGENTA)
     atlas_drawing = Image.new("RGBA", (1, 1), WHITE)
     master = _pixaki(
@@ -119,13 +123,15 @@ def test_load_layers_reads_a_directory_package_exactly_like_a_zip(tmp_path):
 
 
 def test_load_layers_closes_every_handle_it_opens_on_a_directory_package(tmp_path):
-    """A ZIP member is not its own OS handle -- it shares the archive's single
-    file object -- so the ZIP branch never leaked and this went unnoticed. A
-    directory member IS one, and neither `json.load` nor `Image.open` closes a
-    stream it was handed, so three per run were left to the garbage collector.
+    """load_layers() must not leave file handles open on a directory package.
 
-    Invisible today only because the repo sets no `filterwarnings`; the day
-    someone adds `= error` it would break exactly one packaging.
+    A ZIP member is not its own OS handle -- it shares the archive's single
+    file object -- so the ZIP branch never leaked and this went unnoticed. A
+    directory member IS one, and neither `json.load` nor `Image.open` closes
+    a stream it was handed, so three per run were left to the garbage
+    collector. Invisible today only because the repo sets no
+    `filterwarnings`; the day someone adds `= error` it would break exactly
+    one packaging.
     """
     layers = {
         "Rects": Image.new("RGBA", (1, 1), MAGENTA),
@@ -142,15 +148,17 @@ def test_load_layers_closes_every_handle_it_opens_on_a_directory_package(tmp_pat
 
 @pytest.mark.parametrize("form", PIXAKI_FORMS)
 def test_load_layers_names_the_layer_a_renamed_master_lacks(tmp_path, form):
-    # Renaming a layer in Pixaki is the likeliest way to break the tool; the
-    # message has to say which name it wanted and what the master has.
-    #
-    # Parametrised over both forms because this is the ONLY test that raises
-    # inside a `with open_pixaki(...)`. While it ran on the archive alone, the
-    # __exit__ under test was zipfile's, and _DirectoryContainer.__exit__ could
-    # have returned True -- swallowing this sys.exit, running on past the with,
-    # and turning a precise message into UnboundLocalError on the next line.
-    # The whole suite passed with that mutation in place.
+    """load_layers() names both the wanted and the present layer when a master is missing one.
+
+    Renaming a layer in Pixaki is the likeliest way to break the tool, so
+    the error must say which name it wanted and what the master has.
+    Parametrised over both forms because this is the ONLY test that raises
+    inside a `with open_pixaki(...)`. While it ran on the archive alone,
+    the __exit__ under test was zipfile's, and _DirectoryContainer.__exit__
+    could have returned True -- swallowing this sys.exit, running on past
+    the with, and turning a precise message into UnboundLocalError on the
+    next line. The whole suite passed with that mutation in place.
+    """
     master = _pixaki(
         tmp_path / "m.pixaki",
         {"Boxes": _blank(1, 1), "Atlas": _blank(1, 1)},  # 'Rects' renamed
@@ -163,6 +171,7 @@ def test_load_layers_names_the_layer_a_renamed_master_lacks(tmp_path, form):
 
 
 def test_rect_bbox_reads_magenta_box_in_cell_coordinates():
+    """rect_bbox() returns the magenta box's offset and size in cell-local coordinates, or None."""
     img = _blank()
     _paint_rect(img, 5, dx=0, dy=0, w=3, h=10)
     assert g.rect_bbox(img, 5) == (0, 0, 3, 10)
@@ -170,12 +179,14 @@ def test_rect_bbox_reads_magenta_box_in_cell_coordinates():
 
 
 def test_rect_bbox_ignores_non_magenta_pixels():
+    """rect_bbox() treats a painted cell in a non-magenta colour as having no box at all."""
     img = _blank()
     _paint_rect(img, 7, dx=0, dy=0, w=4, h=10, colour=WHITE)
     assert g.rect_bbox(img, 7) is None
 
 
 def test_widths_returns_one_entry_per_cell_zero_for_empty():
+    """widths() returns exactly one entry per cell, each the rect box's width or 0 without one."""
     img = _blank()
     _paint_rect(img, 0, 0, 0, 5, 10)
     _paint_rect(img, 3, 0, 0, 2, 10)
@@ -187,14 +198,18 @@ def test_widths_returns_one_entry_per_cell_zero_for_empty():
 
 
 def test_validate_flags_rect_box_with_wrong_y_or_height():
+    """validate() flags each geometry defect (y, height, x-offset) with its own exact message.
+
+    Asserting a loose substring like "y" would also match the word "glyph"
+    in the presence-mismatch message, letting this test pass even with the
+    y check deleted entirely -- confirmed by mutation testing. The exact
+    messages close that gap.
+    """
     img = _blank()
     _paint_rect(img, 0, dx=0, dy=1, w=3, h=10)  # dy must be 0
     _paint_rect(img, 1, dx=0, dy=0, w=3, h=9)  # h must be 10
     _paint_rect(img, 2, dx=1, dy=0, w=3, h=10)  # dx must be 0
     problems = g.validate(img, _blank())
-    # Assert the exact messages: a substring like "y" also matches the word
-    # "glyph" in the presence-mismatch message, which would let this test pass
-    # even with the y check deleted (proven by mutation testing).
     assert len(problems) == 3
     assert "cell 0: rect box y is 1, expected 0" in problems
     assert "cell 1: rect box height is 9, expected 10" in problems
@@ -202,6 +217,7 @@ def test_validate_flags_rect_box_with_wrong_y_or_height():
 
 
 def test_validate_flags_painted_cell_without_rect_box_and_vice_versa():
+    """validate() flags a glyph with no rect box, and a rect box with no glyph, both directions."""
     rects = _blank()
     atlas = _blank()
     _paint_rect(atlas, 10, dx=0, dy=2, w=3, h=5, colour=WHITE)  # glyph, no rect box
@@ -212,6 +228,7 @@ def test_validate_flags_painted_cell_without_rect_box_and_vice_versa():
 
 
 def test_validate_clean_sheet_reports_nothing():
+    """validate() reports nothing for a cell whose rect box and glyph are both correctly shaped."""
     rects, atlas = _blank(), _blank()
     _paint_rect(rects, 4, dx=0, dy=0, w=3, h=10)
     _paint_rect(atlas, 4, dx=0, dy=2, w=3, h=8, colour=WHITE)
@@ -219,10 +236,13 @@ def test_validate_clean_sheet_reports_nothing():
 
 
 def test_validate_flags_ink_wider_than_its_advance():
-    # A 3px advance box with 6px of ink. Before this check the cell passed as
-    # clean: ink_edges() reads only columns 0..advance-1, so the overflow was
-    # silently clipped and the pair's kerning came out of a truncated glyph --
-    # which then overlaps its neighbour in game.
+    """validate() flags overflowing ink instead of letting ink_edges() clip it quietly.
+
+    A 3px advance box with 6px of ink. Before this check the cell passed
+    as clean: ink_edges() reads only columns 0..advance-1, so the overflow
+    was silently clipped and the pair's kerning came out of a truncated
+    glyph -- which then overlaps its neighbour in game.
+    """
     rects, atlas = _blank(), _blank()
     _paint_rect(rects, 4, dx=0, dy=0, w=3, h=10)
     _paint_rect(atlas, 4, dx=0, dy=0, w=6, h=10, colour=WHITE)
@@ -231,11 +251,14 @@ def test_validate_flags_ink_wider_than_its_advance():
 
 
 def test_validate_flags_a_last_column_advance_that_crowds_the_outline_padding():
-    # CK widens each sprite rect by 2 px only while
-    # `rect2.x + rect2.width + 2 < texture.width`; at x=248 (column 31) on the
-    # 257 px canvas that caps the advance at 6. A 7 costs one "make the font
-    # texture wider" error per glyph on every launch, plus a glyph drawn
-    # without its padding -- and it used to validate clean.
+    """validate() flags a last-column advance too wide for CK's own 2px outline padding to fit.
+
+    CK widens each sprite rect by 2 px only while `rect2.x + rect2.width +
+    2 < texture.width`; at x=248 (column 31) on the 257 px canvas that
+    caps the advance at 6. A 7 costs one "make the font texture wider"
+    error per glyph on every launch, plus a glyph drawn without its
+    padding -- and it used to validate clean.
+    """
     rects, atlas = _blank(), _blank()
     _paint_rect(rects, 31, dx=0, dy=0, w=7, h=10)
     _paint_rect(atlas, 31, dx=0, dy=0, w=7, h=10, colour=WHITE)
@@ -246,8 +269,11 @@ def test_validate_flags_a_last_column_advance_that_crowds_the_outline_padding():
 
 
 def test_validate_accepts_the_widest_advance_the_last_column_can_hold():
-    # 248 + 6 + 2 == 256 < 257: the padding still fits, so this must pass --
-    # the shipped atlas has a 5 here, one column of headroom.
+    """validate() accepts the widest last-column advance that still fits CK's outline padding.
+
+    248 + 6 + 2 == 256 < 257: the padding still fits, so this must pass --
+    the shipped atlas has a 5 here, one column of headroom.
+    """
     rects, atlas = _blank(), _blank()
     _paint_rect(rects, 31, dx=0, dy=0, w=6, h=10)
     _paint_rect(atlas, 31, dx=0, dy=0, w=6, h=10, colour=WHITE)
@@ -255,9 +281,13 @@ def test_validate_accepts_the_widest_advance_the_last_column_can_hold():
 
 
 def test_validate_flags_ink_below_the_rect_box_rows():
-    # Same clipping hazard on the other axis: ink_edges() reads only rows
-    # 0..BOX_H-1, so ink in the cell's two spare bottom rows would be invisible
-    # to the kerning pass while still rendering (the sprite covers rows 0..10).
+    """validate() flags ink outside the rect box rows, not letting ink_edges() clip it quietly.
+
+    Same clipping hazard as the advance-width check but on the row axis:
+    ink_edges() reads only rows 0..BOX_H-1, so ink in the cell's two spare
+    bottom rows would be invisible to the kerning pass while still
+    rendering (the sprite covers rows 0..10).
+    """
     rects, atlas = _blank(), _blank()
     _paint_rect(rects, 4, dx=0, dy=0, w=3, h=10)
     _paint_rect(atlas, 4, dx=0, dy=2, w=3, h=10, colour=WHITE)
@@ -274,7 +304,7 @@ def _ws(widths_by_index):
 
 
 def test_kerning_flush_blocks_have_zero_kerning():
-    # two solid 4px blocks, ink flush against both advance edges: no gap.
+    """kerning_matrix() gives zero kerning to two solid blocks flush against both advance edges."""
     atlas = _blank()
     _paint_rect(atlas, 0, dx=0, dy=0, w=4, h=10, colour=WHITE)
     _paint_rect(atlas, 1, dx=0, dy=0, w=4, h=10, colour=WHITE)
@@ -283,14 +313,17 @@ def test_kerning_flush_blocks_have_zero_kerning():
 
 
 def test_kerning_two_empty_columns_each_side_is_clamped_to_two():
-    # cell 0: ink in columns 0-1 of a 4px advance (columns 2-3 empty -> 2px
-    # gap to the advance edge). Cell 1: ink in columns 2-3 (columns 0-1 empty
-    # -> 2px gap from its own edge). Raw gap 2 + 2 = 4, minus one is 3,
-    # clamped down to the cap, 2. Deliberately a literal, not
-    # g.KERNING_CLAMP: this pins the clamp's actual settled value (2) so a
-    # future accidental change to the constant is caught here, not silently
-    # carried along by an assertion that reads the same constant it's meant
-    # to check.
+    """kerning_matrix() clamps a big raw gap down to the cap KERNING_CLAMP, pinned as a literal 2.
+
+    Cell 0: ink in columns 0-1 of a 4px advance (columns 2-3 empty -> 2px
+    gap to the advance edge). Cell 1: ink in columns 2-3 (columns 0-1
+    empty -> 2px gap from its own edge). Raw gap 2 + 2 = 4, minus one is
+    3, clamped down to the cap, 2. Deliberately a literal, not
+    g.KERNING_CLAMP: this pins the clamp's actual settled value (2) so a
+    future accidental change to the constant is caught here, not silently
+    carried along by an assertion that reads the same constant it's meant
+    to check.
+    """
     atlas = _blank()
     _paint_rect(atlas, 0, dx=0, dy=0, w=2, h=10, colour=WHITE)
     _paint_rect(atlas, 1, dx=2, dy=0, w=2, h=10, colour=WHITE)
@@ -299,10 +332,13 @@ def test_kerning_two_empty_columns_each_side_is_clamped_to_two():
 
 
 def test_kerning_non_overlapping_ink_rows_default_to_two():
-    # cell 0 has ink only in row 0, cell 1 only in row 5 -- no row has ink in
-    # both, so the pair falls back to the cap rather than a measured gap (the
-    # no-overlap case is exempt from the "one less" adjustment below).
-    # Literal 2, not g.KERNING_CLAMP, for the same reason as the test above.
+    """kerning_matrix() falls back to the cap when no row has ink in both glyphs.
+
+    Cell 0 has ink only in row 0, cell 1 only in row 5 -- no row has ink
+    in both, so the pair falls back to the cap rather than a measured gap
+    (the no-overlap case is exempt from the "one less" adjustment). Literal
+    2, not g.KERNING_CLAMP, for the same reason as the test above.
+    """
     atlas = _blank()
     _paint_rect(atlas, 0, dx=0, dy=0, w=4, h=1, colour=WHITE)
     _paint_rect(atlas, 1, dx=0, dy=5, w=4, h=1, colour=WHITE)
@@ -311,9 +347,12 @@ def test_kerning_non_overlapping_ink_rows_default_to_two():
 
 
 def test_kerning_partial_gap_is_exact():
-    # only row 0 has ink in both: cell 0 stops 2px short of its advance edge,
-    # cell 1 starts flush at column 0. Raw gap is 2, minus one is 1 -- within
-    # the clamp, so the result is the exact value, not the cap.
+    """kerning_matrix() returns the exact measured gap when it falls within the clamp, not the cap.
+
+    Only row 0 has ink in both: cell 0 stops 2px short of its advance
+    edge, cell 1 starts flush at column 0. Raw gap is 2, minus one is 1 --
+    within the clamp, so the result is the exact value, not the cap.
+    """
     atlas = _blank()
     _paint_rect(atlas, 0, dx=0, dy=0, w=2, h=1, colour=WHITE)
     _paint_rect(atlas, 1, dx=0, dy=0, w=4, h=1, colour=WHITE)
@@ -322,13 +361,16 @@ def test_kerning_partial_gap_is_exact():
 
 
 def test_kerning_one_free_column_becomes_zero_not_one():
-    # Regression for the l/t collision observed in game ("Seltenheit",
-    # "Entdeckt"): cell 0 stops 1px short of its advance edge, cell 1 starts
-    # flush at column 0 -- a raw gap of exactly 1. The pre-round-4 rule (no
-    # subtraction) returned kerning 1 here, subtracting the *entire* 1px gap
-    # from the advance and leaving zero columns of air -- the stems touched.
-    # Minus one is 0: no pixels get subtracted, so that 1px gap survives
-    # untouched instead of being closed to nothing.
+    """kerning_matrix() closes a 1px gap to kerning 0, not to kerning 1, which would erase the gap.
+
+    Regression for the l/t collision observed in game ("Seltenheit",
+    "Entdeckt"): cell 0 stops 1px short of its advance edge, cell 1 starts
+    flush at column 0 -- a raw gap of exactly 1. The pre-round-4 rule (no
+    subtraction) returned kerning 1 here, subtracting the *entire* 1px gap
+    from the advance and leaving zero columns of air -- the stems touched.
+    Minus one is 0: no pixels get subtracted, so that 1px gap survives
+    untouched instead of being closed to nothing.
+    """
     atlas = _blank()
     _paint_rect(atlas, 0, dx=0, dy=0, w=3, h=1, colour=WHITE)
     _paint_rect(atlas, 1, dx=0, dy=0, w=4, h=1, colour=WHITE)
@@ -337,6 +379,7 @@ def test_kerning_one_free_column_becomes_zero_not_one():
 
 
 def test_kerning_unpainted_cell_is_zero_in_both_directions():
+    """kerning_matrix() leaves both directions zero when one cell is unpainted (width 0)."""
     atlas = _blank()
     _paint_rect(atlas, 0, dx=0, dy=0, w=4, h=1, colour=WHITE)
     matrix = g.kerning_matrix(atlas, _ws({0: 4}))  # cell 1 stays unpainted
@@ -350,14 +393,18 @@ def _clean_master(tmp_path):
 
 
 def test_check_only_reports_the_master_as_clean(tmp_path, capsys):
+    """main(--check-only) exits 0 and prints a clean message for a problem-free master."""
     assert g.main(["--pixaki", str(_clean_master(tmp_path)), "--check-only"]) == 0
     assert "all invariants hold" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("write_flag", ["--sheet", "--kerning"])
 def test_check_only_refuses_the_write_flags(tmp_path, capsys, write_flag):
-    # The combination used to write nothing and print OK -- indistinguishable
-    # from a successful regeneration, with the stale artifacts left on disk.
+    """main() refuses --check-only plus a write flag as a usage error, not a silent no-op.
+
+    The combination used to write nothing and print OK -- indistinguishable
+    from a successful regeneration, with the stale artifacts left on disk.
+    """
     target = tmp_path / "out"
     with pytest.raises(SystemExit) as exc:
         g.main(
