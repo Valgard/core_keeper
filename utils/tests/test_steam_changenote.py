@@ -24,18 +24,23 @@ import steam_changenote
 
 
 def test_the_note_opens_with_the_version_as_a_heading():
-    # The only place a version can appear at all: SubmitItemUpdate takes the
-    # note and nothing else, so an entry otherwise shows `Update: <date>` and
-    # is indistinguishable from every other entry submitted the same day.
+    """The version heading is the only place a version can appear at all.
+
+    SubmitItemUpdate takes the note and nothing else, so without it an
+    entry shows only `Update: <date>` and cannot be told apart from
+    another submitted the same day.
+    """
     note = steam_changenote.render("1.4.0", "### Fixed\n\n- A thing.")
 
     assert note.startswith("[h2]1.4.0[/h2]\n")
 
 
 def test_an_entry_with_an_empty_body_is_just_its_heading():
-    # parse_changelog genuinely returns "" for a version heading with nothing
-    # under it, and the C# side accepts that — so this has to produce a sparse
-    # note rather than a trailing blank block.
+    """An empty body produces just the heading, not a trailing blank block.
+
+    parse_changelog genuinely returns "" for a version heading with
+    nothing under it, and the C# side accepts that.
+    """
     assert steam_changenote.render("1.0.0", "") == "[h2]1.0.0[/h2]"
 
 
@@ -43,46 +48,73 @@ def test_an_entry_with_an_empty_body_is_just_its_heading():
 
 
 def test_a_section_heading_becomes_h3_under_the_version():
+    """A `###` section heading converts to `[h3]`.
+
+    That is the structural level BBCode has below the note's own `[h2]`
+    version line.
+    """
     assert steam_changenote.to_bbcode("### Fixed") == "[h3]Fixed[/h3]"
 
 
 def test_every_heading_level_flattens_to_h3():
-    # There is one structural level below the version, so a body heading is a
-    # section of this release whatever depth it was written at. The version's
-    # own [h2] must stay the note's top line.
+    """Every heading depth flattens to the same `[h3]`.
+
+    There is only one structural level below the version, and an `[h1]`
+    would otherwise outrank the note's own `[h2]` version line.
+    """
     assert steam_changenote.to_bbcode("# Fixed") == "[h3]Fixed[/h3]"
     assert steam_changenote.to_bbcode("###### Fixed") == "[h3]Fixed[/h3]"
 
 
 def test_consecutive_bullets_become_one_list():
+    """Consecutive bullet lines become one `[list]` block, not a separate list per item."""
     assert steam_changenote.to_bbcode("- One.\n- Two.") == ("[list]\n[*] One.\n[*] Two.\n[/list]")
 
 
 def test_a_blank_line_between_bullets_does_not_split_the_list():
-    # Markdown calls that one (loose) list, and two [list] blocks would render
-    # as two.
+    """A blank line between bullets does not split the list.
+
+    Markdown calls that one (loose) list, and rendering it as two
+    `[list]` blocks would show it as two lists.
+    """
     assert steam_changenote.to_bbcode("- One.\n\n- Two.") == ("[list]\n[*] One.\n[*] Two.\n[/list]")
 
 
 def test_a_sub_bullet_nests_inside_its_parent_item():
+    """An indented sub-bullet nests inside its parent item's `[list]`.
+
+    It must not flatten into a sibling at the top level.
+    """
     note = steam_changenote.to_bbcode("- Parent.\n  - Child.\n- Sibling.")
 
     assert note == ("[list]\n[*] Parent.\n[list]\n[*] Child.\n[/list]\n[*] Sibling.\n[/list]")
 
 
 def test_a_numbered_list_keeps_its_numbering():
+    """A numbered list converts to `[olist]`, which keeps its numbering.
+
+    Not to the unordered `[list]` bulleted markers use.
+    """
     assert steam_changenote.to_bbcode("1. One.\n2. Two.") == (
         "[olist]\n[*] One.\n[*] Two.\n[/olist]"
     )
 
 
 def test_blocks_are_separated_by_a_blank_line():
+    """Consecutive blocks — a paragraph, a heading, a list — are joined by a blank line.
+
+    They must not run together with no separator.
+    """
     note = steam_changenote.to_bbcode("Preamble.\n\n### Fixed\n\n- A thing.")
 
     assert note == "Preamble.\n\n[h3]Fixed[/h3]\n\n[list]\n[*] A thing.\n[/list]"
 
 
 def test_a_heading_needs_no_blank_line_to_end_the_paragraph_above_it():
+    """A heading right under a paragraph, with no blank line between them, still ends the paragraph.
+
+    It must not be read as the paragraph's own continuation.
+    """
     assert steam_changenote.to_bbcode("Preamble.\n### Fixed") == ("Preamble.\n\n[h3]Fixed[/h3]")
 
 
@@ -90,27 +122,34 @@ def test_a_heading_needs_no_blank_line_to_end_the_paragraph_above_it():
 
 
 def test_a_hard_wrapped_paragraph_becomes_one_line():
-    # The Workshop renders every newline as a line break, and these changelogs
-    # are wrapped at about eighty columns for the file's own sake. Kept, those
-    # breaks would ragged-edge the note at eighty characters in a browser column
-    # several times that wide — and mod.io, which renders the same source as
-    # Markdown, would show the same release differently. The repo's hand-written
-    # steam-description.txt files are unwrapped for exactly this reason.
+    """A hard-wrapped paragraph is joined into one line.
+
+    Kept, its eighty-column breaks would ragged-edge the note in a
+    browser column several times that wide, and mod.io — rendering the
+    same source as Markdown — would show the same release differently.
+    """
     assert steam_changenote.to_bbcode("One line\nand its continuation.") == (
         "One line and its continuation."
     )
 
 
 def test_a_bullets_continuation_lines_join_its_item():
+    """A bullet's wrapped continuation lines join back into that same item's text.
+
+    Not starting a new item or a stray paragraph.
+    """
     note = steam_changenote.to_bbcode("- A thing\n  that wrapped\n  twice.\n- Another.")
 
     assert note == "[list]\n[*] A thing that wrapped twice.\n[*] Another.\n[/list]"
 
 
 def test_a_bold_span_wrapped_over_two_lines_survives():
-    # Verbatim from disable-durability 1.1.0. A line-wise replacer sees an odd
-    # number of asterisks on each line and emits neither tag — the reader gets
-    # `**Options → Mod Settings**` as text.
+    """A `**bold**` span wrapped across two source lines still converts.
+
+    Verbatim from disable-durability 1.1.0. A line-wise replacer would see
+    an odd number of asterisks on each line and emit neither tag, leaving
+    the raw `**markup**` visible to the reader.
+    """
     note = steam_changenote.to_bbcode(
         "- **In-game Enabled toggle.** Switch the mod on or off from **Options → Mod\n"
         "  Settings** without uninstalling it."
@@ -125,8 +164,11 @@ def test_a_bold_span_wrapped_over_two_lines_survives():
 
 
 def test_an_inline_code_span_wrapped_over_two_lines_survives():
-    # Verbatim from item-checklist 0.9.0, and the reason the code spans are
-    # protected AFTER unwrapping rather than before it.
+    """A backtick code span wrapped across two source lines still converts.
+
+    Verbatim from item-checklist 0.9.0, and the reason code spans are
+    protected after unwrapping rather than before it.
+    """
     note = steam_changenote.to_bbcode(
         "- Each concrete `(ingredient1,\n  ingredient2)` permutation is tracked."
     )
@@ -141,52 +183,69 @@ def test_an_inline_code_span_wrapped_over_two_lines_survives():
 
 
 def test_bold_becomes_b():
+    """`**bold**` converts to `[b]…[/b]`."""
     assert steam_changenote.to_bbcode("A **loud** word.") == "A [b]loud[/b] word."
 
 
 def test_italic_becomes_i():
+    """`*italic*` converts to `[i]…[/i]`."""
     assert steam_changenote.to_bbcode("A *quiet* word.") == "A [i]quiet[/i] word."
 
 
 def test_underscores_are_never_emphasis():
-    # The one dialect that collides with what these changelogs are full of:
-    # identifiers. `requiredOn_2` and `__Internal` are text, not markup, and a
-    # converter that guessed would silently italicise half a symbol name.
+    """`_underscore_` and `__double__` emphasis is never converted.
+
+    That dialect collides with identifiers these changelogs are full of,
+    and converting it would silently italicise half a symbol name such as
+    `requiredOn_2`.
+    """
     assert steam_changenote.to_bbcode("A _quiet_ word.") == "A _quiet_ word."
     assert steam_changenote.to_bbcode("__loud__ words.") == "__loud__ words."
 
 
 def test_inline_code_keeps_its_backticks_rather_than_becoming_a_code_tag():
-    # [code] is block-level on Steam (measured, docs/ck/steam-workshop.md), so
-    # mapping an inline `identifier` onto it splits the sentence around every
-    # symbol name. Backticks render literally — and literal backticks still
-    # delimit the identifier, which is what they were there for.
+    """An inline code span keeps its literal backticks rather than becoming `[code]`.
+
+    That tag is block-level on Steam, so wrapping an inline identifier in
+    it would split the sentence around every symbol name.
+    """
     assert steam_changenote.to_bbcode("Patches `Player.Awake` on load.") == (
         "Patches `Player.Awake` on load."
     )
 
 
 def test_markup_inside_inline_code_is_left_alone():
-    # Code is protected before any inline rule runs, so a `*` or a `**` in a
-    # symbol name cannot be read as emphasis.
+    """A `*` or `**` inside an inline code span is left alone, not read as emphasis.
+
+    Code spans are protected before any inline rule runs.
+    """
     assert steam_changenote.to_bbcode("Call `a * b` and `**p`.") == ("Call `a * b` and `**p`.")
 
 
 def test_a_link_becomes_a_url_tag():
+    """A Markdown link converts to `[url=target]text[/url]`."""
     assert steam_changenote.to_bbcode("See [the docs](https://example.com/x).") == (
         "See [url=https://example.com/x]the docs[/url]."
     )
 
 
 def test_bold_inside_a_link_is_still_converted():
+    """Bold markup inside a link's text still converts to `[b]`.
+
+    It must not be swallowed whole by the link substitution that runs
+    before it.
+    """
     assert steam_changenote.to_bbcode("[**Loud**](https://example.com)") == (
         "[url=https://example.com][b]Loud[/b][/url]"
     )
 
 
 def test_em_dashes_and_arrows_pass_through_unchanged():
-    # Not escaped anywhere on this path — unlike mod.io's own stored copy, which
-    # comes back as `-&gt;` (see steam_backfill.divergence).
+    """Em dashes and arrows pass through unescaped.
+
+    Unlike mod.io's own stored copy of the same changelog, which
+    HTML-escapes `->` to `-&gt;` (see steam_backfill.divergence).
+    """
     assert steam_changenote.to_bbcode("Options → Mod Settings — live.") == (
         "Options → Mod Settings — live."
     )
@@ -196,18 +255,24 @@ def test_em_dashes_and_arrows_pass_through_unchanged():
 
 
 def test_a_bracket_that_is_not_a_link_is_left_exactly_as_written():
-    # Deliberate, and the reasoning is in steam_changenote's own module
-    # docstring: Steam's BBCode has no documented escape, so anything
-    # substituted here would be a guess about an undocumented parser, and a
-    # wrong guess turns text that renders correctly today into visible mangle.
-    # The measured behaviour is that an unrecognised construct renders character
-    # for character.
+    """A `[bracket]` that is not a link (no following `(url)`) is left exactly as written.
+
+    Deliberate: Steam's BBCode has no documented escape, so substituting
+    anything here would be a guess about an undocumented parser, and a
+    wrong guess turns text that renders correctly today into visible
+    mangle.
+    """
     assert steam_changenote.to_bbcode("Filed as [SB-367] upstream.") == (
         "Filed as [SB-367] upstream."
     )
 
 
 def test_a_link_with_no_target_is_not_a_link():
+    """A `[bracketed]` phrase with no `(target)` after it is left as plain text.
+
+    Exactly like the non-link bracket case above, and not treated as a
+    broken link.
+    """
     assert steam_changenote.to_bbcode("[Keep a Changelog] is the format.") == (
         "[Keep a Changelog] is the format."
     )
@@ -217,8 +282,11 @@ def test_a_link_with_no_target_is_not_a_link():
 
 
 def test_a_fenced_block_becomes_a_code_block_and_is_not_unwrapped():
-    # The one place [code] is the right tag: it is block-level, which is exactly
-    # what a fenced block is. Its lines keep their breaks and their markup.
+    """A fenced code block converts to `[code]`, the one place that block-level tag is correct.
+
+    Its lines keep their own breaks and literal `**` markup rather than
+    being unwrapped or inline-converted.
+    """
     note = steam_changenote.to_bbcode("```csharp\nvar x = **1**;\nvar y = 2;\n```")
 
     assert note == "[code]\nvar x = **1**;\nvar y = 2;\n[/code]"
@@ -279,6 +347,11 @@ def test_every_real_entry_keeps_all_of_its_bullets():
 
 @_corpus
 def test_every_real_entry_balances_the_tags_it_opens():
+    """Every opening tag across the real corpus has a matching closing tag.
+
+    An unbalanced pair would render literally instead of formatting, or
+    worse, swallow the rest of the note into the open tag's formatting.
+    """
     for mod, version, body in _entries():
         note = steam_changenote.render(version, body)
         for tag in ("b", "i", "list", "olist", "h2", "h3", "url", "code"):
