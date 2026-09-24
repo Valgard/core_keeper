@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+import re
 
 import pixaki_to_sheet as p
 from conftest import PIXAKI_DIRECTORIES
@@ -58,10 +59,10 @@ def _doc():
 
 def test_collect_visible_layers_excludes_groups_and_hidden():
     layers = p.collect_layers(_doc(), EXCLUDE_TOP)
-    names = {(l.name, l.w, l.h) for l in layers}
+    names = {(layer.name, layer.w, layer.h) for layer in layers}
     assert names == {("Window", 8, 8), ("Clear", 6, 6)}
     # the "Icon Sort" under Outsorted is excluded by top-group
-    assert all(l.name != "Icon Sort" for l in layers)
+    assert all(layer.name != "Icon Sort" for layer in layers)
 
 
 def _img(pixels_rgba, w, h):
@@ -99,7 +100,7 @@ def test_internalid_is_deterministic_and_size_disambiguated():
 def test_pack_places_without_overlap_and_bottom_left_rects():
     sprites = [("a", None, 8, 8), ("b", None, 6, 6), ("c", None, 4, 8)]
     placements, sheet_w, sheet_h = p.pack(sprites, sheet_w=20, gutter=2)
-    for key, x, y, w, h in placements:
+    for _key, x, y, w, h in placements:
         assert x >= 0 and x + w <= sheet_w
         assert y >= 0 and y + h <= sheet_h
     # unique positions, all three placed
@@ -144,7 +145,17 @@ def test_render_meta_replaces_guid_and_sprites(tmp_path):
     )
     tf = tmp_path / "tpl.png.meta"
     tf.write_text(template)
-    placed = [dict(name="Window", internal_id=42, x=2, y=2, w=16, h=16, border=(4, 4, 4, 4))]
+    placed = [
+        {
+            "name": "Window",
+            "internal_id": 42,
+            "x": 2,
+            "y": 2,
+            "w": 16,
+            "h": 16,
+            "border": (4, 4, 4, 4),
+        }
+    ]
     out = p.render_meta(str(tf), "b" * 32, placed)
     assert "guid: " + "b" * 32 in out
     assert "name: Window" in out
@@ -382,7 +393,7 @@ def test_load_pixaki_names_the_member_it_cannot_decode(tmp_path):
 
     pixaki = _write_sprite_pixaki(tmp_path, "{}", form="directory")
     (pixaki / "images" / "drawings" / "D9.png").write_bytes(b"not a png at all")
-    with pytest.raises(OSError, match="images/drawings/D9.png"):
+    with pytest.raises(OSError, match=re.escape("images/drawings/D9.png")):
         p.load_pixaki(str(pixaki))
 
 
