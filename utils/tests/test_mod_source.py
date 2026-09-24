@@ -15,10 +15,16 @@ import pytest
 
 
 def test_normalise_is_casefold_and_alphanumeric():
+    """Spaces and mixed case are folded away: "Mod Settings Menu" -> "modsettingsmenu"."""
     assert mod_source.normalise("Mod Settings Menu") == "modsettingsmenu"
 
 
 def test_normalise_keeps_non_latin_titles_distinct():
+    """Two distinct Cyrillic titles normalise to two distinct, non-empty keys.
+
+    An [^a-z0-9] filter collapses every Cyrillic title onto the empty key, which is how three
+    unrelated mods became one ambiguous entry.
+    """
     # An [^a-z0-9] filter collapses every Cyrillic title onto the empty key,
     # which is how three unrelated mods became one ambiguous entry.
     assert mod_source.normalise("БКК") != ""
@@ -27,11 +33,13 @@ def test_normalise_keeps_non_latin_titles_distinct():
 
 
 def test_normalise_empty_for_punctuation_only():
+    """A name with no alphanumeric characters at all normalises to the empty string."""
     assert mod_source.normalise("---") == ""
     assert mod_source.normalise("   ") == ""
 
 
 def test_index_collects_origins_per_mod():
+    """Adding the same mod id under two names/origins accumulates both origins under one key."""
     index = mod_source.NameIndex()
     index.add("CoreLib", 3177992, mod_source.ORIGIN_INTERNAL)
     index.add("corelib", 3177992, mod_source.ORIGIN_SLUG)
@@ -42,6 +50,10 @@ def test_index_collects_origins_per_mod():
 
 
 def test_index_reports_every_mod_under_an_ambiguous_key():
+    """Two different mod ids that normalise to the same key are both returned by one lookup.
+
+    Just the last one added.
+    """
     index = mod_source.NameIndex()
     index.add("Tool Resizer", 6041499, mod_source.ORIGIN_TITLE)
     index.add("ToolResizer", 4799620, mod_source.ORIGIN_TITLE)
@@ -50,6 +62,10 @@ def test_index_reports_every_mod_under_an_ambiguous_key():
 
 
 def test_index_never_stores_an_empty_key():
+    """A name that normalises to the empty string is not indexed at all.
+
+    It never becomes a lookup key.
+    """
     index = mod_source.NameIndex()
     index.add("---", 1, mod_source.ORIGIN_TITLE)
 
@@ -59,13 +75,12 @@ def test_index_never_stores_an_empty_key():
 def _installed_row(entry):
     """One _write_cache row, with the two optional name fields filled in.
 
-    A row is (mod_id, modfile_id, internal_name, files) or, when a test needs
-    the three names to DIFFER, (mod_id, modfile_id, internal_name, files,
-    title, slug). The short form derives title and slug from the internal
-    name, which is convenient and was also why ~30 installed-mod tests could
-    not touch this tool's central case: NameChests ships as "More Labels" on
-    mod.io, and a fixture whose three names all agree cannot tell an index
-    that covers all three from one that indexes the internal name alone.
+    A row is (mod_id, modfile_id, internal_name, files) or, when a test needs the three names to
+    DIFFER, (mod_id, modfile_id, internal_name, files, title, slug). The short form derives
+    title and slug from the internal name, which is convenient and was also why ~30
+    installed-mod tests could not touch this tool's central case: NameChests ships as "More
+    Labels" on mod.io, and a fixture whose three names all agree cannot tell an index that
+    covers all three from one that indexes the internal name alone.
     """
     mod_id, modfile_id, name, files = entry[:4]
     title, slug = entry[4:6] if len(entry) > 4 else (name, name.lower())
@@ -119,6 +134,7 @@ def _write_repo(workspace, repo, mod_name, mod_id, fake_id=None):
 
 
 def test_reads_an_installed_mod_with_its_three_names(tmp_path):
+    """A basic installed mod is read back with its mod id, internal name, folder, and file list."""
     cache = _write_cache(tmp_path, [(3177992, 7845185, "CoreLib", ["Scripts/CoreLibMod.cs"])])
 
     mods, warnings = mod_source.read_installed(cache)
@@ -132,6 +148,14 @@ def test_reads_an_installed_mod_with_its_three_names(tmp_path):
 
 
 def test_ignores_a_superseded_folder(tmp_path):
+    """The cache keeps old folders, so "highest modfile id wins" is a guess that happens to work.
+
+    This pins that state.json is what decides.
+
+    The fixture gives the STALE folder the HIGHER id on purpose: with the realistic ordering,
+    both the right and the wrong implementation would pass. "Highest id wins" would pick the
+    stale folder; reading state.json picks the right one.
+    """
     # The cache keeps old folders; state.json names the live one. Taking the
     # higher modfile id is a guess that happens to work, but only by luck.
     # This fixture inverts the ids intentionally so the current folder carries
@@ -147,6 +171,10 @@ def test_ignores_a_superseded_folder(tmp_path):
 
 
 def test_a_disabled_mod_is_still_found(tmp_path):
+    """A mod listed in disabledMods is still read and reported, just with enabled=False.
+
+    Dropped from the results.
+    """
     cache = _write_cache(
         tmp_path,
         [(6065466, 8079348, "DisableDurability", ["Scripts/Mod.cs"])],
@@ -160,6 +188,12 @@ def test_a_disabled_mod_is_still_found(tmp_path):
 
 
 def test_truncated_state_json_warns_instead_of_crashing(tmp_path):
+    """A state.json caught mid-write (truncated JSON) produces a warning and an empty mod list.
+
+    An exception.
+
+    The running game rewrites state.json, so a read can land mid-write.
+    """
     # The running game rewrites state.json, so a read can land mid-write.
     cache = _write_cache(tmp_path, [(1, 2, "X", ["Scripts/X.cs"])])
     (tmp_path / "state.json").write_text('{"mods": {"1": {"curren')
@@ -171,6 +205,7 @@ def test_truncated_state_json_warns_instead_of_crashing(tmp_path):
 
 
 def test_missing_cache_directory_names_the_override(tmp_path):
+    """A missing cache directory raises FileNotFoundError naming CK_BOTTLE_PATH, the fix for it."""
     with pytest.raises(FileNotFoundError) as excinfo:
         mod_source.read_installed(tmp_path / "nope" / "mods")
 
@@ -178,6 +213,10 @@ def test_missing_cache_directory_names_the_override(tmp_path):
 
 
 def test_bottle_path_uses_explicit_override_first(tmp_path, monkeypatch):
+    """CK_BOTTLE_PATH wins outright over CK_BOTTLE_NAME, even when both are set.
+
+    CK_BOTTLE_NAME is only checked if the explicit path override is not set.
+    """
     # CK_BOTTLE_PATH wins outright; CK_BOTTLE_NAME is only checked if the
     # explicit override is not set.
     monkeypatch.setenv("CK_BOTTLE_PATH", str(tmp_path / "explicit"))
@@ -189,6 +228,7 @@ def test_bottle_path_uses_explicit_override_first(tmp_path, monkeypatch):
 
 
 def test_bottle_path_defaults_to_core_keeper_when_name_not_set(monkeypatch):
+    """With neither CK_BOTTLE_PATH nor CK_BOTTLE_NAME set, the bottle defaults to "Core Keeper"."""
     # When CK_BOTTLE_PATH is not set and CK_BOTTLE_NAME is not set, the default
     # name "Core Keeper" is used.
     monkeypatch.delenv("CK_BOTTLE_PATH", raising=False)
@@ -200,6 +240,10 @@ def test_bottle_path_defaults_to_core_keeper_when_name_not_set(monkeypatch):
 
 
 def test_reads_the_real_mod_id_from_the_tracked_asset(tmp_path):
+    """An own mod's real mod.io id, name, and source path are read from its _modio.asset.
+
+    No fake_id since no .envrc was written.
+    """
     _write_repo(tmp_path, "faster-talents", "FasterTalents", 6065498)
 
     own = mod_source.read_own_mods(tmp_path)
@@ -212,6 +256,7 @@ def test_reads_the_real_mod_id_from_the_tracked_asset(tmp_path):
 
 
 def test_reads_the_fake_id_when_the_envrc_is_present(tmp_path):
+    """When a repo's .envrc carries FAKE_MOD_ID, read_own_mods() reads it into fake_id."""
     _write_repo(tmp_path, "mod-settings-menu", "ModSettingsMenu", 6211950, fake_id=9999991)
 
     own = mod_source.read_own_mods(tmp_path)
@@ -220,12 +265,21 @@ def test_reads_the_fake_id_when_the_envrc_is_present(tmp_path):
 
 
 def test_a_directory_without_a_modio_asset_is_not_a_mod_repo(tmp_path):
+    """A sibling directory with no _modio.asset (e.g.
+
+    a docs repo) is silently skipped, not reported as an own mod.
+    """
     (tmp_path / "CoreKeeperModDocs" / "docs").mkdir(parents=True)
 
     assert mod_source.read_own_mods(tmp_path) == []
 
 
 def test_an_unpublished_mod_id_of_zero_is_not_an_identity(tmp_path):
+    """modId: 0 reads as no mod id at all (None), not as the literal integer 0.
+
+    new_mod.py scaffolds `modId: 0`, so every unpublished mod carries one. Treating 0 as an id
+    would make two such repos collide on the same key.
+    """
     # new_mod.py scaffolds `modId: 0`, so every unpublished mod carries one.
     # Treating 0 as an id would make two such repos collide on the same key.
     _write_repo(tmp_path, "brand-new-mod", "BrandNewMod", 0)
@@ -238,6 +292,12 @@ def test_an_unpublished_mod_id_of_zero_is_not_an_identity(tmp_path):
 
 
 def test_a_fake_id_below_the_threshold_is_rejected(tmp_path):
+    """A FAKE_MOD_ID below FAKE_ID_MIN is treated as absent, not trusted as a real dev-build id.
+
+    .envrc is gitignored and maintained by hand, so a typo or a copy-paste error could put a
+    real mod.io id there. Accepting such a value would claim this workspace's repo as a foreign
+    mod, a silent wrong answer. Only dev-build ids (>= FAKE_ID_MIN) are trusted.
+    """
     # .envrc is gitignored and maintained by hand, so a typo or a copy-paste
     # error could put a real mod.io id there. Accepting such a value would
     # claim this workspace's repo as foreign mod, a silent wrong answer.
@@ -253,6 +313,7 @@ def test_a_fake_id_below_the_threshold_is_rejected(tmp_path):
 
 
 def test_reads_a_mirrored_catalogue(tmp_path):
+    """A basic mirrored catalogue.json entry is read back with its mod id and slug intact."""
     mirror = tmp_path / "catalogue.json"
     mirror.write_text(
         json.dumps(
@@ -277,6 +338,11 @@ def test_reads_a_mirrored_catalogue(tmp_path):
 
 
 def test_a_truncated_mirror_reads_as_absent(tmp_path):
+    """A truncated (invalid JSON) catalogue.json reads as an empty list, not a crash.
+
+    An interrupted fetch leaves half a file. Failing every lookup until someone deletes it by
+    hand would be worse than fetching again.
+    """
     # An interrupted fetch leaves half a file. Failing every lookup until
     # someone deletes it by hand would be worse than fetching again.
     mirror = tmp_path / "catalogue.json"
@@ -286,22 +352,26 @@ def test_a_truncated_mirror_reads_as_absent(tmp_path):
 
 
 def test_a_missing_mirror_reads_as_empty(tmp_path):
+    """A catalogue.json that does not exist yet reads as an empty list, not an error."""
     assert mod_source.read_catalogue(tmp_path / "nothing.json") == []
 
 
 def test_cache_root_honours_the_environment(tmp_path, monkeypatch):
+    """cache_root() returns CK_MOD_SOURCE_CACHE verbatim when it is set."""
     monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "somewhere"))
 
     assert mod_source.cache_root() == tmp_path / "somewhere"
 
 
 def test_fetch_catalogue_follows_pagination_to_the_last_page(tmp_path, monkeypatch):
-    # The _limit/_offset loop is the one part of this module that never runs
-    # against a real multi-page listing in this suite otherwise -- against the
-    # live API the catalogue is 312 entries at a page size of 100, so it loops
-    # four times in production and zero times if a test only ever hands back
-    # one page. Two fake pages, with the first announcing a result_total the
-    # first page alone does not cover, force the loop to run more than once.
+    """Two fake pages force the _limit/_offset loop to run twice, collecting entries from both.
+
+    The _limit/_offset loop is the one part of this module that never runs against a real
+    multi-page listing in this suite otherwise -- against the live API the catalogue is 312
+    entries at a page size of 100, so it loops four times in production and zero times if a test
+    only ever hands back one page. Two fake pages, with the first announcing a result_total the
+    first page alone does not cover, force the loop to run more than once.
+    """
     monkeypatch.setattr(
         mod_source, "_modio_config", lambda sdk_path: ("https://fake.modio", 1, "key")
     )
@@ -335,6 +405,14 @@ def test_fetch_catalogue_follows_pagination_to_the_last_page(tmp_path, monkeypat
 
 
 def test_a_catalogue_of_the_wrong_shape_reads_as_absent(tmp_path):
+    """A structurally-wrong mirror ("entries" holding ints, not objects) reads as an empty list.
+
+    A crash.
+
+    Valid JSON, wrong shape: "entries" is a list of ints rather than of objects.
+    Membership-testing "id in 1" raises TypeError -- a shape the writer of this file never
+    produces, but a damaged read of it could.
+    """
     # Valid JSON, wrong shape: "entries" is a list of ints rather than of
     # objects. Membership-testing "id in 1" raises TypeError -- a shape the
     # writer of this file never produces, but a damaged read of it could.
@@ -345,6 +423,10 @@ def test_a_catalogue_of_the_wrong_shape_reads_as_absent(tmp_path):
 
 
 def test_fetch_catalogue_gives_up_rather_than_looping_forever(tmp_path, monkeypatch):
+    """A server that never reaches its own claimed result_total makes fetch_catalogue fail loudly.
+
+    After a bounded number of requests, instead of hanging forever.
+    """
     # A server that keeps sending a non-empty page while perpetually
     # reporting a result_total the running count never reaches must not hang
     # the tool forever -- it must fail loudly instead, within a bounded
@@ -369,6 +451,12 @@ def test_fetch_catalogue_gives_up_rather_than_looping_forever(tmp_path, monkeypa
 
 
 def test_fetch_catalogue_tolerates_a_present_but_null_page(tmp_path, monkeypatch):
+    """A page whose "data"/"result_total" keys are present but null reads as an empty, done page.
+
+    .get(key, default) only substitutes for an ABSENT key. A server that sends the key with an
+    explicit null -- a real API violation, but one a network client cannot rule out -- used to
+    raise TypeError from "entries += None" / "len(entries) >= None".
+    """
     # .get(key, default) only substitutes for an ABSENT key. A server that
     # sends the key with an explicit null -- a real API violation, but one a
     # network client cannot rule out -- used to raise TypeError from
@@ -391,10 +479,9 @@ def test_fetch_catalogue_tolerates_a_present_but_null_page(tmp_path, monkeypatch
 def _catalogue_row(entry):
     """One mirrored catalogue entry: (id, title, slug, modfile) or + md5.
 
-    The md5 is optional because most tests do not care what --download would
-    check the bytes against, and a mirror written before this tool captured
-    the field omits it entirely -- which must keep reading as "unknown"
-    rather than as a damaged mirror.
+    The md5 is optional because most tests do not care what --download would check the bytes
+    against, and a mirror written before this tool captured the field omits it entirely -- which
+    must keep reading as "unknown" rather than as a damaged mirror.
     """
     mod_id, title, slug, modfile = entry[:4]
     md5 = entry[4] if len(entry) > 4 else ""
@@ -420,6 +507,10 @@ def _workspace(tmp_path, installed=(), own=(), catalogue=()):
 
 
 def test_an_own_mod_resolves_to_its_repository(tmp_path):
+    """A mod that is both installed and a local repo resolves as KIND_OWN, pointing at the repo.
+
+    Not at the cache.
+    """
     ws = _workspace(
         tmp_path,
         installed=[(6211950, 7958010, "ModSettingsMenu", ["Scripts/M.cs"])],
@@ -435,6 +526,15 @@ def test_an_own_mod_resolves_to_its_repository(tmp_path):
 
 
 def test_a_dev_build_beside_its_subscription_is_one_mod(tmp_path):
+    """A real subscription plus its own fake-id dev build resolve to ONE Resolution.
+
+    Two candidates.
+
+    Both cache entries map to the same repo, so this is two locations for one mod -- not two
+    candidates to choose between. If Workspace grouped by raw mod id instead of by owning repo
+    (dropping _group's owner-aware key), this would come back as a two-candidate list instead of
+    one Resolution, and the isinstance check below would fail.
+    """
     # Both cache entries map to the same repo, so this is two locations for
     # one mod -- not two candidates to choose between. If Workspace grouped
     # by raw mod id instead of by owning repo (dropping _group's owner-aware
@@ -457,6 +557,10 @@ def test_a_dev_build_beside_its_subscription_is_one_mod(tmp_path):
 
 
 def test_two_distinct_mods_return_candidates(tmp_path):
+    """Two genuinely different mods sharing one normalised name resolve to a list of candidates.
+
+    One arbitrary pick.
+    """
     ws = _workspace(
         tmp_path,
         catalogue=[
@@ -472,6 +576,10 @@ def test_two_distinct_mods_return_candidates(tmp_path):
 
 
 def test_a_foreign_fake_id_is_flagged_temporary(tmp_path):
+    """An installed mod using a fake (dev-build) id.
+
+    With no matching repo in this workspace, resolves as KIND_PARKED with a "temporary" note.
+    """
     ws = _workspace(
         tmp_path,
         installed=[(9999986, 1, "GeneralConfigMenu", ["Scripts/G.cs"])],
@@ -484,6 +592,10 @@ def test_a_foreign_fake_id_is_flagged_temporary(tmp_path):
 
 
 def test_a_catalogue_only_hit_is_provisional(tmp_path):
+    """A mod found only in the catalogue mirror resolves as KIND_CATALOGUE with IDENTITY_UNCHECKED.
+
+    Not installed, no repo, and no internal_name.
+    """
     ws = _workspace(
         tmp_path,
         catalogue=[(4584153, "General Mod Config Menu", "generalconfigmenu", 7840263)],
@@ -497,6 +609,10 @@ def test_a_catalogue_only_hit_is_provisional(tmp_path):
 
 
 def test_an_empty_query_is_refused(tmp_path):
+    """A query that normalises to the empty string (e.g.
+
+    "---") raises ValueError rather than matching everything or nothing silently.
+    """
     ws = _workspace(tmp_path)
 
     with pytest.raises(ValueError):
@@ -504,6 +620,14 @@ def test_an_empty_query_is_refused(tmp_path):
 
 
 def test_a_resolution_carries_the_modfile_id_from_the_catalogue(tmp_path):
+    """A resolved mod's modfile_id is copied from its matched CatalogueEntry.
+
+    Left at the None default.
+
+    modfile_id has no source of its own -- it is only ever copied out of a matched
+    CatalogueEntry. A Resolution built without reading `entry` here would leave the field at its
+    None default and this would fail.
+    """
     # modfile_id has no source of its own -- it is only ever copied out of a
     # matched CatalogueEntry. A Resolution built without reading `entry` here
     # would leave the field at its None default and this would fail.
@@ -518,6 +642,11 @@ def test_a_resolution_carries_the_modfile_id_from_the_catalogue(tmp_path):
 
 
 def test_an_own_mod_with_no_catalogue_entry_has_no_modfile_id(tmp_path):
+    """An own mod with no matching catalogue entry has modfile_id None.
+
+    The own-mod branch also runs `entry.modfile_id if entry else None` -- this pins the "else
+    None" half, which the catalogue-present test above cannot exercise.
+    """
     # The own-mod branch also runs `entry.modfile_id if entry else None` --
     # this pins the "else None" half, which the catalogue-present test above
     # cannot exercise.
@@ -533,6 +662,7 @@ def test_an_own_mod_with_no_catalogue_entry_has_no_modfile_id(tmp_path):
 
 
 def test_a_query_matching_nothing_raises_lookup_error(tmp_path):
+    """A non-empty query matching nothing anywhere (cache, repos, catalogue) raises LookupError."""
     ws = _workspace(tmp_path, catalogue=[(1, "Some Mod", "somemod", 2)])
 
     with pytest.raises(LookupError):
@@ -540,6 +670,16 @@ def test_a_query_matching_nothing_raises_lookup_error(tmp_path):
 
 
 def test_an_unpublished_own_mod_is_still_findable_by_name(tmp_path):
+    """A mod with modId: 0 and no dev build (no id at all) is still resolvable by name.
+
+    Read_own_mods's own promise.
+
+    new_mod.py scaffolds modId: 0 for every mod that has not shipped yet, which read_own_mods
+    maps to None; with no local dev build installed either, this mod claims no id at all going
+    into the index. That is the state of every mod someone is actively developing, and
+    read_own_mods's own docstring already promises it: "They stay findable by name, which is all
+    the identity they have yet."
+    """
     # new_mod.py scaffolds modId: 0 for every mod that has not shipped yet,
     # which read_own_mods maps to None; with no local dev build installed
     # either, this mod claims no id at all going into the index. That is the
@@ -558,6 +698,24 @@ def test_an_unpublished_own_mod_is_still_findable_by_name(tmp_path):
 
 
 def test_an_ambiguous_own_mod_still_finds_its_own_catalogue_entry(tmp_path):
+    """An own mod's candidate description uses ALL of its collected ids.
+
+    Just the first one seen in insertion order.
+
+    Regression: the candidates branch used to describe each candidate from only the first id it
+    happened to see in hits' dict-insertion order, not from the id list `_group` had already
+    collected for it. Here the own mod's FAKE id is the one inserted first (it comes from the
+    installed loop, which runs before the own loop touches the real id) while the catalogue
+    entry -- carrying its OWN, different title, slug and modfile_id -- is keyed by the REAL id.
+    A single-id description of this candidate can only ever see the dev build's own manifest,
+    not the catalogue entry, so it silently substitutes the dev build's internal title/slug for
+    the catalogue's and drops modfile_id outright, even though the resolution is correctly
+    grouped and correctly flagged as KIND_OWN throughout.
+
+    The catalogue title is deliberately spelled differently from the dev build's manifest name
+    so the three assertions below cannot pass by coincidence -- a fixture where every name reads
+    "Widget" would let the buggy fallback produce the right-looking text for the wrong reason.
+    """
     # Regression: the candidates branch used to describe each candidate from
     # only the first id it happened to see in hits' dict-insertion order,
     # not from the id list `_group` had already collected for it. Here the
@@ -595,6 +753,16 @@ def test_an_ambiguous_own_mod_still_finds_its_own_catalogue_entry(tmp_path):
 
 
 def test_two_unpublished_mods_in_one_repo_stay_distinct(tmp_path):
+    """Two unpublished mods (modId: 0, no dev build) sharing one repo get distinct synthetic ids.
+
+    One shared id that overwrites the other.
+
+    Regression: the synthetic id for an own mod with no real or fake id used to be derived from
+    the REPOSITORY path. read_own_mods yields one entry per identity asset, and a repo can hold
+    more than one mod directory under unity/ -- so two unpublished mods in the same repo derived
+    the SAME synthetic id and silently overwrote each other in owner_of and the index. Deriving
+    it from each mod's own source_path instead keeps them distinct.
+    """
     # Regression: the synthetic id for an own mod with no real or fake id
     # used to be derived from the REPOSITORY path. read_own_mods yields one
     # entry per identity asset, and a repo can hold more than one mod
@@ -621,6 +789,13 @@ def test_two_unpublished_mods_in_one_repo_stay_distinct(tmp_path):
 
 
 def test_two_same_normalised_mods_in_one_repo_stay_separate_candidates(tmp_path):
+    """Two mods in one repo whose names normalise the same ("ToolResizer"/"Tool-Resizer") stay two.
+
+    Regression: _group used to key an own mod's candidate on owner.repo, not owner.source_path.
+    Since they share a repo, the old key merged their two ids into ONE group instead of
+    reporting a genuine two-way ambiguity -- one of the two mods disappeared from the result
+    entirely.
+    """
     # Regression: _group used to key an own mod's candidate on owner.repo,
     # not owner.source_path. "ToolResizer" and "Tool-Resizer" both normalise
     # to "toolresizer", so a single query matches both -- and since they
@@ -645,6 +820,15 @@ def test_two_same_normalised_mods_in_one_repo_stay_separate_candidates(tmp_path)
 def test_a_dev_build_still_collapses_with_its_subscription_after_source_path_keying(
     tmp_path,
 ):
+    """The source_path-keyed fix above must not split a dev build and its subscription apart again.
+
+    An own mod's real id and its dev-build fake id both resolve to the SAME OwnMod object (see
+    Workspace.__init__'s owner_of loop), so they carry the identical source_path and must still
+    collapse into one group. Same scenario as
+    test_a_dev_build_beside_its_subscription_is_one_mod, kept here as a second, independent
+    witness specifically for the source_path key (that other test would also catch a full
+    regression, but pins the behaviour rather than the mechanism).
+    """
     # The property _group exists for must survive the source_path-keyed fix
     # above: an own mod's real id and its dev-build fake id both resolve to
     # the SAME OwnMod object (see Workspace.__init__'s owner_of loop), so
@@ -670,6 +854,10 @@ def test_a_dev_build_still_collapses_with_its_subscription_after_source_path_key
 
 
 def test_file_mode_answers_an_installed_mod_from_the_manifest(tmp_path):
+    """find_file() resolves a single unique match to its full absolute path.
+
+    Joined from the manifest's Scripts-relative entry.
+    """
     ws = _workspace(
         tmp_path,
         installed=[
@@ -700,6 +888,10 @@ def test_file_mode_answers_an_installed_mod_from_the_manifest(tmp_path):
 
 
 def test_file_mode_returns_candidates_when_several_match(tmp_path):
+    """When more than one .cs file matches, find_file() returns a list of absolute Paths.
+
+    Both branches promise an absolute result.
+    """
     ws = _workspace(
         tmp_path,
         installed=[(1, 2, "X", ["Scripts/ConfigFile.cs", "Scripts/ConfigScope.cs"])],
@@ -719,6 +911,10 @@ def test_file_mode_returns_candidates_when_several_match(tmp_path):
 
 
 def test_file_mode_walks_an_own_mods_repository(tmp_path):
+    """find_file() on an own mod walks its repository directory.
+
+    No repo carries a build-generated ModManifest.json to read from.
+    """
     # An own mod resolves to its repo, and no repo contains a ModManifest.json
     # -- that file is build-generated.
     ws = _workspace(tmp_path, own=[("faster-talents", "FasterTalents", 6065498, None)])
@@ -730,6 +926,7 @@ def test_file_mode_walks_an_own_mods_repository(tmp_path):
 
 
 def test_file_mode_raises_when_mod_not_installed(tmp_path):
+    """find_file() on a catalogue-only resolution raises LookupError mentioning "not installed"."""
     ws = _workspace(
         tmp_path,
         catalogue=[(4584153, "General Mod Config Menu", "generalconfigmenu", 7840263)],
@@ -741,6 +938,10 @@ def test_file_mode_raises_when_mod_not_installed(tmp_path):
 
 
 def test_file_mode_raises_when_no_file_matches(tmp_path):
+    """find_file() with a query matching no .cs file raises LookupError.
+
+    Returning an empty list silently.
+    """
     ws = _workspace(
         tmp_path,
         installed=[(3177992, 7845185, "CoreLib", ["Scripts/CoreLibMod.cs"])],
@@ -752,6 +953,14 @@ def test_file_mode_raises_when_no_file_matches(tmp_path):
 
 
 def test_download_verifies_the_manifest_name_against_the_query(tmp_path, monkeypatch):
+    """A downloaded archive whose manifest name disagrees with the query is flagged.
+
+    Silently accepted.
+
+    The catalogue-only case: the hit is provisional because the internal name is unknowable
+    until the manifest arrives. Once it does, it either agrees with the query or it does not,
+    and silence would be the wrong answer.
+    """
     # The catalogue-only case: the hit is provisional because the internal name
     # is unknowable until the manifest arrives. Once it does, it either agrees
     # with the query or it does not, and silence would be the wrong answer.
@@ -790,16 +999,19 @@ def test_download_verifies_the_manifest_name_against_the_query(tmp_path, monkeyp
 
 
 def test_download_matches_via_the_slug_when_the_title_differs(tmp_path, monkeypatch):
-    # The manifest name is checked against EITHER the queried title OR its
-    # slug. An implementation that only compared against the title would warn
-    # here even though the mod that arrived is unambiguously the right one --
-    # title and slug diverge (as they routinely do), and only the slug agrees.
-    #
-    # This is also the suite's one fully clean download: the mirror knows the
-    # md5, the bytes match it, and the name agrees. Asserting NO warnings at
-    # all is only meaningful while that stays true -- if the hash were left
-    # out of the fixture, the "could not be verified" warning would sit here
-    # and the assertion would have to be weakened to a substring check.
+    """The manifest name is checked against EITHER the queried title OR its slug.
+
+    A title/slug mismatch alone is not flagged.
+
+    An implementation that only compared against the title would warn here even though the mod
+    that arrived is unambiguously the right one -- title and slug diverge (as they routinely
+    do), and only the slug agrees.
+
+    This is also the suite's one fully clean download: the mirror knows the md5, the bytes match
+    it, and the name agrees. Asserting NO warnings at all is only meaningful while that stays
+    true -- if the hash were left out of the fixture, the "could not be verified" warning would
+    sit here and the assertion would have to be weakened to a substring check.
+    """
     archive = io.BytesIO()
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("ModManifest.json", json.dumps({"name": "GeneralConfigMenu"}))
@@ -826,6 +1038,10 @@ def test_download_matches_via_the_slug_when_the_title_differs(tmp_path, monkeypa
 
 
 def test_download_refuses_paths_outside_the_target(tmp_path, monkeypatch):
+    """An archive member whose relative path (e.g.
+
+    "../escaped.cs") would land outside the target directory is refused with ValueError.
+    """
     archive = io.BytesIO()
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("../escaped.cs", "// nope")
@@ -850,6 +1066,16 @@ def test_download_refuses_paths_outside_the_target(tmp_path, monkeypatch):
 
 
 def test_download_refuses_an_absolute_path_member(tmp_path, monkeypatch):
+    """An archive member with an absolute path (e.g.
+
+    "/etc/absolute.cs") is refused too, not just a relative "../" escape.
+
+    A relative "../" is one way to escape the target; a member that is already absolute is
+    another, and pathlib's own join rule makes it look different internally -- `target / member`
+    DISCARDS target outright when member is absolute, rather than raising. The is_relative_to
+    check must still catch it, because the joined result is then just as reliably outside
+    `target` as the "../" case.
+    """
     # A relative "../" is one way to escape the target; a member that is
     # already absolute is another, and pathlib's own join rule makes it look
     # different internally -- `target / member` DISCARDS target outright when
@@ -881,6 +1107,16 @@ def test_download_refuses_an_absolute_path_member(tmp_path, monkeypatch):
 
 
 def test_download_survives_the_call_with_no_cleanup(tmp_path, monkeypatch):
+    """download() leaves the full unpacked directory on disk afterward — every file.
+
+    Just one copied back from a scratch dir.
+
+    steam_backfill's download_release deletes its own scratch directory once the bytes are
+    re-uploaded -- it only ever needed the bytes. Here the unpacked copy IS the answer, so
+    nothing may remove it before an agent gets a chance to read it. Checked as a directory
+    listing rather than a single file, so a wrong implementation that unpacks into a throwaway
+    temp dir and copies only ONE file back would still be caught.
+    """
     # steam_backfill's download_release deletes its own scratch directory once
     # the bytes are re-uploaded -- it only ever needed the bytes. Here the
     # unpacked copy IS the answer, so nothing may remove it before an agent
@@ -913,6 +1149,15 @@ def test_download_survives_the_call_with_no_cleanup(tmp_path, monkeypatch):
 
 
 def test_download_survives_an_unparseable_manifest(tmp_path, monkeypatch):
+    """An unparseable ModManifest.json does not throw away an already-successful unpack.
+
+    The files stay on disk and readable.
+
+    Fix round 1, finding 1: the archive already unpacked successfully by the time the manifest
+    is read -- the files the caller asked for are on disk and readable. A manifest that is not
+    valid JSON must not throw that success away; it can only mean the provisional-hit check
+    itself cannot run, which is a narrower failure than "the download failed".
+    """
     # Fix round 1, finding 1: the archive already unpacked successfully by the
     # time the manifest is read -- the files the caller asked for are on disk
     # and readable. A manifest that is not valid JSON must not throw that
@@ -947,6 +1192,10 @@ def test_download_survives_an_unparseable_manifest(tmp_path, monkeypatch):
 
 
 def test_download_survives_a_manifest_that_is_not_an_object(tmp_path, monkeypatch):
+    """A manifest that parses to a JSON list, not an object, is survived.
+
+    The same shape defect read_catalogue already guards against.
+    """
     # Valid JSON, wrong shape: a top-level list has no .get(), the same class
     # of defect read_catalogue already guards against for the mirrored file.
     archive = io.BytesIO()
@@ -974,6 +1223,16 @@ def test_download_survives_a_manifest_that_is_not_an_object(tmp_path, monkeypatc
 
 
 def test_download_survives_a_null_manifest_name(tmp_path, monkeypatch):
+    """A manifest with "name": null leaves the identity UNCONFIRMABLE.
+
+    Silently marked settled by a half-applied fix.
+
+    .get("name", "") returns None here (the key IS present, so the default never applies) -- a
+    naive fix that mutates resolution before checking the type would leave internal_name set to
+    None while recording the identity as settled, even though nothing was actually verified.
+    Asserting the identity stays UNCONFIRMABLE catches exactly that half-applied mutation, not
+    just the crash.
+    """
     # "name": null parses fine and .get("name", "") returns None (the key IS
     # present, so the default never applies) -- a naive fix that mutates
     # resolution before checking the type would leave internal_name set to
@@ -1006,6 +1265,14 @@ def test_download_survives_a_null_manifest_name(tmp_path, monkeypatch):
 
 
 def test_download_leaves_no_directory_behind_when_rejected(tmp_path, monkeypatch):
+    """A rejected (path-traversal) download leaves no directory behind at all.
+
+    An empty one mistaken for a completed download later.
+
+    Fix round 1, finding 2: mkdir used to run before the archive was opened or validated, so a
+    traversal rejection left an empty `into` directory on disk. The directory must only appear
+    once every member is known-safe.
+    """
     # Fix round 1, finding 2: mkdir used to run before the archive was opened
     # or validated, so a traversal rejection left an empty `into` directory on
     # disk -- litter in the cache that the next run could mistake for a
@@ -1040,6 +1307,10 @@ def test_download_leaves_no_directory_behind_when_rejected(tmp_path, monkeypatch
 
 
 def test_render_names_every_known_name_and_an_absolute_path(tmp_path):
+    """render() prints the mod name, id, an absolute source path, and a .cs file count.
+
+    For an installed mod.
+    """
     ws = _workspace(
         tmp_path,
         installed=[(3177992, 7845185, "CoreLib", ["Scripts/CoreLibMod.cs"])],
@@ -1053,6 +1324,15 @@ def test_render_names_every_known_name_and_an_absolute_path(tmp_path):
 
 
 def test_render_says_when_the_internal_name_is_unknown(tmp_path):
+    """The Names line specifically says "internal unknown" for a catalogue-only hit.
+
+    Just "unknown" appearing somewhere in the render.
+
+    Searching the whole render for the word passes on any line that happens to carry it -- the
+    slug or the title could be the unknown one, or a note could merely use the word -- so it
+    would stay green even if the field this test is named for were filled in with something.
+    _names_line renders the field as "internal <value>".
+    """
     ws = _workspace(tmp_path, catalogue=[(4584153, "General Mod Config Menu", "gcm", 7840263)])
     text = mod_source.render(ws.resolve("General Mod Config Menu"))
 
@@ -1066,6 +1346,15 @@ def test_render_says_when_the_internal_name_is_unknown(tmp_path):
 
 
 def test_render_reports_an_own_mods_file_count_by_walking_its_directory(tmp_path):
+    """render() reports an own mod's .cs count by actually walking its repository.
+
+    Source_files is always empty for KIND_OWN.
+
+    An own mod carries no manifest -- ModManifest.json is build-generated, per read_own_mods's
+    own docstring. _write_repo creates exactly one .cs file (<mod_name>Mod.cs), so "1 .cs file"
+    is right only if that walk actually ran; an implementation that only ever reads source_files
+    would print no Size line at all here.
+    """
     # An own mod carries no manifest -- ModManifest.json is build-generated,
     # per read_own_mods's own docstring -- so source_files is always empty for
     # KIND_OWN and the .cs count can only come from walking the repository.
@@ -1081,6 +1370,12 @@ def test_render_reports_an_own_mods_file_count_by_walking_its_directory(tmp_path
 
 
 def test_render_states_an_asset_only_installed_mod_ships_no_source(tmp_path):
+    """render() says "no source shipped" / "ships no scripts" when the Scripts/ folder is absent.
+
+    _write_cache always creates a Scripts/ directory; removing it after the fact is what makes
+    this a genuine asset-only install (ships_source False), the case the design's failure-mode
+    table names explicitly.
+    """
     # _write_cache always creates a Scripts/ directory; removing it after the
     # fact is what makes this a genuine asset-only install (ships_source
     # False), the case the design's failure-mode table names explicitly.
@@ -1094,6 +1389,7 @@ def test_render_states_an_asset_only_installed_mod_ships_no_source(tmp_path):
 
 
 def test_json_output_is_machine_readable(tmp_path):
+    """render_json() produces valid JSON with the right mod_id and kind fields."""
     ws = _workspace(tmp_path, installed=[(1, 2, "X", ["Scripts/X.cs"])])
     payload = json.loads(mod_source.render_json(ws.resolve("X")))
 
@@ -1102,6 +1398,14 @@ def test_json_output_is_machine_readable(tmp_path):
 
 
 def test_json_output_stringifies_the_source_path(tmp_path):
+    """source_path serialises as a plain absolute-path string.
+
+    A repr()'d Path object dataclasses.asdict() would leave behind.
+
+    dataclasses.asdict alone leaves source_path as a Path object, which json.dumps cannot encode
+    -- parsing the result at all is half the check, the other half is that the string still
+    names the right, absolute folder.
+    """
     # dataclasses.asdict alone leaves source_path as a Path object, which
     # json.dumps cannot encode -- parsing the result at all is half the
     # check, the other half is that the string still names the right,
@@ -1116,12 +1420,10 @@ def test_json_output_stringifies_the_source_path(tmp_path):
 def _write_bottle(tmp_path, mods=()):
     """A synthetic CrossOver bottle at the path main() expects to find one.
 
-    _installed_mods_dir() appends drive_c/users/Public/mod.io/5289/mods to
-    bottle_path()'s result -- the same suffix utils/server.sh's own
-    MODIO_CACHE uses -- so building the cache there with the existing
-    _write_cache helper, then handing back the bottle root, is enough for
-    monkeypatch.setattr(mod_source, "bottle_path", lambda: <this>) to make
-    main() see it.
+    _installed_mods_dir() appends drive_c/users/Public/mod.io/5289/mods to bottle_path()'s
+    result -- the same suffix utils/server.sh's own MODIO_CACHE uses -- so building the cache
+    there with the existing _write_cache helper, then handing back the bottle root, is enough
+    for monkeypatch.setattr(mod_source, "bottle_path", lambda: <this>) to make main() see it.
     """
     bottle = tmp_path / "bottle"
     _write_cache(bottle / "drive_c/users/Public/mod.io/5289", list(mods))
@@ -1137,6 +1439,7 @@ def _write_main_catalogue(tmp_path, entries=()):
 
 
 def test_main_exits_non_zero_on_ambiguity(tmp_path, capsys, monkeypatch):
+    """main() exits non-zero and prints both candidate titles when a query is ambiguous."""
     monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
     _write_main_catalogue(
         tmp_path,
@@ -1161,6 +1464,10 @@ def test_main_exits_non_zero_on_ambiguity(tmp_path, capsys, monkeypatch):
 
 
 def test_main_resolves_a_single_installed_mod_and_prints_source(tmp_path, capsys, monkeypatch):
+    """main() exits 0 and prints the resolved mod's folder name and internal name.
+
+    For an unambiguous installed mod.
+    """
     monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
     _write_main_catalogue(tmp_path)
     bottle = _write_bottle(tmp_path, [(3177992, 7845185, "CoreLib", ["Scripts/CoreLibMod.cs"])])
@@ -1175,6 +1482,7 @@ def test_main_resolves_a_single_installed_mod_and_prints_source(tmp_path, capsys
 
 
 def test_main_exits_one_on_a_lookup_error(tmp_path, capsys, monkeypatch):
+    """main() exits 1 and prints the failed query on stderr when nothing matches."""
     monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
     _write_main_catalogue(tmp_path)
     bottle = _write_bottle(tmp_path)
@@ -1187,6 +1495,7 @@ def test_main_exits_one_on_a_lookup_error(tmp_path, capsys, monkeypatch):
 
 
 def test_main_exits_one_when_the_bottle_path_does_not_exist(tmp_path, capsys, monkeypatch):
+    """main() exits 1 and mentions CK_BOTTLE_PATH on stderr when the bottle does not exist."""
     monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
     _write_main_catalogue(tmp_path)
     monkeypatch.setattr(mod_source, "bottle_path", lambda: tmp_path / "no-such-bottle")
@@ -1198,6 +1507,10 @@ def test_main_exits_one_when_the_bottle_path_does_not_exist(tmp_path, capsys, mo
 
 
 def test_main_file_argument_prints_the_resolved_absolute_path(tmp_path, capsys, monkeypatch):
+    """A file-mode query prints the full absolute path, pinned whole against the fixture's own root.
+
+    So a regressed join base cannot hide behind a tail-only check.
+    """
     monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
     _write_main_catalogue(tmp_path)
     bottle = _write_bottle(
@@ -1227,6 +1540,7 @@ def test_main_file_argument_prints_the_resolved_absolute_path(tmp_path, capsys, 
 
 
 def test_main_file_argument_exits_one_when_nothing_matches(tmp_path, capsys, monkeypatch):
+    """A file-mode query matching no .cs file exits 1 and names the query on stderr."""
     monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
     _write_main_catalogue(tmp_path)
     bottle = _write_bottle(tmp_path, [(1, 2, "X", ["Scripts/X.cs"])])
@@ -1239,6 +1553,7 @@ def test_main_file_argument_exits_one_when_nothing_matches(tmp_path, capsys, mon
 
 
 def test_main_json_flag_emits_parseable_json_for_a_single_resolution(tmp_path, capsys, monkeypatch):
+    """--json on an unambiguous query emits one JSON object with mod_id and source_path."""
     monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
     _write_main_catalogue(tmp_path)
     bottle = _write_bottle(tmp_path, [(1, 2, "X", ["Scripts/X.cs"])])
@@ -1255,6 +1570,12 @@ def test_main_json_flag_emits_parseable_json_for_a_single_resolution(tmp_path, c
 def test_main_warns_and_proceeds_when_the_mirror_is_missing_and_sdk_path_is_unset(
     tmp_path, capsys, monkeypatch
 ):
+    """With no catalogue.json AND no SDK_PATH, main() warns but still resolves an installed mod.
+
+    The design's own failure-mode table: "catalogue fetch fails, or SDK_PATH is unset -> proceed
+    with cache and repos only, warn". No catalogue.json is written here on purpose -- that
+    absence, combined with no SDK_PATH, is exactly the case this test targets.
+    """
     # The design's own failure-mode table: "catalogue fetch fails, or
     # SDK_PATH is unset -> proceed with cache and repos only, warn". No
     # catalogue.json is written here on purpose -- that absence, combined
@@ -1274,6 +1595,10 @@ def test_main_warns_and_proceeds_when_the_mirror_is_missing_and_sdk_path_is_unse
 
 
 def test_main_download_flag_fetches_an_uninstalled_mod(tmp_path, capsys, monkeypatch):
+    """--download on a catalogue-only mod prints the exact "downloaded, source available" phrase.
+
+    Distinct from an already-installed mod's wording.
+    """
     monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
     monkeypatch.setenv("SDK_PATH", str(tmp_path / "sdk"))
     _write_main_catalogue(
@@ -1309,6 +1634,13 @@ def test_main_download_flag_fetches_an_uninstalled_mod(tmp_path, capsys, monkeyp
 
 
 def test_main_download_flag_flags_an_unconfirmed_identity(tmp_path, capsys, monkeypatch):
+    """--download with a bad manifest prints "downloaded, identity unconfirmed, source available".
+
+    The archive's manifest cannot settle the identity check (unparseable JSON here, same as
+    test_download_survives_an_unparseable_manifest), so the identity stays UNCONFIRMABLE. The
+    output must say BOTH facts -- that this run downloaded the mod, and that its identity could
+    not be confirmed -- rather than collapsing onto whichever single phrase one flag would pick.
+    """
     # The other half of the same branch: the archive's manifest cannot settle
     # the identity check (unparseable JSON here, same as
     # test_download_survives_an_unparseable_manifest), so the identity stays
@@ -1345,6 +1677,15 @@ def test_main_download_flag_flags_an_unconfirmed_identity(tmp_path, capsys, monk
 def test_main_resolves_a_relative_workspace_to_an_absolute_source_path(
     tmp_path, capsys, monkeypatch
 ):
+    """A relative --workspace (".") still produces an absolute Source line.
+
+    One that only resolves against the caller's own cwd.
+
+    Finding 1: an own mod's Source line is derived from args.workspace, so a relative
+    --workspace used to flow straight through to it -- a path an agent cannot paste into a
+    dispatch prompt unchanged (AC2), since it would resolve against whatever directory that
+    agent happens to start in, or not at all.
+    """
     # Finding 1: an own mod's Source line is derived from args.workspace, so
     # a relative --workspace used to flow straight through to it -- a path an
     # agent cannot paste into a dispatch prompt unchanged (AC2), since it
@@ -1367,6 +1708,15 @@ def test_main_resolves_a_relative_workspace_to_an_absolute_source_path(
 
 
 def test_download_raises_a_value_error_for_a_corrupt_archive(tmp_path, monkeypatch):
+    """A corrupt/non-zip response raises ValueError.
+
+    A raw zipfile.BadZipFile escaping past main()'s catch.
+
+    Finding 2: zipfile.BadZipFile is neither a ValueError nor an OSError -- main()'s download
+    branch only catches those two, so an uncaught BadZipFile from a truncated or corrupted
+    response would have escaped as a raw traceback instead of "error: download failed (...)".
+    download() re-raises it as ValueError so every caller gets one uniform error type.
+    """
     # Finding 2: zipfile.BadZipFile is neither a ValueError nor an OSError --
     # main()'s download branch only catches those two, so an uncaught
     # BadZipFile from a truncated or corrupted response would have escaped as
@@ -1390,6 +1740,12 @@ def test_download_raises_a_value_error_for_a_corrupt_archive(tmp_path, monkeypat
 
 
 def test_main_json_flag_on_ambiguity_emits_only_json(tmp_path, capsys, monkeypatch):
+    """--json on an ambiguous query emits ONLY the JSON array, no "N files match"-style preamble.
+
+    Finding 3: the file-ambiguity branch already gates its preamble to the non-json case; the
+    mod-ambiguity branch printed its own preamble unconditionally. json.loads on the FULL
+    captured stdout fails outright if any text precedes the array.
+    """
     # Finding 3: the file-ambiguity branch already gates its "N files match"
     # preamble to the non-json case; the mod-ambiguity branch printed its own
     # preamble unconditionally, which is exactly the case a machine consumer
@@ -1414,6 +1770,16 @@ def test_main_json_flag_on_ambiguity_emits_only_json(tmp_path, capsys, monkeypat
 
 
 def test_render_json_includes_an_own_mods_walked_cs_files(tmp_path):
+    """render_json()'s source_files for an own mod is the actual walked .cs list.
+
+    The empty [] asdict() alone would leave it at.
+
+    Finding 4: render_json's docstring claims "the same facts as render()", but asdict() alone
+    left source_files at [] for KIND_OWN (no manifest to have populated it from) while render()
+    prints a nonzero .cs count for the same resolution via a directory walk. Pin the walked
+    result itself, not just its length, so a fix that only patches the count elsewhere (e.g.
+    adds a separate "source_count" field) still fails this.
+    """
     # Finding 4: render_json's docstring claims "the same facts as render()",
     # but asdict() alone left source_files at [] for KIND_OWN (no manifest to
     # have populated it from) while render() prints a nonzero .cs count for
@@ -1433,6 +1799,17 @@ def test_render_json_includes_an_own_mods_walked_cs_files(tmp_path):
 
 
 def test_default_workspace_resolves_a_worktree_to_the_main_checkout(tmp_path, monkeypatch):
+    """From inside a git worktree, _default_workspace() resolves to the MAIN checkout.
+
+    The sibling mod repos actually live.
+
+    `git rev-parse --git-common-dir` answers with the MAIN checkout's .git directory, not a
+    worktree-private one -- that is the one directory every worktree of a repository shares. Its
+    parent is the main checkout; a worktree itself never contains the sibling mod repos
+    (separate git repos, excluded by the parent .gitignore, never checked out into a worktree).
+    Pre-fix, falling back to __file__'s own directory is what made read_own_mods() find nothing
+    from a worktree and report this workspace's own dev builds as foreign mods parked locally.
+    """
     # Important 1: from inside a git worktree, `git rev-parse
     # --git-common-dir` answers with the MAIN checkout's .git directory, not
     # a worktree-private one -- that is the one directory every worktree of a
@@ -1451,6 +1828,11 @@ def test_default_workspace_resolves_a_worktree_to_the_main_checkout(tmp_path, mo
 
 
 def test_default_workspace_falls_back_when_git_cannot_answer(monkeypatch):
+    """When _git_common_dir() returns None, _default_workspace() falls back to the grandparent.
+
+    This tool must keep resolving mods without git exactly as it always could, rather than
+    crashing on argparse construction.
+    """
     # Important 1's explicit requirement: no git binary, not a repository, a
     # timeout -- all of these reach _git_common_dir() returning None, and
     # this tool must keep resolving mods without git exactly as it always
@@ -1461,6 +1843,11 @@ def test_default_workspace_falls_back_when_git_cannot_answer(monkeypatch):
 
 
 def test_default_workspace_falls_back_when_the_answer_is_not_a_git_dir(tmp_path, monkeypatch):
+    """When git answers with a path that is not a real .git dir, _default_workspace() falls back.
+
+    A nonexistent path is the other half of the same check. Trusting the answer blindly could
+    point the default at an arbitrary directory instead of falling back safely.
+    """
     # Important 1's other explicit requirement: git answers, but with
     # something that does not look like a real .git directory (wrong name
     # here; a nonexistent path is the other half of the same check). Trusting
@@ -1476,6 +1863,17 @@ def test_default_workspace_falls_back_when_the_answer_is_not_a_git_dir(tmp_path,
 def test_main_warns_with_the_weaker_fallback_when_the_mirror_already_exists(
     tmp_path, capsys, monkeypatch
 ):
+    """When --refresh fails but a mirror exists, the warning says "as it stands".
+
+    Not the stronger "cannot be resolved" claim.
+
+    "Proceeding with the cache and repos only, a mod that is not installed cannot be resolved"
+    is false when a mirror already exists -- Workspace.build reads catalogue_path regardless of
+    whether the refresh attempted here succeeds, so the existing (possibly stale) mirror is
+    still used and an uninstalled mod still resolves through it. --refresh forces this branch to
+    run even though the mirror is present, and SDK_PATH being unset makes it fail immediately --
+    exactly the case where the old wording overclaimed.
+    """
     # Minor 2: "proceeding with the cache and repos only, a mod that is not
     # installed cannot be resolved" is false when a mirror already exists --
     # Workspace.build reads catalogue_path regardless of whether the refresh
@@ -1508,9 +1906,9 @@ def test_main_warns_with_the_weaker_fallback_when_the_mirror_already_exists(
 def _catalogue_resolution(**overrides):
     """A catalogue-only resolution, the one shape download() accepts.
 
-    Only the fields a test actually varies are worth spelling out at each
-    call site; everything else is the state Workspace._describe produces for
-    a hit that exists in the mirror and nowhere else.
+    Only the fields a test actually varies are worth spelling out at each call site; everything
+    else is the state Workspace._describe produces for a hit that exists in the mirror and
+    nowhere else.
     """
     fields = {
         "kind": mod_source.KIND_CATALOGUE,
@@ -1536,6 +1934,17 @@ def _archive(members):
 
 
 def test_a_contradicted_identity_reaches_both_renderers(tmp_path, monkeypatch):
+    """A download() that detects a different mod records that on the RESOLUTION itself.
+
+    Both render() and render_json() see it too.
+
+    THE critical one. That finding has to survive into what a dispatched agent is handed -- the
+    resolution, not the warning list main() prints once to stderr and drops. Pre-fix,
+    `provisional = False` was set unconditionally one line before the comparison ran, so
+    render() printed "downloaded, source available" with no notes at all and render_json()
+    emitted "provisional": false with "notes": [] -- a clean bill of health for a download the
+    tool had already proved wrong.
+    """
     # THE critical one. download() detects that the archive is a different
     # mod, and that finding has to survive into what a dispatched agent is
     # handed -- which is the resolution, not the warning list main() prints
@@ -1573,6 +1982,13 @@ def test_a_contradicted_identity_reaches_both_renderers(tmp_path, monkeypatch):
 
 
 def test_main_download_renders_a_name_mismatch_in_both_output_modes(tmp_path, capsys, monkeypatch):
+    """The same identity-mismatch defect at the CLI layer.
+
+    Both plain-text and --json output must show it, since --json never surfaces stderr.
+
+    This is the exact command a session runs before dispatching an agent, and its whole output
+    used to read as a settled answer.
+    """
     # The same defect at the layer that matters: this is the exact command a
     # session runs before dispatching an agent, and its whole output used to
     # read as a settled answer. Both output modes are checked, because a
@@ -1628,6 +2044,13 @@ def test_main_download_renders_a_name_mismatch_in_both_output_modes(tmp_path, ca
 def test_the_not_installed_note_is_dropped_without_dropping_the_mismatch(
     tmp_path, capsys, monkeypatch
 ):
+    """main() strips the stale "not installed" note after a download without swallowing a real one.
+
+    It used to strip any note CONTAINING that phrase, which was harmless while download() wrote
+    nothing into notes -- and would silently swallow the mismatch note now that it does, if that
+    note ever phrased itself with those words. Both halves are asserted together: the stale note
+    gone, the new one still there.
+    """
     # main() strips the stale "not installed" note after a download. It used
     # to strip any note CONTAINING that phrase, which was harmless while
     # download() wrote nothing into notes -- and would silently swallow the
@@ -1668,6 +2091,11 @@ def test_the_not_installed_note_is_dropped_without_dropping_the_mismatch(
 
 
 def test_download_verifies_the_archive_against_the_catalogues_md5(tmp_path, monkeypatch):
+    """An archive whose bytes do not match the catalogue's md5 is refused, and never unpacked.
+
+    Nothing may be left on disk either -- the next run would find the directory and take it for
+    a completed download.
+    """
     # The check the design mandates twice and the module did not have: an
     # archive whose bytes are not what mod.io says they are is not this mod's
     # source, whatever it happens to unpack into, so it is not unpacked at
@@ -1688,6 +2116,12 @@ def test_download_verifies_the_archive_against_the_catalogues_md5(tmp_path, monk
 
 
 def test_download_says_when_it_cannot_verify_the_bytes(tmp_path, monkeypatch):
+    """With no md5 on the catalogue entry, download() proceeds but records a "no md5" note.
+
+    An old mirror resolves names exactly as well as a new one, and forcing a refetch to download
+    anything would be worse -- but "verified" and "unverifiable" are different answers, and the
+    note is what carries the difference into the payload.
+    """
     # A mirror written before this tool captured the hash, or an entry mod.io
     # sends without one, cannot be checked. That is not an error -- an old
     # mirror resolves names exactly as well as a new one, and forcing a
@@ -1710,6 +2144,12 @@ def test_download_says_when_it_cannot_verify_the_bytes(tmp_path, monkeypatch):
 
 
 def test_download_refuses_a_resolution_it_is_not_for(tmp_path):
+    """download() refuses an own-mod resolution, and one with a source_path, both "catalogue-only".
+
+    Every line after the guard assumes a catalogue-only hit with no source of its own: called on
+    an own mod, this would unpack a foreign archive straight over a repository in this
+    workspace. One `if` in main() is what used to stand between those two facts.
+    """
     # Every line after the guard assumes a catalogue-only hit with no source
     # of its own: called on an own mod, this would unpack a foreign archive
     # straight over a repository in this workspace. One `if` in main() is
@@ -1728,6 +2168,10 @@ def test_download_refuses_a_resolution_it_is_not_for(tmp_path):
 
 
 def test_fetch_catalogue_captures_each_modfiles_md5(tmp_path, monkeypatch):
+    """fetch_catalogue() captures a modfile's md5 when present, and reads an absent build (modfile.
+
+    Null) as an empty string, not a crash.
+    """
     monkeypatch.setattr(
         mod_source, "_modio_config", lambda sdk_path: ("https://fake.modio", 1, "key")
     )
@@ -1759,6 +2203,13 @@ def test_fetch_catalogue_captures_each_modfiles_md5(tmp_path, monkeypatch):
 
 
 def test_a_mirror_written_before_md5_was_captured_still_reads(tmp_path):
+    """An older mirror entry with no "md5" key reads fine, with md5 == "" — a schema change.
+
+    A schema break.
+
+    Reading that as damaged would discard a perfectly good catalogue and force a refetch for a
+    field no lookup needs.
+    """
     # Schema change, not a schema break: the field is simply absent from an
     # older mirror. Reading that as damaged would discard a perfectly good
     # catalogue and force a refetch for a field no lookup needs.
@@ -1785,6 +2236,10 @@ def test_a_mirror_written_before_md5_was_captured_still_reads(tmp_path):
 
 
 def test_a_resolution_carries_the_modfile_md5_from_the_catalogue(tmp_path):
+    """A resolved mod's modfile_md5 is copied from the matched catalogue entry.
+
+    The mirror is the only place the hash exists.
+    """
     # The hash has to travel the same route modfile_id does, or download()
     # can never check anything: the mirror is the only place it exists.
     ws = _workspace(
@@ -1798,6 +2253,14 @@ def test_a_resolution_carries_the_modfile_md5_from_the_catalogue(tmp_path):
 
 
 def test_fetch_catalogue_refuses_an_early_empty_page(tmp_path, monkeypatch):
+    """A server reporting result_total: 9 that then sends an empty page raises.
+
+    Silently mirroring a short, incomplete catalogue.
+
+    Only the never-ending-page case was guarded before; an early empty page used to break out of
+    the loop and write the one entry it had -- after which every missing mod reads as "that mod
+    does not exist", which is the one answer this tool must never give.
+    """
     # The function's own docstring promised it raises rather than mirroring a
     # short catalogue, and only the never-ending-page case was guarded. A
     # server that reports 9 mods and then sends an empty page used to break
@@ -1830,6 +2293,16 @@ def test_fetch_catalogue_refuses_an_early_empty_page(tmp_path, monkeypatch):
 
 
 def test_two_mod_directories_claiming_one_id_are_reported_not_merged(tmp_path):
+    """Two repos sharing one un-reset mod.io id are each still resolvable by their own name.
+
+    Silently merged into whichever the loop reached last.
+
+    Copying a repo is how a mod gets started here, and a <Mod>_modio.asset that was never reset
+    leaves both copies claiming one mod.io id. Pre-fix, the id mapped to whichever directory the
+    loop reached last, so a query for ModAlpha answered with ModBeta's path AND ModBeta's name
+    -- a confident wrong answer, not an ambiguity report. A contested id identifies neither mod,
+    so each stays findable under its own name.
+    """
     # Copying a repo is how a mod gets started here, and a <Mod>_modio.asset
     # that was never reset leaves both copies claiming one mod.io id. The id
     # then mapped to whichever directory the loop reached last, so a query
@@ -1857,6 +2330,13 @@ def test_two_mod_directories_claiming_one_id_are_reported_not_merged(tmp_path):
 
 
 def test_a_shared_dev_build_id_is_contested_the_same_way(tmp_path):
+    """A duplicated FAKE_MOD_ID across two repos is contested the same way a real mod.io id is.
+
+    Nothing about its origin makes one claimant the right answer.
+
+    FAKE_MOD_ID lives in a hand-maintained .envrc, so the same copy-paste produces the same
+    collision there.
+    """
     # FAKE_MOD_ID lives in a hand-maintained .envrc, so the same copy-paste
     # produces the same collision there. Nothing about the id's origin makes
     # one of the two claimants the right answer.
@@ -1874,6 +2354,15 @@ def test_a_shared_dev_build_id_is_contested_the_same_way(tmp_path):
 
 
 def test_a_current_folder_without_a_manifest_is_reported(tmp_path):
+    """The live modfile folder missing its ModManifest.json is warned about.
+
+    Silently dropped as "not installed".
+
+    Dropping it without a word makes the mod read as "not installed" when the truth is
+    "installed, but its identity cannot be read" -- a wrong answer standing in for a missing
+    one. The folder still exists, which is what tells this case apart from a subscription that
+    has simply not been downloaded yet.
+    """
     # The state the design's own failure table describes, and the one the
     # superseded CoreLib folder was in. Dropping it without a word makes the
     # mod read as "not installed" when the truth is "installed, but its
@@ -1890,6 +2379,14 @@ def test_a_current_folder_without_a_manifest_is_reported(tmp_path):
 
 
 def test_a_subscribed_but_undownloaded_mod_stays_silent(tmp_path):
+    """A subscribed mod whose folder does not exist yet produces no warning at all.
+
+    The other half of the same branch.
+
+    state.json lists every subscribed mod, including ones not yet downloaded. Warning about
+    those would put a line of noise on every ordinary run, which is how a warning channel stops
+    being read.
+    """
     # The other half of the same branch: state.json lists every subscribed
     # mod, including ones whose folder does not exist yet. Warning about
     # those would put a line of noise on every ordinary run, which is how a
@@ -1916,19 +2413,16 @@ _THREE_NAMES = (
 def _three_name_workspace(tmp_path):
     """One installed mod whose internal name, title and slug all differ.
 
-    NameChests ships as "More Labels" on mod.io, and every installed-mod test
-    in this suite used to derive title and slug FROM the internal name -- so
-    all three keys were one string, and the index could have covered the
-    internal name alone without a single test noticing.
+    NameChests ships as "More Labels" on mod.io, and every installed-mod test in this suite used
+    to derive title and slug FROM the internal name -- so all three keys were one string, and
+    the index could have covered the internal name alone without a single test noticing.
 
-    The guard below is not decoration. The first version of this fixture used
-    the mod's real slug, "more-labels", which normalises to "morelabels" --
-    the same key as the title "More Labels", since normalise() strips the
-    hyphen and casefolds. The title and slug tests were then one test wearing
-    two names: either could be deleted without turning anything red. A
-    fixture meant to prove three name spaces are indexed has to be checked
-    for producing three keys, because it can look right and discriminate
-    nothing.
+    The guard below is not decoration. The first version of this fixture used the mod's real
+    slug, "more-labels", which normalises to "morelabels" -- the same key as the title "More
+    Labels", since normalise() strips the hyphen and casefolds. The title and slug tests were
+    then one test wearing two names: either could be deleted without turning anything red. A
+    fixture meant to prove three name spaces are indexed has to be checked for producing three
+    keys, because it can look right and discriminate nothing.
     """
     internal, title, slug = _THREE_NAMES[2], _THREE_NAMES[4], _THREE_NAMES[5]
     assert len({mod_source.normalise(n) for n in (internal, title, slug)}) == 3, (
@@ -1938,6 +2432,10 @@ def _three_name_workspace(tmp_path):
 
 
 def test_an_installed_mod_resolves_by_its_internal_name(tmp_path):
+    """A query by internal name ("NameChests") resolves and reports all three of its distinct names.
+
+    The internal name is the one the mod calls itself, readable only from its ModManifest.json.
+    """
     # The name the mod calls itself, readable only from its ModManifest.json.
     ws = _three_name_workspace(tmp_path)
 
@@ -1950,6 +2448,11 @@ def test_an_installed_mod_resolves_by_its_internal_name(tmp_path):
 
 
 def test_an_installed_mod_resolves_by_its_modio_title(tmp_path):
+    """A query by mod.io title ("More Labels") resolves to the same mod as the internal name.
+
+    The tool's opening example, and the one a human actually types: the title is the only one of
+    the three names shown in the game's mod menu or on the mod.io page.
+    """
     # The tool's opening example, and the one a human actually types: the
     # title is the only one of the three names shown in the game's mod menu
     # or on the mod.io page.
@@ -1963,6 +2466,12 @@ def test_an_installed_mod_resolves_by_its_modio_title(tmp_path):
 
 
 def test_an_installed_mod_resolves_by_its_slug(tmp_path):
+    """A query by mod.io slug ("chest-labels") resolves to the same mod too.
+
+    The third of the three independent name spaces.
+
+    The slug is what a mod.io URL carries, so it is what gets pasted from a browser.
+    """
     # The third name space, which is what a mod.io URL carries -- so it is
     # what gets pasted from a browser.
     ws = _three_name_workspace(tmp_path)
@@ -1974,6 +2483,13 @@ def test_an_installed_mod_resolves_by_its_slug(tmp_path):
 
 
 def test_render_tells_an_uninstalled_mod_how_to_obtain_it(tmp_path):
+    """The Source line for an uninstalled mod names --download as the way to obtain it.
+
+    Just "not installed" with nothing to act on.
+
+    AC1 asks the report to name the way to obtain a mod that is not installed, and nothing
+    pinned the clause that does it -- deleting it left all 78 tests green.
+    """
     # AC1 asks the report to name the way to obtain a mod that is not
     # installed, and nothing pinned the clause that does it -- deleting it
     # left all 78 tests green. An agent handed a Source line that says only
@@ -1990,6 +2506,14 @@ def test_render_tells_an_uninstalled_mod_how_to_obtain_it(tmp_path):
 
 
 def test_status_phrase_refuses_a_kind_it_does_not_know(tmp_path):
+    """_status_phrase() raises ValueError for an unrecognised kind.
+
+    Silently defaulting to "installed".
+
+    A silent "installed" default used to sit at the end of that chain, which is plausible for
+    any input and therefore the wrong default: it would report an unknown kind, and a catalogue
+    hit that acquired a source_path without a download, as an ordinary installed mod.
+    """
     # A silent "installed" used to sit at the end of that chain, which is
     # plausible for any input and therefore the wrong default: it would
     # report an unknown kind, and a catalogue hit that acquired a source_path
@@ -2003,6 +2527,16 @@ def test_status_phrase_refuses_a_kind_it_does_not_know(tmp_path):
 
 
 def test_display_name_falls_back_to_the_mod_id_but_not_past_it(tmp_path):
+    """_display_name() falls back to "mod <id>" for a genuinely nameless resolution.
+
+    Raises rather than falling back further when there is no id either.
+
+    The mod-id fallback is reachable: an installed mod whose manifest name and whose state.json
+    profile name are both empty has neither name and always has an id. What sat below it -- a
+    fixed "(unpublished mod)" for an own mod with no id -- was not: an own mod's internal name
+    is its own directory name, so that case returns one check earlier. Verified by building the
+    exact scenario the docstring named.
+    """
     # The mod-id fallback is reachable: an installed mod whose manifest name
     # and whose state.json profile name are both empty has neither name and
     # always has an id. What sat below it -- a fixed "(unpublished mod)" for
@@ -2035,6 +2569,12 @@ def test_display_name_falls_back_to_the_mod_id_but_not_past_it(tmp_path):
 
 
 def test_a_contested_id_is_admitted_in_the_resolution_itself(tmp_path):
+    """A resolved mod whose id is claimed elsewhere carries a note about the contest in its notes.
+
+    The Critical's shape, a second time and smaller: the surviving answer used to print the
+    contested id as this mod's own with an empty notes list. A dispatched agent reads the
+    payload, so what the tool knows has to be in the payload.
+    """
     # The Critical's shape, a second time and smaller: the wrong-mod hit is
     # gone, but the surviving answer still printed the contested id as this
     # mod's own with an empty notes list, and the only trace was a stderr
@@ -2059,6 +2599,13 @@ def test_a_contested_id_is_admitted_in_the_resolution_itself(tmp_path):
 
 
 def test_a_contested_dev_build_id_is_admitted_too(tmp_path):
+    """A contested dev-build (fake) id gets the same note treatment as a contested real id.
+
+    The note is attached per claimed id, not once per mod.
+
+    An own mod can have a clean real id and a dev-build id that a sibling repo's .envrc
+    duplicates.
+    """
     # The note is attached per claimed id, not once per mod, so the fake id
     # has to carry it as well -- an own mod can have a clean real id and a
     # dev-build id that a sibling repo's .envrc duplicates.
@@ -2077,6 +2624,10 @@ def test_a_contested_dev_build_id_is_admitted_too(tmp_path):
 
 
 def test_an_uncontested_own_mod_says_nothing_about_ids(tmp_path):
+    """The negative control: an own mod with no id contest has an empty notes list.
+
+    A note that is always there says nothing.
+    """
     # The negative control: the note must appear because an id IS contested,
     # not on every own mod. A note that is always there says nothing.
     ws = _workspace(tmp_path, own=[("faster-talents", "FasterTalents", 6065498, None)])
@@ -2087,6 +2638,12 @@ def test_an_uncontested_own_mod_says_nothing_about_ids(tmp_path):
 
 
 def test_main_exits_two_on_a_refuted_identity(tmp_path, capsys, monkeypatch):
+    """A --download whose manifest contradicts the query exits 2, in both name-mode and file-mode.
+
+    Exit 2 means "resolved, but a human has to decide" -- this is the channel that reaches a
+    caller which never parses the payload, a shell step in a dispatch, and it must stop rather
+    than carry on with a mod proved to be the wrong one.
+    """
     # Sven's decision: exit 2, the same code an ambiguous query returns,
     # because both mean "resolved, but a human has to decide". This is the
     # channel that reaches a caller which never parses the payload -- a shell
@@ -2126,6 +2683,10 @@ def test_main_exits_two_on_a_refuted_identity(tmp_path, capsys, monkeypatch):
 
 
 def test_main_exits_zero_when_the_download_verifies(tmp_path, capsys, monkeypatch):
+    """The control for the exit-2 case above.
+
+    The same command on a mod whose manifest agrees is still a plain exit-0 success.
+    """
     # The control for the code above: the same command on a mod whose
     # manifest agrees must still be a plain success, or the exit code stops
     # distinguishing anything.
@@ -2153,6 +2714,15 @@ def test_main_exits_zero_when_the_download_verifies(tmp_path, capsys, monkeypatc
 
 
 def test_main_does_not_resolve_a_default_workspace_it_was_given(tmp_path, capsys, monkeypatch):
+    """_default_workspace() is not called at all when --workspace is passed explicitly.
+
+    Evaluated eagerly and then ignored.
+
+    _default_workspace() shells out to git. As argparse's own `default=` it was evaluated at
+    add_argument time, so that subprocess ran on every single invocation -- including the ones
+    that pass --workspace and never look at the answer. Recording the calls rather than
+    asserting on timing is what makes this checkable at all.
+    """
     # _default_workspace() shells out to git. As argparse's own `default=` it
     # was evaluated at add_argument time, so that subprocess ran on every
     # single invocation -- including the ones that pass --workspace and never
@@ -2176,6 +2746,14 @@ def test_main_does_not_resolve_a_default_workspace_it_was_given(tmp_path, capsys
 
 
 def test_main_still_resolves_a_default_workspace_when_none_is_given(tmp_path, capsys, monkeypatch):
+    """The other half of the laziness fix.
+
+    Without --workspace, _default_workspace() IS still called and its result used.
+
+    Made lazy, not removed. Without --workspace the default must still be computed, or every
+    unqualified run stops finding this repository's own mods -- which is the defect the git
+    resolution was added to fix in the first place.
+    """
     # The other half: made lazy, not removed. Without --workspace the default
     # must still be computed, or every unqualified run stops finding this
     # repository's own mods -- which is the defect the git resolution was
