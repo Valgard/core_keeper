@@ -9,6 +9,7 @@ to reach — the over-limit abort among them would never run at all.
 
 import os
 import pathlib
+import re
 
 import discord_post as dp
 import pytest
@@ -75,8 +76,9 @@ def test_version_line_falls_back_to_a_span_when_a_known_build_is_unsupported():
     supported = ["1.2.1.5", "1.2.1.3"]
     known = ["1.2.1.5", "1.2.1.3", "1.2.0.3"]
 
+    # en dash: matches version_line's own deliberate range typography verbatim
     assert dp.version_line(supported, known) == (
-        "**Compatible with Core Keeper 1.2.1.3 – 1.2.1.5**"
+        "**Compatible with Core Keeper 1.2.1.3 – 1.2.1.5**"  # noqa: RUF001
     )
 
 
@@ -280,8 +282,9 @@ def test_version_line_never_claims_a_minor_the_span_leaves():
     supported = ["1.1.0.1", "1.2.1.5"]
     known = ["1.1.0.1", "1.2.1.5", "1.2.1.0"]
 
+    # en dash: matches version_line's own deliberate range typography verbatim
     assert dp.version_line(supported, known) == (
-        "**Compatible with Core Keeper 1.1.0.1 – 1.2.1.5**"
+        "**Compatible with Core Keeper 1.1.0.1 – 1.2.1.5**"  # noqa: RUF001
     )
 
 
@@ -293,7 +296,7 @@ def test_forum_tags_without_a_post_file_are_a_misconfiguration(tmp_path):
     """
     (tmp_path / "discord_post.md").write_text("# T\n\nBody.\n")
 
-    with pytest.raises(ValueError, match="discord-post.md"):
+    with pytest.raises(ValueError, match=re.escape("discord-post.md")):
         dp.render_repo(tmp_path, _ENV, ["1.2.1.5"])
 
 
@@ -305,7 +308,7 @@ def test_a_build_the_version_list_does_not_know_is_refused(tmp_path):
     (tmp_path / "discord-post.md").write_text("# T\n\nBody.\n")
     env = dict(_ENV, CK_GAME_VERSION="1.2.1.5 1.2.1.55")
 
-    with pytest.raises(ValueError, match="1.2.1.55"):
+    with pytest.raises(ValueError, match=re.escape("1.2.1.55")):
         dp.render_repo(tmp_path, env, ["1.2.1.5"])
 
 
@@ -509,7 +512,7 @@ def test_a_missing_media_file_is_refused_before_the_browser_opens(tmp_path):
     """Finding this out in the post dialog means the text is already typed."""
     env = _mod_tree(tmp_path, media="sources/gone.png")
 
-    with pytest.raises(ValueError, match="gone.png"):
+    with pytest.raises(ValueError, match=re.escape("gone.png")):
         dp.resolve_media(tmp_path, env, "ProbeMod")
 
 
@@ -696,7 +699,7 @@ def test_update_refuses_an_over_long_comment_instead_of_trimming_it():
 
 
 def test_a_changelog_without_a_release_entry_says_so():
-    with pytest.raises(ValueError, match="no '## \\[x.y.z\\]' entry"):
+    with pytest.raises(ValueError, match=re.escape("no '## [x.y.z]' entry")):
         dp.render_update(
             "# Changelog\n\nNothing released yet.\n",
             supported=["1.2.1.5"],
@@ -818,7 +821,7 @@ def test_update_mode_fails_when_configured_media_is_broken(tmp_path):
         CK_DISCORD_MEDIA="sources/gone.png",
     )
 
-    with pytest.raises(ValueError, match="gone.png"):
+    with pytest.raises(ValueError, match=re.escape("gone.png")):
         dp.render_repo(tmp_path, env, ["1.2.1.5"], update=True)
 
 
@@ -833,5 +836,5 @@ def test_update_mode_without_a_changelog_says_so(tmp_path):
     logo.write_bytes(b"\x89PNG")
     env = dict(_ENV, MOD_NAME="ProbeMod", CK_DISCORD_THREAD="https://discord.com/x")
 
-    with pytest.raises(ValueError, match="CHANGELOG.md"):
+    with pytest.raises(ValueError, match=re.escape("CHANGELOG.md")):
         dp.render_repo(tmp_path, env, ["1.2.1.5"], update=True)
