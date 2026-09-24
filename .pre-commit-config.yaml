@@ -1,7 +1,19 @@
 repos:
+    # `rev` is a second version source beside uv.lock, and the two drift apart
+    # on their own: ruff's DEFAULT rule set widens between releases, so a gap
+    # here means the gate enforces something other than what `uv run ruff`
+    # reports. Keep this tag in step with the version `uv run ruff --version`
+    # prints whenever either side moves.
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.16.0
+      rev: v0.16.8
       hooks:
+          # No `--fix`: the gate blocks and the author reruns `ruff check --fix`,
+          # the same contract csharpier and ruff-format follow below.
+          - id: ruff-check
+            stages:
+                - pre-commit
+                - pre-push
+
           - id: ruff-format
             args: [--check, --exit-non-zero-on-fix]
             stages:

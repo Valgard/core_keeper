@@ -16,13 +16,14 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
-    # Pinned here so the linter the pre-commit hook runs and the one a shell
-    # runs are the same binary. They were not: the hook pulled v0.16.0 from
-    # ruff-pre-commit while `uv run ruff` resolved 0.16.4, and ruff's DEFAULT
-    # rule set has widened between releases -- 415 rules of 1063 in 0.16.4,
-    # against the E4/E7/E9/F the documentation still describes. Without an
-    # explicit selection below, an upgrade would silently change what the gate
-    # enforces.
+    # A floor, not the whole story: the hook runs its own copy from the `rev`
+    # in .pre-commit-config.yaml, so that tag and this resolve independently
+    # and have to be kept in step by hand. They were not -- the hook pulled
+    # v0.16.0 while `uv run ruff` resolved 0.16.4 -- and the gap matters
+    # because ruff's DEFAULT rule set widens between releases (415 rules of
+    # 1063 in 0.16.4, against the E4/E7/E9/F the documentation still
+    # describes). The explicit `select` below is what keeps an upgrade on
+    # either side from silently changing what the gate enforces.
     "ruff>=0.16.4",
 ]
 
