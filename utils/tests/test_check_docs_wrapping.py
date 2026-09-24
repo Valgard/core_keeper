@@ -64,11 +64,17 @@ class TestTargetWidth:
         assert mod.target_width(lines) == 88
 
     def test_too_few_lines_keeps_the_default(self):
-        """Below MIN_SAMPLE, two long lines are not evidence of a house style.
+        """Nine lines — one short of MIN_SAMPLE (10) — still fall back to the 80-column default.
 
-        Falls back to the 80-column default rather than let two lines decide it.
+        Pins the threshold itself, not merely "a small sample is ignored":
+        the old fixture used only two 200-column lines, nowhere near
+        MIN_SAMPLE, so it held for any threshold between 3 and 200 and never
+        exercised the boundary at all. All nine lines here are 200 columns
+        wide — if MIN_SAMPLE were anything at or below 9, that alone would
+        already be enough evidence to read this as an intentionally wide file
+        and return 88 instead of 80.
         """
-        assert mod.target_width(["x" * 200, "y" * 200]) == 80
+        assert mod.target_width(["x" * 200 for _ in range(9)]) == 80
 
     def test_one_overlong_line_does_not_widen_a_narrow_file(self):
         """A single 200-column outlier must not raise the median it is then measured against."""
