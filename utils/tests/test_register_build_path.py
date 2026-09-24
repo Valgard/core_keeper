@@ -24,6 +24,7 @@ MonoBehaviour:
 
 
 def asset(*paths, empty_form=False):
+    """A minimal ModPaths.asset YAML body, empty or containing the given paths."""
     if empty_form:
         return HEADER + "\n  latestBuildOrInstallPaths: []\n"
     body = "\n  latestBuildOrInstallPaths:"
@@ -33,23 +34,27 @@ def asset(*paths, empty_form=False):
 
 
 def paths_in(text):
+    """The path list split_list() extracts from `text`, unwrapped for comparison."""
     _, _, paths, _ = rbp.split_list(text.splitlines())
     return paths
 
 
 def test_adds_to_an_empty_list_written_as_inline_brackets():
+    """Registering into Unity's empty-list rendering (`field: []`) produces a proper block list."""
     text, _ = rbp.register(asset(empty_form=True), "/builds/DisableDurability")
 
     assert paths_in(text) == ["/builds/DisableDurability"]
 
 
 def test_appends_to_an_existing_list():
+    """Registering a new path appends to an existing list rather than replacing it."""
     text, _ = rbp.register(asset("/builds/FasterTalents"), "/builds/DisableDurability")
 
     assert paths_in(text) == ["/builds/FasterTalents", "/builds/DisableDurability"]
 
 
 def test_registering_the_same_path_twice_does_not_duplicate_it():
+    """Re-registering the same path twice leaves it unchanged, reported already registered."""
     once, _ = rbp.register(asset(), "/builds/DisableDurability")
     twice, message = rbp.register(once, "/builds/DisableDurability")
 
@@ -60,6 +65,7 @@ def test_registering_the_same_path_twice_does_not_duplicate_it():
 # LastOrDefault is the C# LINQ method this behaviour exists for -- renaming would
 # sever the name from the API it verifies.
 def test_reregistering_moves_the_path_last_so_LastOrDefault_finds_it():  # noqa: N802
+    """Re-registering a path already in the list moves it to the end, not left where it was."""
     start = asset("/builds/DisableDurability", "/builds/FasterTalents")
 
     text, _ = rbp.register(start, "/builds/DisableDurability")
@@ -68,6 +74,7 @@ def test_reregistering_moves_the_path_last_so_LastOrDefault_finds_it():  # noqa:
 
 
 def test_the_list_is_capped_at_five_and_drops_the_oldest():
+    """A list at the five-entry cap drops just the oldest entry when a new path is added."""
     text = asset(*[f"/builds/Mod{i}" for i in range(5)])
 
     text, message = rbp.register(text, "/builds/Fresh")
@@ -83,6 +90,7 @@ def test_the_list_is_capped_at_five_and_drops_the_oldest():
 
 
 def test_everything_outside_the_list_is_left_untouched():
+    """Registering a path leaves everything outside the path-list field completely untouched."""
     start = asset("/builds/FasterTalents")
 
     text, _ = rbp.register(start, "/builds/DisableDurability")
@@ -93,8 +101,11 @@ def test_everything_outside_the_list_is_left_untouched():
 
 
 def test_a_path_needing_yaml_quoting_survives_a_round_trip():
-    # Not hypothetical: a volume or mod named with a colon reaches us verbatim
-    # from MOD_INSTALL_PATH, and unquoted it would parse as a mapping.
+    """A path containing a colon is quoted so it round-trips as a scalar, not a mapping.
+
+    Not hypothetical: a volume or mod named with a colon reaches this script
+    verbatim from MOD_INSTALL_PATH.
+    """
     weird = "/builds/Odd: Name"
 
     text, _ = rbp.register(asset(), weird)
@@ -104,6 +115,7 @@ def test_a_path_needing_yaml_quoting_survives_a_round_trip():
 
 
 def test_an_asset_without_the_field_is_reported_rather_than_guessed_at():
+    """An asset missing the path-list field raises, rather than silently inventing one."""
     try:
         rbp.register(HEADER + "\n", "/builds/DisableDurability")
     except LookupError as exc:
@@ -113,6 +125,12 @@ def test_an_asset_without_the_field_is_reported_rather_than_guessed_at():
 
 
 def test_a_missing_asset_file_never_fails_the_build(tmp_path, capsys):
+    """A missing ModPaths.asset is reported on stderr but still exits 0.
+
+    This step is a convenience for the Editor's dropdown, not part of
+    producing the build artefact, so it must never fail the build that
+    called it.
+    """
     code = rbp.main(["register_build_path.py", str(tmp_path / "absent.asset"), "/builds/X"])
 
     assert code == 0
@@ -120,6 +138,7 @@ def test_a_missing_asset_file_never_fails_the_build(tmp_path, capsys):
 
 
 def test_wrong_arguments_never_fail_the_build(capsys):
+    """Wrong CLI arguments print usage to stderr but still exit 0, for the same reason."""
     code = rbp.main(["register_build_path.py"])
 
     assert code == 0
@@ -127,6 +146,7 @@ def test_wrong_arguments_never_fail_the_build(capsys):
 
 
 def test_main_writes_the_file(tmp_path):
+    """main() actually writes the updated asset back to disk, not merely returns the new text."""
     target = tmp_path / "ModPaths.asset"
     target.write_text(asset("/builds/FasterTalents"))
 
