@@ -43,12 +43,12 @@ def preview(tmp_path_factory):
 
 @pytest.fixture
 def golden(preview):
-    """What steam_bundle.build_bundle emits for a mod never published before:
-    no file id, and therefore hidden.
+    """What steam_bundle.build_bundle emits for a mod never published before.
 
-    contentPath is never opened on the dry-run path and so need not exist;
-    previewPath is, which is the asymmetry the fixture above exists for. A
-    fresh dict per test, so a test that mutates it cannot reach the next one.
+    No file id, and therefore hidden. contentPath is never opened on the
+    dry-run path and so need not exist; previewPath is, which is the
+    asymmetry the fixture above exists for. A fresh dict per test, so a
+    test that mutates it cannot reach the next one.
     """
     return {
         "fileId": 0,
@@ -120,24 +120,35 @@ def result_line(completed):
 
 
 class TestAcceptedBundle:
+    """A correctly filled bundle is accepted, exits 0, and reaches no Steamworks call at all."""
+
     def test_a_new_item_reports_no_id_and_success(self, tool, golden):
+        """A new item (fileId 0) reports back fileId 0, created False, success True, and modOwner 0.
+
+        That 0 means SteamClient.Init never ran; upload.sh reads it as
+        "no value to write" rather than as an owner of zero.
+        """
         done = run(tool, golden)
         assert done.returncode == 0
         assert result_line(done) == {
             "fileId": 0,
             "created": False,
             "success": True,
-            # 0 because SteamClient.Init never ran; upload.sh reads that as
-            # "no value to write" rather than as an owner of zero.
             "modOwner": 0,
         }
 
     def test_an_existing_item_echoes_its_id_back(self, tool, golden):
+        """An existing item's fileId, sent with visibility "unchanged", is echoed back unchanged."""
         done = run(tool, {**golden, "fileId": 3210987654, "visibility": "unchanged"})
         assert done.returncode == 0
         assert result_line(done)["fileId"] == 3210987654
 
     def test_it_sends_nothing(self, tool, golden):
+        """A fully valid bundle still sends nothing to Steam under --dry-run.
+
+        This is the boundary the whole suite depends on to test without a
+        live session.
+        """
         assert "nothing sent" in run(tool, golden).stderr
 
 
@@ -145,22 +156,36 @@ class TestUnusableBundle:
     """Everything that must exit 2 — the code upload.sh already treats as fatal."""
 
     def test_stdin_that_is_not_json(self, tool):
+        """Stdin that is not JSON at all exits 2 with a message naming the parse failure.
+
+        Not a stack trace.
+        """
         done = run(tool, "not json at all")
         assert done.returncode == 2
         assert "not valid JSON" in done.stderr
 
     def test_empty_stdin(self, tool):
+        """Empty stdin exits 2, the same fatal code as malformed JSON.
+
+        Rather than defaulting to an empty bundle.
+        """
         done = run(tool, "")
         assert done.returncode == 2
 
     def test_json_null(self, tool):
-        # `null` is valid JSON, so it gets past the parse and deserialises to a
-        # null bundle. Only the emptiness check after it catches this one.
+        """A JSON `null` gets past the parser (it IS valid JSON).
+
+        It must still be caught by the emptiness check afterward.
+        """
         done = run(tool, "null")
         assert done.returncode == 2
 
     @pytest.mark.parametrize("value", [None, ""])
     def test_content_path_missing_or_blank(self, tool, golden, value):
+        """`contentPath` missing entirely, or present but blank, is refused in both forms.
+
+        Both name the field in the message.
+        """
         bundle = dict(golden)
         if value is None:
             del bundle["contentPath"]
@@ -181,6 +206,10 @@ class TestRequiredFields:
 
     @pytest.mark.parametrize("field", ["title", "description", "changelog"])
     def test_a_missing_field_is_named(self, tool, golden, field):
+        """A missing required field is refused with that field's own name in the message.
+
+        Not a generic complaint.
+        """
         bundle = dict(golden)
         del bundle[field]
         done = run(tool, bundle)
@@ -189,24 +218,32 @@ class TestRequiredFields:
 
     @pytest.mark.parametrize("field", ["title", "description", "changelog"])
     def test_an_explicit_null_is_refused_too(self, tool, golden, field):
-        # A JSON null and an absent key are the same thing on this side, and
-        # both are a producer that stopped supplying a value.
+        """An explicit JSON null for a required field is refused exactly like an absent key.
+
+        Both mean a producer that stopped supplying a value.
+        """
         done = run(tool, {**golden, field: None})
         assert done.returncode == 2
         assert field in done.stderr
 
     def test_a_blank_title_is_refused(self, tool, golden):
-        # Blank only counts as missing where blank is itself a wrong item, and
-        # an untitled entry in the Workshop catalogue is one.
+        """A blank (whitespace-only) title is refused like a missing one.
+
+        An untitled entry in the Workshop catalogue is a wrong item, not
+        a minimal one.
+        """
         done = run(tool, {**golden, "title": "   "})
         assert done.returncode == 2
         assert "title" in done.stderr
 
     @pytest.mark.parametrize("field", ["description", "changelog"])
     def test_an_empty_one_is_accepted(self, tool, golden, field):
-        # Neither is refused when empty: an empty description makes a sparse
-        # item rather than a broken one, and steam_bundle.parse_changelog
-        # genuinely returns "" for a version heading with nothing under it.
+        """An empty description or changelog is accepted, unlike a blank title.
+
+        An empty description makes a sparse item rather than a broken
+        one, and parse_changelog genuinely returns "" for some real
+        entries.
+        """
         assert run(tool, {**golden, field: ""}).returncode == 0
 
 
@@ -220,6 +257,7 @@ class TestVisibility:
     """
 
     def test_a_missing_key_is_refused(self, tool, golden):
+        """A missing visibility key is refused, not left to fall back to Steam's public default."""
         bundle = dict(golden)
         del bundle["visibility"]
         done = run(tool, bundle)
@@ -228,22 +266,30 @@ class TestVisibility:
 
     @pytest.mark.parametrize("value", ["public", "Hidden", "", "unlisted"])
     def test_an_unrecognised_value_is_refused(self, tool, golden, value):
-        # "Hidden" among them on purpose: the comparison is case-sensitive, so
-        # a producer that ever capitalised the value would have published one
-        # public item per new mod, silently.
+        """Any unrecognised visibility value is refused, including a merely mis-cased "Hidden".
+
+        The comparison is case-sensitive, so a producer that capitalised
+        it would otherwise publish one public item per new mod, silently.
+        """
         done = run(tool, {**golden, "visibility": value})
         assert done.returncode == 2
         assert "visibility" in done.stderr
 
     def test_a_new_item_may_not_say_unchanged(self, tool, golden):
-        # hidden ⇔ fileId == 0, forwards: "unchanged" on an item that does not
-        # exist yet is how it gets created public.
+        """A new item (fileId 0) may not say visibility "unchanged".
+
+        On an item that does not exist yet, "unchanged" is how it would
+        get created public.
+        """
         done = run(tool, {**golden, "fileId": 0, "visibility": "unchanged"})
         assert done.returncode == 2
 
     def test_an_existing_item_may_not_say_hidden(self, tool, golden):
-        # And backwards: hiding a live item takes something out of the
-        # catalogue that a person deliberately put there.
+        """An existing item may not say visibility "hidden".
+
+        That would take a live item, which a person deliberately put in
+        the catalogue, back out of it.
+        """
         done = run(tool, {**golden, "fileId": 3210987654, "visibility": "hidden"})
         assert done.returncode == 2
 
@@ -264,6 +310,7 @@ class TestPreview:
     """
 
     def test_a_missing_key_is_refused(self, tool, golden):
+        """A missing previewPath key is refused, not left to publish silently with no preview."""
         bundle = dict(golden)
         del bundle["previewPath"]
         done = run(tool, bundle)
@@ -272,15 +319,21 @@ class TestPreview:
 
     @pytest.mark.parametrize("value", [None, "", "   "])
     def test_a_blank_value_is_refused(self, tool, golden, value):
+        """A previewPath that is absent, empty, or whitespace-only is refused in every form.
+
+        Not just the literally-missing one.
+        """
         done = run(tool, {**golden, "previewPath": value})
         assert done.returncode == 2
         assert "previewPath" in done.stderr
 
     def test_a_path_that_names_no_file_is_refused(self, tool, golden):
-        # What a present-and-non-blank check alone would still let through, and
-        # the case that actually happens: the producer derives the preview into
-        # a scratch directory that a trap removes, so the path is spelled
-        # perfectly and the file is simply not there any more.
+        """A previewPath that is present and non-blank but names no actual file is refused.
+
+        A present-and-non-blank check alone would let this through, and
+        it is the case that actually happens when a scratch directory's
+        cleanup trap removes the file first.
+        """
         done = run(tool, {**golden, "previewPath": "/nonexistent/preview.png"})
         assert done.returncode == 2
         assert "/nonexistent/preview.png" in done.stderr
@@ -298,45 +351,68 @@ class TestDependencies:
     """
 
     def test_an_entry_with_no_file_id_is_refused(self, tool, golden):
+        """A dependency entry with an explicit fileId of 0 is refused.
+
+        Never reaches AddDependency(0) — a call Steam would answer about
+        an item that cannot exist.
+        """
         entry = {"name": "CoreLib", "fileId": 0, "required": True}
         done = run(tool, {**golden, "dependencies": [entry]})
         assert done.returncode == 2
         assert "CoreLib" in done.stderr
 
     def test_an_absent_file_id_is_refused_as_well(self, tool, golden):
-        # An absent key deserialises to 0, so it is the same AddDependency(0)
-        # arriving by a different route — and the likelier of the two.
+        """A dependency entry with no fileId key at all is refused too.
+
+        It deserialises to 0, so it is the same AddDependency(0) hazard
+        by a different route, and the likelier one in practice.
+        """
         done = run(tool, {**golden, "dependencies": [{"name": "CoreLib"}]})
         assert done.returncode == 2
         assert "CoreLib" in done.stderr
 
     @pytest.mark.parametrize("name", [None, "", "  "])
     def test_an_entry_with_no_name_is_refused(self, tool, golden, name):
+        """A dependency entry with a missing, empty, or blank name is refused.
+
+        The message names the entry by its id, since the name is exactly
+        what is missing.
+        """
         entry = {"name": name, "fileId": 3000000001, "required": False}
         done = run(tool, {**golden, "dependencies": [entry]})
         assert done.returncode == 2
-        # Named by its id, because the name is the thing that is missing.
         assert "3000000001" in done.stderr
 
     def test_a_null_entry_is_refused(self, tool, golden):
+        """A null entry inside the dependencies list is refused.
+
+        Rather than causing a failure further down.
+        """
         done = run(tool, {**golden, "dependencies": [None]})
         assert done.returncode == 2
         assert "dependencies" in done.stderr
 
     def test_a_resolved_entry_is_accepted(self, tool, golden):
+        """A fully resolved dependency entry (name, a nonzero fileId, required) is accepted."""
         entry = {"name": "CoreLib", "fileId": 3000000001, "required": True}
         assert run(tool, {**golden, "dependencies": [entry]}).returncode == 0
 
     def test_null_is_accepted_because_it_means_unknown(self, tool, golden):
-        # What steam_bundle emits when it could not resolve every declared
-        # dependency. Program.cs early-returns on it and syncs nothing, which
-        # is the point: a list it cannot complete would remove what it cannot
-        # name. Refusing null here would turn that safeguard into an abort.
+        """A dependencies value of null is accepted, not refused.
+
+        This is what steam_bundle emits when it could not resolve every
+        declared dependency. Program.cs early-returns on it and syncs
+        nothing, since a list it cannot complete would otherwise remove
+        what it cannot name.
+        """
         assert run(tool, {**golden, "dependencies": None}).returncode == 0
 
     def test_an_empty_list_is_accepted(self, tool, golden):
-        # "Declares none, so remove anything stale" — a complete picture, and a
-        # different claim from the null above.
+        """An empty dependencies list is accepted and means something different from null.
+
+        It is a complete picture ("declares none"), so a sync may remove
+        anything stale.
+        """
         assert run(tool, {**golden, "dependencies": []}).returncode == 0
 
 
@@ -356,9 +432,11 @@ class TestDependencyPlan:
     """
 
     def test_each_dependency_is_listed_with_its_file_id(self, tool, golden):
-        # The id, not just the name: it is what actually gets attached, and
-        # what a wrong entry in steam-dependencies.json would show up as. A
-        # name alone cannot be checked against the Workshop by eye.
+        """Each dependency in the plan is listed with its file id, not just its name.
+
+        The id is what actually gets attached, and a name alone cannot
+        be checked against the Workshop by eye.
+        """
         deps = [{"name": "CoreLib", "fileId": 3673516180, "required": True}]
         err = run(tool, {**golden, "dependencies": deps}).stderr
         assert "CoreLib" in err
@@ -366,19 +444,26 @@ class TestDependencyPlan:
         assert "required" in err
 
     def test_it_says_what_it_cannot_show_not_merely_that_something_is_missing(self, tool, golden):
-        # Without this the list reads as the whole plan, and it is not: the
-        # sync is a full one, so it also removes what the live item carries and
-        # the bundle does not name. Naming the removals specifically is the
-        # point — "some things cannot be previewed" would not warn anyone.
+        """The plan names what it will remove, not just that a removal is coming.
+
+        The sync is a full one, so it also removes what the live item
+        carries and the bundle does not name; without stating that here,
+        the listed dependencies alone would read as the whole plan, and a
+        vague "some things cannot be previewed" would not warn anyone of
+        what specifically.
+        """
         deps = [{"name": "CoreLib", "fileId": 3673516180, "required": True}]
         err = run(tool, {**golden, "dependencies": deps}).stderr
         assert "remove any dependency the item carries that is not listed" in err
         assert "cannot be previewed" in err
 
     def test_a_required_dependency_takes_the_louder_code(self, tool, golden):
-        # 9 rather than 7 whenever ANY declared dependency is required: the
-        # two cost a subscriber different things, and a mod that does not run
-        # is the expensive one to miss.
+        """A required dependency anywhere in the list takes the louder exit 9, not 7.
+
+        Even alongside optional ones. The two cost a subscriber
+        different things, and a mod that does not run is the expensive
+        one to miss.
+        """
         deps = [
             {"name": "ModSettingsMenu", "fileId": 3000000002, "required": False},
             {"name": "CoreLib", "fileId": 3000000001, "required": True},
@@ -388,21 +473,30 @@ class TestDependencyPlan:
         assert "CoreLib" in err
 
     def test_only_optional_dependencies_take_the_quieter_code(self, tool, golden):
+        """A list of only optional dependencies takes the quieter exit 7.
+
+        Not the louder exit 9 a required one would trigger.
+        """
         deps = [{"name": "ModSettingsMenu", "fileId": 3000000002, "required": False}]
         err = run(tool, {**golden, "dependencies": deps}).stderr
         assert "exit 7" in err
         assert "exit 9" not in err
 
     def test_an_empty_list_is_still_a_sync_that_could_fail(self, tool, golden):
-        # Declaring none is an instruction to remove what is stale, so the
-        # query can still fail — and with nothing required, quietly.
+        """An empty dependencies list still plans a sync that could fail (exit 7).
+
+        Declaring none is an instruction to remove what is stale, and
+        with nothing required, that failure would be a quiet one.
+        """
         err = run(tool, {**golden, "dependencies": []}).stderr
         assert "exit 7" in err
 
     def test_an_unresolved_list_plans_no_sync_at_all(self, tool, golden):
-        # null is "unknown, change nothing". There is no failure code to
-        # report because there is no sync, and saying one would invite the
-        # reader to expect an attempt.
+        """A null (unresolved) dependencies list plans no sync at all — no exit 7, no exit 9.
+
+        Reporting either would invite the reader to expect an attempt
+        that never happens.
+        """
         err = run(tool, {**golden, "dependencies": None}).stderr
         assert "exit 9" not in err
         assert "exit 7" not in err
