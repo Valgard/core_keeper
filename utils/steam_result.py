@@ -58,6 +58,15 @@ def find_result(lines: Iterable[str]) -> dict | None:
 
 
 def main(argv: list[str], env: Mapping[str, str] | None = None) -> int:
+    """CLI entry point: the three-way shape the module docstring describes.
+
+    Returns 0 for "nothing was created" (no result line at all, or a fileId
+    of 0) and for a successful save; 1 for a usage error, a missing MOD_NAME,
+    an unreadable output file, or a save that failed — the last one loudly,
+    since the item is live on Steam either way and the id must not be lost a
+    second time. `env` is a parameter rather than a bare `os.environ` read so
+    the three-way branching here is testable without real environment state.
+    """
     env = os.environ if env is None else env
 
     if len(argv) != 3:

@@ -67,9 +67,9 @@ def parse_changelog(text: str) -> tuple[str, str]:
 
 
 def _read_metadata(asset_text: str) -> dict:
-    """The `metadata:` block of a ModBuilderSettings .asset, flat and shallow.
+    r"""The `metadata:` block of a ModBuilderSettings .asset, flat and shallow.
 
-    Horizontal whitespace only around the value — `\\s` would match the newline
+    Horizontal whitespace only around the value — `\s` would match the newline
     too, so a key with an empty value would swallow the line break and capture
     the line below it. `displayName:` is empty on any mod the SDK's settings GUI
     created, and it becomes the Workshop item's title.
@@ -241,8 +241,9 @@ def _logo_path(repo_root: Path, mod_name: str) -> Path:
 
 
 def check_prerequisites(repo_root: Path, env: Mapping[str, str]) -> list[dict] | None:
-    """Validate everything a Steam publish needs that does NOT depend on a
-    finished build, by raising ValueError on the first thing that is missing.
+    """Validate everything a Steam publish needs, except a finished build.
+
+    Raises ValueError on the first thing that is missing.
 
     Returns what it resolved the declared dependencies to, so `build_bundle` can
     reuse it instead of resolving a second time. That is not a convenience: the

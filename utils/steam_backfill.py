@@ -593,6 +593,8 @@ def read_item(utils_dir: Path, env: dict, file_id: int) -> dict | None:
 
 @dataclasses.dataclass
 class ModPlan:
+    """One mod's backfill plan — everything plan_mod() could establish before anything is sent."""
+
     repo: Path
     mod_name: str
     mod_id: int
@@ -608,6 +610,7 @@ class ModPlan:
     workdir: Path | None = None
 
     def scratch(self) -> Path:
+        """This mod's temp working directory, created on first use and reused after."""
         if self.workdir is None:
             self.workdir = Path(tempfile.mkdtemp(prefix=f"ck-backfill-{self.mod_name}-"))
         return self.workdir
@@ -698,6 +701,13 @@ def _size(count: int) -> str:
 
 
 def report(plan: ModPlan, limit: int | None, brief: bool) -> None:
+    """Print one mod's plan: its item, what mod.io has that Steam does not yet, what would be sent.
+
+    The submit count is worded from what THIS run would do, not from what is
+    outstanding overall — see the comment above `verb` below: a blocked mod
+    reports zero regardless of its backlog, and --max-versions caps the rest,
+    so the count always matches the run being described.
+    """
     print()
     print(f"{plan.mod_name}  ({plan.repo.name})  mod.io {plan.mod_id}")
     if plan.file_id:
@@ -921,6 +931,15 @@ def mod_repositories(root: Path) -> list[Path]:
 
 
 def main(argv: list[str]) -> int:
+    """CLI entry point: plan, rehearse, and (with --execute) submit each mod's backfill.
+
+    --execute refuses to run without the mods named explicitly — a command
+    that appends dozens of permanent Workshop history entries must not be
+    startable by pressing up-arrow on a plan run. Every pending submit is
+    built and validated through rehearse() before the first one is actually
+    sent, and a blocked mod (see plan_mod()'s prerequisite check) is dropped
+    from the runnable set rather than attempted and failing loudly later.
+    """
     parser = argparse.ArgumentParser(
         description="Mirror a mod's mod.io release history into its Steam Workshop item.",
         epilog="Without --execute nothing is sent: every pending submit is built and "

@@ -66,6 +66,8 @@ TYPO_GAP_DAYS = 30  # 0.7.5.1's real gap is 86 days; same-day pairs are two
 
 @dataclass
 class Report:
+    """compare()'s result: what the file is missing, which versions look mistyped, and each date."""
+
     missing: list = field(default_factory=list)
     suspects: list = field(default_factory=list)
     # Keyed by the canonical spelling, because `missing` is: Steam writes
@@ -83,6 +85,7 @@ def norm(version):
 
 
 def fmt(parts):
+    """Undo norm(): the dotted string for a version tuple."""
     return ".".join(str(x) for x in parts)
 
 
@@ -202,6 +205,7 @@ def parse_events(events):
 
 
 def fetch_modio_tags(game_key):
+    """The mod.io Game Version tags for this game, fetched with the given key."""
     return version_tags(_get(MODIO_GAME_URL + urllib.parse.quote(game_key)))
 
 
@@ -240,6 +244,15 @@ def read_game_key():
 
 
 def main():
+    """Compare ck-game-versions.json against Steam and mod.io, and print what differs.
+
+    Both feeds are filtered to `floor`, the file's own lowest version, before
+    comparing — below the SDK build nothing can carry a mod, so a feed
+    reporting an older release is not a gap in the file, it is noise this
+    would otherwise report as one. The exit code follows whether anything was
+    found (missing or suspect), not whether the fetch succeeded — a fetch
+    failure raises instead.
+    """
     path = pathlib.Path(__file__).with_name("ck-game-versions.json")
     doc = json.loads(path.read_text())
     steam, duplicates = fetch_steam_updates()

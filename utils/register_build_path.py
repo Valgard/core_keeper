@@ -121,6 +121,14 @@ def register(asset_text: str, content_path: str, limit: int = MAX_ENTRIES) -> tu
 
 
 def main(argv: list[str]) -> int:
+    """CLI entry point: register content in asset, never failing the build that called it.
+
+    Every failure path (bad usage, an unreadable or unwritable asset, no
+    `latestBuildOrInstallPaths:` field) prints to stderr and returns 0 rather
+    than a nonzero code — see the module docstring: registering this path is
+    a convenience for the Editor's dropdown, not part of producing the build
+    artefact, so nothing here may fail the caller.
+    """
     if len(argv) != 3:
         print(
             f"usage: {Path(argv[0]).name} <ModPaths.asset> <content-folder>",

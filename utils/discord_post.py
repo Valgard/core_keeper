@@ -107,6 +107,15 @@ def download_links(slug, steam_id):
 
 
 def render(markdown, *, supported, known, tags, slug, steam_id=None):
+    """Turn a mod's discord-post.md into the body text of a new #available-mods thread.
+
+    Tags are validated against the channel's own offered set and against
+    Discord's five-per-post ceiling before anything else runs, so a
+    misconfigured mod fails on the cheap check rather than on the length
+    check further down. The leading `# Title` heading is stripped from the
+    body: the caller uses that same line as the thread's title (see the regex
+    comment where it does), so leaving it in here would post it twice.
+    """
     unknown = sorted(set(tags) - forum_tags())
     if unknown:
         raise ValueError(f"not offered by #available-mods: {', '.join(unknown)}")
@@ -356,6 +365,15 @@ def render_repo(repo, env, known, *, update=False):
 
 
 def known_versions():
+    """Every Core Keeper build this repo has ever published against.
+
+    version_line() needs this to tell "supports the whole 1.2.x minor" from
+    "supports most of it" — a claim it can only make by comparing what a mod
+    supports against every build that minor actually had, not just the ones
+    named in that mod's own CK_GAME_VERSION. Every failure here exits with a
+    message naming the file and what to do about it: a missing or malformed
+    sibling data file is an operator error to fix, not a traceback to debug.
+    """
     path = pathlib.Path(__file__).with_name(VERSIONS_FILENAME)
     try:
         doc = json.loads(path.read_text())
