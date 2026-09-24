@@ -25,8 +25,10 @@ def _export(text, name):
 
 
 def _posts():
-    """(repo, env) for every mod repo that has a post, with the parent's
-    CK_GAME_VERSION -- the canonical list a mod inherits and may override.
+    """(repo, env) pairs for every mod repo that has a discord-post.md.
+
+    Each pair's env carries the parent's CK_GAME_VERSION -- the canonical
+    list a mod inherits and may override.
     """
     mods_dir = nm.resolve_mods_dir()
     parent = _export(_text(_tools_root() / ".envrc.example"), "CK_GAME_VERSION")
@@ -83,7 +85,9 @@ needs_posts = pytest.mark.skipif(
 @needs_posts
 @pytest.mark.parametrize("repo,env", POSTS, ids=lambda v: getattr(v, "name", ""))
 def test_every_written_post_renders_within_discords_limits(repo, env):
-    """render_repo raises on all four ceilings -- length, unknown tag, tag
+    """Every written post must render without tripping any of render_repo's four limits.
+
+    render_repo raises on all four ceilings -- length, unknown tag, tag
     count, missing heading -- so rendering it *is* the assertion.
     """
     result = dp.render_repo(repo, env, dp.known_versions())
@@ -94,7 +98,9 @@ def test_every_written_post_renders_within_discords_limits(repo, env):
 @needs_posts
 @pytest.mark.parametrize("repo,env", POSTS, ids=lambda v: getattr(v, "name", ""))
 def test_a_posts_forum_tags_are_committed_not_only_local(repo, env):
-    """`.envrc` is gitignored, so tags that live only there are lost on clone
+    """A post's forum tags must be present in .envrc.example, not only in .envrc.
+
+    `.envrc` is gitignored, so tags that live only there are lost on clone
     and the post cannot be rendered anywhere else.
     """
     assert "CK_DISCORD_TAGS" in env, (
@@ -105,7 +111,9 @@ def test_a_posts_forum_tags_are_committed_not_only_local(repo, env):
 
 @needs_posts
 def test_the_shipped_version_list_covers_every_supported_build():
-    """A build in CK_GAME_VERSION that the list does not know is either a typo
+    """Every build a mod's CK_GAME_VERSION names must already be in the shipped version list.
+
+    A build in CK_GAME_VERSION that the list does not know is either a typo
     or a missing entry; both make the version line wrong.
     """
     known = {dp._norm(v) for v in dp.known_versions()}
@@ -122,7 +130,9 @@ def test_the_shipped_version_list_covers_every_supported_build():
 
 
 def test_every_unlisted_build_is_one_that_actually_shipped():
-    """CK_MODIO_VERSION_UNLISTED suppresses the publish guard for the value it
+    """Every build named in CK_MODIO_VERSION_UNLISTED must be one that actually shipped.
+
+    CK_MODIO_VERSION_UNLISTED suppresses the publish guard for the value it
     names, and the staleness check only fires for entries mod.io later offers —
     which a typo never will. A typo parked there is therefore permanent and
     silent, and the guard it disables is the one that catches typos. The list of
@@ -141,7 +151,9 @@ def test_every_unlisted_build_is_one_that_actually_shipped():
 
 
 def test_an_unlisted_build_is_one_the_mods_actually_claim():
-    """An entry that filters nothing is bookkeeping, and bookkeeping in a shared
+    """Every unlisted build must also appear in some mod's CK_GAME_VERSION, not sit there unused.
+
+    An entry that filters nothing is bookkeeping, and bookkeeping in a shared
     file aborts every mod's publish the day mod.io backfills that tag.
     """
     example = _text(_tools_root() / ".envrc.example")
