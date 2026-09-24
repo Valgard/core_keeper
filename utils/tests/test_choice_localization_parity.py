@@ -33,9 +33,7 @@ CHOICE_CALL = re.compile(
 QUALIFIED_MEMBER = re.compile(r"\b(?:\w+\.)*(?P<enum>\w+)\.(?P<member>\w+)\b")
 
 # The whole-enum form: (T[])System.Enum.GetValues(typeof(T)).
-GET_VALUES = re.compile(
-    r"GetValues\s*\(\s*typeof\s*\(\s*(?:\w+\.)*(?P<enum>\w+)\s*\)\s*\)"
-)
+GET_VALUES = re.compile(r"GetValues\s*\(\s*typeof\s*\(\s*(?:\w+\.)*(?P<enum>\w+)\s*\)\s*\)")
 
 
 def _mod_repos():
@@ -85,12 +83,7 @@ def _enum_members(sources, enum_name):
         members = []
         for line in body.splitlines():
             line = line.strip()
-            if (
-                not line
-                or line.startswith("//")
-                or line.startswith("/")
-                or line.startswith("[")
-            ):
+            if not line or line.startswith("//") or line.startswith("/") or line.startswith("["):
                 continue
             name = re.match(r"(\w+)", line)
             if name:
@@ -106,9 +99,7 @@ def _enum_choices(repo):
     localise, so including them would produce failures for terms that are
     correctly absent.
     """
-    sources = [
-        p.read_text(encoding="utf-8") for p in sorted(repo.glob("unity/**/*.cs"))
-    ]
+    sources = [p.read_text(encoding="utf-8") for p in sorted(repo.glob("unity/**/*.cs"))]
     found = []
     for text in sources:
         for call in CHOICE_CALL.finditer(text):

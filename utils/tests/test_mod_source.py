@@ -118,9 +118,7 @@ def _write_repo(workspace, repo, mod_name, mod_id, fake_id=None):
 
 
 def test_reads_an_installed_mod_with_its_three_names(tmp_path):
-    cache = _write_cache(
-        tmp_path, [(3177992, 7845185, "CoreLib", ["Scripts/CoreLibMod.cs"])]
-    )
+    cache = _write_cache(tmp_path, [(3177992, 7845185, "CoreLib", ["Scripts/CoreLibMod.cs"])])
 
     mods, warnings = mod_source.read_installed(cache)
 
@@ -138,9 +136,7 @@ def test_ignores_a_superseded_folder(tmp_path):
     # This fixture inverts the ids intentionally so the current folder carries
     # the lower id and the stale one the higher. "Highest id wins" would pick
     # the stale folder; reading state.json picks the right one.
-    cache = _write_cache(
-        tmp_path, [(3177992, 7710097, "CoreLib", ["Scripts/CoreLibMod.cs"])]
-    )
+    cache = _write_cache(tmp_path, [(3177992, 7710097, "CoreLib", ["Scripts/CoreLibMod.cs"])])
     stale = cache / "3177992_7845185"
     (stale / "Scripts").mkdir(parents=True)
 
@@ -215,9 +211,7 @@ def test_reads_the_real_mod_id_from_the_tracked_asset(tmp_path):
 
 
 def test_reads_the_fake_id_when_the_envrc_is_present(tmp_path):
-    _write_repo(
-        tmp_path, "mod-settings-menu", "ModSettingsMenu", 6211950, fake_id=9999991
-    )
+    _write_repo(tmp_path, "mod-settings-menu", "ModSettingsMenu", 6211950, fake_id=9999991)
 
     own = mod_source.read_own_mods(tmp_path)
 
@@ -312,23 +306,17 @@ def test_fetch_catalogue_follows_pagination_to_the_last_page(tmp_path, monkeypat
     )
 
     page_one = {
-        "data": [
-            {"id": 1, "name": "Mod One", "name_id": "modone", "modfile": {"id": 10}}
-        ],
+        "data": [{"id": 1, "name": "Mod One", "name_id": "modone", "modfile": {"id": 10}}],
         "result_total": 2,
     }
     page_two = {
-        "data": [
-            {"id": 2, "name": "Mod Two", "name_id": "modtwo", "modfile": {"id": 20}}
-        ],
+        "data": [{"id": 2, "name": "Mod Two", "name_id": "modtwo", "modfile": {"id": 20}}],
         "result_total": 2,
     }
     seen_offsets = []
 
     def fake_curl(url):
-        offset = int(
-            urllib.parse.parse_qs(urllib.parse.urlparse(url).query)["_offset"][0]
-        )
+        offset = int(urllib.parse.parse_qs(urllib.parse.urlparse(url).query)["_offset"][0])
         seen_offsets.append(offset)
         return json.dumps(page_two if offset else page_one).encode()
 
@@ -367,9 +355,7 @@ def test_fetch_catalogue_gives_up_rather_than_looping_forever(tmp_path, monkeypa
 
     def fake_curl(url):
         calls.append(url)
-        return json.dumps(
-            {"data": [{"id": len(calls)}], "result_total": 10**9}
-        ).encode()
+        return json.dumps({"data": [{"id": len(calls)}], "result_total": 10**9}).encode()
 
     monkeypatch.setattr(mod_source, "_curl", fake_curl)
 
@@ -428,12 +414,8 @@ def _workspace(tmp_path, installed=(), own=(), catalogue=()):
     for repo, mod_name, mod_id, fake_id in own:
         _write_repo(repos, repo, mod_name, mod_id, fake_id)
     mirror = tmp_path / "catalogue.json"
-    mirror.write_text(
-        json.dumps({"entries": [_catalogue_row(entry) for entry in catalogue]})
-    )
-    return mod_source.Workspace.build(
-        cache_dir=cache, workspace=repos, catalogue_path=mirror
-    )
+    mirror.write_text(json.dumps({"entries": [_catalogue_row(entry) for entry in catalogue]}))
+    return mod_source.Workspace.build(cache_dir=cache, workspace=repos, catalogue_path=mirror)
 
 
 def test_an_own_mod_resolves_to_its_repository(tmp_path):
@@ -777,9 +759,7 @@ def test_download_verifies_the_manifest_name_against_the_query(tmp_path, monkeyp
         zf.writestr("ModManifest.json", json.dumps({"name": "SomethingElse"}))
         zf.writestr("Scripts/A.cs", "// code")
 
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
 
     resolution = mod_source.Resolution(
@@ -823,9 +803,7 @@ def test_download_matches_via_the_slug_when_the_title_differs(tmp_path, monkeypa
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("ModManifest.json", json.dumps({"name": "GeneralConfigMenu"}))
 
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
 
     resolution = mod_source.Resolution(
@@ -851,9 +829,7 @@ def test_download_refuses_paths_outside_the_target(tmp_path, monkeypatch):
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("../escaped.cs", "// nope")
 
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
 
     resolution = mod_source.Resolution(
@@ -883,9 +859,7 @@ def test_download_refuses_an_absolute_path_member(tmp_path, monkeypatch):
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("/etc/absolute.cs", "// nope")
 
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
 
     resolution = mod_source.Resolution(
@@ -918,9 +892,7 @@ def test_download_survives_the_call_with_no_cleanup(tmp_path, monkeypatch):
         zf.writestr("Scripts/A.cs", "// a")
         zf.writestr("Scripts/B.cs", "// b")
 
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
 
     resolution = mod_source.Resolution(
@@ -950,9 +922,7 @@ def test_download_survives_an_unparseable_manifest(tmp_path, monkeypatch):
         zf.writestr("ModManifest.json", "{not valid json")
         zf.writestr("Scripts/A.cs", "// code")
 
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
 
     resolution = mod_source.Resolution(
@@ -982,9 +952,7 @@ def test_download_survives_a_manifest_that_is_not_an_object(tmp_path, monkeypatc
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("ModManifest.json", json.dumps(["not", "an", "object"]))
 
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
 
     resolution = mod_source.Resolution(
@@ -1015,9 +983,7 @@ def test_download_survives_a_null_manifest_name(tmp_path, monkeypatch):
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("ModManifest.json", json.dumps({"name": None}))
 
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
 
     resolution = mod_source.Resolution(
@@ -1048,9 +1014,7 @@ def test_download_leaves_no_directory_behind_when_rejected(tmp_path, monkeypatch
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("../escaped.cs", "// nope")
 
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
 
     resolution = mod_source.Resolution(
@@ -1088,9 +1052,7 @@ def test_render_names_every_known_name_and_an_absolute_path(tmp_path):
 
 
 def test_render_says_when_the_internal_name_is_unknown(tmp_path):
-    ws = _workspace(
-        tmp_path, catalogue=[(4584153, "General Mod Config Menu", "gcm", 7840263)]
-    )
+    ws = _workspace(tmp_path, catalogue=[(4584153, "General Mod Config Menu", "gcm", 7840263)])
     text = mod_source.render(ws.resolve("General Mod Config Menu"))
 
     # Specifically the INTERNAL name. Searching the whole render for the word
@@ -1147,9 +1109,7 @@ def test_json_output_stringifies_the_source_path(tmp_path):
 
     payload = json.loads(mod_source.render_json(ws.resolve("X")))
 
-    assert payload["source_path"] == str(
-        tmp_path / "bottle" / "mods" / "1_2" / "Scripts"
-    )
+    assert payload["source_path"] == str(tmp_path / "bottle" / "mods" / "1_2" / "Scripts")
 
 
 def _write_bottle(tmp_path, mods=()):
@@ -1171,9 +1131,7 @@ def _write_main_catalogue(tmp_path, entries=()):
     """The catalogue mirror at the one path main() reads it from by default."""
     mirror = tmp_path / "cache" / "catalogue.json"
     mirror.parent.mkdir(parents=True, exist_ok=True)
-    mirror.write_text(
-        json.dumps({"entries": [_catalogue_row(entry) for entry in entries]})
-    )
+    mirror.write_text(json.dumps({"entries": [_catalogue_row(entry) for entry in entries]}))
     return mirror
 
 
@@ -1201,14 +1159,10 @@ def test_main_exits_non_zero_on_ambiguity(tmp_path, capsys, monkeypatch):
     assert "Tool Resizer" in capsys.readouterr().out
 
 
-def test_main_resolves_a_single_installed_mod_and_prints_source(
-    tmp_path, capsys, monkeypatch
-):
+def test_main_resolves_a_single_installed_mod_and_prints_source(tmp_path, capsys, monkeypatch):
     monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
     _write_main_catalogue(tmp_path)
-    bottle = _write_bottle(
-        tmp_path, [(3177992, 7845185, "CoreLib", ["Scripts/CoreLibMod.cs"])]
-    )
+    bottle = _write_bottle(tmp_path, [(3177992, 7845185, "CoreLib", ["Scripts/CoreLibMod.cs"])])
     monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
 
     code = mod_source.main(["CoreLib", "--workspace", str(tmp_path)])
@@ -1231,9 +1185,7 @@ def test_main_exits_one_on_a_lookup_error(tmp_path, capsys, monkeypatch):
     assert "NoSuchMod" in capsys.readouterr().err
 
 
-def test_main_exits_one_when_the_bottle_path_does_not_exist(
-    tmp_path, capsys, monkeypatch
-):
+def test_main_exits_one_when_the_bottle_path_does_not_exist(tmp_path, capsys, monkeypatch):
     monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
     _write_main_catalogue(tmp_path)
     monkeypatch.setattr(mod_source, "bottle_path", lambda: tmp_path / "no-such-bottle")
@@ -1244,9 +1196,7 @@ def test_main_exits_one_when_the_bottle_path_does_not_exist(
     assert "CK_BOTTLE_PATH" in capsys.readouterr().err
 
 
-def test_main_file_argument_prints_the_resolved_absolute_path(
-    tmp_path, capsys, monkeypatch
-):
+def test_main_file_argument_prints_the_resolved_absolute_path(tmp_path, capsys, monkeypatch):
     monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
     _write_main_catalogue(tmp_path)
     bottle = _write_bottle(
@@ -1275,9 +1225,7 @@ def test_main_file_argument_prints_the_resolved_absolute_path(
     assert Path(out).is_absolute()
 
 
-def test_main_file_argument_exits_one_when_nothing_matches(
-    tmp_path, capsys, monkeypatch
-):
+def test_main_file_argument_exits_one_when_nothing_matches(tmp_path, capsys, monkeypatch):
     monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
     _write_main_catalogue(tmp_path)
     bottle = _write_bottle(tmp_path, [(1, 2, "X", ["Scripts/X.cs"])])
@@ -1289,9 +1237,7 @@ def test_main_file_argument_exits_one_when_nothing_matches(
     assert "NoSuchFile" in capsys.readouterr().err
 
 
-def test_main_json_flag_emits_parseable_json_for_a_single_resolution(
-    tmp_path, capsys, monkeypatch
-):
+def test_main_json_flag_emits_parseable_json_for_a_single_resolution(tmp_path, capsys, monkeypatch):
     monkeypatch.setenv("CK_MOD_SOURCE_CACHE", str(tmp_path / "cache"))
     _write_main_catalogue(tmp_path)
     bottle = _write_bottle(tmp_path, [(1, 2, "X", ["Scripts/X.cs"])])
@@ -1339,14 +1285,10 @@ def test_main_download_flag_fetches_an_uninstalled_mod(tmp_path, capsys, monkeyp
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("ModManifest.json", json.dumps({"name": "GeneralModConfigMenu"}))
         zf.writestr("Scripts/Menu.cs", "// code")
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
 
-    code = mod_source.main(
-        ["General Mod Config Menu", "--download", "--workspace", str(tmp_path)]
-    )
+    code = mod_source.main(["General Mod Config Menu", "--download", "--workspace", str(tmp_path)])
 
     out = capsys.readouterr().out
     assert code == 0
@@ -1360,16 +1302,12 @@ def test_main_download_flag_fetches_an_uninstalled_mod(tmp_path, capsys, monkeyp
     # "not installed" not in out could not, since "installed, ..." also
     # satisfies it.
     assert "downloaded, source available" in out
-    downloaded = (
-        tmp_path / "cache" / "downloads" / "4584153_7840263" / "Scripts" / "Menu.cs"
-    )
+    downloaded = tmp_path / "cache" / "downloads" / "4584153_7840263" / "Scripts" / "Menu.cs"
     assert downloaded.is_file()
     assert str(downloaded.parent) in out
 
 
-def test_main_download_flag_flags_an_unconfirmed_identity(
-    tmp_path, capsys, monkeypatch
-):
+def test_main_download_flag_flags_an_unconfirmed_identity(tmp_path, capsys, monkeypatch):
     # The other half of the same branch: the archive's manifest cannot settle
     # the identity check (unparseable JSON here, same as
     # test_download_survives_an_unparseable_manifest), so the identity stays
@@ -1388,14 +1326,10 @@ def test_main_download_flag_flags_an_unconfirmed_identity(
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("ModManifest.json", "{not valid json")
         zf.writestr("Scripts/Menu.cs", "// code")
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
 
-    code = mod_source.main(
-        ["General Mod Config Menu", "--download", "--workspace", str(tmp_path)]
-    )
+    code = mod_source.main(["General Mod Config Menu", "--download", "--workspace", str(tmp_path)])
 
     out = capsys.readouterr().out
     assert code == 0
@@ -1437,9 +1371,7 @@ def test_download_raises_a_value_error_for_a_corrupt_archive(tmp_path, monkeypat
     # BadZipFile from a truncated or corrupted response would have escaped as
     # a raw traceback instead of "error: download failed (...)". download()
     # re-raises it as ValueError so every caller gets one uniform error type.
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(mod_source, "_curl", lambda url: b"not a zip file at all")
 
     resolution = mod_source.Resolution(
@@ -1499,9 +1431,7 @@ def test_render_json_includes_an_own_mods_walked_cs_files(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_default_workspace_resolves_a_worktree_to_the_main_checkout(
-    tmp_path, monkeypatch
-):
+def test_default_workspace_resolves_a_worktree_to_the_main_checkout(tmp_path, monkeypatch):
     # Important 1: from inside a git worktree, `git rev-parse
     # --git-common-dir` answers with the MAIN checkout's .git directory, not
     # a worktree-private one -- that is the one directory every worktree of a
@@ -1514,9 +1444,7 @@ def test_default_workspace_resolves_a_worktree_to_the_main_checkout(
     # this workspace's own dev builds as foreign mods parked locally.
     main_checkout = tmp_path / "core_keeper"
     (main_checkout / ".git").mkdir(parents=True)
-    monkeypatch.setattr(
-        mod_source, "_git_common_dir", lambda start: str(main_checkout / ".git")
-    )
+    monkeypatch.setattr(mod_source, "_git_common_dir", lambda start: str(main_checkout / ".git"))
 
     assert mod_source._default_workspace() == main_checkout
 
@@ -1528,15 +1456,10 @@ def test_default_workspace_falls_back_when_git_cannot_answer(monkeypatch):
     # could, rather than crashing on argparse construction.
     monkeypatch.setattr(mod_source, "_git_common_dir", lambda start: None)
 
-    assert (
-        mod_source._default_workspace()
-        == Path(mod_source.__file__).resolve().parent.parent
-    )
+    assert mod_source._default_workspace() == Path(mod_source.__file__).resolve().parent.parent
 
 
-def test_default_workspace_falls_back_when_the_answer_is_not_a_git_dir(
-    tmp_path, monkeypatch
-):
+def test_default_workspace_falls_back_when_the_answer_is_not_a_git_dir(tmp_path, monkeypatch):
     # Important 1's other explicit requirement: git answers, but with
     # something that does not look like a real .git directory (wrong name
     # here; a nonexistent path is the other half of the same check). Trusting
@@ -1546,10 +1469,7 @@ def test_default_workspace_falls_back_when_the_answer_is_not_a_git_dir(
     not_a_git_dir.mkdir()
     monkeypatch.setattr(mod_source, "_git_common_dir", lambda start: str(not_a_git_dir))
 
-    assert (
-        mod_source._default_workspace()
-        == Path(mod_source.__file__).resolve().parent.parent
-    )
+    assert mod_source._default_workspace() == Path(mod_source.__file__).resolve().parent.parent
 
 
 def test_main_warns_with_the_weaker_fallback_when_the_mirror_already_exists(
@@ -1571,9 +1491,7 @@ def test_main_warns_with_the_weaker_fallback_when_the_mirror_already_exists(
     bottle = _write_bottle(tmp_path)
     monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
 
-    code = mod_source.main(
-        ["General Mod Config Menu", "--refresh", "--workspace", str(tmp_path)]
-    )
+    code = mod_source.main(["General Mod Config Menu", "--refresh", "--workspace", str(tmp_path)])
 
     captured = capsys.readouterr()
     assert code == 0
@@ -1631,9 +1549,7 @@ def test_a_contradicted_identity_reaches_both_renderers(tmp_path, monkeypatch):
             "Scripts/A.cs": "// code",
         }
     )
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(mod_source, "_curl", lambda url: payload)
     resolution = _catalogue_resolution(
         modfile_md5=hashlib.md5(payload).hexdigest(),
@@ -1655,9 +1571,7 @@ def test_a_contradicted_identity_reaches_both_renderers(tmp_path, monkeypatch):
     assert any("SomethingElse" in note for note in payload_json["notes"])
 
 
-def test_main_download_renders_a_name_mismatch_in_both_output_modes(
-    tmp_path, capsys, monkeypatch
-):
+def test_main_download_renders_a_name_mismatch_in_both_output_modes(tmp_path, capsys, monkeypatch):
     # The same defect at the layer that matters: this is the exact command a
     # session runs before dispatching an agent, and its whole output used to
     # read as a settled answer. Both output modes are checked, because a
@@ -1684,14 +1598,10 @@ def test_main_download_renders_a_name_mismatch_in_both_output_modes(
     )
     bottle = _write_bottle(tmp_path)
     monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(mod_source, "_curl", lambda url: payload)
 
-    code = mod_source.main(
-        ["General Mod Config Menu", "--download", "--workspace", str(tmp_path)]
-    )
+    code = mod_source.main(["General Mod Config Menu", "--download", "--workspace", str(tmp_path)])
 
     human = capsys.readouterr().out
     assert code == 2
@@ -1737,9 +1647,7 @@ def test_the_not_installed_note_is_dropped_without_dropping_the_mismatch(
     )
     bottle = _write_bottle(tmp_path)
     monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(mod_source, "_curl", lambda url: payload)
 
     code = mod_source.main(
@@ -1758,17 +1666,13 @@ def test_the_not_installed_note_is_dropped_without_dropping_the_mismatch(
     assert any("SomethingElse" in note for note in machine["notes"])
 
 
-def test_download_verifies_the_archive_against_the_catalogues_md5(
-    tmp_path, monkeypatch
-):
+def test_download_verifies_the_archive_against_the_catalogues_md5(tmp_path, monkeypatch):
     # The check the design mandates twice and the module did not have: an
     # archive whose bytes are not what mod.io says they are is not this mod's
     # source, whatever it happens to unpack into, so it is not unpacked at
     # all. Nothing may be left on disk either -- the next run would find the
     # directory and take it for a completed download.
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(
         mod_source,
         "_curl",
@@ -1790,15 +1694,11 @@ def test_download_says_when_it_cannot_verify_the_bytes(tmp_path, monkeypatch):
     # silence: "verified" and "unverifiable" are different answers, and the
     # note is what carries the difference into the payload.
     payload = _archive({"ModManifest.json": json.dumps({"name": "GeneralConfigMenu"})})
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(mod_source, "_curl", lambda url: payload)
     resolution = _catalogue_resolution(modfile_md5="")
 
-    target, warnings = mod_source.download(
-        resolution, tmp_path / "sdk", tmp_path / "dl"
-    )
+    target, warnings = mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
 
     assert target.is_dir()
     assert any("no md5" in w for w in warnings)
@@ -1888,9 +1788,7 @@ def test_a_resolution_carries_the_modfile_md5_from_the_catalogue(tmp_path):
     # can never check anything: the mirror is the only place it exists.
     ws = _workspace(
         tmp_path,
-        catalogue=[
-            (4584153, "General Mod Config Menu", "generalconfigmenu", 7840263, "b" * 32)
-        ],
+        catalogue=[(4584153, "General Mod Config Menu", "generalconfigmenu", 7840263, "b" * 32)],
     )
 
     result = ws.resolve("General Mod Config Menu")
@@ -1910,16 +1808,12 @@ def test_fetch_catalogue_refuses_an_early_empty_page(tmp_path, monkeypatch):
     )
 
     def fake_curl(url):
-        offset = int(
-            urllib.parse.parse_qs(urllib.parse.urlparse(url).query)["_offset"][0]
-        )
+        offset = int(urllib.parse.parse_qs(urllib.parse.urlparse(url).query)["_offset"][0])
         page = (
             {"data": [], "result_total": 9}
             if offset
             else {
-                "data": [
-                    {"id": 1, "name": "Mod One", "name_id": "modone", "modfile": None}
-                ],
+                "data": [{"id": 1, "name": "Mod One", "name_id": "modone", "modfile": None}],
                 "result_total": 9,
             }
         )
@@ -2124,9 +2018,9 @@ def test_display_name_falls_back_to_the_mod_id_but_not_past_it(tmp_path):
     )
     assert mod_source._display_name(nameless) == "mod 77"
 
-    unpublished = _workspace(
-        tmp_path, own=[("brand-new-mod", "BrandNewMod", 0, None)]
-    ).resolve("BrandNewMod")
+    unpublished = _workspace(tmp_path, own=[("brand-new-mod", "BrandNewMod", 0, None)]).resolve(
+        "BrandNewMod"
+    )
     assert unpublished.mod_id is None
     assert mod_source._display_name(unpublished) == "BrandNewMod"
 
@@ -2211,14 +2105,10 @@ def test_main_exits_two_on_a_refuted_identity(tmp_path, capsys, monkeypatch):
     )
     bottle = _write_bottle(tmp_path)
     monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(mod_source, "_curl", lambda url: payload)
 
-    code = mod_source.main(
-        ["General Mod Config Menu", "--download", "--workspace", str(tmp_path)]
-    )
+    code = mod_source.main(["General Mod Config Menu", "--download", "--workspace", str(tmp_path)])
 
     assert code == 2
     assert "identity mismatch" in capsys.readouterr().out
@@ -2252,22 +2142,16 @@ def test_main_exits_zero_when_the_download_verifies(tmp_path, capsys, monkeypatc
     )
     bottle = _write_bottle(tmp_path)
     monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
-    monkeypatch.setattr(
-        mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY")
-    )
+    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(mod_source, "_curl", lambda url: payload)
 
-    code = mod_source.main(
-        ["General Mod Config Menu", "--download", "--workspace", str(tmp_path)]
-    )
+    code = mod_source.main(["General Mod Config Menu", "--download", "--workspace", str(tmp_path)])
 
     assert code == 0
     assert "downloaded, source available" in capsys.readouterr().out
 
 
-def test_main_does_not_resolve_a_default_workspace_it_was_given(
-    tmp_path, capsys, monkeypatch
-):
+def test_main_does_not_resolve_a_default_workspace_it_was_given(tmp_path, capsys, monkeypatch):
     # _default_workspace() shells out to git. As argparse's own `default=` it
     # was evaluated at add_argument time, so that subprocess ran on every
     # single invocation -- including the ones that pass --workspace and never
@@ -2290,9 +2174,7 @@ def test_main_does_not_resolve_a_default_workspace_it_was_given(
     assert calls == []
 
 
-def test_main_still_resolves_a_default_workspace_when_none_is_given(
-    tmp_path, capsys, monkeypatch
-):
+def test_main_still_resolves_a_default_workspace_when_none_is_given(tmp_path, capsys, monkeypatch):
     # The other half: made lazy, not removed. Without --workspace the default
     # must still be computed, or every unqualified run stops finding this
     # repository's own mods -- which is the defect the git resolution was

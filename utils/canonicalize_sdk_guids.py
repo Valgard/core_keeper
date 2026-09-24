@@ -85,12 +85,8 @@ def main():
                 n += 1
         print(f"apply: pinned {n} DLL GUID(s) to canonical")
         if n:
-            print(
-                "NEXT: delete CoreKeeperModSDK/Library/SourceAssetDB (+ Bee, ScriptAssemblies)"
-            )
-            print(
-                "      then reopen the Editor so Unity reimports against the pinned GUIDs."
-            )
+            print("NEXT: delete CoreKeeperModSDK/Library/SourceAssetDB (+ Bee, ScriptAssemblies)")
+            print("      then reopen the Editor so Unity reimports against the pinned GUIDs.")
         return
 
     print(__doc__)

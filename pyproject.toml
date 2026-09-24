@@ -16,4 +16,95 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    # Pinned here so the linter the pre-commit hook runs and the one a shell
+    # runs are the same binary. They were not: the hook pulled v0.16.0 from
+    # ruff-pre-commit while `uv run ruff` resolved 0.16.4, and ruff's DEFAULT
+    # rule set has widened between releases -- 415 rules of 1063 in 0.16.4,
+    # against the E4/E7/E9/F the documentation still describes. Without an
+    # explicit selection below, an upgrade would silently change what the gate
+    # enforces.
+    "ruff>=0.16.4",
 ]
+
+# Adopted verbatim from work/selgros/salesbuddy/shared, which is the oldest and
+# largest Python project here (first commit 2025-04-30, against this repo's
+# 2026-05-15) and the one whose selection is deliberate and commented. This repo
+# simply never received it: it was started after that standard existed and grew
+# for four months with no linter running at all.
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+# Community standard rule selection - focused on essential code quality
+select = [
+    # Core Python rules
+    "F",      # Pyflakes - essential error detection
+    "E",      # pycodestyle errors - PEP 8 compliance
+    "W",      # pycodestyle warnings - PEP 8 compliance
+
+    # Import and code organization
+    "I",      # isort - import sorting
+    "UP",     # pyupgrade - modern Python syntax
+
+    # Code quality and bug prevention
+    "B",      # flake8-bugbear - common bugs and design problems
+    "C4",     # flake8-comprehensions - better list/dict comprehensions
+    "SIM",    # flake8-simplify - code simplification suggestions
+
+    # Best practices
+    "N",      # pep8-naming - naming conventions
+    "RUF",    # Ruff-specific rules - modern Python patterns
+
+    # Security and async (when relevant)
+    "S",      # flake8-bandit - security issues
+    "ASYNC",  # flake8-async - async/await best practices
+
+    # Docstring linting - comprehensive pydocstyle rules
+    "D",      # pydocstyle - docstring conventions (D1xx-D4xx)
+]
+
+ignore = [
+    # Security rules that are too strict for development
+    "S101",    # Use of assert detected (common in tests and development)
+
+    # Naming rules that conflict with common patterns
+    "N806",    # Variable in function should be lowercase (conflicts with dataclasses)
+
+    # Docstring rules - allow some flexibility while maintaining quality
+    "D104",    # Missing docstring in public package (allow empty __init__.py files)
+]
+
+# Allow fix for all enabled rules (when `--fix`) is provided
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests have different requirements
+"utils/tests/**/*.py" = [
+    "S101",     # Use of assert detected - essential for tests
+    "S106",     # Possible hardcoded password - test data is fine
+]
+
+# Allow empty __init__.py files without docstrings
+"**/__init__.py" = [
+    "D100",     # Missing docstring in public module
+    "D104",     # Missing docstring in public package
+]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.ruff.lint.pydocstyle]
+# Use Google docstring convention
+convention = "google"
+
+[tool.ruff.format]
+# Black-compatible formatting
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

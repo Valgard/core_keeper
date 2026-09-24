@@ -237,9 +237,7 @@ MonoBehaviour:
 """
 
 
-def build_modio_asset_yaml(
-    mod_name: str, modsettings_guid: str, mod_id: int = 0
-) -> str:
+def build_modio_asset_yaml(mod_name: str, modsettings_guid: str, mod_id: int = 0) -> str:
     """The `<Mod>_modio.asset` — holds the mod.io ID and cross-references this
     mod's ModBuilderSettings asset by its (freshly-generated) `.asset.meta`
     GUID. `modId` is 0 until the first publish assigns the real one."""
@@ -280,9 +278,7 @@ def build_steam_asset_yaml(mod_name: str) -> str:
     publish time. `modName` is the SDK window's lookup key, so it is the one
     field worth writing now.
     """
-    return steam_identity.TEMPLATE.format(
-        name=f"{mod_name}_Steam", file_id=0, mod_name=mod_name
-    )
+    return steam_identity.TEMPLATE.format(name=f"{mod_name}_Steam", file_id=0, mod_name=mod_name)
 
 
 # --- .meta builders ---------------------------------------------------------
@@ -488,9 +484,7 @@ namespace {mod_name}
 """
 
 
-def build_envrc(
-    mod_name: str, kebab: str, summary: str, fake_mod_id: int, modio_type: str
-) -> str:
+def build_envrc(mod_name: str, kebab: str, summary: str, fake_mod_id: int, modio_type: str) -> str:
     """The mod's environment file. Machine-shared paths (SDK_PATH, UNITY_BIN,
     …) are inherited from the parent core_keeper/.envrc; only the project-
     inherent identity vars live here. Used for both `.envrc` (gitignored) and
@@ -1000,9 +994,7 @@ def run_git(args, cwd):
     variables gone. Found by the parity suite running inside the pre-commit hook.
     """
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
-    return subprocess.run(
-        args, cwd=cwd, capture_output=True, text=True, check=False, env=env
-    )
+    return subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=False, env=env)
 
 
 def resolve_mods_dir():
@@ -1019,9 +1011,7 @@ def resolve_mods_dir():
     here = pathlib.Path(__file__).resolve().parent
     # A non-zero exit is the "not a git checkout" signal, hence run_git's
     # check=False.
-    proc = run_git(
-        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], here
-    )
+    proc = run_git(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], here)
     if proc.returncode == 0 and proc.stdout.strip():
         return pathlib.Path(proc.stdout.strip()).parent
     return here.parent
@@ -1123,9 +1113,7 @@ def parse_args(argv=None):
         description="Scaffold a new, buildable Core Keeper mod (no Unity Editor)."
     )
     p.add_argument("kebab", help="kebab-case mod id, e.g. faster-pet-talents")
-    p.add_argument(
-        "--summary", required=True, help="one-line mod.io summary (required)"
-    )
+    p.add_argument("--summary", required=True, help="one-line mod.io summary (required)")
     p.add_argument(
         "--required-on",
         dest="required_on",
@@ -1161,9 +1149,7 @@ def parse_args(argv=None):
         dest="display_name",
         help="override the derived Title-case displayName",
     )
-    p.add_argument(
-        "--corelib", action="store_true", help="add a CoreLib loader dependency"
-    )
+    p.add_argument("--corelib", action="store_true", help="add a CoreLib loader dependency")
     p.add_argument(
         "--dry-run",
         dest="dry_run",
@@ -1215,9 +1201,7 @@ def main(argv=None) -> int:
             print(f"  {relpath}")
     else:
         print("\n✓ scaffolded, git-initialised, and linked into the SDK.")
-        print(
-            f"  next: cd {result['target'].name} && source .envrc && ../utils/build.sh"
-        )
+        print(f"  next: cd {result['target'].name} && source .envrc && ../utils/build.sh")
     return 0
 
 

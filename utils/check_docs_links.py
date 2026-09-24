@@ -109,9 +109,7 @@ def markdown_files(root):
         check=True,
         env=env,
     )
-    tracked = [
-        root / line for line in dict.fromkeys(result.stdout.splitlines()) if line
-    ]
+    tracked = [root / line for line in dict.fromkeys(result.stdout.splitlines()) if line]
     return [p for p in tracked if p.is_file()], [p for p in tracked if not p.is_file()]
 
 
@@ -194,9 +192,7 @@ def check_handbook_complete(files, root):
     return [
         f"docs/ck/index.md  does not link chapter {f.name}"
         for f in files
-        if f.parent == docs
-        and f.name not in ("README.md", "index.md")
-        and f.name not in linked
+        if f.parent == docs and f.name not in ("README.md", "index.md") and f.name not in linked
     ]
 
 

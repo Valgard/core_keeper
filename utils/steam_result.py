@@ -67,9 +67,7 @@ def main(argv: list[str], env: Mapping[str, str] | None = None) -> int:
 
     mod_name = env.get("MOD_NAME")
     if not mod_name:
-        print(
-            "  ! MOD_NAME is not set — cannot locate the Steam asset.", file=sys.stderr
-        )
+        print("  ! MOD_NAME is not set — cannot locate the Steam asset.", file=sys.stderr)
         return 1
 
     try:

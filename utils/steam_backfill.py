@@ -119,9 +119,7 @@ class Release:
 # --- pairing -----------------------------------------------------------------
 
 
-def pair_releases(
-    modfiles: list[dict], entries: list[tuple[str, str]]
-) -> list[Release]:
+def pair_releases(modfiles: list[dict], entries: list[tuple[str, str]]) -> list[Release]:
     """Every modfile with the changelog entry that belongs to it, oldest first.
 
     Sorted by mod.io's own `date_added`, with the modfile id breaking a tie:
@@ -165,9 +163,7 @@ def pair_releases(
     return out
 
 
-def unpublished_versions(
-    modfiles: list[dict], entries: list[tuple[str, str]]
-) -> list[str]:
+def unpublished_versions(modfiles: list[dict], entries: list[tuple[str, str]]) -> list[str]:
     """Changelog versions mod.io has no modfile for, in changelog order.
 
     Reported, never submitted: with no build behind it there is nothing to
@@ -224,8 +220,7 @@ def render_metadata(submitted: list[Release]) -> str:
             "schema": SCHEMA,
             "tool": TOOL,
             "submitted": [
-                {"version": release.version, "modfile": release.modfile}
-                for release in submitted
+                {"version": release.version, "modfile": release.modfile} for release in submitted
             ],
         },
         separators=(",", ":"),
@@ -614,9 +609,7 @@ class ModPlan:
 
     def scratch(self) -> Path:
         if self.workdir is None:
-            self.workdir = Path(
-                tempfile.mkdtemp(prefix=f"ck-backfill-{self.mod_name}-")
-            )
+            self.workdir = Path(tempfile.mkdtemp(prefix=f"ck-backfill-{self.mod_name}-"))
         return self.workdir
 
     def already(self) -> list[Release]:
@@ -701,9 +694,7 @@ def plan_mod(repo: Path, utils_dir: Path, assume: list[str] | None) -> ModPlan:
 
 
 def _size(count: int) -> str:
-    return (
-        f"{count / 1024:.0f} KB" if count < 1024 * 1024 else f"{count / 1048576:.1f} MB"
-    )
+    return f"{count / 1024:.0f} KB" if count < 1024 * 1024 else f"{count / 1048576:.1f} MB"
 
 
 def report(plan: ModPlan, limit: int | None, brief: bool) -> None:
@@ -792,9 +783,7 @@ def _submit(
     os.close(handle)
     result_file = Path(result_path)
 
-    code, _ = run_ck_workshop(
-        utils_dir, env, [], stdin=json.dumps(bundle), tee_to=result_file
-    )
+    code, _ = run_ck_workshop(utils_dir, env, [], stdin=json.dumps(bundle), tee_to=result_file)
 
     # Attempted whatever the exit code says, exactly as upload.sh does: the tool
     # reports a created item's id even when the publish then failed, because
@@ -902,9 +891,7 @@ def submit_all(plans: list[ModPlan], utils_dir: Path, limit: int | None) -> int:
         done = plan.already()
         for release in todo(plan, limit):
             print(f"\n  submitting {plan.mod_name} {release.version}...", flush=True)
-            code = _submit(
-                plan, release, done, utils_dir, plan.scratch(), dry_run=False
-            )
+            code = _submit(plan, release, done, utils_dir, plan.scratch(), dry_run=False)
             if code != 0:
                 print(
                     f"  ✗ {plan.mod_name} stopped at {release.version} (exit {code}). "
@@ -1006,13 +993,9 @@ def main(argv: list[str]) -> int:
     # Blocked mods are dropped here rather than skipped later, so the counts
     # below and everything after them describe the same set of work. A mod
     # waiting on a sibling's Workshop id has already said so in its own report.
-    runnable = [
-        plan for plan in plans if not plan.blocked and todo(plan, args.max_versions)
-    ]
+    runnable = [plan for plan in plans if not plan.blocked and todo(plan, args.max_versions)]
     total = sum(len(todo(plan, args.max_versions)) for plan in runnable)
-    print(
-        f"\n{total} version(s) to submit across {len(runnable)} of {len(plans)} mod(s)."
-    )
+    print(f"\n{total} version(s) to submit across {len(runnable)} of {len(plans)} mod(s).")
     if not total:
         return status
 

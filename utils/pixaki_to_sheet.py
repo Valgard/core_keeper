@@ -48,9 +48,7 @@ def load_config(pixaki_path):
     # error below said "next to the .pixaki".
     cfg_path = os.path.splitext(os.path.normpath(pixaki_path))[0] + ".json"
     if not os.path.exists(cfg_path):
-        raise FileNotFoundError(
-            f"sprite-def config not found next to the .pixaki: {cfg_path}"
-        )
+        raise FileNotFoundError(f"sprite-def config not found next to the .pixaki: {cfg_path}")
     with open(cfg_path) as f:
         data = json.load(f)
     c = copy.deepcopy(_CONFIG_DEFAULTS)
@@ -83,11 +81,7 @@ def collect_layers(doc, exclude_top):
     """Return the visible, named, drawing-bearing layers, skipping the
     excluded top-level groups and any hidden layer."""
     sp = doc["sprites"][0]
-    cel_size = {
-        c["identifier"]: tuple(c["frame"][1])
-        for c in sp.get("cels", [])
-        if c.get("frame")
-    }
+    cel_size = {c["identifier"]: tuple(c["frame"][1]) for c in sp.get("cels", []) if c.get("frame")}
     out = []
 
     def walk(node, top_excluded):
@@ -252,9 +246,7 @@ def _pad(img, target_w, target_h, anchor):
     'bottom' (centred x, bottom y), a (left, top) offset tuple, or top-left."""
     canvas = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
     if anchor == "bottom":
-        canvas.alpha_composite(
-            img, ((target_w - img.width) // 2, target_h - img.height)
-        )
+        canvas.alpha_composite(img, ((target_w - img.width) // 2, target_h - img.height))
     elif isinstance(anchor, tuple):
         canvas.alpha_composite(img, anchor)
     else:  # top-left
@@ -315,9 +307,7 @@ def render_meta(template_meta_path, new_guid, placements_named):
     head, rest = tpl.split("  spriteSheet:\n", 1)
     _, tail = rest.split("  mipmapLimitGroupName:", 1)
     tail = "  mipmapLimitGroupName:" + tail
-    head = re.sub(
-        r"^guid: [0-9a-f]{32}", f"guid: {new_guid}", head, count=1, flags=re.M
-    )
+    head = re.sub(r"^guid: [0-9a-f]{32}", f"guid: {new_guid}", head, count=1, flags=re.M)
     ordered = sorted(placements_named, key=lambda s: s["name"])
     sprites = "".join(_sprite_block(s) for s in ordered)
     name_table = "".join(f"      {s['name']}: {s['internal_id']}\n" for s in ordered)
@@ -394,9 +384,7 @@ def build_sheet(pixaki_path, out_png, template_meta=None, guid=None):
                 y=y_bl,
                 w=w,
                 h=h,
-                border=border_for(
-                    key_base[key], w, h, cfg["sliced"], cfg["borderOverride"]
-                ),
+                border=border_for(key_base[key], w, h, cfg["sliced"], cfg["borderOverride"]),
             )
         )
     _validate_pins(cfg["internalIds"], placed_named)  # fail loud before any write
@@ -417,9 +405,7 @@ def main():
     ap.add_argument("out_png")
     ap.add_argument("--meta-template", default=None)
     ap.add_argument("--mapping-out", default=None)
-    ap.add_argument(
-        "--guid", default=None, help="force sheet GUID (else derived from out path)"
-    )
+    ap.add_argument("--guid", default=None, help="force sheet GUID (else derived from out path)")
     a = ap.parse_args()
     mapping, guid = build_sheet(a.pixaki, a.out_png, a.meta_template, guid=a.guid)
     if a.mapping_out:

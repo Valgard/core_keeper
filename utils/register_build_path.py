@@ -57,11 +57,7 @@ NEEDS_QUOTING = (
 
 
 def _quote(path: str) -> str:
-    if (
-        path != path.strip()
-        or path.startswith("-")
-        or any(c in path for c in NEEDS_QUOTING)
-    ):
+    if path != path.strip() or path.startswith("-") or any(c in path for c in NEEDS_QUOTING):
         return "'" + path.replace("'", "''") + "'"
     return path
 
@@ -97,9 +93,7 @@ def split_list(lines: list[str]) -> tuple[int, int, list[str], str]:
     raise LookupError(f"no '{FIELD}' field found")
 
 
-def register(
-    asset_text: str, content_path: str, limit: int = MAX_ENTRIES
-) -> tuple[str, str]:
+def register(asset_text: str, content_path: str, limit: int = MAX_ENTRIES) -> tuple[str, str]:
     """Return (new_text, message). Re-registering an existing path moves it last.
 
     Last position matters: the tab reads with `LastOrDefault`, so on two candidates

@@ -74,9 +74,7 @@ def find_sequence(haystack, needle):
     first = needle[0]
     n = len(needle)
     return [
-        i + 1
-        for i, line in enumerate(haystack)
-        if line == first and haystack[i : i + n] == needle
+        i + 1 for i, line in enumerate(haystack) if line == first and haystack[i : i + n] == needle
     ]
 
 
@@ -107,9 +105,7 @@ def relocate(old_lines, old_first, source, anchors=None):
             # the next one AND lands where the anchors say -- otherwise the
             # anchors did not actually decide it, and a guess wearing a
             # confident verdict is worse than an honest "ambiguous".
-            decisive = len(near) == 1 or abs(near[0] - expected) * 4 <= abs(
-                near[1] - expected
-            )
+            decisive = len(near) == 1 or abs(near[0] - expected) * 4 <= abs(near[1] - expected)
             if decisive and abs(near[0] - expected) <= ANCHOR_TOLERANCE:
                 verdict = "moved" if near[0] != old_first else "unchanged"
                 return (
@@ -167,11 +163,7 @@ def rewrite_chapter(path, mapping):
         changed += 1
         span = last - first
         new_last = new_first + span
-        body = (
-            f"{assembly}:{new_first}"
-            if span == 0
-            else f"{assembly}:{new_first}-{new_last}"
-        )
+        body = f"{assembly}:{new_first}" if span == 0 else f"{assembly}:{new_first}-{new_last}"
         return f"`{body}`"
 
     new_text = CITATION.sub(repl, text)
@@ -275,9 +267,7 @@ def main():
         print(f"rewrote {total} citation(s) across docs/ck/")
         print("Re-run check_citation_drift.py --capture once the rest is settled.")
     elif moved:
-        print(
-            f"{len(moved)} citation(s) can be renumbered mechanically — pass --apply."
-        )
+        print(f"{len(moved)} citation(s) can be renumbered mechanically — pass --apply.")
 
     return 0
 

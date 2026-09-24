@@ -111,9 +111,7 @@ def test_an_asset_without_the_field_is_reported_rather_than_guessed_at():
 
 
 def test_a_missing_asset_file_never_fails_the_build(tmp_path, capsys):
-    code = rbp.main(
-        ["register_build_path.py", str(tmp_path / "absent.asset"), "/builds/X"]
-    )
+    code = rbp.main(["register_build_path.py", str(tmp_path / "absent.asset"), "/builds/X"])
 
     assert code == 0
     assert "not updated" in capsys.readouterr().err

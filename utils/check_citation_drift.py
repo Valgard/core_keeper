@@ -44,9 +44,7 @@ from pathlib import Path
 # than opening the class to "/" in general — a general slash would also
 # swallow a doc-to-doc line reference like `docs/ck/platforms.md:119`, which
 # is not a citation at all.
-CITATION = re.compile(
-    r"`((?:DedicatedServer/)?[A-Za-z][A-Za-z0-9_.]*):(\d+)(?:-(\d+))?`"
-)
+CITATION = re.compile(r"`((?:DedicatedServer/)?[A-Za-z][A-Za-z0-9_.]*):(\d+)(?:-(\d+))?`")
 
 
 def extract(text):
@@ -147,9 +145,7 @@ def collect(root, decompile):
                 seen.add(key)
                 lines = resolve(assembly, first, last, decompile)
                 if lines is None:
-                    problems.append(
-                        f"{chapter.name}:{number}  {key}  no decompiled assembly"
-                    )
+                    problems.append(f"{chapter.name}:{number}  {key}  no decompiled assembly")
                 else:
                     corpus[key] = lines
     return corpus, sorted(problems), seen
@@ -178,12 +174,8 @@ def compare(corpus, snapshot, cited):
         if key not in snapshot:
             problems.append(f"{key}  not in the snapshot — run --capture")
         elif snapshot[key] != lines:
-            problems.append(
-                f"{key}  was: {render(snapshot[key])}  now: {render(lines)}"
-            )
-    problems += [
-        f"{key}  no longer cited anywhere" for key in snapshot if key not in cited
-    ]
+            problems.append(f"{key}  was: {render(snapshot[key])}  now: {render(lines)}")
+    problems += [f"{key}  no longer cited anywhere" for key in snapshot if key not in cited]
     return sorted(problems)
 
 

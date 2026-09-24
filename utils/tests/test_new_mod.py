@@ -22,10 +22,7 @@ def test_derive_pascal_single_segment():
 
 
 def test_derive_pascal_keeps_digits():
-    assert (
-        nm.derive_pascal("simple-crafting-pool-extender")
-        == "SimpleCraftingPoolExtender"
-    )
+    assert nm.derive_pascal("simple-crafting-pool-extender") == "SimpleCraftingPoolExtender"
 
 
 def test_derive_title_spaces_capitalized_segments():
@@ -153,10 +150,7 @@ def test_editor_asmdef_references_runtime_modsdk_and_pugmod():
 
 def test_asset_binds_verbatim_sdk_script_guid():
     y = nm.build_asset_yaml("Mod", "Mod", metadata_guid="a" * 32, required_on=3)
-    assert (
-        "m_Script: {fileID: 11500000, guid: bc43e4983a160e543856e5ba0421c9e1, type: 3}"
-        in y
-    )
+    assert "m_Script: {fileID: 11500000, guid: bc43e4983a160e543856e5ba0421c9e1, type: 3}" in y
 
 
 def test_asset_carries_identity_and_fresh_metadata_guid():
@@ -211,10 +205,7 @@ def test_asset_refuses_to_guess_required_on():
 
 def test_modio_asset_binds_verbatim_sdk_script_guid():
     y = nm.build_modio_asset_yaml("Mod", modsettings_guid="b" * 32)
-    assert (
-        "m_Script: {fileID: 11500000, guid: d83df2ae64ce1e94f9c006b9d326bf02, type: 3}"
-        in y
-    )
+    assert "m_Script: {fileID: 11500000, guid: d83df2ae64ce1e94f9c006b9d326bf02, type: 3}" in y
 
 
 def test_modio_asset_modid_zero_and_cross_refs_the_asset_meta():
@@ -340,9 +331,7 @@ def test_localization_template_is_inert():
     # which is the authority.
     yaml = nm.build_localization_yaml("FasterPetTalents")
     authored = [
-        line
-        for line in yaml.splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
+        line for line in yaml.splitlines() if line.strip() and not line.lstrip().startswith("#")
     ]
     assert not authored, f"template would parse as content: {authored}"
     # Still has to show the shape, or it teaches nothing.
@@ -532,9 +521,7 @@ def test_plan_modio_cross_references_the_asset_meta_guid():
     plan = _plan_dict()
     asset_meta_guid = _guid(plan["unity/FasterPetTalents.asset.meta"])
     modio = plan["unity/FasterPetTalents/Editor/FasterPetTalents_modio.asset"]
-    ref = _re.search(
-        r"modSettings: \{fileID: 11400000, guid: ([0-9a-f]{32})", modio
-    ).group(1)
+    ref = _re.search(r"modSettings: \{fileID: 11400000, guid: ([0-9a-f]{32})", modio).group(1)
     assert ref == asset_meta_guid
 
 
@@ -677,9 +664,7 @@ def test_scaffold_rejects_an_empty_modio_type(tmp_path):
 
 
 def test_scaffold_normalises_modio_type_spacing(tmp_path):
-    plan = dict(
-        _scaffold(tmp_path, modio_type=" Visual | World ", dry_run=True)["plan"]
-    )
+    plan = dict(_scaffold(tmp_path, modio_type=" Visual | World ", dry_run=True)["plan"])
     assert 'export CK_MODIO_TYPE="Visual|World"' in plan[".envrc"]
 
 

@@ -45,9 +45,7 @@ def test_the_dependency_decision_table_holds():
         pytest.skip("dotnet is not installed")
     for name in ("Facepunch.Steamworks.Posix.dll", "libsteam_api.dylib"):
         if not (PLUGINS / name).is_file():
-            pytest.skip(
-                f"{name} is not in the SDK clone — see utils/fetch_steam_lib.sh"
-            )
+            pytest.skip(f"{name} is not in the SDK clone — see utils/fetch_steam_lib.sh")
 
     done = subprocess.run(
         ["dotnet", "test", str(PROJECT), "-v", "q", "--nologo"],
@@ -56,6 +54,4 @@ def test_the_dependency_decision_table_holds():
         env={**os.environ, "SDK_PATH": str(SDK_PATH)},
     )
 
-    assert done.returncode == 0, (
-        f"ck-workshop-tests failed:\n{done.stdout}\n{done.stderr}"
-    )
+    assert done.returncode == 0, f"ck-workshop-tests failed:\n{done.stdout}\n{done.stderr}"

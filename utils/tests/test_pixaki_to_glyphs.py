@@ -46,8 +46,7 @@ def _pixaki(path, layers, size=(257, 144), offset=(0, 0), form="zip"):
             {
                 "size": list(size),
                 "layers": [
-                    {"name": name, "clips": [{"itemIdentifier": f"cel-{name}"}]}
-                    for name in layers
+                    {"name": name, "clips": [{"itemIdentifier": f"cel-{name}"}]} for name in layers
                 ],
                 "cels": [
                     {"identifier": f"cel-{name}", "frame": [list(offset), [1, 1]]}
@@ -98,9 +97,7 @@ def test_load_layers_reads_a_directory_package_exactly_like_a_zip(tmp_path):
     # Two named calls rather than a loop over PIXAKI_FORMS: the loop looked
     # generic while the unpacking names the two forms outright.
     def load(form):
-        master = _pixaki(
-            tmp_path / f"m-{form}.pixaki", layers, offset=(16, 12), form=form
-        )
+        master = _pixaki(tmp_path / f"m-{form}.pixaki", layers, offset=(16, 12), form=form)
         # Without this the "directory" run could quietly be an archive, and the
         # comparison would pass over two runs of the same backend.
         assert os.path.isdir(master) == (form == "directory")
@@ -225,9 +222,7 @@ def test_validate_flags_ink_wider_than_its_advance():
     _paint_rect(rects, 4, dx=0, dy=0, w=3, h=10)
     _paint_rect(atlas, 4, dx=0, dy=0, w=6, h=10, colour=WHITE)
     problems = g.validate(rects, atlas)
-    assert problems == [
-        "cell 4: glyph ink reaches column 5, outside its advance width 3"
-    ]
+    assert problems == ["cell 4: glyph ink reaches column 5, outside its advance width 3"]
 
 
 def test_validate_flags_a_last_column_advance_that_crowds_the_outline_padding():
@@ -262,9 +257,7 @@ def test_validate_flags_ink_below_the_rect_box_rows():
     _paint_rect(rects, 4, dx=0, dy=0, w=3, h=10)
     _paint_rect(atlas, 4, dx=0, dy=2, w=3, h=10, colour=WHITE)
     problems = g.validate(rects, atlas)
-    assert problems == [
-        "cell 4: glyph ink spans rows 2..11, outside the rect box rows 0..9"
-    ]
+    assert problems == ["cell 4: glyph ink spans rows 2..11, outside the rect box rows 0..9"]
 
 
 def _ws(widths_by_index):

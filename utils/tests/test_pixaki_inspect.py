@@ -130,10 +130,7 @@ def test_report_reads_both_packagings_identically(tmp_path, form):
 
 
 def test_report_of_both_packagings_matches(tmp_path):
-    reports = [
-        p.report(_fixture(tmp_path / f"same-{form}.pixaki", form))
-        for form in PIXAKI_FORMS
-    ]
+    reports = [p.report(_fixture(tmp_path / f"same-{form}.pixaki", form)) for form in PIXAKI_FORMS]
     assert reports[0] == reports[1]
 
 

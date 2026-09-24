@@ -297,9 +297,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--pixaki", required=True, help="path to the .pixaki master")
     ap.add_argument("--sheet", help="write the Atlas layer here as PNG")
-    ap.add_argument(
-        "--kerning", help="write the CELLS x CELLS kerning matrix here as raw bytes"
-    )
+    ap.add_argument("--kerning", help="write the CELLS x CELLS kerning matrix here as raw bytes")
     ap.add_argument(
         "--check-only",
         action="store_true",
@@ -331,9 +329,7 @@ def main(argv=None):
     # cannot exceed 8 today. Checked here rather than after the writes, so it
     # can still honour the "refusing to emit" contract above if CDX ever grows.
     if max(w) > 9:
-        sys.exit(
-            f"an advance width exceeds 9 ({max(w)}) — the digit string cannot hold it"
-        )
+        sys.exit(f"an advance width exceeds 9 ({max(w)}) — the digit string cannot hold it")
     if ns.check_only:
         print(f"OK — {painted} painted cells, all invariants hold")
         return 0

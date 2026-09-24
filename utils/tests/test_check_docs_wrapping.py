@@ -150,9 +150,7 @@ class TestProcess:
         problems, rewrapped = mod.process(p, fix=True)
         assert rewrapped == 1
         after = p.read_text()
-        assert (
-            re.sub(r"\s+", " ", after).strip() == re.sub(r"\s+", " ", original).strip()
-        )
+        assert re.sub(r"\s+", " ", after).strip() == re.sub(r"\s+", " ", original).strip()
         assert max(len(l) for l in after.splitlines()) <= 80
 
     def test_fix_leaves_a_code_block_intact(self, tmp_path):
@@ -169,9 +167,7 @@ class TestProcess:
         assert p.read_text() == original
 
     def test_clean_file_reports_nothing(self, tmp_path):
-        p = write(
-            tmp_path, "a.md", "# T\n\nA short tidy paragraph that needs no help.\n"
-        )
+        p = write(tmp_path, "a.md", "# T\n\nA short tidy paragraph that needs no help.\n")
         problems, rewrapped = mod.process(p, fix=False)
         assert problems == [] and rewrapped == 0
 
@@ -229,10 +225,7 @@ class TestLinks:
         assert any("link split" in why for _, why in mod.defects(para, 80))
 
     def test_wrap_never_splits_a_link(self):
-        text = (
-            "word " * 12
-            + "[a fairly long link text](some/target.md) and more words after"
-        )
+        text = "word " * 12 + "[a fairly long link text](some/target.md) and more words after"
         for line in mod.wrap_tokens(text, 80):
             assert line.count("[") == line.count("]")
 
@@ -277,17 +270,12 @@ class TestListItems:
         original = "# T\n\n- " + "word " * 30 + "[link](t.md) tail.\n"
         p = write(tmp_path, "a.md", original)
         mod.process(p, fix=True)
-        assert (
-            re.sub(r"\s+", " ", p.read_text()).strip()
-            == re.sub(r"\s+", " ", original).strip()
-        )
+        assert re.sub(r"\s+", " ", p.read_text()).strip() == re.sub(r"\s+", " ", original).strip()
 
     def test_continuation_lines_keep_their_indent(self, tmp_path):
         p = write(tmp_path, "a.md", "# T\n\n- " + "word " * 30 + "end.\n")
         mod.process(p, fix=True)
-        body = [
-            l for l in p.read_text().splitlines() if l.strip() and not l.startswith("#")
-        ]
+        body = [l for l in p.read_text().splitlines() if l.strip() and not l.startswith("#")]
         assert body[0].startswith("- ")
         for line in body[1:]:
             assert line.startswith("  ") and not line.lstrip().startswith("-")
@@ -310,17 +298,11 @@ class TestListItems:
         assert p.read_text() == original
         assert any("a.md:3" in why and "list item" in why for why in problems)
 
-    def test_check_mode_is_silent_on_a_list_item_ending_on_a_link_and_a_full_stop(
-        self, tmp_path
-    ):
+    def test_check_mode_is_silent_on_a_list_item_ending_on_a_link_and_a_full_stop(self, tmp_path):
         # the list path exempted a long line via a trailing ")"; a link
         # followed by punctuation ends on "." instead, and prose already
         # exempts that shape via LINK_TOKEN — the list path has to match it
-        link = (
-            "["
-            + "a fairly long link text for this exact case"
-            + "](target-file-name.md)"
-        )
+        link = "[" + "a fairly long link text for this exact case" + "](target-file-name.md)"
         original = "# T\n\n- some lead-in words before the " + link + ".\n"
         p = write(tmp_path, "a.md", original)
         problems, rewrapped = mod.process(p, fix=False)
@@ -359,9 +341,7 @@ class TestVisibleWidth:
     the source line breaks renders the paragraph ragged because of it."""
 
     def test_a_link_counts_as_its_text(self):
-        assert (
-            mod.visible_len("[multiplayer and server](multiplayer-and-server.md)") == 22
-        )
+        assert mod.visible_len("[multiplayer and server](multiplayer-and-server.md)") == 22
 
     def test_emphasis_and_code_are_not_discounted(self):
         # bold renders wider, code renders in another face — dropping their
@@ -376,9 +356,7 @@ class TestVisibleWidth:
         assert mod.unmask_links(masked, links) == text
 
     def test_placeholder_has_the_visible_width(self):
-        masked, _ = mod.mask_links(
-            "[multiplayer and server](multiplayer-and-server.md)"
-        )
+        masked, _ = mod.mask_links("[multiplayer and server](multiplayer-and-server.md)")
         assert len(masked) == 22
 
     def test_wrapping_fills_the_visible_width(self):
@@ -405,11 +383,7 @@ class TestFixpoint:
         "Note the direction: screen to world is fine and useful; the dead end "
         "that [prefabs and rendering](prefabs-and-rendering.md) warns about is "
         "the opposite projection.",
-        "Short lead "
-        + "["
-        + "x" * 60
-        + "](t.md)"
-        + " and a tail of ordinary words here.",
+        "Short lead " + "[" + "x" * 60 + "](t.md)" + " and a tail of ordinary words here.",
         "word " * 40,
         "See [a](b.md) — for one thing, and for [another](c.md#anchor).",
     ]
@@ -452,9 +426,7 @@ class TestMarkdownFiles:
     minimum, and this script's own FROZEN exclusion has no sibling
     equivalent to borrow coverage from."""
 
-    def test_strips_inherited_git_env_so_dash_c_is_honoured(
-        self, tmp_path, monkeypatch
-    ):
+    def test_strips_inherited_git_env_so_dash_c_is_honoured(self, tmp_path, monkeypatch):
         # a hook runs with GIT_DIR/GIT_INDEX_FILE set, and those outrank -C;
         # inherited, listing "real" while GIT_DIR still points at "decoy"
         # mixes the two repositories' files together
@@ -531,9 +503,7 @@ class TestMain:
     — a gate that finds a defect and exits 0 does not block anything."""
 
     def test_exits_zero_on_a_clean_file(self, tmp_path, capsys):
-        p = write(
-            tmp_path, "a.md", "# T\n\nA short tidy paragraph that needs no help.\n"
-        )
+        p = write(tmp_path, "a.md", "# T\n\nA short tidy paragraph that needs no help.\n")
         assert mod.main(["prog", str(p)]) == 0
         assert "OK" in capsys.readouterr().out
 
@@ -553,9 +523,7 @@ class TestMain:
         assert mod.main(["prog", str(repo)]) == 1
         assert "docs/a.md" in capsys.readouterr().out
 
-    def test_a_directory_root_finds_nothing_to_report_when_clean(
-        self, tmp_path, capsys
-    ):
+    def test_a_directory_root_finds_nothing_to_report_when_clean(self, tmp_path, capsys):
         repo = git_repo(tmp_path / "modrepo")
         write(repo, "docs/a.md", "# T\n\nA short tidy paragraph.\n")
         git(repo, "add", "docs/a.md")

@@ -140,12 +140,7 @@ def _paragraph(lines: list[str], start: int) -> tuple[str, int]:
     index = start
     while index < len(lines) and lines[index].strip():
         line = lines[index]
-        if (
-            HEADING.match(line)
-            or BULLET.match(line)
-            or ORDERED.match(line)
-            or FENCE.match(line)
-        ):
+        if HEADING.match(line) or BULLET.match(line) or ORDERED.match(line) or FENCE.match(line):
             break
         out.append(line.strip())
         index += 1
@@ -175,9 +170,7 @@ def _list_items(lines: list[str], start: int) -> tuple[list[list], int]:
             after = index
             while after < len(lines) and not lines[after].strip():
                 after += 1
-            if after < len(lines) and (
-                BULLET.match(lines[after]) or ORDERED.match(lines[after])
-            ):
+            if after < len(lines) and (BULLET.match(lines[after]) or ORDERED.match(lines[after])):
                 index = after
                 continue
             break

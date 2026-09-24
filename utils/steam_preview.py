@@ -62,9 +62,7 @@ def _at(original: Image.Image, target: int, side: int) -> Image.Image:
     resampled copy rather than the file as authored, and the "lossless" it
     reports would be a claim about a different image.
     """
-    return (
-        original if target == side else original.resize((target, target), Image.LANCZOS)
-    )
+    return original if target == side else original.resize((target, target), Image.LANCZOS)
 
 
 def _save(img: Image.Image, dest: Path) -> int:
@@ -87,9 +85,7 @@ def derive_preview(source: Path, dest: Path, limit: int = LIMIT) -> tuple[int, s
     # indexed palette, which is roughly a third of the size at the cost of
     # banding — acceptable only because the alternative is no preview at all.
     for target in targets:
-        candidate = _at(original, target, side).quantize(
-            colors=255, method=Image.FASTOCTREE
-        )
+        candidate = _at(original, target, side).quantize(colors=255, method=Image.FASTOCTREE)
         size = _save(candidate, dest)
         if size <= limit:
             return size, f"{target}² quantised"

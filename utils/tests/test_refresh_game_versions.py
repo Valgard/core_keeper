@@ -26,9 +26,7 @@ def test_a_build_only_modio_knows_is_reported_too():
 
 def test_spellings_that_differ_only_in_padding_are_the_same_build():
     """Steam titles it `0.7.4.0`, mod.io tags it `0.7.4` — the same build."""
-    report = rg.compare(
-        known=["0.7.4.0"], steam={"0.7.4.0": "2024-03-08"}, modio=["0.7.4"]
-    )
+    report = rg.compare(known=["0.7.4.0"], steam={"0.7.4.0": "2024-03-08"}, modio=["0.7.4"])
 
     assert not report.missing
 
@@ -48,9 +46,7 @@ def test_a_version_in_two_far_apart_entries_is_flagged_as_a_suspected_typo():
 
 
 def test_a_list_that_matches_both_feeds_reports_nothing():
-    report = rg.compare(
-        known=["1.2.1.5"], steam={"1.2.1.5": "2026-06-08"}, modio=["1.2.1.5"]
-    )
+    report = rg.compare(known=["1.2.1.5"], steam={"1.2.1.5": "2026-06-08"}, modio=["1.2.1.5"])
 
     assert not report.missing and not report.suspects
 
@@ -70,9 +66,7 @@ def _event(gid, name, day, kind=rg.EVENT_SMALL_UPDATE):
     """One store event, with the two fields the parser reads."""
     import datetime
 
-    stamp = int(
-        datetime.datetime.fromisoformat(day).replace(tzinfo=datetime.UTC).timestamp()
-    )
+    stamp = int(datetime.datetime.fromisoformat(day).replace(tzinfo=datetime.UTC).timestamp())
     return {
         "gid": gid,
         "event_name": name,

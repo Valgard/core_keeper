@@ -77,9 +77,7 @@ def tool():
         pytest.skip("dotnet is not installed")
     for name in ("Facepunch.Steamworks.Posix.dll", "libsteam_api.dylib"):
         if not (PLUGINS / name).is_file():
-            pytest.skip(
-                f"{name} is not in the SDK clone — see utils/fetch_steam_lib.sh"
-            )
+            pytest.skip(f"{name} is not in the SDK clone — see utils/fetch_steam_lib.sh")
 
     # -getProperty:TargetPath builds and then reports the assembly's exact
     # path, so the configuration and target framework never have to be guessed
@@ -99,9 +97,7 @@ def tool():
         text=True,
         env={**os.environ, "SDK_PATH": str(SDK_PATH)},
     )
-    assert built.returncode == 0, (
-        f"ck-workshop did not build:\n{built.stdout}\n{built.stderr}"
-    )
+    assert built.returncode == 0, f"ck-workshop did not build:\n{built.stdout}\n{built.stderr}"
     return ["dotnet", built.stdout.strip(), "--dry-run"]
 
 
@@ -120,9 +116,7 @@ def result_line(completed):
     for line in reversed(completed.stdout.splitlines()):
         if line.strip().startswith("{"):
             return json.loads(line)
-    raise AssertionError(
-        f"no result line on stdout:\n{completed.stdout}\n{completed.stderr}"
-    )
+    raise AssertionError(f"no result line on stdout:\n{completed.stdout}\n{completed.stderr}")
 
 
 class TestAcceptedBundle:
@@ -371,9 +365,7 @@ class TestDependencyPlan:
         assert "3673516180" in err
         assert "required" in err
 
-    def test_it_says_what_it_cannot_show_not_merely_that_something_is_missing(
-        self, tool, golden
-    ):
+    def test_it_says_what_it_cannot_show_not_merely_that_something_is_missing(self, tool, golden):
         # Without this the list reads as the whole plan, and it is not: the
         # sync is a full one, so it also removes what the live item carries and
         # the bundle does not name. Naming the removals specifically is the

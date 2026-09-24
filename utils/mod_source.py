@@ -189,9 +189,7 @@ def read_installed(cache_dir: Path) -> tuple[list[InstalledMod], list[str]]:
     try:
         state = json.loads(state_file.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        warnings.append(
-            f"{state_file} is missing — cannot tell which folders are current"
-        )
+        warnings.append(f"{state_file} is missing — cannot tell which folders are current")
         return [], warnings
     except (json.JSONDecodeError, OSError) as error:
         warnings.append(
@@ -244,9 +242,7 @@ def read_installed(cache_dir: Path) -> tuple[list[InstalledMod], list[str]]:
                 slug=profile.get("name_id", ""),
                 enabled=str(mod_id) not in disabled,
                 source_files=[
-                    f["path"]
-                    for f in data.get("files", [])
-                    if f.get("path", "").endswith(".cs")
+                    f["path"] for f in data.get("files", []) if f.get("path", "").endswith(".cs")
                 ],
             )
         )
@@ -452,9 +448,7 @@ def fetch_catalogue(sdk_path: Path, path: Path) -> list[CatalogueEntry]:
     entries: list[dict] = []
     offset = 0
     for _ in range(_MAX_PAGES):
-        query = urllib.parse.urlencode(
-            {"api_key": key, "_limit": _PAGE, "_offset": offset}
-        )
+        query = urllib.parse.urlencode({"api_key": key, "_limit": _PAGE, "_offset": offset})
         page = json.loads(_curl(f"{server}/games/{game}/mods?{query}"))
         # .get(key, default) only substitutes for an ABSENT key -- a server
         # that sends the key with a null value (a real API violation, but one
@@ -496,10 +490,7 @@ def fetch_catalogue(sdk_path: Path, path: Path) -> list[CatalogueEntry]:
                         # same field off the same object -- `or {}` twice,
                         # because mod.io sends both `modfile` and `filehash`
                         # as null for a mod with no published build.
-                        "md5": ((e.get("modfile") or {}).get("filehash") or {}).get(
-                            "md5"
-                        )
-                        or "",
+                        "md5": ((e.get("modfile") or {}).get("filehash") or {}).get("md5") or "",
                     }
                     for e in entries
                 ]
@@ -626,9 +617,7 @@ class Workspace:
             i: claimants for i, claimants in claims.items() if len(claimants) > 1
         }
         for identifier in sorted(self.contested):
-            directories = ", ".join(
-                sorted(str(m.source_path) for m in self.contested[identifier])
-            )
+            directories = ", ".join(sorted(str(m.source_path) for m in self.contested[identifier]))
             self.warnings.append(
                 f"mod id {identifier} is claimed by more than one mod directory "
                 f"({directories}) — a copied repo whose <Mod>_modio.asset or "
@@ -695,9 +684,7 @@ class Workspace:
         return claimed or [cls._synthetic_id(mod)]
 
     @classmethod
-    def build(
-        cls, cache_dir: Path | None, workspace: Path, catalogue_path: Path
-    ) -> "Workspace":
+    def build(cls, cache_dir: Path | None, workspace: Path, catalogue_path: Path) -> "Workspace":
         """Read all three sources and index them.
 
         cache_dir=None skips the cache read rather than probing a directory
@@ -897,11 +884,7 @@ def find_file(resolution: Resolution, needle: str) -> Path | list[Path]:
     if resolution.source_files:
         # Installed mod: match against filename only, but keep the full relative path.
         matches = sorted(
-            [
-                f
-                for f in resolution.source_files
-                if needle.lower() in Path(f).name.lower()
-            ]
+            [f for f in resolution.source_files if needle.lower() in Path(f).name.lower()]
         )
         root = resolution.source_path.parent
     else:
@@ -911,9 +894,7 @@ def find_file(resolution: Resolution, needle: str) -> Path | list[Path]:
         # the report prints beside it can never come from two different
         # traversals of the same directory.
         matches = sorted(
-            f
-            for f in _walked_source_files(resolution)
-            if needle.lower() in Path(f).name.lower()
+            f for f in _walked_source_files(resolution) if needle.lower() in Path(f).name.lower()
         )
         root = resolution.source_path
 
@@ -924,9 +905,7 @@ def find_file(resolution: Resolution, needle: str) -> Path | list[Path]:
     return (root / matches[0]).resolve()
 
 
-def download(
-    resolution: Resolution, sdk_path: Path, into: Path
-) -> tuple[Path, list[str]]:
+def download(resolution: Resolution, sdk_path: Path, into: Path) -> tuple[Path, list[str]]:
     """Fetch one mod's published build and settle whether it is the mod asked for.
 
     Only ever for a catalogue-only resolution that has no source of its own.
@@ -1286,9 +1265,7 @@ def _status_phrase(resolution: Resolution) -> str:
             ", provisional match" if resolution.identity == IDENTITY_UNCHECKED else ""
         )
 
-    availability = (
-        "source available" if resolution.source_path.is_dir() else "no source shipped"
-    )
+    availability = "source available" if resolution.source_path.is_dir() else "no source shipped"
     if resolution.downloaded:
         if resolution.identity == IDENTITY_CONTRADICTED:
             status = "downloaded, identity mismatch"
@@ -1347,8 +1324,7 @@ def _walked_source_files(resolution: Resolution) -> list[str]:
     if resolution.source_path is None or not resolution.source_path.is_dir():
         return []
     return sorted(
-        str(p.relative_to(resolution.source_path))
-        for p in resolution.source_path.rglob("*.cs")
+        str(p.relative_to(resolution.source_path)) for p in resolution.source_path.rglob("*.cs")
     )
 
 
@@ -1512,15 +1488,12 @@ def main(argv: list[str] | None = None) -> int:
                 fetch_catalogue(sdk_path, catalogue_path)
             except (ValueError, OSError) as error:
                 print(
-                    f"warning: could not refresh the mod.io catalogue ({error}) "
-                    f"— {fallback}",
+                    f"warning: could not refresh the mod.io catalogue ({error}) — {fallback}",
                     file=sys.stderr,
                 )
 
     try:
-        workspace = Workspace.build(
-            _installed_mods_dir(), args.workspace, catalogue_path
-        )
+        workspace = Workspace.build(_installed_mods_dir(), args.workspace, catalogue_path)
     except FileNotFoundError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
@@ -1583,9 +1556,7 @@ def main(argv: list[str] | None = None) -> int:
         # this same list, and one of them has to survive this filter even
         # though it reports that the downloaded archive is *not* the mod that
         # was asked for.
-        result.notes = [
-            note for note in result.notes if not note.startswith("not installed")
-        ]
+        result.notes = [note for note in result.notes if not note.startswith("not installed")]
 
     # A refuted identity is reported through the exit code as well as through
     # the output, and deliberately through the SAME code the ambiguity branch

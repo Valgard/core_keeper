@@ -52,9 +52,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-DEFAULT_BOTTLE = (
-    Path.home() / "Library/Application Support/CrossOver/Bottles/Core Keeper"
-)
+DEFAULT_BOTTLE = Path.home() / "Library/Application Support/CrossOver/Bottles/Core Keeper"
 GAME_SUBPATH = "drive_c/Program Files (x86)/Steam/steamapps/common/Core Keeper"
 DEFAULT_ASSETRIPPER = Path.home() / "Projects/checkouts/_tools/AssetRipper"
 
@@ -126,9 +124,7 @@ def free_port() -> int:
 def post(port: int, endpoint: str, **fields) -> None:
     """POST form fields. The endpoint is positional so a field may be named `path`."""
     data = urllib.parse.urlencode(fields).encode()
-    req = urllib.request.Request(
-        f"http://127.0.0.1:{port}{endpoint}", data=data, method="POST"
-    )
+    req = urllib.request.Request(f"http://127.0.0.1:{port}{endpoint}", data=data, method="POST")
     with urllib.request.urlopen(req, timeout=900):
         pass
 
@@ -138,9 +134,7 @@ def wait_for_api(port: int, proc: subprocess.Popen, seconds: int = 60) -> None:
         if proc.poll() is not None:
             raise RuntimeError(f"AssetRipper exited early (code {proc.returncode})")
         try:
-            with urllib.request.urlopen(
-                f"http://127.0.0.1:{port}/openapi.json", timeout=2
-            ):
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/openapi.json", timeout=2):
                 return
         except (urllib.error.URLError, OSError, TimeoutError):
             time.sleep(1)
@@ -163,9 +157,7 @@ def verify_export(export_dir: Path) -> tuple[list[str], list[str]]:
         )
     for folder in SDK_EXPECTS:
         if not (assets / folder).is_dir():
-            warnings.append(
-                f"{folder}/ fehlt — der Importer überspringt es KOMMENTARLOS"
-            )
+            warnings.append(f"{folder}/ fehlt — der Importer überspringt es KOMMENTARLOS")
     return blocking, warnings
 
 
@@ -195,9 +187,7 @@ def main() -> int:
     ap.add_argument(
         "--keep-scope", action="store_true", help="keep the symlink tree for inspection"
     )
-    ap.add_argument(
-        "--port", type=int, help="port for AssetRipper (default: a free one)"
-    )
+    ap.add_argument("--port", type=int, help="port for AssetRipper (default: a free one)")
     args = ap.parse_args()
 
     data_dir = game_dir() / "CoreKeeper_Data"

@@ -24,9 +24,7 @@ import steam_identity
 import steam_preview
 
 CHANGELOG_ENTRY = re.compile(r"^##\s*\[([^\]]+)\]", re.MULTILINE)
-DEPENDENCY = re.compile(
-    r"^\s*-\s*modName:\s*(\S+)\s*\n\s*required:\s*(\d+)", re.MULTILINE
-)
+DEPENDENCY = re.compile(r"^\s*-\s*modName:\s*(\S+)\s*\n\s*required:\s*(\d+)", re.MULTILINE)
 
 # requiredOn is a [Flags] enum: None=0, Client=1, Server=2, ClientAndServer=3.
 # The [Flags] bits of ModExistsOn, in the order the tags should appear. 0 is
@@ -78,9 +76,7 @@ def _read_metadata(asset_text: str) -> dict:
     """
     out: dict[str, object] = {}
     for key in ("name", "displayName", "skipSafetyChecks", "requiredOn"):
-        match = re.search(
-            rf"^[^\S\n]*{key}:[^\S\n]*(.*?)[^\S\n]*$", asset_text, re.MULTILINE
-        )
+        match = re.search(rf"^[^\S\n]*{key}:[^\S\n]*(.*?)[^\S\n]*$", asset_text, re.MULTILINE)
         if match and match.group(1):
             value = match.group(1)
             out[key] = int(value) if value.lstrip("-").isdigit() else value
@@ -221,9 +217,7 @@ def derive_tags(metadata: Mapping[str, object], modio_type: str) -> list[str]:
         )
     tags += app_types
     tags.append(
-        "Script (Elevated Access)"
-        if int(metadata.get("skipSafetyChecks") or 0)
-        else "Script"
+        "Script (Elevated Access)" if int(metadata.get("skipSafetyChecks") or 0) else "Script"
     )
     return tags
 
@@ -377,9 +371,7 @@ def build_bundle(
     # caller ever invokes it without going through that check first.
     steam_preview.derive_preview(_logo_path(repo_root, mod_name), preview_dest)
 
-    file_id = steam_identity.read_file_id(
-        steam_identity.asset_path(repo_root, mod_name)
-    )
+    file_id = steam_identity.read_file_id(steam_identity.asset_path(repo_root, mod_name))
 
     bundle = {
         "fileId": file_id or 0,

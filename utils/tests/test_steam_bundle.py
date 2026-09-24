@@ -124,8 +124,7 @@ def _asset_with_dependencies(*declared):
     read as a mod that declares nothing, and pass.
     """
     block = "    dependencies:\n" + "".join(
-        f"    - modName: {name}\n      required: {int(required)}\n"
-        for name, required in declared
+        f"    - modName: {name}\n      required: {int(required)}\n" for name, required in declared
     )
     return ASSET.replace("    dependencies: []\n", block)
 
@@ -189,17 +188,13 @@ def test_item_metadata_is_absent_from_the_bundle_unless_asked_for(tmp_path):
 
 
 def test_the_title_is_the_display_name_not_the_internal_name(tmp_path):
-    bundle = steam_bundle.build_bundle(
-        _repo(tmp_path), _env(tmp_path), tmp_path / "p.png"
-    )
+    bundle = steam_bundle.build_bundle(_repo(tmp_path), _env(tmp_path), tmp_path / "p.png")
 
     assert bundle["title"] == "Disable Durability"
 
 
 def test_the_title_falls_back_to_the_internal_name(tmp_path):
-    repo = _repo(
-        tmp_path, asset=ASSET.replace("    displayName: Disable Durability\n", "")
-    )
+    repo = _repo(tmp_path, asset=ASSET.replace("    displayName: Disable Durability\n", ""))
 
     bundle = steam_bundle.build_bundle(repo, _env(tmp_path), tmp_path / "p.png")
 
@@ -207,9 +202,7 @@ def test_the_title_falls_back_to_the_internal_name(tmp_path):
 
 
 def test_tags_combine_all_three_groups(tmp_path):
-    bundle = steam_bundle.build_bundle(
-        _repo(tmp_path), _env(tmp_path), tmp_path / "p.png"
-    )
+    bundle = steam_bundle.build_bundle(_repo(tmp_path), _env(tmp_path), tmp_path / "p.png")
 
     assert set(bundle["tags"]) == {
         "Item",
@@ -283,9 +276,7 @@ def test_elevated_access_changes_the_access_tag():
 
 
 def test_a_new_mod_gets_hidden_visibility_and_no_file_id(tmp_path):
-    bundle = steam_bundle.build_bundle(
-        _repo(tmp_path), _env(tmp_path), tmp_path / "p.png"
-    )
+    bundle = steam_bundle.build_bundle(_repo(tmp_path), _env(tmp_path), tmp_path / "p.png")
 
     assert bundle["fileId"] == 0
     assert bundle["visibility"] == "hidden"
@@ -425,9 +416,7 @@ def test_a_declared_dependency_is_resolved_from_the_cache(tmp_path):
 
     bundle = steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
 
-    assert bundle["dependencies"] == [
-        {"name": "CoreLib", "fileId": 3000000001, "required": True}
-    ]
+    assert bundle["dependencies"] == [{"name": "CoreLib", "fileId": 3000000001, "required": True}]
 
 
 def test_an_unresolvable_required_dependency_aborts(tmp_path):
@@ -537,8 +526,7 @@ def test_the_bundle_is_exactly_these_values(tmp_path):
         "description": "[b]Bold[/b]",
         "tags": ["Item", "Overhaul", "Quality of Life", "Client", "Server", "Script"],
         "changelog": (
-            "[h2]1.1.1[/h2]\n\n[h3]Added[/h3]\n\n"
-            "[list]\n[*] A thing.\n[*] Another thing.\n[/list]"
+            "[h2]1.1.1[/h2]\n\n[h3]Added[/h3]\n\n[list]\n[*] A thing.\n[*] Another thing.\n[/list]"
         ),
         "version": "1.1.1",
         "contentPath": str(tmp_path / "build" / "DisableDurability"),
@@ -610,9 +598,7 @@ def test_a_mod_type_of_only_separators_is_refused(tmp_path):
 def test_no_declared_dependencies_means_sync_an_empty_list(tmp_path):
     # Nothing declared is a complete picture of "this mod has none", so the
     # full sync on the other side should run and remove anything stale.
-    bundle = steam_bundle.build_bundle(
-        _repo(tmp_path), _env(tmp_path), tmp_path / "p.png"
-    )
+    bundle = steam_bundle.build_bundle(_repo(tmp_path), _env(tmp_path), tmp_path / "p.png")
 
     assert bundle["dependencies"] == []
 
@@ -675,9 +661,7 @@ def test_the_preflight_still_raises_on_the_first_missing_required_dependency(tmp
     cache.write_text("{}")
 
     with pytest.raises(ValueError, match="CoreLib"):
-        steam_bundle.check_prerequisites(
-            repo, _preflight_env(STEAM_DEPS_MAP=str(cache))
-        )
+        steam_bundle.check_prerequisites(repo, _preflight_env(STEAM_DEPS_MAP=str(cache)))
 
 
 def _real_mod_assets():
@@ -726,18 +710,14 @@ def test_the_parsers_hold_against_every_real_mod_asset():
 
         # The asset is named for its mod, so a `name` that is anything else was
         # read off a neighbouring key rather than out of `metadata:`.
-        assert metadata.get("name") == name, (
-            f"{name}: read name {metadata.get('name')!r}"
-        )
+        assert metadata.get("name") == name, f"{name}: read name {metadata.get('name')!r}"
         # It becomes the Workshop item's title, and an item titled
         # "skipSafetyChecks: 0" is what reading past an empty value looks like.
         assert metadata.get("displayName"), f"{name}: no displayName"
         assert ":" not in str(metadata["displayName"]), f"{name}: displayName ran on"
         # requiredOn drives the Application Type tags bitwise, and every mod in
         # the family gates at least one side.
-        assert int(metadata.get("requiredOn", 0)) & 3, (
-            f"{name}: requiredOn gates nothing"
-        )
+        assert int(metadata.get("requiredOn", 0)) & 3, f"{name}: requiredOn gates nothing"
 
         # Counted independently of the parser: `modName:` appears nowhere else
         # in this schema, so that line count is what the parse must come to. A

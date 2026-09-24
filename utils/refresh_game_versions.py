@@ -123,8 +123,7 @@ def _get(url):
     )
     if done.returncode != 0:
         raise RuntimeError(
-            f"curl exit {done.returncode} for {url}: "
-            f"{done.stderr.strip() or done.stdout[:200]}"
+            f"curl exit {done.returncode} for {url}: {done.stderr.strip() or done.stdout[:200]}"
         )
     return json.loads(done.stdout)
 
@@ -141,8 +140,7 @@ def fetch_steam_updates():
             gid = event.get("gid")
             if not gid:
                 raise RuntimeError(
-                    f"Steam event without a gid at offset {offset}: "
-                    f"{event.get('event_name')!r}"
+                    f"Steam event without a gid at offset {offset}: {event.get('event_name')!r}"
                 )
             events[gid] = event
         # The dict is keyed by gid so overlapping pages are harmless -- which is

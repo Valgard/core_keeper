@@ -94,11 +94,7 @@ def test_creating_the_asset_also_writes_its_meta(tmp_path):
 
     meta = asset.with_suffix(".asset.meta")
     text = meta.read_text()
-    guid = next(
-        line.split("guid: ")[1]
-        for line in text.splitlines()
-        if line.startswith("guid: ")
-    )
+    guid = next(line.split("guid: ")[1] for line in text.splitlines() if line.startswith("guid: "))
     assert len(guid) == 32 and int(guid, 16) >= 0, guid
     assert "fileFormatVersion: 2" in text
     assert "mainObjectFileID: 11400000" in text
@@ -254,9 +250,7 @@ def test_ensure_recognizable_rejects_what_write_file_id_would_refuse(tmp_path):
         steam_identity.ensure_recognizable(asset)
 
 
-def test_the_id_is_written_even_if_the_template_stops_carrying_it(
-    tmp_path, monkeypatch
-):
+def test_the_id_is_written_even_if_the_template_stops_carrying_it(tmp_path, monkeypatch):
     # Guards the write that looks redundant on the create path. It is what makes
     # the id arrive by one mechanism on both paths, so deleting it as dead code
     # would leave creation depending on TEMPLATE's {file_id} alone — and re.sub
@@ -303,9 +297,7 @@ def repo(tmp_path):
 
 @needs_git
 def test_a_committed_asset_is_seen_as_tracked(repo):
-    subprocess.run(
-        ["git", "-C", str(repo.parent), "add", repo.name], check=True, env=GIT_ENV
-    )
+    subprocess.run(["git", "-C", str(repo.parent), "add", repo.name], check=True, env=GIT_ENV)
 
     assert steam_identity.is_tracked(repo) is True
 
@@ -336,17 +328,13 @@ def test_without_git_the_question_has_no_answer(repo, monkeypatch):
 
 
 @needs_git
-def test_an_inherited_GIT_DIR_does_not_answer_for_another_repo(
-    repo, tmp_path, monkeypatch
-):
+def test_an_inherited_GIT_DIR_does_not_answer_for_another_repo(repo, tmp_path, monkeypatch):
     # GIT_DIR and GIT_INDEX_FILE outrank -C. Inherited from whatever invoked
     # the publish, they would have git answer about a different repository —
     # and the answer that costs something is the false "tracked", which would
     # withhold the warning on the one asset that needs it. Same defence
     # check_docs_wrapping.markdown_files already documents.
-    subprocess.run(
-        ["git", "-C", str(repo.parent), "add", repo.name], check=True, env=GIT_ENV
-    )
+    subprocess.run(["git", "-C", str(repo.parent), "add", repo.name], check=True, env=GIT_ENV)
     decoy = tmp_path / "decoy"
     subprocess.run(["git", "init", "-q", str(decoy)], check=True, env=GIT_ENV)
     monkeypatch.setenv("GIT_DIR", str(decoy / ".git"))
@@ -368,9 +356,7 @@ def test_ensure_recognizable_warns_about_an_untracked_asset(repo, capsys):
 
 @needs_git
 def test_ensure_recognizable_stays_quiet_about_a_tracked_asset(repo, capsys):
-    subprocess.run(
-        ["git", "-C", str(repo.parent), "add", repo.name], check=True, env=GIT_ENV
-    )
+    subprocess.run(["git", "-C", str(repo.parent), "add", repo.name], check=True, env=GIT_ENV)
 
     steam_identity.ensure_recognizable(repo)
 
@@ -386,9 +372,7 @@ def test_ensure_recognizable_stays_quiet_when_git_cannot_answer(tmp_path, capsys
     assert capsys.readouterr().err == ""
 
 
-def test_ensure_recognizable_says_nothing_about_an_asset_that_does_not_exist(
-    tmp_path, capsys
-):
+def test_ensure_recognizable_says_nothing_about_an_asset_that_does_not_exist(tmp_path, capsys):
     # A mod's first publish. There is no file to track yet, so a warning here
     # would be advice about something that does not exist.
     steam_identity.ensure_recognizable(tmp_path / "absent.asset")

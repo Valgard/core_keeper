@@ -234,9 +234,7 @@ def test_a_post_without_forum_tags_names_the_variable_it_wants(tmp_path):
 def test_the_h1_becomes_the_thread_title_rather_than_being_discarded(tmp_path):
     """The heading is dropped from the body because Discord shows it as the
     thread title -- so it is authored, not derived from a directory name."""
-    result = dp.render_repo(
-        _repo(tmp_path, "# Probe Mod\n\nBody.\n"), _ENV, ["1.2.1.5"]
-    )
+    result = dp.render_repo(_repo(tmp_path, "# Probe Mod\n\nBody.\n"), _ENV, ["1.2.1.5"])
 
     assert result["title"] == "Probe Mod"
 
@@ -329,9 +327,7 @@ def test_a_post_of_exactly_the_limit_is_accepted():
 
 
 def test_the_largest_allowed_number_of_tags_is_accepted():
-    post = _render(
-        "# T\n\nBody.\n", tags=["Tweaks", "Mining", "Cheats", "Combat", "Food"]
-    )
+    post = _render("# T\n\nBody.\n", tags=["Tweaks", "Mining", "Cheats", "Combat", "Food"])
 
     assert post
 
@@ -374,9 +370,7 @@ def test_main_puts_the_post_on_stdout_and_everything_else_on_stderr(tmp_path, ca
 
 
 def test_main_check_prints_nothing_on_stdout(tmp_path, capsys):
-    _run_main(
-        _repo(tmp_path, "# Some Mod\n\nBody.\n"), monkeypatched=_ENV, args=["--check"]
-    )
+    _run_main(_repo(tmp_path, "# Some Mod\n\nBody.\n"), monkeypatched=_ENV, args=["--check"])
 
     out, err = capsys.readouterr()
     assert out == ""
@@ -436,9 +430,7 @@ def test_the_verified_date_is_a_past_iso_date():
     import json
     import pathlib
 
-    doc = json.loads(
-        (pathlib.Path(dp.__file__).with_name(dp.TAGS_FILENAME)).read_text()
-    )
+    doc = json.loads((pathlib.Path(dp.__file__).with_name(dp.TAGS_FILENAME)).read_text())
 
     verified = datetime.date.fromisoformat(doc["verified"])
     assert verified <= datetime.date.today()
@@ -496,9 +488,7 @@ def test_a_missing_media_file_is_refused_before_the_browser_opens(tmp_path):
 def test_more_attachments_than_discord_accepts_are_refused(tmp_path):
     """Ten is Discord's ceiling and the logo holds slot one, so nine remain."""
     names = [f"sources/f{i}.png" for i in range(10)]
-    env = _mod_tree(
-        tmp_path, media="|".join(names), extra_files=[(n, 10) for n in names]
-    )
+    env = _mod_tree(tmp_path, media="|".join(names), extra_files=[(n, 10) for n in names])
 
     with pytest.raises(ValueError, match="11 attachments"):
         dp.resolve_media(tmp_path, env, "ProbeMod")
@@ -568,9 +558,7 @@ def test_attachment_paths_are_absolute_even_from_a_relative_repo_argument(
     logo.write_bytes(b"\x89PNG")
     monkeypatch.chdir(tmp_path.parent)
 
-    code = _run_main(
-        tmp_path.name, monkeypatched=dict(_ENV, MOD_NAME="ProbeMod"), args=["--json"]
-    )
+    code = _run_main(tmp_path.name, monkeypatched=dict(_ENV, MOD_NAME="ProbeMod"), args=["--json"])
 
     assert code == 0
     doc = _json.loads(capsys.readouterr().out)
@@ -614,9 +602,7 @@ Tools stop wearing down twice as slowly.
 
 
 def test_update_takes_the_topmost_entry_and_nothing_below_it():
-    version, comment = dp.render_update(
-        _CHANGELOG, supported=["1.2.1.5"], known=["1.2.1.5"]
-    )
+    version, comment = dp.render_update(_CHANGELOG, supported=["1.2.1.5"], known=["1.2.1.5"])
 
     assert version == "1.4.0"
     assert "applies without a restart" in comment
@@ -742,9 +728,7 @@ def test_update_without_a_thread_says_to_post_one_first(tmp_path):
         dp.render_repo(tmp_path, env, ["1.2.1.5"], update=True)
 
 
-def test_update_mode_diagnostics_do_not_call_the_version_a_thread_title(
-    tmp_path, capsys
-):
+def test_update_mode_diagnostics_do_not_call_the_version_a_thread_title(tmp_path, capsys):
     """The update branch's title field holds 'version 1.4.0', not a thread
     title, and its thread is never 'none yet' -- CK_DISCORD_THREAD is
     required by then."""

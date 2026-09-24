@@ -158,10 +158,7 @@ def render_update(changelog, *, supported, known):
     # The version line keeps its own bold markers, so it gets its own line
     # rather than being spliced into one -- concatenating two bold runs with a
     # dash between them produces stray asterisks mid-sentence.
-    comment = (
-        f"**Version {version}**\n{version_line(supported, known)}\n\n"
-        + "\n\n".join(blocks)
-    )
+    comment = f"**Version {version}**\n{version_line(supported, known)}\n\n" + "\n\n".join(blocks)
     if len(comment) > LIMIT:
         raise ValueError(f"comment is {len(comment)} characters — {LIMIT} is the limit")
     return version, comment
@@ -195,8 +192,7 @@ def resolve_media(repo, env, mod_name):
 
     if len(attachments) > MAX_ATTACHMENTS:
         raise ValueError(
-            f"{len(attachments)} attachments including the logo — "
-            f"Discord accepts {MAX_ATTACHMENTS}"
+            f"{len(attachments)} attachments including the logo — Discord accepts {MAX_ATTACHMENTS}"
         )
     total = sum(p.stat().st_size for p in attachments)
     if total > SIZE_LIMIT:
@@ -245,9 +241,7 @@ def workshop_id(repo, mod_name):
     in step. MOD_NAME rather than MOD_NAME_ID -- the asset path is built from
     the PascalCase name, while the mod.io slug above is the kebab one.
     """
-    return steam_identity.read_file_id(
-        steam_identity.asset_path(pathlib.Path(repo), mod_name)
-    )
+    return steam_identity.read_file_id(steam_identity.asset_path(pathlib.Path(repo), mod_name))
 
 
 def render_repo(repo, env, known, *, update=False):
@@ -288,9 +282,7 @@ def render_repo(repo, env, known, *, update=False):
         )
     tags = [t.strip() for t in env["CK_DISCORD_TAGS"].split("|") if t.strip()]
     unknown = sorted(
-        v
-        for v in env["CK_GAME_VERSION"].split()
-        if _norm(v) not in {_norm(k) for k in known}
+        v for v in env["CK_GAME_VERSION"].split() if _norm(v) not in {_norm(k) for k in known}
     )
     if unknown:
         raise ValueError(
@@ -346,9 +338,7 @@ def render_repo(repo, env, known, *, update=False):
     )
     title = heading.group(1).strip()
     if len(title) > TITLE_LIMIT:
-        raise ValueError(
-            f"thread title is {len(title)} characters — Discord accepts {TITLE_LIMIT}"
-        )
+        raise ValueError(f"thread title is {len(title)} characters — Discord accepts {TITLE_LIMIT}")
     attachments, follow_ups = resolve_media(repo, env, env["MOD_NAME"])
     return {
         "title": title,

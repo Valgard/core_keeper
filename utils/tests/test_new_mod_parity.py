@@ -190,9 +190,7 @@ def test_generator_writes_every_file_all_mods_track():
 
 
 def test_generated_envrc_exports_every_universal_variable():
-    universal = _universal(
-        [_exports(_read(repo, ".envrc.example")) for repo, _ in MODS]
-    )
+    universal = _universal([_exports(_read(repo, ".envrc.example")) for repo, _ in MODS])
     generated = _exports(_plan()[".envrc.example"])
     missing = universal - generated
     assert not missing, (
@@ -316,9 +314,7 @@ def test_csharpier_pin_matches_every_repo():
             pins.add(json.loads(text)["tools"]["csharpier"]["version"])
     if len(pins) != 1:
         pytest.skip(f"the mod repos pin different CSharpier versions: {sorted(pins)}")
-    generated = json.loads(nm.build_dotnet_tools_json())["tools"]["csharpier"][
-        "version"
-    ]
+    generated = json.loads(nm.build_dotnet_tools_json())["tools"]["csharpier"]["version"]
     assert generated == pins.pop(), (
         "every mod repo pins a different CSharpier version than the scaffold "
         "would — a version bump did not reach new_mod.py"

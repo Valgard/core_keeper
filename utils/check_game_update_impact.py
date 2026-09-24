@@ -58,9 +58,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-DECOMPILE_ROOT = Path(
-    os.environ.get("CK_DECOMPILE_ROOT", Path.home() / "Projects/checkouts")
-)
+DECOMPILE_ROOT = Path(os.environ.get("CK_DECOMPILE_ROOT", Path.home() / "Projects/checkouts"))
 STATE_DIR = re.compile(r"^CoreKeeperDecompile-(\d+(?:\.\d+)*)-(\w+)$")
 
 # Directories under the repo root that are not mods.
@@ -107,9 +105,7 @@ def find_states() -> list[Path]:
     """Decompiled states, oldest first."""
     if not DECOMPILE_ROOT.is_dir():
         return []
-    dirs = [
-        d for d in DECOMPILE_ROOT.iterdir() if d.is_dir() and STATE_DIR.match(d.name)
-    ]
+    dirs = [d for d in DECOMPILE_ROOT.iterdir() if d.is_dir() and STATE_DIR.match(d.name)]
     return sorted(dirs, key=lambda d: version_key(d.name))
 
 

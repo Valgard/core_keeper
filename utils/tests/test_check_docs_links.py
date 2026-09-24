@@ -39,9 +39,7 @@ def git_repo(tmp_path):
 
 class TestAnchor:
     def test_lowercases_and_hyphenates(self):
-        assert mod.anchor("The Editor locks the project") == (
-            "the-editor-locks-the-project"
-        )
+        assert mod.anchor("The Editor locks the project") == ("the-editor-locks-the-project")
 
     def test_every_space_becomes_a_hyphen_not_every_run(self):
         # An em-dash is stripped and leaves two spaces behind; GitHub emits two
@@ -150,9 +148,7 @@ class TestCheck:
         (problem,) = mod.check([a], tmp_path)
         assert problem.startswith("a.md:6")
 
-    def test_a_bad_anchor_is_caught_on_a_target_outside_the_checked_scope(
-        self, tmp_path
-    ):
+    def test_a_bad_anchor_is_caught_on_a_target_outside_the_checked_scope(self, tmp_path):
         # a target that exists on disk but is not in `files` (a gitignored
         # file, say) used to skip the anchor check entirely, because it was
         # never in `known` — the scope rule governs which files are checked,
@@ -162,9 +158,7 @@ class TestCheck:
         (problem,) = mod.check([a], tmp_path)
         assert "no such anchor" in problem
 
-    def test_a_good_anchor_on_a_target_outside_the_checked_scope_is_silent(
-        self, tmp_path
-    ):
+    def test_a_good_anchor_on_a_target_outside_the_checked_scope_is_silent(self, tmp_path):
         write(tmp_path, "ignored.md", "# Real Heading\n")
         a = write(tmp_path, "a.md", "See [it](ignored.md#real-heading).\n")
         assert mod.check([a], tmp_path) == []
@@ -196,9 +190,7 @@ class TestHandbookComplete:
 
     def test_a_bare_prose_mention_does_not_count_as_a_link(self, tmp_path):
         # naming the file is not the same as linking to it
-        files = self._handbook(
-            tmp_path, "no list here\n", "see chapter.md for detail\n"
-        )
+        files = self._handbook(tmp_path, "no list here\n", "see chapter.md for detail\n")
         (problem,) = mod.check_handbook_complete(files, tmp_path)
         assert "index.md" in problem and "chapter.md" in problem
 

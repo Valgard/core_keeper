@@ -98,9 +98,7 @@ def test_pillow_matches_the_pin_in_pyproject():
     # also catches the likelier accident: running the suite outside the
     # project environment, where the pin does not apply at all.
     deps = tomllib.loads(PYPROJECT.read_text())["project"]["dependencies"]
-    pinned = next(
-        (d.split("==", 1)[1] for d in deps if d.lower().startswith("pillow==")), None
-    )
+    pinned = next((d.split("==", 1)[1] for d in deps if d.lower().startswith("pillow==")), None)
     assert pinned, f"{PYPROJECT.name} no longer pins pillow to an exact version"
     assert PIL.__version__ == pinned, (
         f"running Pillow {PIL.__version__}, pyproject.toml pins {pinned} -- "

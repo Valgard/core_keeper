@@ -22,9 +22,7 @@ import check_citation_drift as mod
 
 
 def test_extracts_a_single_line_citation():
-    assert mod.extract("see `Pug.Other:441234` for the call") == [
-        ("Pug.Other", 441234, 441234)
-    ]
+    assert mod.extract("see `Pug.Other:441234` for the call") == [("Pug.Other", 441234, 441234)]
 
 
 def test_extracts_a_range_citation_as_first_and_last():
@@ -162,9 +160,7 @@ def test_collects_every_citation_keyed_as_written(tmp_path):
 
 def test_reports_an_unresolvable_citation_with_its_location(tmp_path):
     tree = make_decompile(tmp_path, "Pug.Other", ["a"])
-    write_chapter(
-        tmp_path, "ui.md", "line one\nsee `ControlMappingMenu.prefab:2456-2457`\n"
-    )
+    write_chapter(tmp_path, "ui.md", "line one\nsee `ControlMappingMenu.prefab:2456-2457`\n")
 
     corpus, problems, cited = mod.collect(tmp_path, tree)
 
@@ -193,16 +189,11 @@ def test_the_same_citation_twice_collapses_to_one_entry(tmp_path):
 
 
 def test_no_drift_reports_nothing():
-    assert (
-        mod.compare({"Pug.Other:2": ["b"]}, {"Pug.Other:2": ["b"]}, {"Pug.Other:2"})
-        == []
-    )
+    assert mod.compare({"Pug.Other:2": ["b"]}, {"Pug.Other:2": ["b"]}, {"Pug.Other:2"}) == []
 
 
 def test_a_changed_line_is_reported_with_both_texts():
-    problems = mod.compare(
-        {"Pug.Other:2": ["now()"]}, {"Pug.Other:2": ["then()"]}, {"Pug.Other:2"}
-    )
+    problems = mod.compare({"Pug.Other:2": ["now()"]}, {"Pug.Other:2": ["then()"]}, {"Pug.Other:2"})
     assert len(problems) == 1
     assert "Pug.Other:2" in problems[0]
     assert "then()" in problems[0] and "now()" in problems[0]
@@ -230,16 +221,12 @@ def test_an_unresolvable_citation_is_not_also_reported_as_uncited():
     # `cited`). Reporting it as "no longer cited anywhere" would read as
     # "stale snapshot entry, delete it" — which would erase the recorded text,
     # the only thing left saying what the line used to hold.
-    problems = mod.compare(
-        {}, {"PugMod.Platform:2": ["old text"]}, {"PugMod.Platform:2"}
-    )
+    problems = mod.compare({}, {"PugMod.Platform:2": ["old text"]}, {"PugMod.Platform:2"})
     assert problems == []
 
 
 def test_a_line_that_vanished_reports_the_empty_side_readably():
-    problems = mod.compare(
-        {"Pug.Other:900": []}, {"Pug.Other:900": ["gone()"]}, {"Pug.Other:900"}
-    )
+    problems = mod.compare({"Pug.Other:900": []}, {"Pug.Other:900": ["gone()"]}, {"Pug.Other:900"})
     assert len(problems) == 1
     assert "past end of file" in problems[0]
 
@@ -318,14 +305,10 @@ def test_compare_prints_the_recorded_game_version(tmp_path, capsys):
     write_chapter(tmp_path, "one.md", "`Pug.Other:2`\n")
     snapshot = tmp_path / "snap.json"
     snapshot.write_text(
-        json.dumps(
-            {"citations": {"Pug.Other:2": ["b"]}, "game_version": "1.2.1.5-8be0"}
-        )
+        json.dumps({"citations": {"Pug.Other:2": ["b"]}, "game_version": "1.2.1.5-8be0"})
     )
 
-    code = mod.main(
-        ["x", "--decompile", str(tree), "--snapshot", str(snapshot), str(tmp_path)]
-    )
+    code = mod.main(["x", "--decompile", str(tree), "--snapshot", str(snapshot), str(tmp_path)])
 
     assert code == 0
     assert "1.2.1.5-8be0" in capsys.readouterr().out
@@ -339,9 +322,7 @@ def test_a_versionless_snapshot_is_handled_not_crashed(tmp_path, capsys):
     snapshot = tmp_path / "snap.json"
     snapshot.write_text(json.dumps({"citations": {"Pug.Other:2": ["b"]}}))
 
-    code = mod.main(
-        ["x", "--decompile", str(tree), "--snapshot", str(snapshot), str(tmp_path)]
-    )
+    code = mod.main(["x", "--decompile", str(tree), "--snapshot", str(snapshot), str(tmp_path)])
 
     assert code == 0
     assert "no recorded game version" in capsys.readouterr().out
@@ -366,9 +347,7 @@ def test_a_changed_line_makes_the_default_mode_fail(tmp_path, capsys):
     )
 
     (tree / "Pug.Other.decompiled.cs").write_text("a\nCHANGED\n")
-    code = mod.main(
-        ["x", "--decompile", str(tree), "--snapshot", str(snapshot), str(tmp_path)]
-    )
+    code = mod.main(["x", "--decompile", str(tree), "--snapshot", str(snapshot), str(tmp_path)])
 
     assert code == 1
     assert "CHANGED" in capsys.readouterr().out
@@ -404,9 +383,7 @@ def test_an_unresolvable_citation_fails_even_when_nothing_drifted(tmp_path, caps
     snapshot = tmp_path / "snap.json"
     snapshot.write_text(json.dumps({"citations": {}}))
 
-    code = mod.main(
-        ["x", "--decompile", str(tree), "--snapshot", str(snapshot), str(tmp_path)]
-    )
+    code = mod.main(["x", "--decompile", str(tree), "--snapshot", str(snapshot), str(tmp_path)])
 
     assert code == 1
     assert "no decompiled assembly" in capsys.readouterr().out
@@ -424,9 +401,7 @@ def test_an_assembly_that_disappears_is_not_also_reported_as_uncited(tmp_path, c
     snapshot = tmp_path / "snap.json"
     snapshot.write_text(json.dumps({"citations": {"PugMod.Platform:2": ["old text"]}}))
 
-    code = mod.main(
-        ["x", "--decompile", str(tree), "--snapshot", str(snapshot), str(tmp_path)]
-    )
+    code = mod.main(["x", "--decompile", str(tree), "--snapshot", str(snapshot), str(tmp_path)])
     out = capsys.readouterr().out
 
     assert code == 1

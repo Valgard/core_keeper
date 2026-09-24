@@ -106,9 +106,7 @@ def test_the_ladder_yields_the_largest_rung_that_fits(tmp_path):
     next_up = min(bigger)
     original = Image.open(src).convert("RGBA")
     probe = tmp_path / "probe.png"
-    original.resize((next_up, next_up), Image.LANCZOS).save(
-        probe, optimize=True, compress_level=9
-    )
+    original.resize((next_up, next_up), Image.LANCZOS).save(probe, optimize=True, compress_level=9)
     assert probe.stat().st_size > steam_preview.LIMIT, (
         f"{next_up}² also fits, so {chosen}² was not the largest that does"
     )

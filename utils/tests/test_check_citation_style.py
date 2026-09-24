@@ -87,9 +87,7 @@ class TestProblemsIn:
 class TestCodeFences:
     def test_a_short_form_inside_a_fence_is_an_example_not_a_violation(self, tmp_path):
         p = tmp_path / "c.md"
-        p.write_text(
-            "prose\n\n```text\n`:419767`\n`Pug.Other` ~355773\n```\n\nmore prose\n"
-        )
+        p.write_text("prose\n\n```text\n`:419767`\n`Pug.Other` ~355773\n```\n\nmore prose\n")
         assert problems_in(p) == []
 
     def test_the_same_text_outside_a_fence_still_fails(self, tmp_path):

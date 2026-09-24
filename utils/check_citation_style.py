@@ -93,9 +93,7 @@ def main():
 
     if total:
         print(f"\n{total} unverifiable line reference(s).")
-        print(
-            "Every line reference must carry its assembly, or no checker can follow it."
-        )
+        print("Every line reference must carry its assembly, or no checker can follow it.")
         return 1
 
     print(f"OK — {len(chapters)} chapters, every line reference carries its assembly")

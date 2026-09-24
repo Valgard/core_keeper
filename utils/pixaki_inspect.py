@@ -62,9 +62,7 @@ def palette_of(img):
 def symbol_map(palette):
     """Map each colour to its grid character, most frequent colour first."""
     ordered = sorted(palette, key=lambda c: (-palette[c], c))
-    return {
-        c: (SYMBOLS[i] if i < len(SYMBOLS) else OVERFLOW) for i, c in enumerate(ordered)
-    }
+    return {c: (SYMBOLS[i] if i < len(SYMBOLS) else OVERFLOW) for i, c in enumerate(ordered)}
 
 
 def grid_rows(img, symbols):
@@ -86,9 +84,7 @@ def ink_bounds(img):
     ink, so a fully transparent pixel carrying leftover RGB would widen the box
     -- the very case `palette_of` excludes."""
     px = img.load()
-    drawn = [
-        (x, y) for y in range(img.height) for x in range(img.width) if px[x, y][3] != 0
-    ]
+    drawn = [(x, y) for y in range(img.height) for x in range(img.width) if px[x, y][3] != 0]
     if not drawn:
         return None
     xs = [p[0] for p in drawn]

@@ -174,9 +174,7 @@ def build_script_ids(decls):
     return out
 
 
-_IDS_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "ck-script-ids.json"
-)
+_IDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ck-script-ids.json")
 
 
 def _load_script_ids(path=_IDS_PATH):
@@ -193,9 +191,7 @@ def _load_script_ids(path=_IDS_PATH):
 def refresh_ids(decomp_dir, out_path):
     """Regenerate out_path from the decompile; return the new mapping."""
     if not os.path.isdir(decomp_dir):
-        raise SystemExit(
-            f"decompile dir not found: {decomp_dir} (set CK_DECOMPILE_DIR)"
-        )
+        raise SystemExit(f"decompile dir not found: {decomp_dir} (set CK_DECOMPILE_DIR)")
     mapping = build_script_ids(parse_decompile(decomp_dir))
     old = _load_script_ids(out_path)
     ordered = dict(sorted(mapping.items(), key=lambda kv: kv[1]))
@@ -260,9 +256,7 @@ def find_go(objs, name):
 
 def components(objs, go_fid):
     cid, body = objs[go_fid]
-    return [
-        str(c["component"]["fileID"]) for c in body["GameObject"].get("m_Component", [])
-    ]
+    return [str(c["component"]["fileID"]) for c in body["GameObject"].get("m_Component", [])]
 
 
 def transform_of(objs, go_fid):
@@ -313,8 +307,7 @@ def comp_label(objs, comp_fid):
         return CLASS.get(cid, f"class{cid}")
     sc = (body or {}).get("MonoBehaviour", {}).get("m_Script", {}) if body else {}
     return (
-        SCRIPT_FILEID.get(str(sc.get("fileID")))
-        or f"MonoBehaviour[{str(sc.get('guid', ''))[:8]}]"
+        SCRIPT_FILEID.get(str(sc.get("fileID"))) or f"MonoBehaviour[{str(sc.get('guid', ''))[:8]}]"
     )
 
 
@@ -324,9 +317,7 @@ def print_tree(objs, fid, depth=0):
     name = go.get("m_Name") or "(unnamed)"
     mark = "" if go.get("m_IsActive", 1) else "  [inactive]"
     comps = [
-        comp_label(objs, c)
-        for c in components(objs, fid)
-        if objs.get(c, (None,))[0] != "4"
+        comp_label(objs, c) for c in components(objs, fid) if objs.get(c, (None,))[0] != "4"
     ]  # skip the implicit Transform
     ctext = f"  :: {', '.join(comps)}" if comps else ""
     print("  " * depth + f"- {name}{mark}{ctext}")
@@ -382,9 +373,7 @@ def verify(objs):
         reachable.add(go)
         stack.extend(children(objs, go))
     orphans = [
-        fid
-        for fid, (cid, body) in objs.items()
-        if cid == "1" and body and fid not in reachable
+        fid for fid, (cid, body) in objs.items() if cid == "1" and body and fid not in reachable
     ]
     if orphans:
         print(f"ORPHAN GameObjects (unreachable from any root): {len(orphans)}")
@@ -398,8 +387,7 @@ def verify(objs):
         for fid, (cid, body) in objs.items()
         if cid == "114"
         and body
-        and str((body.get("MonoBehaviour") or {}).get("m_Script", {}).get("fileID"))
-        == "0"
+        and str((body.get("MonoBehaviour") or {}).get("m_Script", {}).get("fileID")) == "0"
     ]
     if broken:
         print(f"BROKEN script refs (m_Script fileID 0): {len(broken)}")

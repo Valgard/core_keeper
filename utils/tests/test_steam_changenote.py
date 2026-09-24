@@ -55,25 +55,19 @@ def test_every_heading_level_flattens_to_h3():
 
 
 def test_consecutive_bullets_become_one_list():
-    assert steam_changenote.to_bbcode("- One.\n- Two.") == (
-        "[list]\n[*] One.\n[*] Two.\n[/list]"
-    )
+    assert steam_changenote.to_bbcode("- One.\n- Two.") == ("[list]\n[*] One.\n[*] Two.\n[/list]")
 
 
 def test_a_blank_line_between_bullets_does_not_split_the_list():
     # Markdown calls that one (loose) list, and two [list] blocks would render
     # as two.
-    assert steam_changenote.to_bbcode("- One.\n\n- Two.") == (
-        "[list]\n[*] One.\n[*] Two.\n[/list]"
-    )
+    assert steam_changenote.to_bbcode("- One.\n\n- Two.") == ("[list]\n[*] One.\n[*] Two.\n[/list]")
 
 
 def test_a_sub_bullet_nests_inside_its_parent_item():
     note = steam_changenote.to_bbcode("- Parent.\n  - Child.\n- Sibling.")
 
-    assert note == (
-        "[list]\n[*] Parent.\n[list]\n[*] Child.\n[/list]\n[*] Sibling.\n[/list]"
-    )
+    assert note == ("[list]\n[*] Parent.\n[list]\n[*] Child.\n[/list]\n[*] Sibling.\n[/list]")
 
 
 def test_a_numbered_list_keeps_its_numbering():
@@ -89,9 +83,7 @@ def test_blocks_are_separated_by_a_blank_line():
 
 
 def test_a_heading_needs_no_blank_line_to_end_the_paragraph_above_it():
-    assert steam_changenote.to_bbcode("Preamble.\n### Fixed") == (
-        "Preamble.\n\n[h3]Fixed[/h3]"
-    )
+    assert steam_changenote.to_bbcode("Preamble.\n### Fixed") == ("Preamble.\n\n[h3]Fixed[/h3]")
 
 
 # --- unwrapping --------------------------------------------------------------
@@ -177,9 +169,7 @@ def test_inline_code_keeps_its_backticks_rather_than_becoming_a_code_tag():
 def test_markup_inside_inline_code_is_left_alone():
     # Code is protected before any inline rule runs, so a `*` or a `**` in a
     # symbol name cannot be read as emphasis.
-    assert steam_changenote.to_bbcode("Call `a * b` and `**p`.") == (
-        "Call `a * b` and `**p`."
-    )
+    assert steam_changenote.to_bbcode("Call `a * b` and `**p`.") == ("Call `a * b` and `**p`.")
 
 
 def test_a_link_becomes_a_url_tag():
@@ -241,8 +231,7 @@ _MODS = sorted(Path(__file__).resolve().parents[2].glob("*/CHANGELOG.md"))
 _corpus = pytest.mark.skipif(
     len(_MODS) < 2,
     reason=(
-        "fewer than two sibling mod repos with a CHANGELOG.md — the corpus guards "
-        "below did NOT run"
+        "fewer than two sibling mod repos with a CHANGELOG.md — the corpus guards below did NOT run"
     ),
 )
 
@@ -282,9 +271,7 @@ def test_every_real_entry_keeps_all_of_its_bullets():
     belonged to, and the note still looks plausible.
     """
     for mod, version, body in _entries():
-        bullets = len(
-            [line for line in body.splitlines() if re.match(r"^\s*[-*+] ", line)]
-        )
+        bullets = len([line for line in body.splitlines() if re.match(r"^\s*[-*+] ", line)])
         note = steam_changenote.render(version, body)
 
         assert note.count("[*] ") == bullets, f"{mod} {version}"

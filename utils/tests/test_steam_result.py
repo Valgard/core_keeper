@@ -42,9 +42,7 @@ MonoBehaviour:
   - Script
 """
 
-BUNDLE = json.dumps(
-    {"contentPath": "/builds/DisableDurability", "tags": ["Client", "Script"]}
-)
+BUNDLE = json.dumps({"contentPath": "/builds/DisableDurability", "tags": ["Client", "Script"]})
 
 
 def result_line(file_id, *, created, success, mod_owner=10000000000000000):
@@ -76,9 +74,7 @@ def scenario(tmp_path):
         result.write_text(stream)
 
         env = {"MOD_NAME": MOD, "CK_STEAM_BUNDLE": bundle}
-        code = steam_result.main(
-            ["steam_result.py", str(result), str(tmp_path)], env=env
-        )
+        code = steam_result.main(["steam_result.py", str(result), str(tmp_path)], env=env)
         return code, asset
 
     return build
@@ -119,9 +115,7 @@ def test_a_zero_file_id_persists_nothing(scenario, capsys):
 
 def test_a_successful_creation_writes_the_id_and_reports_it(scenario, capsys):
     code, asset = scenario(
-        "  Item:    new (hidden)\n"
-        + result_line(4242424242, created=True, success=True)
-        + "\n",
+        "  Item:    new (hidden)\n" + result_line(4242424242, created=True, success=True) + "\n",
         asset_text=None,
     )
 
@@ -204,8 +198,7 @@ def test_a_stray_brace_line_after_the_result_does_not_displace_it(scenario, caps
     # diagnostic printed after the result — native Steamworks logging during
     # Shutdown, say — must not be mistaken for the result and throw.
     code, asset = scenario(
-        result_line(4242424242, created=False, success=True)
-        + "\n{ Steamworks shutdown trace\n"
+        result_line(4242424242, created=False, success=True) + "\n{ Steamworks shutdown trace\n"
     )
 
     assert code == 0
@@ -241,9 +234,7 @@ def test_the_bundle_fills_the_fields_only_the_sdk_window_reads(scenario):
 def test_a_zero_mod_owner_leaves_the_stored_one_alone(scenario):
     # modOwner is 0 whenever Steam was not initialised. Writing that would
     # erase a value the SDK window needs and this run simply does not know.
-    code, asset = scenario(
-        result_line(4242424242, created=False, success=True, mod_owner=0) + "\n"
-    )
+    code, asset = scenario(result_line(4242424242, created=False, success=True, mod_owner=0) + "\n")
 
     assert code == 0
     assert "modOwner: 10000000000000000" in asset.read_text()

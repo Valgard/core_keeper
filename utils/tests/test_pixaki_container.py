@@ -38,9 +38,7 @@ def container(packaging, tmp_path):
     )
 
 
-def test_namelist_lists_every_file_and_only_an_archive_its_directories(
-    container, packaging
-):
+def test_namelist_lists_every_file_and_only_an_archive_its_directories(container, packaging):
     """The one place the two forms are meant to disagree, asserted on purpose.
 
     An earlier version demanded the SAME listing from both and passed only

@@ -293,9 +293,7 @@ def defects(para, width):
         if visible_len(line) > width + OVERSHOOT and not LINK_TOKEN.search(line):
             head = line[: width + 1].rstrip()
             if " " in head[20:]:
-                found.append(
-                    (offset, f"{visible_len(line)} visible columns, target {width}")
-                )
+                found.append((offset, f"{visible_len(line)} visible columns, target {width}"))
     for offset, (line, nxt) in enumerate(zip(para, para[1:])):
         # a link belongs on the line it started on, however long that makes
         # it — so a line ending just before one is a break in the wrong place
@@ -311,9 +309,7 @@ def defects(para, width):
             visible_len(line) < width - SLACK
             and visible_len(line) + 1 + visible_len(first_token(nxt)) <= width - 2
         ):
-            found.append(
-                (offset, f"breaks at {visible_len(line)} visible, target {width}")
-            )
+            found.append((offset, f"breaks at {visible_len(line)} visible, target {width}"))
     return found
 
 
@@ -364,9 +360,7 @@ def process(path, fix):
             continue
         # the bullet comes back via initial_indent; leaving it in the body
         # produced "- - text"
-        body = " ".join(
-            [item[0][len(prefix) :].strip()] + [x.strip() for x in item[1:]]
-        )
+        body = " ".join([item[0][len(prefix) :].strip()] + [x.strip() for x in item[1:]])
         new = wrap_tokens(body, width, initial_indent=prefix, subsequent_indent=cont)
         if new != item:
             out.extend(lines[last:first])
@@ -482,9 +476,7 @@ def main(argv):
         # than that the file needs one more turn. Silence there would be the
         # original defect again, one layer up.
         if problems:
-            print(
-                f"{len(problems)} line(s) still mis-wrapped after {FIX_PASSES} passes:"
-            )
+            print(f"{len(problems)} line(s) still mis-wrapped after {FIX_PASSES} passes:")
             for p in problems:
                 print(f"  {p}")
             return 1

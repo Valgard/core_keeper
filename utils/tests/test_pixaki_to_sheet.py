@@ -143,9 +143,7 @@ def test_render_meta_replaces_guid_and_sprites(tmp_path):
     )
     tf = tmp_path / "tpl.png.meta"
     tf.write_text(template)
-    placed = [
-        dict(name="Window", internal_id=42, x=2, y=2, w=16, h=16, border=(4, 4, 4, 4))
-    ]
+    placed = [dict(name="Window", internal_id=42, x=2, y=2, w=16, h=16, border=(4, 4, 4, 4))]
     out = p.render_meta(str(tf), "b" * 32, placed)
     assert "guid: " + "b" * 32 in out
     assert "name: Window" in out
@@ -191,9 +189,7 @@ def test_build_sheet_in_place_template_not_truncated(tmp_path):
     p.build_sheet(str(pixaki), str(out))  # in-place: template defaults to s.png.meta
     meta = (tmp_path / "s.png.meta").read_text()
     assert "name: Icon" in meta  # the sprite was written
-    assert (
-        "  mipmapLimitGroupName: " in meta
-    )  # the template tail survived (not truncated)
+    assert "  mipmapLimitGroupName: " in meta  # the template tail survived (not truncated)
 
 
 # Distinct pixels per sprite -- dedup() collapses identical ones, so a repeated
@@ -229,8 +225,7 @@ def _write_sprite_pixaki(tmp_path, cfg_json, form="zip", count=2):
         "sprites": [
             {
                 "cels": [
-                    {"identifier": f"D{i + 1}", "frame": [[0, 0], [4, 4]]}
-                    for i in range(count)
+                    {"identifier": f"D{i + 1}", "frame": [[0, 0], [4, 4]]} for i in range(count)
                 ],
                 "layers": [
                     {
@@ -248,9 +243,7 @@ def _write_sprite_pixaki(tmp_path, cfg_json, form="zip", count=2):
         bio = io.BytesIO()
         Image.new("RGBA", (4, 4), _SPRITE_COLOURS[i]).save(bio, "PNG")
         members[f"images/drawings/D{i + 1}.png"] = bio.getvalue()
-    pixaki = write_pixaki(
-        tmp_path / "s.pixaki", members, form, directories=PIXAKI_DIRECTORIES
-    )
+    pixaki = write_pixaki(tmp_path / "s.pixaki", members, form, directories=PIXAKI_DIRECTORIES)
     (tmp_path / "s.json").write_text(cfg_json)
     return pixaki
 
