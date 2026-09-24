@@ -117,12 +117,19 @@ def test_new_guid_is_unique_per_call():
 
 
 def test_next_fake_mod_id_is_one_below_minimum_existing():
-    """The next free id is one below the LOWEST existing id.
+    """The next free id is one below the LOWEST existing id, not the LAST one in the list.
 
-    Not the highest id, and not a gap between two existing ones.
+    The fixture is deliberately unsorted with its minimum NOT in the last
+    position: `[9999999, 9999994, 9999993]` (the old fixture) is already
+    sorted descending, so a plausible off-by-one implementation
+    `existing_ids[-1] - 1` returns the same 9999992 as the real `min(...) - 1`
+    and this test could not tell them apart. Here the last element
+    (9999994) is not the minimum (9999993), so the two implementations
+    diverge: `existing_ids[-1] - 1` would give 9999993, not 9999992.
     """
-    # existing IDs count downward from 9999999; the next free is min - 1
-    assert nm.next_fake_mod_id([9999999, 9999994, 9999993]) == 9999992
+    # existing IDs count downward from 9999999; the next free is min - 1, not
+    # one below whatever happens to be last in the list.
+    assert nm.next_fake_mod_id([9999993, 9999999, 9999994]) == 9999992
 
 
 def test_next_fake_mod_id_defaults_when_none_found():
@@ -852,17 +859,36 @@ def test_scan_existing_fake_mod_ids_reads_sibling_envrc_examples(tmp_path):
     assert sorted(nm.scan_existing_fake_mod_ids(tmp_path)) == [9999993, 9999994]
 
 
-def test_resolve_mods_dir_never_points_inside_a_worktree():
-    """Run from this actual checkout, resolve_mods_dir() resolves to the main checkout.
+def test_resolve_mods_dir_never_points_inside_a_worktree(tmp_path, monkeypatch):
+    """From inside a git worktree, resolve_mods_dir() resolves to the MAIN checkout.
 
-    From .worktrees/<branch>/utils/ the naive grandparent would scaffold the
-    new mod into the worktree (deleted on cleanup) and, seeing no siblings,
-    allocate FAKE_MOD_ID 9999999 — disable-durability's.
+    Mirrors test_mod_source.py's
+    test_default_workspace_resolves_a_worktree_to_the_main_checkout for this
+    sibling tool. The old version of this test called the real
+    resolve_mods_dir() with nothing faked at all, which only ever exercises
+    whichever checkout the suite happens to run from — in the main checkout
+    the assertions held no matter whether the worktree-detection branch was
+    correct, broken, or deleted outright, because `here.parent` (the naive
+    fallback) and the git-resolved answer are the SAME directory there. Faking
+    `git rev-parse --git-common-dir`'s answer forces the actual branch: a
+    naive `here.parent` fallback would return wherever this file's own
+    directory sits, not `main_checkout`, and the two are made to differ on
+    purpose by rooting both under a fresh tmp_path.
     """
-    # From .worktrees/<branch>/utils/ the naive grandparent would scaffold the
-    # new mod into the worktree (deleted on cleanup) and, seeing no siblings,
-    # allocate FAKE_MOD_ID 9999999 — disable-durability's.
+    main_checkout = tmp_path / "core_keeper"
+    (main_checkout / "utils").mkdir(parents=True)
+    (main_checkout / "utils" / "new_mod.py").write_text("# stand-in for the real module")
+    common_dir = main_checkout / ".git"
+    common_dir.mkdir()
+
+    monkeypatch.setattr(
+        nm.subprocess,
+        "run",
+        lambda *a, **kw: type("Proc", (), {"returncode": 0, "stdout": f"{common_dir}\n"})(),
+    )
+
     resolved = nm.resolve_mods_dir()
+    assert resolved == main_checkout
     assert ".worktrees" not in resolved.parts
     assert (resolved / "utils" / "new_mod.py").is_file()
 
@@ -959,15 +985,25 @@ def test_scaffold_aborts_if_target_exists(tmp_path):
         _scaffold(tmp_path, dry_run=True)
 
 
-def test_scaffold_writes_tree_without_finalize(tmp_path):
-    """finalize=False still writes the full file tree to disk.
+def test_scaffold_writes_tree_without_finalize(tmp_path, monkeypatch):
+    """finalize=False still writes the full file tree to disk, but skips git-init and SDK-link.
 
-    Only the finalize-only steps (git init/commit, SDK link) are skipped.
+    Both finalize-only steps are monkeypatched to record a call rather than
+    act, so a scaffold() that ignored the flag and ran them regardless would
+    be caught here — the old version of this test only checked that the
+    plan's files landed on disk, which is true whether or not the finalize
+    steps also ran, so it could not distinguish "skipped" from "ran anyway".
     """
+    calls = []
+    monkeypatch.setattr(nm, "_git_init_and_commit", lambda target: calls.append("git"))
+    monkeypatch.setattr(nm, "_run_link", lambda target, sdk_path, mod_name: calls.append("link"))
+
     _scaffold(tmp_path, finalize=False)
+
     root = tmp_path / "faster-pet-talents"
     assert (root / "unity/FasterPetTalents.asset").is_file()
     assert (root / "unity/FasterPetTalents/FasterPetTalentsMod.cs").is_file()
+    assert calls == []
 
 
 # --- CLI argument parsing ---------------------------------------------------
