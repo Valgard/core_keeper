@@ -27,7 +27,8 @@ description.
 import json
 import os
 import sys
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
+from collections.abc import Mapping
 from pathlib import Path
 
 import steam_identity

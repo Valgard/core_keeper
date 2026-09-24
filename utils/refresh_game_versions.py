@@ -29,7 +29,8 @@ import re
 import subprocess
 import sys
 import urllib.parse
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 
 # Store events rather than the news API: `GetNewsForApp` reports major updates
 # with no tag at all, so filtering it by `tags=patchnotes` silently drops every

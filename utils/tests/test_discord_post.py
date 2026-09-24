@@ -70,7 +70,8 @@ def test_version_line_collapses_to_minor_when_every_known_build_is_supported():
 def test_version_line_falls_back_to_a_span_when_a_known_build_is_unsupported():
     """`1.2.x` claims the whole minor, so it may only be printed once that is
     checked against the known builds — otherwise a mod that needs 1.2.1.3+
-    would advertise compatibility with 1.2.0.3."""
+    would advertise compatibility with 1.2.0.3.
+    """
     supported = ["1.2.1.5", "1.2.1.3"]
     known = ["1.2.1.5", "1.2.1.3", "1.2.0.3"]
 
@@ -106,7 +107,8 @@ def test_render_drops_the_h1_because_it_is_the_thread_title():
 def test_render_unwraps_paragraphs_because_discord_does_not_reflow():
     """Every newline in the source would be a line break in the post: the
     prose is wrapped at ~78 columns like `modio-description.md`, and pasted
-    verbatim it would arrive ragged."""
+    verbatim it would arrive ragged.
+    """
     post = _render("# T\n\nA sentence that the\nsource file wrapped.\n")
 
     assert "A sentence that the source file wrapped." in post
@@ -128,7 +130,8 @@ def test_render_suppresses_the_embed_on_every_link():
     """A bare mod.io link renders mod.io's own corporate card — the platform's
     advertisement, not the mod — as the last thing in the post. Verified in the
     live channel on 2026-08-26. A Steam link would render a card about the
-    actual item, which is more tempting and gets the same treatment."""
+    actual item, which is more tempting and gets the same treatment.
+    """
     post = _render("# T\n\nBody.\n", slug="probe-mod", steam_id=42)
 
     assert post.endswith(
@@ -141,7 +144,8 @@ def test_render_suppresses_the_embed_on_every_link():
 
 def test_render_omits_the_steam_line_for_a_mod_with_no_workshop_item():
     """Not a degraded post but the correct one: mod.io-only is a real state, and
-    it is the state every mod was in before Steam publishing existed."""
+    it is the state every mod was in before Steam publishing existed.
+    """
     post = _render("# T\n\nBody.\n", slug="probe-mod")
 
     assert "Steam Workshop" not in post
@@ -168,7 +172,8 @@ def test_a_scaffolded_asset_reads_as_no_workshop_item(tmp_path):
 
 def test_render_rejects_a_tag_the_channel_does_not_offer():
     """A misspelled tag cannot be set in Discord's UI, so it would be noticed
-    only while posting — after the text is already written."""
+    only while posting — after the text is already written.
+    """
     with pytest.raises(ValueError, match="Tweak"):
         _render("# T\n\nBody.\n", tags=["Tweak"])
 
@@ -176,7 +181,8 @@ def test_render_rejects_a_tag_the_channel_does_not_offer():
 def test_render_refuses_an_over_long_post_instead_of_trimming_it():
     """Trimming automatically is what an earlier draft of this tool did, and it
     silently dropped a mod's Requirements section. Deciding what goes is the
-    author's job."""
+    author's job.
+    """
     with pytest.raises(ValueError, match="2000"):
         _render("# T\n\n" + "x" * 2100 + "\n")
 
@@ -192,7 +198,8 @@ def test_render_rejects_more_tags_than_discord_accepts():
 def test_section_headings_stay_headings():
     """Discord renders `##` as a heading, and a heading is visibly different
     from the bold runs the prose itself uses — which the earlier rewrite to
-    bold was not, so a section title and an emphasised term looked alike."""
+    bold was not, so a section title and an emphasised term looked alike.
+    """
     post = _render("# T\n\n## Requirements\n\nCoreLib.\n")
 
     assert "## Requirements" in post
@@ -200,7 +207,8 @@ def test_section_headings_stay_headings():
 
 def test_a_heading_is_not_folded_into_the_paragraph_under_it():
     """Unwrapping joins the lines of a block, and a heading followed directly by
-    prose is one block."""
+    prose is one block.
+    """
     post = _render("# T\n\n## Requirements\nCoreLib.\n")
 
     assert "## Requirements\nCoreLib." in post
@@ -208,7 +216,8 @@ def test_a_heading_is_not_folded_into_the_paragraph_under_it():
 
 def test_a_repo_without_a_post_or_tags_is_skipped_not_an_error(tmp_path):
     """A mod need not have a forum thread — that is a permanent state, not a
-    stage of some rollout. Neither file nor tags means nobody started one."""
+    stage of some rollout. Neither file nor tags means nobody started one.
+    """
     env = {k: v for k, v in _ENV.items() if k != "CK_DISCORD_TAGS"}
 
     assert dp.render_repo(tmp_path, env, ["1.2.1.5"]) is None
@@ -223,7 +232,8 @@ def test_render_repo_reads_the_post_beside_the_mod(tmp_path):
 
 def test_a_post_without_forum_tags_names_the_variable_it_wants(tmp_path):
     """Only mods that have a post need the tags, so the check cannot sit at
-    start-up -- and a bare KeyError would not say where to put them."""
+    start-up -- and a bare KeyError would not say where to put them.
+    """
     (tmp_path / "discord-post.md").write_text("# T\n\nBody.\n")
     env = {k: v for k, v in _ENV.items() if k != "CK_DISCORD_TAGS"}
 
@@ -233,7 +243,8 @@ def test_a_post_without_forum_tags_names_the_variable_it_wants(tmp_path):
 
 def test_the_h1_becomes_the_thread_title_rather_than_being_discarded(tmp_path):
     """The heading is dropped from the body because Discord shows it as the
-    thread title -- so it is authored, not derived from a directory name."""
+    thread title -- so it is authored, not derived from a directory name.
+    """
     result = dp.render_repo(_repo(tmp_path, "# Probe Mod\n\nBody.\n"), _ENV, ["1.2.1.5"])
 
     assert result["title"] == "Probe Mod"
@@ -241,7 +252,8 @@ def test_the_h1_becomes_the_thread_title_rather_than_being_discarded(tmp_path):
 
 def test_an_empty_tag_list_is_as_wrong_as_a_missing_one(tmp_path):
     """new_mod.py scaffolds CK_DISCORD_TAGS empty — a new mod cannot know its
-    forum tags yet. Writing the post is the moment they have to be filled in."""
+    forum tags yet. Writing the post is the moment they have to be filled in.
+    """
     (tmp_path / "discord-post.md").write_text("# T\n\nBody.\n")
     env = dict(_ENV, CK_DISCORD_TAGS="")
 
@@ -251,7 +263,8 @@ def test_an_empty_tag_list_is_as_wrong_as_a_missing_one(tmp_path):
 
 def test_a_missing_game_version_says_so_instead_of_naming_a_key(tmp_path):
     """Running outside direnv is the usual way to hit this, and a bare KeyError
-    prints just the variable name — which reads like the value, not the fault."""
+    prints just the variable name — which reads like the value, not the fault.
+    """
     (tmp_path / "discord-post.md").write_text("# T\n\nBody.\n")
     env = {k: v for k, v in _ENV.items() if k != "CK_GAME_VERSION"}
 
@@ -262,7 +275,8 @@ def test_a_missing_game_version_says_so_instead_of_naming_a_key(tmp_path):
 def test_version_line_never_claims_a_minor_the_span_leaves():
     """The collapse used to read the minor off the lowest build alone, so a mod
     spanning 1.1 and 1.2 advertised '1.1.x' next to a span ending in 1.2.1.5 —
-    the claim and its own evidence contradicting each other."""
+    the claim and its own evidence contradicting each other.
+    """
     supported = ["1.1.0.1", "1.2.1.5"]
     known = ["1.1.0.1", "1.2.1.5", "1.2.1.0"]
 
@@ -275,7 +289,8 @@ def test_forum_tags_without_a_post_file_are_a_misconfiguration(tmp_path):
     """Skipping a repo without a post is right while one is not written yet —
     but filled-in tags say one was. The likely cause is the filename: the script
     is discord_post.py with an underscore, the file is discord-post.md with a
-    hyphen."""
+    hyphen.
+    """
     (tmp_path / "discord_post.md").write_text("# T\n\nBody.\n")
 
     with pytest.raises(ValueError, match="discord-post.md"):
@@ -285,7 +300,8 @@ def test_forum_tags_without_a_post_file_are_a_misconfiguration(tmp_path):
 def test_a_build_the_version_list_does_not_know_is_refused(tmp_path):
     """CK_GAME_VERSION reaching a build that never shipped means a typo, and a
     typo only ever widens the '1.2.x' claim — set arithmetic cannot notice an
-    extra element."""
+    extra element.
+    """
     (tmp_path / "discord-post.md").write_text("# T\n\nBody.\n")
     env = dict(_ENV, CK_GAME_VERSION="1.2.1.5 1.2.1.55")
 
@@ -296,7 +312,8 @@ def test_a_build_the_version_list_does_not_know_is_refused(tmp_path):
 def test_a_heading_further_down_the_file_is_not_the_thread_title(tmp_path):
     """`#\\s+` spans newlines, so a file starting with a bare '#' took the first
     prose line as the title while render() left it in the body — the same words
-    twice, once as the thread name."""
+    twice, once as the thread name.
+    """
     (tmp_path / "discord-post.md").write_text("#\n\nActually the first paragraph.\n")
 
     with pytest.raises(ValueError, match="# Title"):
@@ -305,7 +322,8 @@ def test_a_heading_further_down_the_file_is_not_the_thread_title(tmp_path):
 
 def test_a_thread_title_over_discords_limit_is_refused(tmp_path):
     """Length and tag count are both enforced; the title was the one ceiling
-    that was not, and it is the field Discord rejects first."""
+    that was not, and it is the field Discord rejects first.
+    """
     (tmp_path / "discord-post.md").write_text("# " + "T" * 101 + "\n\nBody.\n")
 
     with pytest.raises(ValueError, match="100"):
@@ -315,7 +333,8 @@ def test_a_thread_title_over_discords_limit_is_refused(tmp_path):
 def test_a_post_of_exactly_the_limit_is_accepted():
     """The abort was only ever exercised from 100 characters past the ceiling,
     so `>` and `>=` were indistinguishable — and so was measuring the body
-    without the generated link block, which the author cannot shorten."""
+    without the generated link block, which the author cannot shorten.
+    """
     filler = "x" * 10
     overhead = len(_render(f"# T\n\n{filler}\n")) - len(filler)
 
@@ -342,8 +361,9 @@ def test_a_missing_mod_name_id_says_so(tmp_path):
 
 
 def test_a_blank_game_version_is_as_wrong_as_a_missing_one(tmp_path):
-    """direnv exporting an empty value is the realistic failure, not an absent
-    key — and the sibling tag check already treats the two alike."""
+    """Direnv exporting an empty value is the realistic failure, not an absent
+    key — and the sibling tag check already treats the two alike.
+    """
     (tmp_path / "discord-post.md").write_text("# T\n\nBody.\n")
 
     with pytest.raises(ValueError, match="CK_GAME_VERSION is not set"):
@@ -361,7 +381,8 @@ def test_spaces_around_the_tag_separator_are_not_part_of_the_tag(tmp_path):
 
 def test_main_puts_the_post_on_stdout_and_everything_else_on_stderr(tmp_path, capsys):
     """The documented contract: `discord_post.py | pbcopy` must copy the post
-    and not the title or the character count."""
+    and not the title or the character count.
+    """
     _run_main(_repo(tmp_path, "# Some Mod\n\nBody.\n"), monkeypatched=_ENV)
 
     out, err = capsys.readouterr()
@@ -379,7 +400,8 @@ def test_main_check_prints_nothing_on_stdout(tmp_path, capsys):
 
 def test_main_reports_a_bad_post_with_the_content_exit_code(tmp_path, capsys):
     """upload.sh waves 3 through and aborts on anything else, so the code is the
-    difference between 'your prose is long' and 'the tooling is broken'."""
+    difference between 'your prose is long' and 'the tooling is broken'.
+    """
     (tmp_path / "discord-post.md").write_text("# Some Mod\n\nBody.\n")
 
     code = _run_main(tmp_path, monkeypatched=dict(_ENV, CK_DISCORD_TAGS="Nope"))
@@ -390,7 +412,8 @@ def test_main_reports_a_bad_post_with_the_content_exit_code(tmp_path, capsys):
 
 def test_prose_under_a_heading_is_still_unwrapped():
     """The heading owns its line; the wrapped lines beneath it are one
-    paragraph and must be joined like any other."""
+    paragraph and must be joined like any other.
+    """
     post = _render("# T\n\n## Requirements\nCoreLib, and\nMod Settings Menu.\n")
 
     assert "## Requirements\nCoreLib, and Mod Settings Menu." in post
@@ -399,7 +422,8 @@ def test_prose_under_a_heading_is_still_unwrapped():
 def test_a_wrapped_list_item_stays_one_item():
     """The source wraps at ~78 columns like modio-description.md, so a long
     bullet spans lines; its continuation belongs to the bullet, not to a
-    paragraph of its own."""
+    paragraph of its own.
+    """
     post = _render("# T\n\n- Craft one box and reuse it\n  indefinitely.\n- Second.\n")
 
     assert "- Craft one box and reuse it indefinitely.\n- Second." in post
@@ -412,7 +436,8 @@ def test_forum_tags_come_from_the_data_file_not_the_code():
     the ck-discord-post skill updates ck-discord-tags.json whenever the live
     channel diverges, and pytest runs as a pre-commit hook, so pinning the
     exact count would make the first legitimate reconciliation a commit the
-    repo's own gate rejects."""
+    repo's own gate rejects.
+    """
     tags = dp.forum_tags()
 
     assert "Misc / Other" in tags
@@ -425,7 +450,8 @@ def test_the_verified_date_is_a_past_iso_date():
     all. A malformed value would silently never match — tolerable — but a
     future date would silently always match, and the list would then go stale
     unnoticed. Neither failure announces itself, so the format is asserted
-    here rather than trusted."""
+    here rather than trusted.
+    """
     import datetime
     import json
     import pathlib
@@ -453,7 +479,8 @@ def _mod_tree(tmp_path, *, media=None, extra_files=()):
 
 def test_the_logo_leads_even_when_no_media_is_configured(tmp_path):
     """Empty is a legitimate statement about a mod with nothing to show --
-    unlike CK_DISCORD_TAGS, where empty is an omission."""
+    unlike CK_DISCORD_TAGS, where empty is an omission.
+    """
     env = _mod_tree(tmp_path, media="")
 
     attachments, follow_ups = dp.resolve_media(tmp_path, env, "ProbeMod")
@@ -464,7 +491,8 @@ def test_the_logo_leads_even_when_no_media_is_configured(tmp_path):
 
 def test_paths_become_attachments_and_urls_become_follow_ups(tmp_path):
     """The value says which kind it is, so one variable keeps the order across
-    both -- a second variable would force the author to classify up front."""
+    both -- a second variable would force the author to classify up front.
+    """
     env = _mod_tree(
         tmp_path,
         media="sources/a.png|https://example.invalid/clip.gif|sources/b.png",
@@ -522,7 +550,8 @@ def test_a_missing_logo_is_refused_because_it_always_leads(tmp_path):
 
 def test_json_mode_emits_everything_the_browser_step_needs(tmp_path, capsys):
     """The skill consumes this. Parsing the human-facing stderr lines instead
-    would break the first time one of them is reworded."""
+    would break the first time one of them is reworded.
+    """
     import json as _json
 
     (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
@@ -549,7 +578,8 @@ def test_attachment_paths_are_absolute_even_from_a_relative_repo_argument(
     """`file_upload`, the browser tool the skill hands these to, requires an
     absolute path -- and so does README.md. Without resolving, a relative
     repo argument (`python3 discord_post.py --json some-mod`) leaked a
-    relative path into the JSON instead."""
+    relative path into the JSON instead.
+    """
     import json as _json
 
     (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
@@ -567,7 +597,7 @@ def test_attachment_paths_are_absolute_even_from_a_relative_repo_argument(
 
 
 def test_json_mode_reports_no_thread_as_null_not_as_an_empty_string(tmp_path, capsys):
-    """null is 'no thread yet, create a post'; the skill branches on it."""
+    """Null is 'no thread yet, create a post'; the skill branches on it."""
     import json as _json
 
     (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
@@ -611,7 +641,8 @@ def test_update_takes_the_topmost_entry_and_nothing_below_it():
 
 def test_update_drops_the_section_headings_but_keeps_the_bullets():
     """'### Changed' is changelog scaffolding; in a chat message it reads as a
-    heading with one line under it."""
+    heading with one line under it.
+    """
     _, comment = dp.render_update(_CHANGELOG, supported=["1.2.1.5"], known=["1.2.1.5"])
 
     assert "### Changed" not in comment
@@ -633,7 +664,8 @@ def test_update_keeps_the_bullets_when_the_heading_has_no_blank_line_after_it():
     their changelogs this way: '### Added' immediately followed by its
     bullets, with no blank line between them. Blocks are split on blank
     lines, so heading and bullets are one block -- and the block-level filter
-    used to drop the whole thing, silently deleting the entry."""
+    used to drop the whole thing, silently deleting the entry.
+    """
     _, comment = dp.render_update(
         _CHANGELOG_TIGHT_HEADING,
         supported=["1.2.1.5"],
@@ -648,7 +680,8 @@ def test_update_keeps_the_bullets_when_the_heading_has_no_blank_line_after_it():
 def test_update_opens_by_naming_the_version():
     """The compatibility line is what the channel's posting rules ask to see
     in the first lines -- so it must actually be there, on its own line, not
-    just anywhere after the version literal `startswith` alone would allow."""
+    just anywhere after the version literal `startswith` alone would allow.
+    """
     _, comment = dp.render_update(_CHANGELOG, supported=["1.2.1.5"], known=["1.2.1.5"])
 
     assert comment.startswith("**Version 1.4.0**")
@@ -691,7 +724,8 @@ def test_update_mode_announces_the_version_rather_than_the_whole_post(tmp_path, 
 def test_update_mode_does_not_repost_the_threads_opening_clips(tmp_path, capsys):
     """auto-rail-bridges' CK_DISCORD_MEDIA names 38 MB GIFs meant to open the
     thread once -- announcing v1.0.2 must not post them again as follow-ups,
-    the same reasoning that already drops the logo from attachments."""
+    the same reasoning that already drops the logo from attachments.
+    """
     import json as _json
 
     (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
@@ -716,7 +750,8 @@ def test_update_mode_does_not_repost_the_threads_opening_clips(tmp_path, capsys)
 def test_update_without_a_thread_says_to_post_one_first(tmp_path):
     """CK_DISCORD_THREAD is scaffolded empty by new_mod.py, so this is the
     default state of every new mod -- --update must not read that as 'create
-    a new post', which is what a null thread otherwise signals."""
+    a new post', which is what a null thread otherwise signals.
+    """
     (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
     (tmp_path / "CHANGELOG.md").write_text(_CHANGELOG)
     logo = tmp_path / "unity" / "ProbeMod" / "Editor" / "logo.png"
@@ -731,7 +766,8 @@ def test_update_without_a_thread_says_to_post_one_first(tmp_path):
 def test_update_mode_diagnostics_do_not_call_the_version_a_thread_title(tmp_path, capsys):
     """The update branch's title field holds 'version 1.4.0', not a thread
     title, and its thread is never 'none yet' -- CK_DISCORD_THREAD is
-    required by then."""
+    required by then.
+    """
     (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
     (tmp_path / "CHANGELOG.md").write_text(_CHANGELOG)
     logo = tmp_path / "unity" / "ProbeMod" / "Editor" / "logo.png"
@@ -768,7 +804,8 @@ def test_update_mode_fails_when_configured_media_is_broken(tmp_path):
     """resolve_media's return value is discarded in update mode -- the
     thread's opening post already carries the attachments -- but the call
     itself must still run, or a broken CK_DISCORD_MEDIA would reach the
-    browser step undetected."""
+    browser step undetected.
+    """
     (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
     (tmp_path / "CHANGELOG.md").write_text(_CHANGELOG)
     logo = tmp_path / "unity" / "ProbeMod" / "Editor" / "logo.png"
@@ -788,7 +825,8 @@ def test_update_mode_fails_when_configured_media_is_broken(tmp_path):
 def test_update_mode_without_a_changelog_says_so(tmp_path):
     """The version comment has nothing else to render from -- upload.sh reads
     CHANGELOG.md for the mod.io release itself, so a missing file is already
-    fatal there, but --update can run on its own outside a publish."""
+    fatal there, but --update can run on its own outside a publish.
+    """
     (tmp_path / "discord-post.md").write_text("# Probe Mod\n\nBody.\n")
     logo = tmp_path / "unity" / "ProbeMod" / "Editor" / "logo.png"
     logo.parent.mkdir(parents=True)

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Deterministic new-mod scaffold generator (see
-docs/specs/2026-06-28-new-mod-scaffold-generator-design.md)."""
+docs/specs/2026-06-28-new-mod-scaffold-generator-design.md).
+"""
 
 import argparse
 import json
@@ -82,7 +83,8 @@ def parse_modio_type(value: str) -> list:
     list: mod.io's tag taxonomy is the authority and CLIPublishHelper reads it
     live for exactly that reason, so a copy here would be one more list that
     goes stale silently. Emptiness is rejected, though — `--modio-type "|"`
-    would otherwise satisfy argparse and only surface as an aborted publish."""
+    would otherwise satisfy argparse and only surface as an aborted publish.
+    """
     values = [part.strip() for part in value.split("|")]
     values = [part for part in values if part]
     if not values:
@@ -110,7 +112,8 @@ def new_guid() -> str:
 
 def next_fake_mod_id(existing_ids) -> int:
     """The next free fake mod.io ID: one below the lowest existing, or the base
-    if none are in use yet."""
+    if none are in use yet.
+    """
     if not existing_ids:
         return _FAKE_MOD_ID_BASE
     return min(existing_ids) - 1
@@ -129,7 +132,8 @@ def build_runtime_asmdef(mod_name: str, dll_names, corelib: bool = False) -> str
     CoreLib at runtime, while this assembly reference is what lets the mod's own
     sources compile against CoreLib types at all (the assembly comes from the
     SDK's `ck.modding.corelib` UPM package, not from `Assets/`). Without it the
-    first `using CoreLib;` fails with CS0246."""
+    first `using CoreLib;` fails with CS0246.
+    """
     references = list(UNITY_REFERENCES)
     if corelib:
         references.append("CoreLib")
@@ -152,7 +156,8 @@ def build_runtime_asmdef(mod_name: str, dll_names, corelib: bool = False) -> str
 def build_editor_asmdef(mod_name: str) -> str:
     """The mod's Editor assembly definition — Editor-only, references the
     runtime assembly plus the SDK editor assemblies, pulls in the modio plugin
-    so the shared CLI*Helper sources compile."""
+    so the shared CLI*Helper sources compile.
+    """
     data = {
         "name": f"{mod_name}.Editor",
         "rootNamespace": f"{mod_name}.Editor",
@@ -175,7 +180,8 @@ def build_editor_asmdef(mod_name: str) -> str:
 
 def _render_dependencies(dependencies) -> str:
     """The `dependencies:` value inside the metadata block — `[]` when empty,
-    otherwise a YAML list of `- modName: X` / `required: N` entries."""
+    otherwise a YAML list of `- modName: X` / `required: N` entries.
+    """
     if not dependencies:
         return "    dependencies: []"
     lines = ["    dependencies:"]
@@ -201,7 +207,8 @@ def build_asset_yaml(
     to default to 3, which is how three published mods ended up needlessly
     blocking joins to unmodded servers, and the default also hid that
     `build_plan` was not passing the value through at all. A missing argument
-    is now a TypeError instead of a silently wrong manifest."""
+    is now a TypeError instead of a silently wrong manifest.
+    """
     return f"""%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
@@ -240,7 +247,8 @@ MonoBehaviour:
 def build_modio_asset_yaml(mod_name: str, modsettings_guid: str, mod_id: int = 0) -> str:
     """The `<Mod>_modio.asset` — holds the mod.io ID and cross-references this
     mod's ModBuilderSettings asset by its (freshly-generated) `.asset.meta`
-    GUID. `modId` is 0 until the first publish assigns the real one."""
+    GUID. `modId` is 0 until the first publish assigns the real one.
+    """
     return f"""%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
@@ -299,7 +307,8 @@ DefaultImporter:
 
 def build_script_meta(guid: str) -> str:
     """Minimal C# script .meta — just the GUID carrier. Unity regenerates the
-    MonoImporter block on import; the existing mods all use this minimal form."""
+    MonoImporter block on import; the existing mods all use this minimal form.
+    """
     return f"fileFormatVersion: 2\nguid: {guid}\n"
 
 
@@ -332,7 +341,8 @@ AssemblyDefinitionImporter:
 def build_texture_meta(guid: str) -> str:
     """PNG .meta — the TextureImporter block (captured from a working mod's
     logo.png.meta), with a fresh GUID. Imports the placeholder as a texture so
-    `_modio.asset`/the build never see a missing asset."""
+    `_modio.asset`/the build never see a missing asset.
+    """
     return f"""fileFormatVersion: 2
 guid: {guid}
 TextureImporter:
@@ -446,7 +456,8 @@ TextureImporter:
 def build_bootstrap_cs(mod_name: str) -> str:
     """The IMod bootstrap. The loader instantiates this on game start and calls
     the lifecycle methods; Harmony patch classes are auto-discovered, so there
-    is no PatchAll() call. The author adds patch + config classes later."""
+    is no PatchAll() call. The author adds patch + config classes later.
+    """
     return f"""using PugMod;
 using UnityEngine;
 
@@ -494,7 +505,8 @@ def build_envrc(mod_name: str, kebab: str, summary: str, fake_mod_id: int, modio
     `CLIPublishHelper` reads `MOD_SUMMARY` and `CK_MODIO_TYPE` from here and
     aborts the publish outright when the latter is missing. The localisation
     pair is left commented out on purpose — unset means "skip localisation",
-    while a set `LOC_YAML` pointing at a term-less YAML fails the build."""
+    while a set `LOC_YAML` pointing at a term-less YAML fails the build.
+    """
     return f"""#!/usr/bin/env bash
 # {mod_name} — environment variables.
 #
@@ -589,7 +601,8 @@ export LOC_OUT="$PWD/unity/$MOD_NAME/Localization/Generated"
 def build_gitignore(mod_name: str) -> str:
     """The mod's .gitignore. The Editor-helper sources are symlinked in by
     link.sh and their .meta are Unity-generated; neither belongs in the repo,
-    so they are ignored by their mod-name-specific paths."""
+    so they are ignored by their mod-name-specific paths.
+    """
     return f"""# macOS
 .DS_Store
 
@@ -648,7 +661,8 @@ def build_steam_description(display_name: str, summary: str) -> str:
     **BBCode**, not Markdown, so a shared source would either ship literal `##`
     and `**` on the Steam page or force modio-description.md itself into BBCode,
     which mod.io does not render. Two small files in two dialects cost less than
-    one file that is wrong on one of the two platforms."""
+    one file that is wrong on one of the two platforms.
+    """
     return f"""[b]{display_name}[/b]
 
 {summary}
@@ -662,7 +676,8 @@ def build_steam_description(display_name: str, summary: str) -> str:
 
 def build_changelog() -> str:
     """A starter CHANGELOG. The publish helper reads the top `## [x.y.z]` as the
-    version, so a new mod starts at 0.1.0."""
+    version, so a new mod starts at 0.1.0.
+    """
     return """# Changelog
 
 All notable changes to this mod are documented here.
@@ -703,7 +718,8 @@ def build_csharpierrc() -> str:
     """The formatting-gate CSharpier config. `printWidth` is deliberately 160,
     not CSharpier's default of 100 — matches every existing mod repo (see the
     parent CLAUDE.md's Formatting gate section). Identical across mods, so
-    unparameterized."""
+    unparameterized.
+    """
     return """{
     "printWidth": 160
 }
@@ -724,7 +740,8 @@ def build_csharpierignore() -> str:
 
     The `.worktrees/` entry is the content this file would have had anyway --
     sibling worktrees carry their own copies of the sources and their own hook.
-    Its presence is the load-bearing part."""
+    Its presence is the load-bearing part.
+    """
     return """# Required, not optional: CSharpier's ignore-file search walks up past this
 # repo into core_keeper/, whose .csharpierignore is an allowlist for utils/
 # only. Without this file every source here falls outside that allowlist and
@@ -754,7 +771,8 @@ def build_precommit_config() -> str:
     parent only when the repo sits directly under it, which it does not in the
     worktree the project requires all work to happen in. The hooks could not
     start there at all, so for a second time these gates were absent from
-    exactly the path a defect would be introduced on."""
+    exactly the path a defect would be introduced on.
+    """
     return """repos:
     - repo: local
       hooks:
@@ -805,7 +823,8 @@ def build_dotnet_tools_json() -> str:
     """The pinned CSharpier tool manifest. Lives under `.config/`, not the
     repo root — `dotnet new tool-manifest` writes it to the root under .NET
     10, but the convention here is to move it; `dotnet tool restore` accepts
-    either location."""
+    either location.
+    """
     return """{
   "version": 1,
   "isRoot": true,
@@ -836,7 +855,8 @@ def _png_chunk(tag: bytes, data: bytes) -> bytes:
 
 def placeholder_png_bytes(size: int = 64) -> bytes:
     """A real, valid solid-colour RGBA PNG to stand in until a real logo is
-    dropped in. Built from stdlib (zlib) — no image library dependency."""
+    dropped in. Built from stdlib (zlib) — no image library dependency.
+    """
     pixel = bytes((40, 40, 40, 255))
     raw = b"".join(b"\x00" + pixel * size for _ in range(size))  # filter byte 0 per row
     ihdr = struct.pack(">IIBBBBB", size, size, 8, 6, 0, 0, 0)  # 8-bit RGBA
@@ -855,7 +875,8 @@ def scan_dlls(sdk_path) -> list:
     """The game/SDK DLL basenames for the runtime asmdef's precompiled
     references. Scans `Assets/Plugins/CoreKeeper` and `…/CoreKeeperModSDK`
     recursively — exactly the dirs the wizard scans — so the set stays current
-    across game updates. Returns sorted, de-duplicated basenames."""
+    across game updates. Returns sorted, de-duplicated basenames.
+    """
     sdk = pathlib.Path(sdk_path)
     roots = [
         sdk / "Assets" / "Plugins" / "CoreKeeper",
@@ -886,7 +907,8 @@ def build_plan(
     """Assemble the complete (relpath, content) plan for a new mod. Content is
     str for text files and bytes for the PNG. All GUIDs are minted here so the
     one cross-reference — the modio asset pointing at the .asset.meta GUID —
-    stays internally consistent."""
+    stays internally consistent.
+    """
     mod_name = name or derive_pascal(kebab)
     display = display_name or derive_title(kebab)
     dependencies = [("CoreLib", 1)] if corelib else None
@@ -960,7 +982,8 @@ def build_plan(
 
 def write_plan(plan, dest_dir) -> None:
     """Write a build_plan() result under *dest_dir*, creating parent dirs.
-    str content is written as UTF-8 text, bytes content as binary."""
+    str content is written as UTF-8 text, bytes content as binary.
+    """
     dest = pathlib.Path(dest_dir)
     for relpath, content in plan:
         target = dest / relpath
@@ -1019,7 +1042,8 @@ def resolve_mods_dir():
 
 def resolve_sdk_path(mods_dir, environ):
     """SDK_PATH from the environment, falling back to parsing the parent
-    core_keeper/.envrc. Returns None if neither yields it."""
+    core_keeper/.envrc. Returns None if neither yields it.
+    """
     if environ.get("SDK_PATH"):
         return environ["SDK_PATH"]
     envrc = pathlib.Path(mods_dir) / ".envrc"
@@ -1062,7 +1086,8 @@ def scaffold(
     """Top-level orchestration: validate, derive identity, scan DLLs, allocate
     the fake mod.io ID, build the file plan, and (unless dry_run) write it +
     git-init + link into the SDK. Returns a result dict for the caller to
-    report. Raises FileExistsError if the target already exists."""
+    report. Raises FileExistsError if the target already exists.
+    """
     validate_kebab(kebab)
     modio_types = parse_modio_type(modio_type)
     mod_name = name or derive_pascal(kebab)

@@ -4,11 +4,9 @@ import json
 import pathlib
 import re as _re
 
-import pytest
-
 import new_mod as nm
+import pytest
 import steam_identity
-
 
 # --- identity derivation (the three-level naming convention) ----------------
 
@@ -744,7 +742,8 @@ def test_envrc_reserves_the_discord_forum_tags_empty():
 def test_envrc_scaffolds_the_discord_thread_and_media_variables():
     """Both are empty on purpose and mean different things when empty: no
     thread yet, and nothing to show beyond the logo. A generated repo that
-    lacks them makes discord_post.py look broken for a new mod."""
+    lacks them makes discord_post.py look broken for a new mod.
+    """
     text = _envrc()
 
     assert 'export CK_DISCORD_THREAD=""' in text

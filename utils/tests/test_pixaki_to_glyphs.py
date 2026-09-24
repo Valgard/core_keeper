@@ -8,8 +8,10 @@ import warnings
 
 import pixaki_to_glyphs as g
 import pytest
+from conftest import PIXAKI_DIRECTORIES
+from conftest import PIXAKI_FORMS
+from conftest import write_pixaki
 from PIL import Image
-from conftest import PIXAKI_DIRECTORIES, PIXAKI_FORMS, write_pixaki
 
 MAGENTA = (229, 59, 223, 255)
 WHITE = (255, 255, 255, 255)
@@ -88,7 +90,8 @@ def test_load_layers_reads_a_directory_package_exactly_like_a_zip(tmp_path):
     when it was pulled straight out of iCloud (docs/pixaki-format.md). Reading
     both is not the claim; producing the same pixels is, because everything
     downstream -- widths, the kerning matrix, the shipped atlas compared by
-    byte-identity -- is derived from exactly these two images."""
+    byte-identity -- is derived from exactly these two images.
+    """
     layers = {
         "Rects": Image.new("RGBA", (1, 1), MAGENTA),
         "Atlas": Image.new("RGBA", (1, 1), WHITE),
@@ -121,7 +124,8 @@ def test_load_layers_closes_every_handle_it_opens_on_a_directory_package(tmp_pat
     stream it was handed, so three per run were left to the garbage collector.
 
     Invisible today only because the repo sets no `filterwarnings`; the day
-    someone adds `= error` it would break exactly one packaging."""
+    someone adds `= error` it would break exactly one packaging.
+    """
     layers = {
         "Rects": Image.new("RGBA", (1, 1), MAGENTA),
         "Atlas": Image.new("RGBA", (1, 1), WHITE),

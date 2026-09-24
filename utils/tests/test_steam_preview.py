@@ -18,7 +18,8 @@ def _flat_logo(tmp_path, side=1024):
     """A stand-in logo with nothing for a size assertion to trip over: a single
     solid colour, which PNG compresses to a few hundred bytes at any
     resolution. Only fit for a test that needs a *valid small image*, not a
-    hard-to-compress one -- see `_incompressible_logo` for that."""
+    hard-to-compress one -- see `_incompressible_logo` for that.
+    """
     img = Image.new("RGBA", (side, side), (10, 80, 90, 255))
     path = tmp_path / "logo.png"
     img.save(path)
@@ -79,7 +80,8 @@ def test_the_limit_is_the_decimal_megabyte_not_the_binary_one(tmp_path):
     fixture is sized to fall between the two, so accepting it at full resolution
     is the binary reading and stepping down is the decimal one -- and only the
     decimal one is safe, because the cost of guessing wrong is paid after the
-    Workshop item has already been created."""
+    Workshop item has already been created.
+    """
     src = _band_logo(tmp_path)
     dest = tmp_path / "preview.png"
 
@@ -94,7 +96,8 @@ def test_the_ladder_yields_the_largest_rung_that_fits(tmp_path):
     thing enforcing that is LADDER descending. Reversing it still returns
     something that fits -- the smallest rung fits trivially -- so a test that
     only asserts "fits" cannot see the difference. This one names the rung above
-    the chosen one and shows it does not fit, which is what "largest" means."""
+    the chosen one and shows it does not fit, which is what "largest" means.
+    """
     src = _incompressible_logo(tmp_path)
     dest = tmp_path / "preview.png"
 
@@ -127,7 +130,8 @@ def test_it_steps_down_until_the_result_fits(tmp_path):
     """1024² lossless is 3,658,908 bytes for this fixture (measured) -- well
     over the default limit under either reading of "1 MB" -- so the default can
     only be met after the ladder has actually come down in resolution, not by
-    accepting the first candidate tried."""
+    accepting the first candidate tried.
+    """
     src = _incompressible_logo(tmp_path)
     dest = tmp_path / "preview.png"
 
@@ -158,7 +162,8 @@ def test_quantisation_is_the_last_resort_not_the_first(tmp_path):
     also clear this limit, at four times the pixel count of the 256² lossless
     result. The only way lossless still wins is that the lossless loop runs
     through the whole ladder before the quantised loop is even entered, which
-    is exactly the preference this test exists to prove."""
+    is exactly the preference this test exists to prove.
+    """
     src = _incompressible_logo(tmp_path)
     dest = tmp_path / "preview.png"
 
@@ -173,7 +178,8 @@ def test_the_quantised_path_can_succeed(tmp_path):
     180,054 bytes (measured) -- but quantised 256² is 45,429 bytes. This is the
     one test in the suite that takes a *successful* return out of the
     quantised branch; the impossible-limit test below only ever watches it
-    fail on every rung."""
+    fail on every rung.
+    """
     src = _incompressible_logo(tmp_path)
     dest = tmp_path / "preview.png"
 

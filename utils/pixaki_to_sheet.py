@@ -14,13 +14,14 @@ Usage:
 existing meta as its own header/tail template.
 """
 
-import json
-import io
-import hashlib
 import argparse
 import copy
+import hashlib
+import io
+import json
 import os
 from dataclasses import dataclass
+
 from PIL import Image
 from pixaki_container import open_pixaki
 
@@ -41,7 +42,8 @@ def load_config(pixaki_path):
     """Load the sibling <name>.json sprite-def config for a .pixaki file.
 
     Missing keys fall back to _CONFIG_DEFAULTS; a missing .json raises
-    FileNotFoundError."""
+    FileNotFoundError.
+    """
     # normpath first: a directory package is likely typed with the trailing
     # slash shell completion appends, and splitext sees no extension on
     # '<name>.pixaki/' -- which sent this lookup INSIDE the package while the
@@ -79,7 +81,8 @@ class Layer:
 
 def collect_layers(doc, exclude_top):
     """Return the visible, named, drawing-bearing layers, skipping the
-    excluded top-level groups and any hidden layer."""
+    excluded top-level groups and any hidden layer.
+    """
     sp = doc["sprites"][0]
     cel_size = {c["identifier"]: tuple(c["frame"][1]) for c in sp.get("cels", []) if c.get("frame")}
     out = []
@@ -112,7 +115,8 @@ def load_pixaki(path):
     """Return (document.json dict, {drawing_uuid: RGBA Image}).
 
     Reads a .pixaki in either packaging -- the exported ZIP or the native
-    directory package; see pixaki_container."""
+    directory package; see pixaki_container.
+    """
     with open_pixaki(path) as z:
         doc = json.loads(z.read("document.json"))
         drawings = {}
@@ -148,7 +152,8 @@ def normalize(layer, drawings):
 
     Public because `pixaki_inspect` reports on the same images this packs, and
     a second implementation of the anchoring is exactly the kind of duplicate
-    that drifts without anyone noticing."""
+    that drifts without anyone noticing.
+    """
     src = drawings[layer.drawing_id]
     if src.size == (layer.w, layer.h):
         return src
@@ -175,7 +180,8 @@ def dedup(layers, drawings):
 
 def assign_names(items):
     """items: list of (key, img_or_None, w, h, base_name).
-    Returns {key: final_name}; appends ' WxH' when a base name repeats."""
+    Returns {key: final_name}; appends ' WxH' when a base name repeats.
+    """
     from collections import Counter
 
     base_counts = Counter(base for (_, _, _, _, base) in items)
@@ -189,7 +195,8 @@ def internal_id(name, pins=None):
     """Stable signed-32-bit int from the final sprite name.
 
     If pins is provided and contains name, return pins[name].
-    Otherwise, return SHA1(name) as a signed 32-bit int."""
+    Otherwise, return SHA1(name) as a signed 32-bit int.
+    """
     if pins and name in pins:
         return pins[name]
     digest = hashlib.sha1(name.encode("utf-8")).digest()
@@ -205,7 +212,8 @@ def _validate_pins(pins, placed_named):
         falls back to its hash id, so the pin never takes effect;
       * two sprites resolving to the same internalID (a copy-paste collision, or
         a pin clashing with another name's hash) — an ambiguous Unity fileID that
-        mis-resolves prefab sprite references."""
+        mis-resolves prefab sprite references.
+    """
     final_names = {s["name"] for s in placed_named}
     unused = sorted(k for k in pins if k not in final_names)
     if unused:
@@ -226,7 +234,8 @@ def _validate_pins(pins, placed_named):
 
 def pack(sprites, sheet_w=128, gutter=2):
     """sprites: list of (key, img_or_None, w, h) in the caller's deterministic order.
-    Returns (placements: list of (key, x, y_bottomleft, w, h), sheet_w, sheet_h)."""
+    Returns (placements: list of (key, x, y_bottomleft, w, h), sheet_w, sheet_h).
+    """
     cur_x, row_h, top = gutter, 0, gutter
     placed_top = []  # (key, x, top, w, h)
     for key, _img, w, h in sprites:
@@ -243,7 +252,8 @@ def pack(sprites, sheet_w=128, gutter=2):
 
 def _pad(img, target_w, target_h, anchor):
     """Return img on a transparent target_w x target_h canvas. anchor is
-    'bottom' (centred x, bottom y), a (left, top) offset tuple, or top-left."""
+    'bottom' (centred x, bottom y), a (left, top) offset tuple, or top-left.
+    """
     canvas = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
     if anchor == "bottom":
         canvas.alpha_composite(img, ((target_w - img.width) // 2, target_h - img.height))
@@ -299,7 +309,8 @@ def _sprite_block(s):
 def render_meta(template_meta_path, new_guid, placements_named):
     """Reuse the template header/tail verbatim; replace guid + the whole
     spriteSheet block. placements_named: list of dict(name, internal_id, x, y,
-    w, h, border)."""
+    w, h, border).
+    """
     import re
 
     with open(template_meta_path) as f:
@@ -338,7 +349,8 @@ def render_meta(template_meta_path, new_guid, placements_named):
 def build_sheet(pixaki_path, out_png, template_meta=None, guid=None):
     """Build the sheet PNG + .meta. Returns (mapping name->internalID, guid).
     guid: force the sheet GUID (so prefab refs stay valid); else derive from path.
-    template_meta: defaults to out_png + '.meta'."""
+    template_meta: defaults to out_png + '.meta'.
+    """
     cfg = load_config(pixaki_path)
     template_meta = template_meta or (out_png + ".meta")
     doc, drawings = load_pixaki(pixaki_path)

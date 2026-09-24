@@ -825,7 +825,7 @@ def _persist(plan: ModPlan, bundle: dict, result_file: Path) -> bool:
             mod_owner=result.get("modOwner") or None,
             tags=bundle["tags"],
         )
-    except Exception as err:  # noqa: BLE001 — the id must not be lost silently
+    except Exception as err:
         print(
             f"  ! Workshop item {result['fileId']} is live, but its id could not be "
             f"saved to {asset}: {err}",

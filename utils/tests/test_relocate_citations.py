@@ -12,7 +12,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from relocate_citations import find_sequence, relocate, rewrite_chapter
+from relocate_citations import find_sequence
+from relocate_citations import relocate
+from relocate_citations import rewrite_chapter
 
 
 class TestFindSequence:

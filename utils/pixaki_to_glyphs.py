@@ -112,7 +112,8 @@ def _bbox(img, index, predicate):
 def _is_rects_colour(rgba):
     """A loose per-channel threshold for the Rects layer's magenta (Pixaki
     paints it RGB 229, 59, 223) -- not an exact match, to tolerate
-    anti-aliased edges."""
+    anti-aliased edges.
+    """
     r, g, b, a = rgba
     return a > 0 and r > 140 and b > 140 and g < 130
 

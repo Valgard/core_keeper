@@ -11,7 +11,9 @@ import json
 import os
 
 import pytest
-from conftest import PIXAKI_DIRECTORIES, PIXAKI_FORMS, write_pixaki
+from conftest import PIXAKI_DIRECTORIES
+from conftest import PIXAKI_FORMS
+from conftest import write_pixaki
 from pixaki_container import open_pixaki
 
 PAYLOAD = {
@@ -29,7 +31,8 @@ def packaging(request):
 @pytest.fixture
 def container(packaging, tmp_path):
     """The same payload, once per packaging -- with the directory members a
-    real export carries, so the two forms differ here the way they really do."""
+    real export carries, so the two forms differ here the way they really do.
+    """
     return write_pixaki(
         tmp_path / f"m-{packaging}.pixaki",
         PAYLOAD,
@@ -45,7 +48,8 @@ def test_namelist_lists_every_file_and_only_an_archive_its_directories(container
     because the fixture stored no directory members at all -- it quietly
     encoded an unrealistic archive and claimed a symmetry pixaki_container's
     own docstring denies. Pinning the difference makes it deliberate: the
-    readers must cope with entries a package can never produce."""
+    readers must cope with entries a package can never produce.
+    """
     with open_pixaki(container) as c:
         names = sorted(c.namelist())
     if packaging == "zip":
@@ -57,7 +61,8 @@ def test_namelist_lists_every_file_and_only_an_archive_its_directories(container
 def test_a_missing_member_raises_each_backend_s_own_error(container, packaging):
     """The forms deliberately do not agree here either. Pinning it keeps the
     difference intentional rather than incidental: a later `except KeyError`
-    would run green against every archive and fall over on the first package."""
+    would run green against every archive and fall over on the first package.
+    """
     with open_pixaki(container) as c:
         with pytest.raises(KeyError if packaging == "zip" else FileNotFoundError):
             c.read("images/drawings/nope.png")
@@ -72,7 +77,8 @@ def test_a_member_name_cannot_read_outside_the_package(container, packaging):
 
     The name is not always the tool's own, either: pixaki_to_glyphs builds it
     from a cel identifier inside document.json, i.e. out of the very file being
-    read."""
+    read.
+    """
     (container.parent / "outside.txt").write_bytes(b"not part of the package")
     with open_pixaki(container) as c:
         with pytest.raises(KeyError if packaging == "zip" else ValueError):
@@ -84,7 +90,8 @@ def test_open_pixaki_fails_loudly_on_a_path_that_does_not_exist(tmp_path):
     harmless rewrite of `if os.path.isdir(path)` and passes the whole suite --
     but under it a mistyped path becomes an EMPTY container (os.walk on a
     missing root yields nothing at all), and the failure then surfaces later,
-    somewhere else, and says less."""
+    somewhere else, and says less.
+    """
     with pytest.raises(FileNotFoundError):
         open_pixaki(tmp_path / "nope.pixaki")
 
@@ -121,14 +128,14 @@ def test_namelist_raises_rather_than_dropping_an_unreadable_subtree(tmp_path):
     much later on a bare `KeyError: '<uuid>'` that names neither a file nor a
     cause. A ZIP cannot fail this way -- either the constructor throws or the
     listing is complete -- so the backend has to raise here to keep the
-    docstring's "every FILE below the root" true."""
+    docstring's "every FILE below the root" true.
+    """
     package = write_pixaki(tmp_path / "m.pixaki", PAYLOAD, "directory")
     unreadable = package / "images" / "drawings"
     os.chmod(unreadable, 0o000)
     try:
-        with open_pixaki(package) as container:
-            with pytest.raises(PermissionError):
-                container.namelist()
+        with open_pixaki(package) as container, pytest.raises(PermissionError):
+            container.namelist()
     finally:
         os.chmod(unreadable, 0o755)  # else tmp_path cleanup fails
 

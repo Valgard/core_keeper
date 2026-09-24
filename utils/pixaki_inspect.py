@@ -33,7 +33,9 @@ import string
 import sys
 from collections import Counter
 
-from pixaki_to_sheet import collect_layers, load_pixaki, normalize
+from pixaki_to_sheet import collect_layers
+from pixaki_to_sheet import load_pixaki
+from pixaki_to_sheet import normalize
 
 # One character per distinct colour, most frequent first, so the dominant shape
 # reads as 'A' without consulting the legend. Digits extend the alphabet far
@@ -82,7 +84,8 @@ def ink_bounds(img):
 
     Deliberately not `Image.getbbox()`: that one treats any non-zero channel as
     ink, so a fully transparent pixel carrying leftover RGB would widen the box
-    -- the very case `palette_of` excludes."""
+    -- the very case `palette_of` excludes.
+    """
     px = img.load()
     drawn = [(x, y) for y in range(img.height) for x in range(img.width) if px[x, y][3] != 0]
     if not drawn:
@@ -150,7 +153,8 @@ def report(path, want=None, names_only=False):
 
     `want` limits the output to one layer by name; an unmatched name is an
     error naming what is there, since a silent empty report reads exactly like
-    a layer that is empty."""
+    a layer that is empty.
+    """
     doc, drawings = load_pixaki(path)
     # No excludes: the sheet generator drops top-level groups a mod's sprite
     # config names, but an inspection that hid layers would answer a question

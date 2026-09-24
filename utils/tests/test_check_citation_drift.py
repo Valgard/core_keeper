@@ -16,9 +16,8 @@ regex change could have introduced.
 
 import json
 
-import pytest
-
 import check_citation_drift as mod
+import pytest
 
 
 def test_extracts_a_single_line_citation():

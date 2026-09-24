@@ -229,7 +229,8 @@ class TestHandbookComplete:
 class TestMarkdownFiles:
     """A tracked file missing from the working tree used to raise
     FileNotFoundError — which is the state of every deleted .md at the moment
-    the commit hook runs."""
+    the commit hook runs.
+    """
 
     def test_separates_present_from_missing(self, tmp_path):
         repo = git_repo(tmp_path)
@@ -261,7 +262,8 @@ class TestMarkdownFiles:
 
 class TestMain:
     """main() and its exit code are what the pre-commit hook actually reads
-    — a gate that finds a defect and exits 0 does not block anything."""
+    — a gate that finds a defect and exits 0 does not block anything.
+    """
 
     def test_exits_zero_on_a_clean_repo(self, tmp_path, capsys):
         repo = git_repo(tmp_path)

@@ -33,7 +33,7 @@ GUID_LINE = re.compile(r"^guid: ([a-f0-9]{32})$", re.M)
 
 
 def current():
-    """dll filename ('X.dll') -> current guid, for every *.dll.meta in the plugins dir."""
+    """Dll filename ('X.dll') -> current guid, for every *.dll.meta in the plugins dir."""
     out = {}
     if not os.path.isdir(PLUGINS):
         print(f"SDK plugins dir not found: {PLUGINS}")

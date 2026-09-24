@@ -12,7 +12,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from check_citation_style import BARE, TILDE_AFTER_ASSEMBLY, problems_in  # noqa: E402
+from check_citation_style import BARE
+from check_citation_style import TILDE_AFTER_ASSEMBLY
+from check_citation_style import problems_in
 
 
 def flagged(text):

@@ -65,7 +65,7 @@ def build_assembly_map():
 
 
 def index_meta():
-    """guid -> asset file path, from every .meta under the Resources export."""
+    """Guid -> asset file path, from every .meta under the Resources export."""
     idx = {}
     for root, _, files in os.walk(RES):
         for f in files:

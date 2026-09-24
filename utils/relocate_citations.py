@@ -35,13 +35,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from check_citation_drift import (
-    ASSET_EXTENSIONS,
-    CITATION,
-    DEFAULT_DECOMPILE,
-    DEFAULT_SNAPSHOT,
-    key_of,
-)
+from check_citation_drift import ASSET_EXTENSIONS
+from check_citation_drift import CITATION
+from check_citation_drift import DEFAULT_DECOMPILE
+from check_citation_drift import DEFAULT_SNAPSHOT
+from check_citation_drift import key_of
 
 
 def source_for(assembly, decompile):

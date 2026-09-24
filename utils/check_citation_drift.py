@@ -72,7 +72,8 @@ SOURCE_CLONES = ("CoreLib-source-*",)
 
 def _stripped_lines(path, first, last):
     """Read lines first..last from path, stripped — the shared tail of every
-    resolution path below, once each has found which file to read."""
+    resolution path below, once each has found which file to read.
+    """
     lines = path.read_text(errors="replace").splitlines()
     return [line.strip() for line in lines[first - 1 : last]]
 

@@ -3,11 +3,12 @@
 import io
 import json
 
-import pytest
-from PIL import Image
-
-from conftest import PIXAKI_DIRECTORIES, PIXAKI_FORMS, write_pixaki
 import pixaki_inspect as p
+import pytest
+from conftest import PIXAKI_DIRECTORIES
+from conftest import PIXAKI_FORMS
+from conftest import write_pixaki
+from PIL import Image
 
 
 def _img(pixels_rgba, w, h):

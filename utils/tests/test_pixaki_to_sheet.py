@@ -3,9 +3,10 @@
 import hashlib
 import os
 
-from PIL import Image
-from conftest import PIXAKI_DIRECTORIES, write_pixaki
 import pixaki_to_sheet as p
+from conftest import PIXAKI_DIRECTORIES
+from conftest import write_pixaki
+from PIL import Image
 
 EXCLUDE_TOP = {"Outsorted", "Background", "Search Field Complete", "Dropdown Complete"}
 
@@ -99,8 +100,8 @@ def test_pack_places_without_overlap_and_bottom_left_rects():
     sprites = [("a", None, 8, 8), ("b", None, 6, 6), ("c", None, 4, 8)]
     placements, sheet_w, sheet_h = p.pack(sprites, sheet_w=20, gutter=2)
     for key, x, y, w, h in placements:
-        assert 0 <= x and x + w <= sheet_w
-        assert 0 <= y and y + h <= sheet_h
+        assert x >= 0 and x + w <= sheet_w
+        assert y >= 0 and y + h <= sheet_h
     # unique positions, all three placed
     assert len({(x, y) for (_, x, y, _, _) in placements}) == 3
 
@@ -182,7 +183,8 @@ def test_load_config_normalizes_and_defaults(tmp_path):
 
 def test_build_sheet_in_place_template_not_truncated(tmp_path):
     """Regression: in-place regen defaults --meta-template to <out>.meta; the
-    template must be READ before the output .meta is opened-for-write (truncated)."""
+    template must be READ before the output .meta is opened-for-write (truncated).
+    """
     pixaki = _write_sprite_pixaki(tmp_path, "{}", count=1)
     out = tmp_path / "s.png"
     (tmp_path / "s.png.meta").write_text(_TEMPLATE_META)
@@ -217,8 +219,10 @@ def _write_sprite_pixaki(tmp_path, cfg_json, form="zip", count=2):
     `form` selects the packaging (see conftest.write_pixaki) and defaults to the
     ZIP that Pixaki's Export produces. It also carries the directory members a
     real export stores, so the archive hands load_pixaki the one member shape
-    only an archive has and its '.png' filter is actually exercised."""
-    import json, io
+    only an archive has and its '.png' filter is actually exercised.
+    """
+    import io
+    import json
 
     names = [f"Icon{i + 1}" if i else "Icon" for i in range(count)]
     doc = {
@@ -250,7 +254,8 @@ def _write_sprite_pixaki(tmp_path, cfg_json, form="zip", count=2):
 
 def test_validate_pins_rejects_collision(tmp_path):
     """Two sprites pinned to the SAME internalID would emit an ambiguous Unity
-    fileID; the build must fail loud (before writing) rather than ship it."""
+    fileID; the build must fail loud (before writing) rather than ship it.
+    """
     import pytest
 
     pixaki = _write_sprite_pixaki(tmp_path, '{"internalIds":{"Icon":5,"Icon2":5}}')
@@ -266,7 +271,8 @@ def test_build_sheet_reads_a_directory_package_exactly_like_a_zip(tmp_path):
     when it was pulled straight out of iCloud (docs/pixaki-format.md). "It
     reads at all" would be far too weak a check here: build_sheet is
     deterministic -- stable internalIDs, packing, dedup -- so anything the
-    container form perturbed would surface as a differing byte."""
+    container form perturbed would surface as a differing byte.
+    """
 
     # Two named calls rather than a loop over PIXAKI_FORMS: the loop looked
     # generic while the unpacking below names the two forms outright, so a third
@@ -309,7 +315,8 @@ def test_build_sheet_accepts_a_directory_package_with_a_trailing_slash(tmp_path)
     lookup pointing INSIDE the package, at '…/s.pixaki/.json' -- while the
     error said "next to the .pixaki". The line is untouched by the adapter and
     was correct as long as it was unreachable: a directory path used to die one
-    level earlier on IsADirectoryError."""
+    level earlier on IsADirectoryError.
+    """
     pixaki = _write_sprite_pixaki(tmp_path, "{}", form="directory")
     (tmp_path / "s.png.meta").write_text(_TEMPLATE_META)
     mapping, _ = p.build_sheet(f"{pixaki}/", str(tmp_path / "s.png"))
@@ -321,7 +328,8 @@ def test_build_sheet_closes_the_meta_template_it_reads(tmp_path):
     read the template with a bare open().read(), leaving the handle to the
     garbage collector. Worth closing here rather than later, because the
     leftover warnings would otherwise make the container-side fix look
-    incomplete."""
+    incomplete.
+    """
     import gc
     import warnings
 
@@ -341,7 +349,8 @@ def test_load_pixaki_names_an_icloud_placeholder_instead_of_dying_on_a_uuid(tmp_
     drawing dropped out of the dict without a word and the run died later on
     `KeyError: '<cel uuid>'` -- no filename, no cause, and the actual remedy is
     one click in the Finder. Exactly the route docs/pixaki-format.md names as
-    where directory packages come from."""
+    where directory packages come from.
+    """
     import pytest
 
     pixaki = _write_sprite_pixaki(tmp_path, "{}", form="directory")
@@ -355,7 +364,8 @@ def test_load_pixaki_ignores_an_appledouble_sidecar(tmp_path):
     """'._D1.png' is macOS metadata, not a drawing, and it slips through the
     '.png' filter. Newly reachable because a package's listing is whatever sits
     on disk rather than whatever Pixaki wrote -- complete-tiny-font/sources
-    already carries a .DS_Store."""
+    already carries a .DS_Store.
+    """
     pixaki = _write_sprite_pixaki(tmp_path, "{}", form="directory")
     (pixaki / "images" / "drawings" / "._D1.png").write_bytes(b"\x00\x05\x16\x07junk")
     _, drawings = p.load_pixaki(str(pixaki))
@@ -366,7 +376,8 @@ def test_load_pixaki_names_the_member_it_cannot_decode(tmp_path):
     """PIL reports 'cannot identify image file <_io.BytesIO object at 0x...>'
     -- the bytes went through BytesIO, so nothing in the message says which
     member. Every drawing is decoded eagerly, referenced by document.json or
-    not, so one unreadable leftover takes the whole run down."""
+    not, so one unreadable leftover takes the whole run down.
+    """
     import pytest
 
     pixaki = _write_sprite_pixaki(tmp_path, "{}", form="directory")
@@ -377,7 +388,8 @@ def test_load_pixaki_names_the_member_it_cannot_decode(tmp_path):
 
 def test_validate_pins_rejects_unused_pin(tmp_path):
     """A pin key that matches no produced sprite (a typo) silently no-ops the
-    pin; the build must fail loud so the typo can't ship a hash-id sprite."""
+    pin; the build must fail loud so the typo can't ship a hash-id sprite.
+    """
     import pytest
 
     pixaki = _write_sprite_pixaki(tmp_path, '{"internalIds":{"Iconnn":5}}')

@@ -30,8 +30,8 @@ Usage:
 import os
 import re
 import subprocess
-import textwrap
 import sys
+import textwrap
 from pathlib import Path
 
 FENCE = re.compile(r"^\s*(```|~~~)")

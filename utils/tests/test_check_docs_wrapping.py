@@ -338,7 +338,8 @@ class TestListItems:
 
 class TestVisibleWidth:
     """A link is far longer in source than on screen, and an editor that keeps
-    the source line breaks renders the paragraph ragged because of it."""
+    the source line breaks renders the paragraph ragged because of it.
+    """
 
     def test_a_link_counts_as_its_text(self):
         assert mod.visible_len("[multiplayer and server](multiplayer-and-server.md)") == 22
@@ -424,7 +425,8 @@ class TestMarkdownFiles:
     Both hooks are configured pass_filenames: false, which makes this the
     only path production ever takes — worth covering beyond the bare
     minimum, and this script's own FROZEN exclusion has no sibling
-    equivalent to borrow coverage from."""
+    equivalent to borrow coverage from.
+    """
 
     def test_strips_inherited_git_env_so_dash_c_is_honoured(self, tmp_path, monkeypatch):
         # a hook runs with GIT_DIR/GIT_INDEX_FILE set, and those outrank -C;
@@ -500,7 +502,8 @@ class TestMarkdownFiles:
 
 class TestMain:
     """main() and its exit code are what the pre-commit hook actually reads
-    — a gate that finds a defect and exits 0 does not block anything."""
+    — a gate that finds a defect and exits 0 does not block anything.
+    """
 
     def test_exits_zero_on_a_clean_file(self, tmp_path, capsys):
         p = write(tmp_path, "a.md", "# T\n\nA short tidy paragraph that needs no help.\n")

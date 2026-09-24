@@ -26,6 +26,7 @@ import os
 import re
 import struct
 import sys
+
 import yaml
 
 CLASS = {  # the handful of Unity class IDs this project authors
@@ -90,7 +91,8 @@ def _md4(msg):
 
 def fileid(name, namespace=""):
     """Unity script fileID: signed int32 of the first 4 bytes of
-    MD4("s\\0\\0\\0" + namespace + className)."""
+    MD4("s\\0\\0\\0" + namespace + className).
+    """
     data = b"s\x00\x00\x00" + (namespace + name).encode("utf-8")
     return struct.unpack("<i", _md4(data)[:4])[0]
 
@@ -124,7 +126,8 @@ def parse_decompile(decomp_dir):
     the current namespace via brace depth; baseToken is the class's first base
     (base class or interface) or None. Same-named classes in different namespaces
     are kept as SEPARATE entries — not deduplicated — so build_script_ids emits
-    each one's fileID and the collision guard sees every declaration."""
+    each one's fileID and the collision guard sees every declaration.
+    """
     decls = []
     for path in sorted(glob.glob(os.path.join(decomp_dir, "*.decompiled.cs"))):
         stack, depth, pending = [], 0, None
@@ -154,7 +157,8 @@ def build_script_ids(decls):
     classes among decls (a list of (namespace, name, base)). Each class is
     classified by ITS OWN base, so a non-component that merely shares a simple
     name with a component is excluded. Raises ValueError listing every colliding
-    pair if two distinct classes hash to the same fileID."""
+    pair if two distinct classes hash to the same fileID.
+    """
     base_of = {}
     for _ns, name, base in decls:
         base_of.setdefault(name, base)
@@ -180,7 +184,8 @@ _IDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ck-script-
 def _load_script_ids(path=_IDS_PATH):
     """Load the {fileID: className} map; {} if the file is absent or unreadable.
     Tolerating a corrupt file lets `refresh-ids` overwrite it instead of every
-    command tracebacking at import."""
+    command tracebacking at import.
+    """
     try:
         with open(path, encoding="utf-8") as fh:
             return json.load(fh)
@@ -301,7 +306,8 @@ def roots(objs):
 
 def comp_label(objs, comp_fid):
     """Human-readable type for a component fileID: the Unity class name, or for a
-    MonoBehaviour the resolved CK script name (else a short guid)."""
+    MonoBehaviour the resolved CK script name (else a short guid).
+    """
     cid, body = objs.get(comp_fid, (None, None))
     if cid != "114":
         return CLASS.get(cid, f"class{cid}")
@@ -360,7 +366,8 @@ def dump_go(objs, name):
 def verify(objs):
     """Integrity checks: orphan GameObjects (unreachable from any root), broken
     m_Script refs (fileID 0), and dangling component/child fileIDs (referenced but
-    absent from the file). Prints findings; returns the problem count (0 == clean)."""
+    absent from the file). Prints findings; returns the problem count (0 == clean).
+    """
     problems = 0
 
     # 1. Reachability from root transforms (children() already skips dangling refs).

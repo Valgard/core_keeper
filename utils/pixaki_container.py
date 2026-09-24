@@ -38,7 +38,8 @@ def _raise(error):
     word: `load_pixaki` gets a drawings dict that is quietly short and the tool
     dies much later on a `KeyError` naming a bare cel UUID. An archive cannot
     fail that way -- the constructor throws, or the listing is complete -- so
-    the failure is raised here instead of being carried forward as a gap."""
+    the failure is raised here instead of being carried forward as a gap.
+    """
     raise error
 
 
@@ -47,7 +48,8 @@ def open_pixaki(path):
 
     What it guarantees is `namelist()`, `read(name)` and `open(name)`, and no
     more: the archive branch hands back the real `zipfile.ZipFile`, so reaching
-    past those three works on every export and fails on the first package."""
+    past those three works on every export and fails on the first package.
+    """
     if os.path.isdir(path):
         return _DirectoryContainer(path)
     return zipfile.ZipFile(path)
@@ -97,7 +99,8 @@ class _DirectoryContainer:
         Splitting on '/' rather than passing the name whole is part of the same
         guard: `os.path.join(root, '/etc/passwd')` discards the root, while
         joining the segments keeps it. It is also the exact inverse of what
-        `namelist()` does on the way out."""
+        `namelist()` does on the way out.
+        """
         member = os.path.abspath(os.path.join(self._root, *name.split("/")))
         root = os.path.abspath(self._root)
         if os.path.commonpath((root, member)) != root:
@@ -111,7 +114,8 @@ class _DirectoryContainer:
         container does not reach it -- true of `ZipFile` as well, whose members
         stay readable after `close()` because they hold a reference to the
         archive's file object. So callers close what they open; here so both
-        forms can be used alike."""
+        forms can be used alike.
+        """
 
     def __enter__(self):
         return self
