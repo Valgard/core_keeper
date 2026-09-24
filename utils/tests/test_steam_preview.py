@@ -193,5 +193,5 @@ def test_an_impossible_limit_is_reported_rather_than_silently_shipped(tmp_path):
     src = _incompressible_logo(tmp_path)
     dest = tmp_path / "preview.png"
 
-    with pytest.raises(ValueError, match="1 MB|fit|limit"):
+    with pytest.raises(ValueError, match=r"1 MB|fit|limit"):
         steam_preview.derive_preview(src, dest, limit=200)
