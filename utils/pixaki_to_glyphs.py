@@ -53,9 +53,9 @@ def layer_full(container, sprite, cels, name):
     and it is worth saying so in one line rather than through a traceback.
     """
     w, h = sprite["size"]
-    layer = next((l for l in sprite["layers"] if l.get("name") == name), None)
+    layer = next((lyr for lyr in sprite["layers"] if lyr.get("name") == name), None)
     if layer is None:
-        have = ", ".join(repr(l.get("name")) for l in sprite["layers"]) or "none"
+        have = ", ".join(repr(lyr.get("name")) for lyr in sprite["layers"]) or "none"
         sys.exit(f"the master has no layer named {name!r} (its layers: {have})")
     cel = cels[layer["clips"][0]["itemIdentifier"]]
     (fx, fy), _ = cel["frame"]
