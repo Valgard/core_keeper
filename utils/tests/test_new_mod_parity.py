@@ -105,22 +105,36 @@ def _normalise(path, pascal):
 
 
 def _read(repo, relpath):
-    """A repo file's text, or None. utf-8-sig because one asmdef carries a BOM."""
-    target = repo / relpath
-    return target.read_text(encoding="utf-8-sig") if target.is_file() else None
+    """A repo file's text at HEAD, or None if HEAD does not carry it.
+
+    HEAD rather than the working tree, because a sibling repo is regularly
+    mid-edit: several sessions run against these repos at once, and this suite
+    runs inside *this* repo's pre-commit hook. Reading the working tree let
+    somebody else's unsaved work decide whether a commit here was allowed —
+    and an uncommitted change is not a convention the generator must match
+    anyway, it is work in progress. The BOM one asmdef carries survives the
+    text decode, hence the lstrip.
+    """
+    proc = nm.run_git(["git", "show", f"HEAD:{relpath}"], repo)
+    return proc.stdout.lstrip("﻿") if proc.returncode == 0 else None
 
 
 def _tracked(repo, pascal):
-    """The repo's tracked paths, mod name normalised.
+    """The paths HEAD carries, mod name normalised.
+
+    ls-tree against HEAD rather than ls-files, which reports the index: a file
+    staged but not committed in a sibling repo would otherwise count as an
+    established convention here, and a staged deletion would drop one. Same
+    reason _read reads HEAD.
 
     Through `run_git`, because this suite also runs inside the pre-commit hook,
-    where an exported GIT_DIR would make `ls-files` report the committing repo
-    instead of *repo*. splitlines(), not split(): candidate logo filenames
-    contain spaces.
+    where an exported GIT_DIR would make git report the committing repo instead
+    of *repo*. NUL-separated, because candidate logo filenames contain spaces
+    and git quotes unusual paths when it writes them a line at a time.
     """
-    proc = nm.run_git(["git", "ls-files"], repo)
-    assert proc.returncode == 0, f"git ls-files failed in {repo}: {proc.stderr}"
-    return {_normalise(p, pascal) for p in proc.stdout.splitlines()}
+    proc = nm.run_git(["git", "ls-tree", "-r", "-z", "--name-only", "HEAD"], repo)
+    assert proc.returncode == 0, f"git ls-tree failed in {repo}: {proc.stderr}"
+    return {_normalise(p, pascal) for p in proc.stdout.split("\0") if p}
 
 
 def _universal(per_mod):
