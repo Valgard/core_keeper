@@ -373,8 +373,14 @@ human-facing setup; what matters when editing code here:
 - **The gate blocks, it does not rewrite.** `.pre-commit-config.yaml` runs
   `dotnet csharpier check` over staged `.cs` at `pre-commit` **and** `pre-push`,
   so a rejected commit needs `dotnet csharpier format .` and a retry — nothing
-  is ever reformatted behind an edit. `core_keeper` adds `ruff format --check`
-  for the Python in `utils/`.
+  is ever reformatted behind an edit. `core_keeper` adds two gates for the
+  Python in `utils/`: `ruff format --check` and `ruff check`, the latter
+  against the rule selection in `pyproject.toml`. That one arrived late — the
+  selection sat there for four months with nothing enforcing it and 307
+  findings had accumulated unopposed, which is what a configuration without an
+  executor comes to. Its `rev` in `.pre-commit-config.yaml` is a second version
+  source beside `uv.lock` and has to be kept in step by hand; the file says so
+  at the hook.
 - **`printWidth: 160`** in each repo's `.csharpierrc` — deliberate, not a
   leftover. Do not "correct" it to the CSharpier default of 100.
 - **The formatting diff is not printWidth-driven.** CSharpier also splits
