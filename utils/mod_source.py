@@ -31,9 +31,9 @@ from pathlib import Path
 import modio_api
 
 # Reading the real id, not the fake one. FAKE_MOD_ID identifies only a mod
-# with a dev build INSTALLED (2 of 13 when measured) and lives in a gitignored
-# .envrc; the real modId is in a tracked asset and present for all of them.
-_MODIO_ID = re.compile(r"^\s*modId:\s*(\d+)\s*$", re.MULTILINE)
+# with a dev build INSTALLED (a minority of them when measured) and lives in a
+# gitignored .envrc; the real modId is in a tracked asset and present for all
+# of them -- modio_api.MODIO_ID matches it.
 _FAKE_ID = re.compile(r'^\s*export\s+FAKE_MOD_ID="?(\d+)', re.MULTILINE)
 
 ORIGIN_INTERNAL = "internal name"
@@ -279,7 +279,7 @@ def read_own_mods(workspace: Path) -> list[OwnMod]:
     for asset in sorted(workspace.glob("*/unity/*/Editor/*_modio.asset")):
         mod_dir = asset.parent.parent
         repo = mod_dir.parent.parent
-        match = _MODIO_ID.search(asset.read_text(encoding="utf-8"))
+        match = modio_api.MODIO_ID.search(asset.read_text(encoding="utf-8"))
         mod_id = int(match.group(1)) if match else 0
 
         fake_id = None

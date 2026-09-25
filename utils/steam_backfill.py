@@ -62,7 +62,6 @@ import hashlib
 import html
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -87,11 +86,6 @@ TOOL = "steam_backfill"
 # Same guard as utils/upload.sh puts on its own ck-workshop call: Facepunch's
 # submit loop can spin indefinitely on a stalled connection.
 CK_WORKSHOP_TIMEOUT = 600
-
-# The mod's own identity asset, read by read_modio_id() below -- distinct from
-# modio_api.MODIO_CONFIG, the SDK-wide config asset modio_api.modio_config()
-# reads.
-MODIO_ID = re.compile(r"^\s*modId:\s*(\d+)\s*$", re.MULTILINE)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -402,7 +396,7 @@ def fetch_modfiles(sdk_path: Path, mod_id: int) -> list[dict]:
 def read_modio_id(repo_root: Path, mod_name: str) -> int:
     """The mod's mod.io id, from the asset CLIPublishHelper publishes with."""
     asset = repo_root / "unity" / mod_name / "Editor" / f"{mod_name}_modio.asset"
-    match = MODIO_ID.search(asset.read_text())
+    match = modio_api.MODIO_ID.search(asset.read_text(encoding="utf-8"))
     if not match:
         raise ValueError(f"{asset} has no 'modId:' line")
     return int(match.group(1))

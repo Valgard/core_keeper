@@ -21,6 +21,13 @@ SERVER_URL = re.compile(r"^\s*serverURL:\s*(\S+)\s*$", re.MULTILINE)
 GAME_ID = re.compile(r"^\s*gameId:\s*(\d+)\s*$", re.MULTILINE)
 GAME_KEY = re.compile(r"^\s*gameKey:\s*(\S+)\s*$", re.MULTILINE)
 
+# A single mod's own id, out of its `unity/<Mod>/Editor/<Mod>_modio.asset` --
+# a different file from the three above, and the authority on which published
+# mod a repository is. Here because both tools read it and had the same
+# expression twice; each builds that path its own way, so only the pattern is
+# shared.
+MODIO_ID = re.compile(r"^\s*modId:\s*(\d+)\s*$", re.MULTILINE)
+
 
 def modio_config(sdk_path: Path) -> tuple[str, int, str]:
     """(serverURL, gameId, gameKey) out of the SDK's mod.io config asset."""
