@@ -28,6 +28,8 @@ import urllib.parse
 import zipfile
 from pathlib import Path
 
+import modio_api
+
 # Reading the real id, not the fake one. FAKE_MOD_ID identifies only a mod
 # with a dev build INSTALLED (2 of 13 when measured) and lives in a gitignored
 # .envrc; the real modId is in a tracked asset and present for all of them.
@@ -301,17 +303,9 @@ def read_own_mods(workspace: Path) -> list[OwnMod]:
     return mods
 
 
-# steam_backfill reads these out of the SDK's own mod.io config asset; the same
-# three values drive the catalogue fetch, which is why SDK_PATH is an input of
-# this tool and not only of a download.
-_MODIO_CONFIG = "Assets/Resources/mod.io/config.asset"
-_SERVER_URL = re.compile(r"^\s*serverURL:\s*(\S+)\s*$", re.MULTILINE)
-_GAME_ID = re.compile(r"^\s*gameId:\s*(\d+)\s*$", re.MULTILINE)
-# Identical to steam_backfill.py's own GAME_KEY, on purpose: an
-# [A-Za-z0-9]{8,}-only pattern used to sit here, narrower than that twin's
-# \S+ for no reason tied to this file's own needs -- a key the other file
-# accepts must not be rejected here.
-_GAME_KEY = re.compile(r"^\s*gameKey:\s*(\S+)\s*$", re.MULTILINE)
+# modio_api.modio_config() reads these out of the SDK's own mod.io config
+# asset; the same three values drive the catalogue fetch, which is why
+# SDK_PATH is an input of this tool and not only of a download.
 
 # The catalogue is small (312 mods when measured) but the API pages at 100.
 _PAGE = 100
@@ -398,34 +392,6 @@ def read_catalogue(path: Path) -> list[CatalogueEntry]:
         return []
 
 
-def _modio_config(sdk_path: Path) -> tuple[str, int, str]:
-    """(serverURL, gameId, gameKey) out of the SDK's mod.io config asset."""
-    text = (sdk_path / _MODIO_CONFIG).read_text(encoding="utf-8")
-    server, game, key = (
-        _SERVER_URL.search(text),
-        _GAME_ID.search(text),
-        _GAME_KEY.search(text),
-    )
-    if not (server and game and key):
-        raise ValueError(f"{sdk_path / _MODIO_CONFIG} has no serverURL/gameId/gameKey")
-    return server.group(1), int(game.group(1)), key.group(1)
-
-
-def _curl(url: str) -> bytes:
-    """Fetch a URL with curl.
-
-    curl rather than urllib, and not out of preference: mod.io answers urllib
-    with a 403 and curl with the data (docs/ck/publishing.md).
-    """
-    completed = subprocess.run(["curl", "-sSfL", url], capture_output=True, check=False)
-    if completed.returncode != 0:
-        raise ValueError(
-            f"curl failed ({completed.returncode}) for {url.split('?')[0]}: "
-            f"{completed.stderr.decode().strip()}"
-        )
-    return completed.stdout
-
-
 def fetch_catalogue(sdk_path: Path, path: Path) -> list[CatalogueEntry]:
     """Mirror every mod mod.io lists for this game, reduced to four fields.
 
@@ -445,12 +411,12 @@ def fetch_catalogue(sdk_path: Path, path: Path) -> list[CatalogueEntry]:
     Also captures each entry's modfile md5, which --download verifies the
     bytes it receives against.
     """
-    server, game, key = _modio_config(sdk_path)
+    server, game, key = modio_api.modio_config(sdk_path)
     entries: list[dict] = []
     offset = 0
     for _ in range(_MAX_PAGES):
         query = urllib.parse.urlencode({"api_key": key, "_limit": _PAGE, "_offset": offset})
-        page = json.loads(_curl(f"{server}/games/{game}/mods?{query}"))
+        page = json.loads(modio_api.curl(f"{server}/games/{game}/mods?{query}"))
         # .get(key, default) only substitutes for an ABSENT key -- a server
         # that sends the key with a null value (a real API violation, but one
         # we are not in a position to rule out) needs the same fallback.
@@ -970,12 +936,12 @@ def download(resolution: Resolution, sdk_path: Path, into: Path) -> tuple[Path, 
             f"{resolution.source_path}"
         )
 
-    server, game, key = _modio_config(sdk_path)
+    server, game, key = modio_api.modio_config(sdk_path)
     url = (
         f"{server}/games/{game}/mods/{resolution.mod_id}/files/"
         f"{resolution.modfile_id}/download?api_key={key}"
     )
-    payload = _curl(url)
+    payload = modio_api.curl(url)
 
     warnings: list[str] = []
     if resolution.modfile_md5:

@@ -71,6 +71,7 @@ import threading
 import zipfile
 from pathlib import Path
 
+import modio_api
 import steam_bundle
 import steam_changenote
 import steam_identity
@@ -87,11 +88,10 @@ TOOL = "steam_backfill"
 # submit loop can spin indefinitely on a stalled connection.
 CK_WORKSHOP_TIMEOUT = 600
 
-MODIO_CONFIG = "Assets/Resources/mod.io/config.asset"
+# The mod's own identity asset, read by read_modio_id() below -- distinct from
+# modio_api.MODIO_CONFIG, the SDK-wide config asset modio_api.modio_config()
+# reads.
 MODIO_ID = re.compile(r"^\s*modId:\s*(\d+)\s*$", re.MULTILINE)
-GAME_KEY = re.compile(r"^\s*gameKey:\s*(\S+)\s*$", re.MULTILINE)
-GAME_ID = re.compile(r"^\s*gameId:\s*(\d+)\s*$", re.MULTILINE)
-SERVER_URL = re.compile(r"^\s*serverURL:\s*(\S+)\s*$", re.MULTILINE)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -379,38 +379,6 @@ def download_url(binary_url: str, api_key: str) -> str:
     return f"{binary_url}{separator}api_key={api_key}"
 
 
-def modio_config(sdk_path: Path) -> tuple[str, int, str]:
-    """(serverURL, gameId, gameKey) out of the SDK's mod.io config asset."""
-    text = (sdk_path / MODIO_CONFIG).read_text()
-    server, game, key = (
-        SERVER_URL.search(text),
-        GAME_ID.search(text),
-        GAME_KEY.search(text),
-    )
-    if not (server and game and key):
-        raise ValueError(f"{sdk_path / MODIO_CONFIG} has no serverURL/gameId/gameKey")
-    return server.group(1), int(game.group(1)), key.group(1)
-
-
-def _curl(url: str, dest: Path | None = None) -> bytes:
-    """Fetch a URL with curl.
-
-    curl rather than urllib, and not out of preference: mod.io answers urllib
-    with a 403 and curl with the data (`docs/ck/publishing.md`).
-    """
-    command = ["curl", "-sSfL"]
-    if dest is not None:
-        command += ["-o", str(dest)]
-    command.append(url)
-    completed = subprocess.run(command, capture_output=True, check=False)
-    if completed.returncode != 0:
-        raise ValueError(
-            f"curl failed ({completed.returncode}) for {url.split('?')[0]}: "
-            f"{completed.stderr.decode().strip()}"
-        )
-    return completed.stdout
-
-
 def fetch_modfiles(sdk_path: Path, mod_id: int) -> list[dict]:
     """Every modfile mod.io lists for this mod.
 
@@ -418,9 +386,9 @@ def fetch_modfiles(sdk_path: Path, mod_id: int) -> list[dict]:
     16 — a mod that ever passes 100 would silently lose its oldest releases, so
     the count is checked against what the API says the total is.
     """
-    server, game, key = modio_config(sdk_path)
+    server, game, key = modio_api.modio_config(sdk_path)
     url = f"{server}/games/{game}/mods/{mod_id}/files?api_key={key}&_limit=100"
-    listing = json.loads(_curl(url))
+    listing = json.loads(modio_api.curl(url))
     data = listing.get("data", [])
     total = listing.get("result_total", len(data))
     if len(data) != total:
@@ -460,7 +428,7 @@ def download_release(release: Release, api_key: str, into: Path) -> Path:
 
     into.mkdir(parents=True, exist_ok=True)
     archive = into / f"{release.modfile}.zip"
-    _curl(download_url(release.url, api_key), archive)
+    modio_api.curl(download_url(release.url, api_key), archive)
 
     if release.md5:
         digest = hashlib.md5(archive.read_bytes()).hexdigest()
@@ -767,7 +735,7 @@ def _submit(
     this process ends it there, and without the file the next run would find no
     id, conclude the mod has never been published, and create a second item.
     """
-    api_key = modio_config(Path(plan.env["SDK_PATH"]))[2]
+    api_key = modio_api.modio_config(Path(plan.env["SDK_PATH"]))[2]
     content = download_release(release, api_key, workdir / str(release.modfile))
 
     env = dict(plan.env)

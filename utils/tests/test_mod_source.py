@@ -11,6 +11,7 @@ import zipfile
 from pathlib import Path
 
 import mod_source
+import modio_api
 import pytest
 
 
@@ -373,7 +374,7 @@ def test_fetch_catalogue_follows_pagination_to_the_last_page(tmp_path, monkeypat
     first page alone does not cover, force the loop to run more than once.
     """
     monkeypatch.setattr(
-        mod_source, "_modio_config", lambda sdk_path: ("https://fake.modio", 1, "key")
+        modio_api, "modio_config", lambda sdk_path: ("https://fake.modio", 1, "key")
     )
 
     page_one = {
@@ -391,7 +392,7 @@ def test_fetch_catalogue_follows_pagination_to_the_last_page(tmp_path, monkeypat
         seen_offsets.append(offset)
         return json.dumps(page_two if offset else page_one).encode()
 
-    monkeypatch.setattr(mod_source, "_curl", fake_curl)
+    monkeypatch.setattr(modio_api, "curl", fake_curl)
 
     mirror = tmp_path / "catalogue.json"
     entries = mod_source.fetch_catalogue(tmp_path / "sdk", mirror)
@@ -432,7 +433,7 @@ def test_fetch_catalogue_gives_up_rather_than_looping_forever(tmp_path, monkeypa
     # the tool forever -- it must fail loudly instead, within a bounded
     # number of requests.
     monkeypatch.setattr(
-        mod_source, "_modio_config", lambda sdk_path: ("https://fake.modio", 1, "key")
+        modio_api, "modio_config", lambda sdk_path: ("https://fake.modio", 1, "key")
     )
     calls: list[str] = []
 
@@ -440,7 +441,7 @@ def test_fetch_catalogue_gives_up_rather_than_looping_forever(tmp_path, monkeypa
         calls.append(url)
         return json.dumps({"data": [{"id": len(calls)}], "result_total": 10**9}).encode()
 
-    monkeypatch.setattr(mod_source, "_curl", fake_curl)
+    monkeypatch.setattr(modio_api, "curl", fake_curl)
 
     mirror = tmp_path / "catalogue.json"
     with pytest.raises(ValueError, match="incomplete"):
@@ -463,11 +464,11 @@ def test_fetch_catalogue_tolerates_a_present_but_null_page(tmp_path, monkeypatch
     # "entries += None" / "len(entries) >= None" instead of reading as an
     # empty, complete page.
     monkeypatch.setattr(
-        mod_source, "_modio_config", lambda sdk_path: ("https://fake.modio", 1, "key")
+        modio_api, "modio_config", lambda sdk_path: ("https://fake.modio", 1, "key")
     )
     monkeypatch.setattr(
-        mod_source,
-        "_curl",
+        modio_api,
+        "curl",
         lambda url: json.dumps({"data": None, "result_total": None}).encode(),
     )
 
@@ -969,8 +970,8 @@ def test_download_verifies_the_manifest_name_against_the_query(tmp_path, monkeyp
         zf.writestr("ModManifest.json", json.dumps({"name": "SomethingElse"}))
         zf.writestr("Scripts/A.cs", "// code")
 
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
-    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "curl", lambda url: archive.getvalue())
 
     resolution = mod_source.Resolution(
         kind=mod_source.KIND_CATALOGUE,
@@ -1016,8 +1017,8 @@ def test_download_matches_via_the_slug_when_the_title_differs(tmp_path, monkeypa
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("ModManifest.json", json.dumps({"name": "GeneralConfigMenu"}))
 
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
-    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "curl", lambda url: archive.getvalue())
 
     resolution = mod_source.Resolution(
         kind=mod_source.KIND_CATALOGUE,
@@ -1046,8 +1047,8 @@ def test_download_refuses_paths_outside_the_target(tmp_path, monkeypatch):
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("../escaped.cs", "// nope")
 
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
-    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "curl", lambda url: archive.getvalue())
 
     resolution = mod_source.Resolution(
         kind=mod_source.KIND_CATALOGUE,
@@ -1086,8 +1087,8 @@ def test_download_refuses_an_absolute_path_member(tmp_path, monkeypatch):
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("/etc/absolute.cs", "// nope")
 
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
-    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "curl", lambda url: archive.getvalue())
 
     resolution = mod_source.Resolution(
         kind=mod_source.KIND_CATALOGUE,
@@ -1129,8 +1130,8 @@ def test_download_survives_the_call_with_no_cleanup(tmp_path, monkeypatch):
         zf.writestr("Scripts/A.cs", "// a")
         zf.writestr("Scripts/B.cs", "// b")
 
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
-    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "curl", lambda url: archive.getvalue())
 
     resolution = mod_source.Resolution(
         kind=mod_source.KIND_CATALOGUE,
@@ -1168,8 +1169,8 @@ def test_download_survives_an_unparseable_manifest(tmp_path, monkeypatch):
         zf.writestr("ModManifest.json", "{not valid json")
         zf.writestr("Scripts/A.cs", "// code")
 
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
-    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "curl", lambda url: archive.getvalue())
 
     resolution = mod_source.Resolution(
         kind=mod_source.KIND_CATALOGUE,
@@ -1202,8 +1203,8 @@ def test_download_survives_a_manifest_that_is_not_an_object(tmp_path, monkeypatc
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("ModManifest.json", json.dumps(["not", "an", "object"]))
 
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
-    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "curl", lambda url: archive.getvalue())
 
     resolution = mod_source.Resolution(
         kind=mod_source.KIND_CATALOGUE,
@@ -1243,8 +1244,8 @@ def test_download_survives_a_null_manifest_name(tmp_path, monkeypatch):
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("ModManifest.json", json.dumps({"name": None}))
 
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
-    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "curl", lambda url: archive.getvalue())
 
     resolution = mod_source.Resolution(
         kind=mod_source.KIND_CATALOGUE,
@@ -1282,8 +1283,8 @@ def test_download_leaves_no_directory_behind_when_rejected(tmp_path, monkeypatch
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("../escaped.cs", "// nope")
 
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
-    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "curl", lambda url: archive.getvalue())
 
     resolution = mod_source.Resolution(
         kind=mod_source.KIND_CATALOGUE,
@@ -1611,8 +1612,8 @@ def test_main_download_flag_fetches_an_uninstalled_mod(tmp_path, capsys, monkeyp
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("ModManifest.json", json.dumps({"name": "GeneralModConfigMenu"}))
         zf.writestr("Scripts/Menu.cs", "// code")
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
-    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "curl", lambda url: archive.getvalue())
 
     code = mod_source.main(["General Mod Config Menu", "--download", "--workspace", str(tmp_path)])
 
@@ -1659,8 +1660,8 @@ def test_main_download_flag_flags_an_unconfirmed_identity(tmp_path, capsys, monk
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("ModManifest.json", "{not valid json")
         zf.writestr("Scripts/Menu.cs", "// code")
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
-    monkeypatch.setattr(mod_source, "_curl", lambda url: archive.getvalue())
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "curl", lambda url: archive.getvalue())
 
     code = mod_source.main(["General Mod Config Menu", "--download", "--workspace", str(tmp_path)])
 
@@ -1722,8 +1723,8 @@ def test_download_raises_a_value_error_for_a_corrupt_archive(tmp_path, monkeypat
     # BadZipFile from a truncated or corrupted response would have escaped as
     # a raw traceback instead of "error: download failed (...)". download()
     # re-raises it as ValueError so every caller gets one uniform error type.
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
-    monkeypatch.setattr(mod_source, "_curl", lambda url: b"not a zip file at all")
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "curl", lambda url: b"not a zip file at all")
 
     resolution = mod_source.Resolution(
         kind=mod_source.KIND_CATALOGUE,
@@ -1959,8 +1960,8 @@ def test_a_contradicted_identity_reaches_both_renderers(tmp_path, monkeypatch):
             "Scripts/A.cs": "// code",
         }
     )
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
-    monkeypatch.setattr(mod_source, "_curl", lambda url: payload)
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "curl", lambda url: payload)
     resolution = _catalogue_resolution(
         modfile_md5=hashlib.md5(payload).hexdigest(),
     )
@@ -2015,8 +2016,8 @@ def test_main_download_renders_a_name_mismatch_in_both_output_modes(tmp_path, ca
     )
     bottle = _write_bottle(tmp_path)
     monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
-    monkeypatch.setattr(mod_source, "_curl", lambda url: payload)
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "curl", lambda url: payload)
 
     code = mod_source.main(["General Mod Config Menu", "--download", "--workspace", str(tmp_path)])
 
@@ -2071,8 +2072,8 @@ def test_the_not_installed_note_is_dropped_without_dropping_the_mismatch(
     )
     bottle = _write_bottle(tmp_path)
     monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
-    monkeypatch.setattr(mod_source, "_curl", lambda url: payload)
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "curl", lambda url: payload)
 
     code = mod_source.main(
         [
@@ -2101,10 +2102,10 @@ def test_download_verifies_the_archive_against_the_catalogues_md5(tmp_path, monk
     # source, whatever it happens to unpack into, so it is not unpacked at
     # all. Nothing may be left on disk either -- the next run would find the
     # directory and take it for a completed download.
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
     monkeypatch.setattr(
-        mod_source,
-        "_curl",
+        modio_api,
+        "curl",
         lambda url: _archive({"ModManifest.json": json.dumps({"name": "Widget"})}),
     )
     resolution = _catalogue_resolution(modfile_md5="0" * 32)
@@ -2129,8 +2130,8 @@ def test_download_says_when_it_cannot_verify_the_bytes(tmp_path, monkeypatch):
     # silence: "verified" and "unverifiable" are different answers, and the
     # note is what carries the difference into the payload.
     payload = _archive({"ModManifest.json": json.dumps({"name": "GeneralConfigMenu"})})
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
-    monkeypatch.setattr(mod_source, "_curl", lambda url: payload)
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "curl", lambda url: payload)
     resolution = _catalogue_resolution(modfile_md5="")
 
     target, warnings = mod_source.download(resolution, tmp_path / "sdk", tmp_path / "dl")
@@ -2173,11 +2174,11 @@ def test_fetch_catalogue_captures_each_modfiles_md5(tmp_path, monkeypatch):
     Null) as an empty string, not a crash.
     """
     monkeypatch.setattr(
-        mod_source, "_modio_config", lambda sdk_path: ("https://fake.modio", 1, "key")
+        modio_api, "modio_config", lambda sdk_path: ("https://fake.modio", 1, "key")
     )
     monkeypatch.setattr(
-        mod_source,
-        "_curl",
+        modio_api,
+        "curl",
         lambda url: json.dumps(
             {
                 "data": [
@@ -2268,7 +2269,7 @@ def test_fetch_catalogue_refuses_an_early_empty_page(tmp_path, monkeypatch):
     # missing mod reads as "that mod does not exist", which is the one answer
     # this tool must never give.
     monkeypatch.setattr(
-        mod_source, "_modio_config", lambda sdk_path: ("https://fake.modio", 1, "key")
+        modio_api, "modio_config", lambda sdk_path: ("https://fake.modio", 1, "key")
     )
 
     def fake_curl(url):
@@ -2283,7 +2284,7 @@ def test_fetch_catalogue_refuses_an_early_empty_page(tmp_path, monkeypatch):
         )
         return json.dumps(page).encode()
 
-    monkeypatch.setattr(mod_source, "_curl", fake_curl)
+    monkeypatch.setattr(modio_api, "curl", fake_curl)
 
     mirror = tmp_path / "catalogue.json"
     with pytest.raises(ValueError, match="empty page"):
@@ -2663,8 +2664,8 @@ def test_main_exits_two_on_a_refuted_identity(tmp_path, capsys, monkeypatch):
     )
     bottle = _write_bottle(tmp_path)
     monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
-    monkeypatch.setattr(mod_source, "_curl", lambda url: payload)
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "curl", lambda url: payload)
 
     code = mod_source.main(["General Mod Config Menu", "--download", "--workspace", str(tmp_path)])
 
@@ -2704,8 +2705,8 @@ def test_main_exits_zero_when_the_download_verifies(tmp_path, capsys, monkeypatc
     )
     bottle = _write_bottle(tmp_path)
     monkeypatch.setattr(mod_source, "bottle_path", lambda: bottle)
-    monkeypatch.setattr(mod_source, "_modio_config", lambda p: ("https://x", 5289, "KEY"))
-    monkeypatch.setattr(mod_source, "_curl", lambda url: payload)
+    monkeypatch.setattr(modio_api, "modio_config", lambda p: ("https://x", 5289, "KEY"))
+    monkeypatch.setattr(modio_api, "curl", lambda url: payload)
 
     code = mod_source.main(["General Mod Config Menu", "--download", "--workspace", str(tmp_path)])
 
