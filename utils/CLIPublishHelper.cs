@@ -40,6 +40,15 @@ namespace CoreKeeperModUtils
         {
             try
             {
+                // The SDK queues its own window on the first editor tick of a session
+                // ([InitializeOnLoadMethod] -> EditorApplication.delayCall += OpenWindow). In batchmode
+                // that tick first comes while this helper waits on its async mod.io calls, right
+                // after the build. The window cannot be shown there: its CreateGUI initialises
+                // mod.io (and Steam, if AutoInitialize is set), and its OnDestroy calls ModIOUnity.Shutdown. That aborted the
+                // in-flight EditModProfile (HTTP 0, no response) and, with the native Steam client
+                // running, crashed Unity outright. A publish never needs the window.
+                EditorApplication.delayCall -= ModSDKWindow.OpenWindow;
+
                 _modName = Environment.GetEnvironmentVariable("MOD_NAME");
                 if (string.IsNullOrEmpty(_modName))
                 {

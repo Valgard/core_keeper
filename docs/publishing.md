@@ -58,6 +58,23 @@ changelog; use a real release for anything that changes what the mod does.
 - **Async batchmode:** because the plugin's calls are asynchronous, `upload.sh`
   invokes Unity **without `-quit`** and `CLIPublishHelper` calls
   `EditorApplication.Exit` itself; a `timeout` guards a hung run.
+- **The SDK window must not open during a publish, so the helper unhooks it.**
+  The SDK queues its window for the first editor tick of every session
+  (`[InitializeOnLoadMethod]` → `EditorApplication.delayCall += OpenWindow`). In
+  batchmode that tick first comes while the helper waits on mod.io after the
+  build. The window then initialises mod.io (and Steam, when `AutoInitialize` is
+  set), cannot be shown, and its `OnDestroy` calls `ModIOUnity.Shutdown`. On
+  2026-09-27 that cost three publishes with `[mod.io] HTTP ERROR [0 0]` on
+  `EditModProfile` (a request with no response), and with the native Steam
+  client running a fourth that crashed Unity (`pipes.cpp … Fatal assert`).
+  `--profile-only` escaped it because it does not build, so its calls finished
+  before the tick. `CLIPublishHelper.Publish` now removes the queued call first
+  thing; the same run then went through.
+- **An identical build uploads without creating a modfile.** Publishing a build
+  byte-identical to the live modfile reports `Uploaded` and leaves the file list
+  unchanged. So a repeat publish of an unchanged version does not duplicate the
+  release, and "Uploaded" alone does not prove a new modfile exists. Check the
+  files endpoint.
 
 ### Publishing to the Steam Workshop
 
