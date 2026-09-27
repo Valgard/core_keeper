@@ -14,10 +14,11 @@
 # vars below: MOD_CALLER_CWD carries this shell's directory into Unity as the anchor
 # they resolve against.
 #
-# --profile-only updates just the mod.io profile (description, name, summary,
-# logo) via EditModProfile — no build, no version tags, no dependency sync, no
-# modfile upload. Use it to push an edited modio-description.md without cutting
-# a new release.
+# --profile-only updates the mod.io profile (description, name, summary, logo)
+# via EditModProfile and syncs its tags and dependencies — no build, no modfile
+# upload, no version change. Use it to push an edited modio-description.md, or
+# to add a game-version tag for a build the published modfile already runs on,
+# without cutting a new release.
 #
 # --changelog-only rewrites the published release's changelog text and nothing
 # else. A changelog belongs to the modfile rather than the profile, so
