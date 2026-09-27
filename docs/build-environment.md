@@ -54,6 +54,46 @@ Two cautions on the cleanup:
   both directories are recoverable from the Trash if something turns out to
   have been needed.
 
+## A build that fails on `shlwapi.dll` needs the SDK patch
+
+`✗ Build failed` with this in the log
+
+    DllNotFoundException: shlwapi.dll
+      at ScriptableDataEditorUtility.StrCmpLogicalW(string,string)
+      at ScriptableDataEditorUtility.FilePathComparer(...)
+
+is not a defect in the mod. `FilePathComparer` is a P/Invoke into a Windows
+system DLL with no platform branch and no managed fallback, so it throws on
+macOS and Linux alike. `GetCachedDataBlocks` sorts every ScriptableDataBlock in
+the project through it — and `List.Sort` only invokes a comparer from two
+elements up, which is why nobody meets this until the SDK window's *Import Game
+Assets* has run: that puts some 13k data blocks into
+`Packages/dev.pugstorm.corekeeper.assets/`, after which the sort is unavoidable
+on every build.
+
+Three call sites reach it and Unity catches the exception at all three —
+`ScriptableDataEditorLoader.Init` and twice inside `ModBuilder.BuildAssets`,
+where it lands in the log and the build carries on. CK 1.3 added a fourth,
+`ModBuilderCustomScenesProcessor`, reached through `ModBuilder.PreProcess`, and
+that one has no catch.
+
+The repair is `utils/patch_sdk.py`, which makes that call site behave like the
+other three:
+
+    uv run utils/patch_sdk.py          # report what is applied
+    uv run utils/patch_sdk.py apply    # apply what is missing
+
+An SDK update overwrites it, so it has to be re-applied afterwards — the same
+standing chore `corekeeper-patch` is for the installed game's DLLs. A patched
+build logs the exception and a line naming the step it skipped, which is the
+custom-scene processing a mod without its own scene never used anyway.
+
+The message is what makes this hard to recognise. `Failed to compare two
+elements in the array` describes a sort, names neither Windows nor the DLL, and
+appears three times harmlessly before the run dies — so the log reads as if
+something went wrong repeatedly, when it went wrong once, in one place that had
+no catch.
+
 ## `Access token is unavailable` is noise, not a diagnosis
 
 ```

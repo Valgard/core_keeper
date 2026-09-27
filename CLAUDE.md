@@ -95,6 +95,16 @@ Read it rather than reproducing it here; what follows is what this file adds.
   patches too, and without Patch 2 its mods load but never compile, which the
   client then rejects as `Error/BadProtocolVersion` ("Game version mismatch").
   Rationale + canonical commands in the `corekeeper-roslyn-locale-bug` memory.
+- **`utils/patch_sdk.py apply` after every SDK update** — the same standing
+  chore one layer up, for the SDK clone's own sources rather than the installed
+  game's DLLs. The SDK's `ScriptableDataEditorUtility.FilePathComparer`
+  P/Invokes into Windows' `shlwapi.dll` with no platform branch, and since
+  CK 1.3 one call site in the build path reaches it without a catch — so on
+  macOS and Linux alike **every** build fails once the SDK window's *Import Game
+  Assets* has filled the project with data blocks to sort. The script restores
+  the catch the other three call sites have; `uv run utils/patch_sdk.py` alone
+  reports without changing anything. Symptom, mechanism and why the error
+  message points nowhere useful: [`docs/build-environment.md`](docs/build-environment.md).
 - **Before dispatching an agent at another mod's source, resolve the path and
   put it in the dispatch.** `uv run utils/mod_source.py <name>` answers from
   the mod.io cache, this workspace's own repos and a mirrored mod.io
