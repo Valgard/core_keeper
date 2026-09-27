@@ -276,7 +276,7 @@ generates carry one such `m_Script`, shared across all of them and defined
 nowhere in the SDK tree, and they work.
 
 **A bundle built before the update is a separate question from a build made
-after it, and in the one case measured the old bundle kept working.** On
+after it, and in both cases measured the old bundle loaded and was used.** On
 2026-09-27 the published Faster Pet Talents 1.1.1 modfile, built on 2026-08-10
 against 1.2.1.x, rendered its generated setting terms correctly — in German — on
 a 1.3.0.2 client. `Localization.csv` had been deleted beforehand and no dev build
@@ -287,15 +287,31 @@ a stale assembly GUID broke nothing in a bundle that was already built. The swee
 above checks what an Editor can resolve when it builds, and says nothing about a
 bundle built before the update.
 
-What this does not cover: that bundle holds ten localisation data blocks and no
-prefab, and the screen they appeared on is another mod's prefab, rebuilt for 1.3.
-Data blocks of other types, some of them defined in `Pug.Other`, were not tested.
-Unity stayed at `6000.0.59f2` across this update, so neither was a change of
-engine version. A pre-update *prefab* bundle is open: Mod Settings Menu's 1.2.0
-changelog reports that 1.3 left its screen empty, but not whether that was the
-published 1.1.0 bundle, nor whether the GUID or 1.3's rewritten `LinearLayout`
-caused it. The reverse direction — a bundle built after the update, on a client
-still running the previous version — is untested.
+The second case holds no data block at all. The published Complete Tiny Font 1.0.1
+modfile, built on 2026-08-12 against 1.2.1.x, carries two assets its code uses — one
+`Sprite` texture and one `TextAsset`, both fetched by path with `AssetBundle.LoadAsset`
+— beside an entry for the mod's own `.asmdef`, for which the bundle holds no object. On
+2026-09-28 a 1.3.0.2 client loaded it from the subscription — `Loading mod with ID`
+named the real mod id, and no dev build of the mod was installed — and both assets
+loaded: the mod's own log line reported a 257×144 texture, the size its glyph rects are
+laid out for, and a filled kerning table, which that code writes only when the
+`TextAsset` is exactly 384 × 384 bytes. Those two values are what the line takes from
+the bundle — its glyph and row counts come from a table compiled into the code — so it
+proves the load, the dimensions and the length, not every pixel. What it had to get past
+first was the version gate, not the bundle: its profile carried no 1.3 tag, so it loaded
+only because it had been force-loaded once ([a stale game-version compatibility tag](troubleshooting.md#cheaper-if-you-have-a-log-a-stale-game-version-compatibility-tag)). The
+code is no part of this evidence either way: the modfile ships source, not a compiled
+assembly, and the loader compiles it against the running game at every load.
+
+What this does not cover: both measurements were taken on a client, and a dedicated
+server was not tried; neither bundle holds a prefab, and the screen the localisation
+terms appeared on is another mod's prefab, rebuilt for 1.3. Data blocks of other types,
+some of them defined in `Pug.Other`, were not tested. Unity stayed at `6000.0.59f2`
+across this update, so neither was a change of engine version. A pre-update *prefab*
+bundle is open: Mod Settings Menu's 1.2.0 changelog reports that 1.3 left its screen
+empty, but not whether that was the published 1.1.0 bundle, nor whether the GUID or
+1.3's rewritten `LinearLayout` caused it. The reverse direction — a bundle built after
+the update, on a client still running the previous version — is untested.
 
 **Trap: a duplicated `metadata.guid` breaks asset loading, not identity.** The loader
 registers each mod's asset-bundle data-block loader under that GUID
