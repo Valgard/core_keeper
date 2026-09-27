@@ -952,7 +952,7 @@ Two XP choke points fit this shape:
 
 | Track | Producer | Component | Burst consumer |
 |---|---|---|---|
-| Player skill XP | `PlayerController.AddSkill(Entity, SkillID, float amount, EntityCommandBuffer, bool isServer)` (`Pug.Other:312065`) — the sole creator of the component, only `if (isServer)` | `AddSkillValueCD : IComponentData` (`float amount`) | `AddSkillValueSystem` (adds `amount` to `SkillProgressBuffer.progressValue`, moves the whole part into `SkillBuffer.Value`, keeps the remainder; only that transfer is guarded `levelFromSkill < maxSkillLevel`) |
+| Player skill XP | `PlayerController.AddSkill(Entity, SkillID, float amount, EntityCommandBuffer, bool isServer)` (`Pug.Other:312065`) — the sole creator of the component, only `if (isServer)` | `AddSkillValueCD : IComponentData` (`float amount`; `int` until 1.2) | `AddSkillValueSystem` (adds `amount` to `SkillProgressBuffer.progressValue`, moves the whole part into `SkillBuffer.Value`, keeps the remainder; only that transfer is guarded `levelFromSkill < maxSkillLevel`) |
 | Pet XP, when the **pet** lands the hit | `PetExtensions.GetExperienceFromDamage(dmg) = clamp(dmg / 20, 1, 250)`, appended by `AttackSystem.CheckForHit` (`Pug.Other:12602`) | `AddPetExperienceBuffer : IBufferElementData` | `PetHandlerSystem` (`pet.objectData.amount += amount`, guarded `!IsAtMaxLevel`) |
 
 **Skill XP is fractional since 1.3, so scale it as a float.** Until 1.2 the
@@ -964,6 +964,14 @@ back still compiles — the assignment to the `float` field is implicit — and
 silently rounds each grant: `faster-talents` 1.3.1 rounded to the nearest
 integer with a floor of 1, which turns a `0.25` grant at 3× into `1` instead of
 `0.75`. Multiply the field and leave the remainder to the system.
+
+**The fix for 1.3 does not compile on 1.2, and a mod tagged for both must
+compile on both.** A mod is compiled at load time against the installed game, so
+`cd.amount *= mult` is error CS0266 against 1.2's `int` field — `faster-talents`
+1.4.0 shipped that way while still tagged for 1.2. Overload resolution solves it
+without reflection, which the sandbox forbids: pass `ref cd.amount` to two
+methods, `Scale(ref int, float)` and `Scale(ref float, float)`, and the compiler
+picks the one matching the field it finds.
 
 **Correction: pet XP has a second route, and "pets level only from dealt damage"
 is wrong.** This section said there were exactly two choke points and that pets
