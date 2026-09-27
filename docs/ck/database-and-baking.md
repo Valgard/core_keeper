@@ -30,6 +30,15 @@ dispatch through it. Both operate on the ECS components of an already-converted
 entity — which is the right level for adding or replacing a component, and the
 wrong one for the authoring values that get copied into the blob.
 
+> **The example below is 1.2 code.** 1.3 removed `DatabaseConversionUtility`
+> and `ObjectInfo.prefabInfos`, so it no longer compiles: the loader reports
+> `CompileFailed` with `CS0103: The name 'DatabaseConversionUtility' does not
+> exist`. `PostConvert` itself now reads the prefabs from
+> `ScriptableData.GetDataBlocks<EntityAuthoringDataBlock>()` (`Pug.Other:3513`),
+> so that is the list a 1.3 prefix would walk; `rebalance-key-crafting` and
+> `auto-rail-bridges` carry such prefixes, unreleased, and neither has been
+> seen running — **unverified**. The runtime station lookup further down has both forms.
+
 For those — recipe ingredient amounts, craft time, sell value — the window
 where the data is still mutable is
 `PugDatabasePostConverter.PostConvert(GameObject authoring)` — the method that
@@ -170,6 +179,53 @@ to exist at all.
 elements are `{ objectName: string, amount: int }`. CoreLib is needed for UI,
 not for the item.
 
+**Since 1.3 the prefab also needs an `EntityAuthoringDataBlock`, or the item
+is missing from the database.** `PugDatabasePostConverter` builds the database
+bank from `ScriptableData.GetDataBlocks<EntityAuthoringDataBlock>()` and nothing
+else (`Pug.Other:3513`); through 1.2 the prefab list also took in the loader's
+`Manager.mod.ExtraAuthoring`, which is why a 1.2 mod needed no block.
+
+What a missing block looks like was measured in `caveling-divining-rod` on
+1.3.0.2, with CoreLib's `EntityModule` loaded: the rod still resolved to an
+`ObjectID` — which path assigned it is not traced — so its Iron Workbench recipe
+resolved (`moddedObjectID` goes through `API.Authoring.GetObjectID`,
+`Pug.ECS.Conversion:1760`) and an extra crafting window opened, because that
+test only asks for a non-`None` ID (`Pug.Other:338062`, the check at `338096`).
+The slot inside it stayed empty, because drawing one asks the bank
+(`PugDatabase.HasObject`, `Pug.Other:429747`), and nothing could be crafted. No
+error was logged.
+
+**Most 1.3 item mods ship the block as an asset.** StoragePlus, ChestsGalore,
+DoubleChest, Extra Pouches and MoreScenes all carry `EntityAuthoringDataBlock`
+assets in their bundles; ChestsGalore's pre-1.3 build carried none. The
+alternative, which `caveling-divining-rod` uses and CoreLib uses for the
+workbenches it generates, is to create the block at runtime:
+
+```csharp
+public void EarlyInit()
+{
+    var mod = API.ModLoader.LoadedMods.FirstOrDefault(m => m.Handlers.Contains(this));
+    var authoring = mod.Assets.OfType<GameObject>()
+        .Select(go => go.GetComponent<ObjectAuthoring>())
+        .First(a => a != null && a.objectName == "MyItem");
+
+    var block = API.DataBlocks.CreateRuntimeInstance<EntityAuthoringDataBlock>(mod.ModId);
+    block.prefab = authoring.gameObject;
+    block.name = "MyItem";
+    authoring.authoringRef = block;
+}
+```
+
+- **It has to be `EarlyInit`.** Runtime blocks are refused once ScriptableData
+  has started loading — the loader throws and says so (`PugMod.Loader:2265`).
+- **Take the prefab from `LoadedMod.Assets`.** In `caveling-divining-rod`,
+  `AssetBundle.LoadAsset<GameObject>("<prefab name>")` returned null in game
+  for a prefab that `Assets` contained; why is **unverified**.
+- `First` throws when the prefab is missing, and the loader prints only the
+  first exception any mod throws from a lifecycle call, so a real mod should
+  test and log instead — as `caveling-divining-rod` does.
+- The authored asset is untried in this repository.
+
 **The two ways of naming an item in recipe data are asymmetric** — this is the
 part that catches people:
 
@@ -224,15 +280,24 @@ modded entry an `amount` of at least 1.
 ### Injecting a craftable into a vanilla station at runtime
 
 There is a runtime path that bypasses the bake entirely, and **CoreLib is not
-involved in it**: walk the prefab list off the live database, find the station,
-and mutate its authoring list.
+involved in it**: find the station's authoring prefab, and mutate its authoring
+list. 1.3 removed `DatabaseConversionUtility` and `ObjectInfo.prefabInfos`, so
+the way to the prefab depends on the game version. (Extra Pouches reaches the
+same list through `API.Authoring.OnObjectTypeAdded` instead, which hands over
+each authoring object as it converts and is the same on 1.2 and 1.3.)
 
-| Step | Expression |
-|---|---|
-| 1 | `DatabaseConversionUtility.GetPrefabList(Manager.ecs.pugDatabase)` |
-| 2 | pick the `DatabaseConversionUtility.PrefabData` whose `ObjectInfo.objectID` is the station |
-| 3 | `ObjectInfo.prefabInfos[0].ecsPrefab` |
-| 4 | its `CraftingAuthoring.canCraftObjects` |
+| Step | Since 1.3 | Through 1.2 |
+|---|---|---|
+| 1 | `ScriptableData.GetDataBlocks<EntityAuthoringDataBlock>()` | `DatabaseConversionUtility.GetPrefabList(Manager.ecs.pugDatabase)` |
+| 2 | the block whose `prefab`'s `IEntityMonoBehaviourData.ObjectInfo.objectID` is the station | the `DatabaseConversionUtility.PrefabData` whose `ObjectInfo.objectID` is the station |
+| 3 | `block.prefab` | `ObjectInfo.prefabInfos[0].ecsPrefab` |
+| 4 | its `CraftingAuthoring.canCraftObjects` | its `CraftingAuthoring.canCraftObjects` |
+
+`ScriptableData.GetDataBlocks` lives in `ScriptableData.dll`, which an asmdef
+created before 1.3 may not reference — `ScriptableData.Addressables.dll`
+is a different assembly and does not resolve the type. Both columns are
+verified in game in single-player, the first by `caveling-divining-rod` on
+1.3.0.2; neither has been measured on a dedicated server.
 
 **Now established, from the conversion pipeline above:** conversion reconverts
 the whole prefab list per world, rebuilding the blob from the authoring data
