@@ -952,8 +952,18 @@ Two XP choke points fit this shape:
 
 | Track | Producer | Component | Burst consumer |
 |---|---|---|---|
-| Player skill XP | `PlayerController.AddSkill(Entity, SkillID, int amount, EntityCommandBuffer, bool isServer)` — the sole creator of the component, only `if (isServer)` | `AddSkillValueCD : IComponentData` | `AddSkillValueSystem` (`SkillBuffer.Value += amount`, guarded `levelFromSkill < maxSkillLevel`) |
+| Player skill XP | `PlayerController.AddSkill(Entity, SkillID, float amount, EntityCommandBuffer, bool isServer)` (`Pug.Other:312065`) — the sole creator of the component, only `if (isServer)` | `AddSkillValueCD : IComponentData` (`float amount`) | `AddSkillValueSystem` (adds `amount` to `SkillProgressBuffer.progressValue`, moves the whole part into `SkillBuffer.Value`, keeps the remainder; only that transfer is guarded `levelFromSkill < maxSkillLevel`) |
 | Pet XP, when the **pet** lands the hit | `PetExtensions.GetExperienceFromDamage(dmg) = clamp(dmg / 20, 1, 250)`, appended by `AttackSystem.CheckForHit` (`Pug.Other:12602`) | `AddPetExperienceBuffer : IBufferElementData` | `PetHandlerSystem` (`pet.objectData.amount += amount`, guarded `!IsAtMaxLevel`) |
+
+**Skill XP is fractional since 1.3, so scale it as a float.** Until 1.2 the
+amount was an `int`; 1.3 made it a `float` and added the `SkillProgressBuffer`
+accumulator. Combat grants `weaponCooldown * 2.5` per hit, and a projectile with
+no weapon cooldown — ranged or magic — grants `0.25` (`Pug.Other:312031`), so
+many grants are below one point. A prefix that computes an `int` and writes it
+back still compiles — the assignment to the `float` field is implicit — and
+silently rounds each grant: `faster-talents` 1.3.1 rounded to the nearest
+integer with a floor of 1, which turns a `0.25` grant at 3× into `1` instead of
+`0.75`. Multiply the field and leave the remainder to the system.
 
 **Correction: pet XP has a second route, and "pets level only from dealt damage"
 is wrong.** This section said there were exactly two choke points and that pets
@@ -1014,17 +1024,26 @@ the instrument itself. This is derived from the code above and from what the
 purpose: it is the technique that would separate the two callers above, were
 it applied, not something this pass demonstrates end to end.
 
-Every skill funnels through `AddSkill` — Mining, Melee and Range via the combat
-`skillMultiplier`, Fishing, Crafting, Cooking, Gardening, Running, Vitality,
-Summoning, Explosives. Its callers include `PlayerAttackAspect` and the inventory
-handlers, all Burst-compiled, which is precisely why patching `AddSkill` itself
-does not work.
+Every skill funnels through `AddSkill` — Mining (a fixed `1f` per hit since
+1.3), Melee, Range and Magic via `AddCombatSkillByCooldown` (`Pug.Other:312021`;
+until 1.2 combat passed the attack's `skillMultiplier` instead), Fishing,
+Crafting, Cooking, Gardening, Running, Vitality, Summoning, Explosives. Its
+callers include `PlayerAttackAspect` and the inventory handlers, all
+Burst-compiled, which is precisely why patching `AddSkill` itself does not work.
 
 Both component types are declared in `Pug.ECS.Components` but sit in the
 **global namespace**; the systems live in `Pug.Other`. Neither needs a `using`
 in mod code.
 
-Scale with rounding that cannot silently zero a grant:
+Scaling differs between the two tracks. Skill XP is a `float` whose remainder
+the system keeps, so multiply it and nothing else:
+
+```csharp
+cd.amount *= mult;   // AddSkillValueCD, since 1.3
+```
+
+Pet XP is still an `int`, so there round in a way that cannot silently zero a
+grant:
 
 ```csharp
 int boosted = (int)(amount * mult + 0.5f);
