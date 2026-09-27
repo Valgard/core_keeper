@@ -51,10 +51,12 @@ no manual `source` needed (`cd <mod> && ../utils/build.sh`). Without direnv,
 the documented `source .envrc && ../utils/build.sh` still works via the
 `source ../.envrc` fallback. Paths in `core_keeper/.envrc` must be **absolute**
 — `source_up` sources it without changing `$PWD` (which stays the mod dir).
-`CK_GAME_VERSION` is kept as one canonical list in `core_keeper/.envrc`; mods
-inherit it and do **not** override it (a mod's `.envrc` exporting its own value
-after the inherit block would win, but none currently do — keep the list in
-sync in the parent `.envrc`). Each new/edited `.envrc` needs one `direnv allow`.
+`CK_GAME_VERSION` is kept as one canonical list in `core_keeper/.envrc`, and
+mods inherit it. The exception is a mod that cannot run on every build listed
+there — a release that dropped support for an older game version: its own
+`.envrc` exports a shorter list after the inherit block, which wins, and its
+`.envrc.example` says why. Keep the parent list itself in sync as new builds
+ship. Each new/edited `.envrc` needs one `direnv allow`.
 
 To build a mod, run `../utils/build.sh` from the mod repo root (with direnv
 the env is already loaded; otherwise `source .envrc` first):
