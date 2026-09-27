@@ -400,7 +400,7 @@ deleted. Tags outside these four groups are never touched.
 
 | Group | Desired set from |
 |---|---|
-| `Game Version` | `CK_GAME_VERSION` minus `CK_MODIO_VERSION_UNLISTED` — both **space**-separated, one canonical list each in the parent `.envrc` |
+| `Game Version` | `CK_GAME_VERSION` minus `CK_MODIO_VERSION_UNLISTED` — both **space**-separated, one canonical list each in the parent `.envrc` — each build mapped to its tag or a stand-in (below) |
 | `Type` | `CK_MODIO_TYPE` — **pipe**-separated, because the values contain spaces (`Visual\|Quality of Life`) |
 | `Application Type` | derived from the `.asset`'s `metadata.requiredOn` (`Client`=1, `Server`=2, both=3; **0 is valid** and publishes with no tag in this group, for a mod that must never gate a connection — it logs a warning, because 0 is also what an unset field reads as) |
 | `Access Type` | derived from `metadata.skipSafetyChecks` (`false` → `Script`, `true` → `Script (Elevated Access)`) |
@@ -421,9 +421,30 @@ deleted. Tags outside these four groups are never touched.
   truthful for everything else that reads it (`utils/discord_post.py` renders
   the Discord post from it) without weakening a guard that exists to catch
   typos. The subtraction has one failure mode of its own, so it is checked
-  against the live taxonomy too: **once mod.io offers a build listed here, the
-  publish aborts** until the entry is deleted — otherwise the listing would
-  quietly advertise one version fewer than the mod supports.
+  against the live taxonomy too: **once mod.io offers a tag for a build listed
+  here** — its own, or a stand-in as below — **the publish aborts** until the
+  entry is deleted, and the message names the tag it found. Otherwise the
+  listing would quietly advertise one version fewer than the mod supports.
+
+- **A build without a tag of its own can be published under a stand-in.** The
+  1.3 update got a single tag, `1.3.0`, while the builds that shipped are
+  `1.3.0.1` and `1.3.0.2`. A shorter tag stands in for a build when it is a
+  whole-segment prefix of it and the build *it* spells, padded to four
+  segments, never shipped: `1.3.0.0` never did, so `1.3.0` can only mean the
+  update, and both 1.3 builds are published under it. `1.1.2` is the opposite
+  case — it sits beside `1.1.2.1` … `1.1.2.10` and names build `1.1.2.0`, so a
+  later untagged 1.1.2 hotfix fails validation rather than being listed under a
+  build it was never tested on. Only builds in `ck-game-versions.json` get a
+  stand-in, which keeps a typo such as `1.3.0.20` a failure, and that list is
+  also what the rule is decided on — without `CK_KNOWN_GAME_VERSIONS` no build
+  gets one. An exact tag always wins, so once mod.io adds `1.3.0.2` the next
+  publish moves the mod onto it and drops `1.3.0` as surplus, unless `1.3.0.1`
+  still needs it. `utils/refresh_game_versions.py` applies the same rule and
+  reports such a tag as a stand-in, not as a missing build `1.3.0.0`. The rule
+  is `GameVersionTags` at the end of `CLIPublishHelper.cs`, tested by
+  `utils/publish-helper-tests`. It needs the live taxonomy, so when
+  `GetTagCategories` fails the builds go out as they are, mod.io drops those
+  it has no tag for, and the warning names them.
 
 - **Group membership comes from the live API** (`GetTagCategories`), never a
   hardcoded value list.

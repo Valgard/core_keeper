@@ -15,7 +15,10 @@ Neither feed is complete on its own, in different ways:
   * mod.io's Game Version tags miss the builds named in
     CK_MODIO_VERSION_UNLISTED — the parent `.envrc.example` is where that list
     is kept, and the only place the numbers are written down — and start at
-    0.6.3.0, the build the Mod SDK shipped with.
+    0.6.3.0, the build the Mod SDK shipped with. They also miss 1.3.0.1 and
+    1.3.0.2, for a third reason: the update got one tag, 1.3.0, which names no
+    build and stands in for both. Such a tag is listed separately, not as a
+    missing build 1.3.0.0.
 
 Usage:
     python3 utils/refresh_game_versions.py
@@ -70,6 +73,9 @@ class Report:
 
     missing: list = field(default_factory=list)
     suspects: list = field(default_factory=list)
+    # mod.io tags that name no build but stand in for builds that have none of
+    # their own -- 1.3.0 for 1.3.0.1 and 1.3.0.2. Reported, never missing.
+    stand_ins: list = field(default_factory=list)
     # Keyed by the canonical spelling, because `missing` is: Steam writes
     # `0.7.4` where the list writes `0.7.4.0`, and a lookup by the raw title
     # silently reported every three-segment build as mod.io-only.
@@ -94,8 +100,26 @@ def compare(known, steam, modio, duplicates=None):
     have = {norm(v) for v in known}
     seen = {norm(v) for v in list(steam) + list(modio)}
 
+    # A short mod.io tag whose padded build is in neither the file nor Steam's
+    # feed, while builds it prefixes are in the file, stands in for them: the
+    # 1.3 update got one tag, 1.3.0, and no build 1.3.0.0 ever shipped. Read as
+    # a build it would be reported missing forever and invite adding one that
+    # never existed. The core of the rule CLIPublishHelper's GameVersionTags
+    # publishes by (prefix of a listed build, padded build never shipped), plus
+    # the Steam feed as a second witness that 1.3.0.0 is not a real build.
+    steam_builds = {norm(v) for v in steam}
+    stand_ins = {
+        norm(t)
+        for t in modio
+        if len(t.split(".")) < 4
+        and norm(t) not in have
+        and norm(t) not in steam_builds
+        and any(v.startswith(t + ".") for v in known)
+    }
+
     report = Report()
-    report.missing = [fmt(v) for v in sorted(seen - have)]
+    report.missing = [fmt(v) for v in sorted(seen - have - stand_ins)]
+    report.stand_ins = [t for t in modio if norm(t) in stand_ins]
     report.dates = {fmt(norm(v)): day for v, day in steam.items()}
     for version, dates in sorted((duplicates or {}).items()):
         if _spread_days(dates) > TYPO_GAP_DAYS:
@@ -273,6 +297,9 @@ def main():
         print("\nSame version in entries far apart — check for a mistyped title:")
         for version in report.suspects:
             print(f"  {version:10} {', '.join(duplicates[version])}")
+    if report.stand_ins:
+        # Informational, not a finding: the exit code does not follow it.
+        print(f"mod.io tags standing in for untagged builds: {', '.join(report.stand_ins)}")
     if not report.missing and not report.suspects:
         print(f"{len(doc['versions'])} versions, both feeds agree.")
         return 0

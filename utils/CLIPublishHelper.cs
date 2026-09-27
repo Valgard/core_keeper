@@ -497,7 +497,8 @@ namespace CoreKeeperModUtils
             //
             //   Game Version      CK_GAME_VERSION — space-separated list of the
             //                     game versions the mod is compatible with
-            //                     (e.g. "1.2.1.5 1.2.1.4"); one tag each.
+            //                     (e.g. "1.2.1.5 1.2.1.4"); one tag each, or
+            //                     a shared stand-in (1.3.0.x -> 1.3.0).
             //   Type              CK_MODIO_TYPE — PIPE-separated, because the
             //                     values contain spaces ("Visual|Quality of Life").
             //   Application Type  metadata.requiredOn ([Flags]: Client=1,
@@ -529,10 +530,11 @@ namespace CoreKeeperModUtils
             // since the staleness check below only fires for entries mod.io
             // later offers.
             //
-            // Note the taxonomy spells some builds with three segments (1.1.2,
-            // 0.7.4) where this repo writes four, and the comparison below is
-            // exact-string — extending CK_GAME_VERSION back past 1.1.2 will hit
-            // that before it hits anything else.
+            // The taxonomy also spells some tags with fewer segments than this
+            // repo writes builds (1.1.2, 1.3.0). SyncTags maps a build with no
+            // tag of its own onto such a tag where it stands in for the build —
+            // see GameVersionTags — so the four-segment form stays canonical
+            // here and in ck-game-versions.json.
             var unlistedRaw = Environment.GetEnvironmentVariable("CK_MODIO_VERSION_UNLISTED");
             var unlisted = new HashSet<string>((unlistedRaw ?? string.Empty).Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries));
             gameVersions.RemoveAll(v => unlisted.Contains(v));
@@ -555,7 +557,8 @@ namespace CoreKeeperModUtils
                 Debug.LogWarning(
                     "[CLIPublishHelper] CK_KNOWN_GAME_VERSIONS is not set — publishing "
                         + "without checking CK_GAME_VERSION against the shipped builds. "
-                        + "utils/upload.sh exports it; a direct -executeMethod call does not."
+                        + "utils/upload.sh exports it; a direct -executeMethod call does not. "
+                        + "Without it no build gets a stand-in tag either, so 1.3.0.x fails validation."
                 );
             }
             else
@@ -626,17 +629,17 @@ namespace CoreKeeperModUtils
                 new TagGroupPlan { group = TagGroupApplicationType, desired = appTypes },
                 new TagGroupPlan { group = TagGroupAccessType, desired = accessTypes },
             };
-            SyncTags(modIo, plans, unlisted);
+            SyncTags(modIo, plans, unlisted, known);
         }
 
-        private static void SyncTags(ModSettings modIo, List<TagGroupPlan> plans, HashSet<string> unlisted)
+        private static void SyncTags(ModSettings modIo, List<TagGroupPlan> plans, HashSet<string> unlisted, HashSet<string> known)
         {
             var modId = new ModId(modIo.modId);
             ModIOUnity.GetTagCategories(catRes =>
             {
                 if (!catRes.result.Succeeded() || catRes.value == null)
                 {
-                    FallBackToAdditiveTags(modIo, plans, $"GetTagCategories failed: {catRes.result.message}");
+                    FallBackToAdditiveTags(modIo, plans, $"GetTagCategories failed: {catRes.result.message}", versionsResolved: false);
                     return;
                 }
 
@@ -652,6 +655,61 @@ namespace CoreKeeperModUtils
                     groupValues[category.name ?? string.Empty] = values;
                 }
 
+                // Game Versions first, and independently of the other groups:
+                // resolving them needs only this group, so a different group
+                // missing below must not cost the mod its version tags too.
+                var versionsResolved = false;
+                if (groupValues.TryGetValue(TagGroupGameVersion, out var versionTags))
+                {
+                    // An entry in CK_MODIO_VERSION_UNLISTED that mod.io
+                    // meanwhile offers a tag for — its own, or a stand-in (see
+                    // GameVersionTags) — is worse than a stale comment: the
+                    // publish keeps excluding a tag it could now set, so the
+                    // listing quietly advertises one version fewer than it
+                    // supports.
+                    //
+                    // Deliberately checked across the whole list, not just the
+                    // entries that filtered something here: it lives in the
+                    // shared parent .envrc, so the first mod published after
+                    // mod.io backfills a tag is the one that reports it,
+                    // whichever mod that is. The fix is deleting a word — but
+                    // the abort lands after the build and after EditModProfile
+                    // has run, so --dry-run (which reaches this check) is the
+                    // cheap way to find out.
+                    var nowListed = new List<string>();
+                    foreach (var value in unlisted)
+                    {
+                        var tag = GameVersionTags.Resolve(value, versionTags, known);
+                        if (tag != null)
+                            nowListed.Add(tag == value ? value : $"{value} (as {tag})");
+                    }
+                    if (nowListed.Count > 0)
+                    {
+                        Fail(
+                            $"mod.io now offers a '{TagGroupGameVersion}' tag for [{string.Join(", ", nowListed)}] — remove them from CK_MODIO_VERSION_UNLISTED."
+                        );
+                        return;
+                    }
+
+                    // Replace each build by the tag that stands for it, before
+                    // the validation below, so an unresolvable build still fails
+                    // there under its own name. Two builds can share one tag
+                    // (1.3.0.1 and 1.3.0.2 both become 1.3.0), hence the
+                    // de-duplication.
+                    var versionPlan = plans.Find(p => p.group == TagGroupGameVersion);
+                    var resolved = new List<string>();
+                    foreach (var value in versionPlan.desired)
+                    {
+                        var tag = GameVersionTags.Resolve(value, versionTags, known) ?? value;
+                        if (tag != value)
+                            Debug.Log($"[CLIPublishHelper] mod.io has no '{TagGroupGameVersion}' tag {value}; tagging it as {tag}, which stands in for it.");
+                        if (!resolved.Contains(tag))
+                            resolved.Add(tag);
+                    }
+                    versionPlan.desired = resolved;
+                    versionsResolved = true;
+                }
+
                 // A group missing from the live taxonomy means we cannot tell
                 // which of the mod's tags belong to it, so removing anything
                 // would be guesswork — degrade to additive instead.
@@ -659,33 +717,14 @@ namespace CoreKeeperModUtils
                 {
                     if (!groupValues.ContainsKey(plan.group))
                     {
-                        FallBackToAdditiveTags(modIo, plans, $"mod.io reports no '{plan.group}' tag group " + $"(got [{string.Join(", ", groupValues.Keys)}])");
+                        FallBackToAdditiveTags(
+                            modIo,
+                            plans,
+                            $"mod.io reports no '{plan.group}' tag group " + $"(got [{string.Join(", ", groupValues.Keys)}])",
+                            versionsResolved
+                        );
                         return;
                     }
-                }
-
-                // An entry in CK_MODIO_VERSION_UNLISTED that mod.io meanwhile
-                // offers is worse than a stale comment: the publish keeps
-                // excluding a tag it could now set, so the listing quietly
-                // advertises one version fewer than it supports.
-                //
-                // Deliberately checked across the whole list, not just the
-                // entries that filtered something here: it lives in the shared
-                // parent .envrc, so the first mod published after mod.io
-                // backfills a tag is the one that reports it, whichever mod that
-                // is. The fix is deleting a word — but the abort lands after the
-                // build and after EditModProfile has run, so --dry-run (which
-                // reaches this check) is the cheap way to find out.
-                var nowListed = new List<string>();
-                foreach (var value in unlisted)
-                {
-                    if (groupValues[TagGroupGameVersion].Contains(value))
-                        nowListed.Add(value);
-                }
-                if (nowListed.Count > 0)
-                {
-                    Fail($"mod.io now offers [{string.Join(", ", nowListed)}] as '{TagGroupGameVersion}' tags — remove them from CK_MODIO_VERSION_UNLISTED.");
-                    return;
                 }
 
                 // Validate BEFORE changing anything: mod.io accepts an unknown
@@ -710,7 +749,7 @@ namespace CoreKeeperModUtils
                     {
                         if (!modRes.result.Succeeded())
                         {
-                            FallBackToAdditiveTags(modIo, plans, $"GetMod failed: {modRes.result.message}");
+                            FallBackToAdditiveTags(modIo, plans, $"GetMod failed: {modRes.result.message}", versionsResolved: true);
                             return;
                         }
 
@@ -748,13 +787,27 @@ namespace CoreKeeperModUtils
         // Could not establish what the mod currently carries: add the desired
         // tags and remove nothing, so a read failure can never be mistaken for
         // "the mod has no tags" and wipe the lot.
-        private static void FallBackToAdditiveTags(ModSettings modIo, List<TagGroupPlan> plans, string reason)
+        //
+        // versionsResolved says whether the Game Version plan already holds
+        // tags rather than builds. It is false when the live Game Version list
+        // is unavailable — GetTagCategories failed, or its answer lacks the
+        // group — and that is the one case worth naming the values for: a build
+        // that needs a stand-in tag goes out under its own spelling, which
+        // mod.io drops, so the mod can end up with no current version at all.
+        private static void FallBackToAdditiveTags(ModSettings modIo, List<TagGroupPlan> plans, string reason, bool versionsResolved)
         {
+            var versions = plans.Find(p => p.group == TagGroupGameVersion).desired;
             Debug.LogWarning(
                 $"[CLIPublishHelper] {reason}. Falling back to additive tagging: adding the configured "
-                    + "tags, removing nothing. The live-taxonomy check did NOT run, so a value mod.io "
-                    + "does not know is dropped by mod.io without a word; CK_GAME_VERSION was still "
-                    + "checked against the shipped builds."
+                    + "tags, removing nothing. Any value mod.io does not know is dropped by mod.io "
+                    + "without a word; CK_GAME_VERSION was still checked against the shipped builds."
+                    + (
+                        versionsResolved
+                            ? ""
+                            : $" The live Game Version list was unavailable, so [{string.Join(", ", versions)}] go "
+                                + "out as builds, not tags: one mod.io tags only through a stand-in (1.3.0.2 as "
+                                + "1.3.0) is lost. Re-run --profile-only once mod.io answers."
+                    )
             );
             foreach (var plan in plans)
             {
@@ -1313,3 +1366,60 @@ namespace CoreKeeperModUtils
     }
 }
 #endif
+
+// Outside PUG_USE_MODIO on purpose, and free of Unity and mod.io types, so
+// utils/publish-helper-tests can compile this file as it stands and test the
+// rule against the real source rather than a copy.
+namespace CoreKeeperModUtils
+{
+    using System;
+    using System.Collections.Generic;
+
+    internal static class GameVersionTags
+    {
+        // The mod.io Game Version tag for a shipped build: its own spelling
+        // when the taxonomy has one, otherwise a stand-in, otherwise null.
+        //
+        // The stand-in exists because mod.io does not tag every build. The 1.3
+        // update got a single tag, 1.3.0, while the builds that shipped are
+        // 1.3.0.1 and 1.3.0.2 — so without it no mod could be listed under 1.3.
+        //
+        // A shorter tag is a stand-in only when the build it spells, padded to
+        // four segments, never shipped. That is what tells 1.3.0 (1.3.0.0 was
+        // never released: the tag can only mean the update) from 1.1.2, which
+        // sits beside 1.1.2.1 … 1.1.2.10 and names build 1.1.2.0 — a
+        // hypothetical 1.1.2.11 must not be published as 1.1.2.0. It follows
+        // that the rule needs the list of shipped builds: with none, nothing
+        // gets a stand-in and a build without its own tag fails validation.
+        //
+        // Only a shipped build gets one, for the same reason — a typo such as
+        // 1.3.0.20 must fail, not land on 1.3.0. Whole segments only, and the
+        // longest stand-in wins. An exact tag always wins over a stand-in, so
+        // once mod.io adds 1.3.0.2 the sync moves the mod onto it by itself.
+        public static string Resolve(string build, ICollection<string> tags, ICollection<string> shipped)
+        {
+            if (tags.Contains(build))
+                return build;
+            if (shipped == null || !shipped.Contains(build))
+                return null;
+            string best = null;
+            foreach (var tag in tags)
+            {
+                if (!build.StartsWith(tag + ".", StringComparison.Ordinal) || shipped.Contains(Pad(tag)))
+                    continue;
+                if (best == null || tag.Length > best.Length)
+                    best = tag;
+            }
+            return best;
+        }
+
+        // ck-game-versions.json's canonical form: at least four segments.
+        private static string Pad(string version)
+        {
+            var segments = version.Split('.').Length;
+            for (; segments < 4; segments++)
+                version += ".0";
+            return version;
+        }
+    }
+}

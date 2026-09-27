@@ -35,6 +35,36 @@ def test_spellings_that_differ_only_in_padding_are_the_same_build():
     assert not report.missing
 
 
+def test_a_short_tag_standing_in_for_untagged_builds_is_not_a_missing_build():
+    """mod.io tags the 1.3 update `1.3.0`; no build 1.3.0.0 ever shipped.
+
+    Read as a build, the tag would be reported missing on every run and invite
+    adding a release that never existed to the file.
+    """
+    report = rg.compare(
+        known=["1.3.0.2", "1.3.0.1"], steam={"1.3.0.1": "2026-09-21"}, modio=["1.3.0"]
+    )
+
+    assert not report.missing
+    assert report.stand_ins == ["1.3.0"]
+
+
+def test_a_short_tag_whose_build_shipped_is_that_build_not_a_stand_in():
+    """`1.1.2` sits beside `1.1.2.1` ... `1.1.2.10` and names build 1.1.2.0."""
+    report = rg.compare(known=["1.1.2.0", "1.1.2.1"], steam={}, modio=["1.1.2", "1.1.2.1"])
+
+    assert not report.missing
+    assert not report.stand_ins
+
+
+def test_a_short_tag_steam_knows_as_a_build_is_still_reported_missing():
+    """If Steam announced 1.3.0.0, the tag names that build and the file lacks it."""
+    report = rg.compare(known=["1.3.0.1"], steam={"1.3.0.0": "2026-09-20"}, modio=["1.3.0"])
+
+    assert report.missing == ["1.3.0.0"]
+    assert not report.stand_ins
+
+
 def test_a_version_in_two_far_apart_entries_is_flagged_as_a_suspected_typo():
     """A version recorded on two dates far apart is flagged as a suspected typo.
 

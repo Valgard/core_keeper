@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>publish_helper_tests</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Off, because CLIPublishHelper.cs is compiled here as it stands and is
+         written for Unity's compiler, which has no nullable annotations. -->
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!-- The helper itself, not a copy. Everything in it that needs Unity or the
+       mod.io plugin sits inside #if PUG_USE_MODIO, which is not defined here,
+       so only the plain-C# tail after the #endif compiles. -->
+  <ItemGroup>
+    <Compile Include="../CLIPublishHelper.cs" />
+  </ItemGroup>
+</Project>

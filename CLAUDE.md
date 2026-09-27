@@ -171,15 +171,16 @@ do **not** keep one. So edit manifest fields directly in the `.asset` YAML's
   (`- modName: CoreLib` / `required: 1`) and flow into the built manifest.
 
 The published mod.io listing does **not** read the manifest either: profile name
-← `metadata.displayName` (fallback `metadata.name`) — so the human title
-"Item Checklist" can differ from the internal identity "ItemChecklist"; summary
-← `MOD_SUMMARY` env, version + changelog ← `CHANGELOG.md`, modId ←
+← `metadata.displayName` (fallback `metadata.name`) — so the human title "Item
+Checklist" can differ from the internal identity "ItemChecklist"; summary ←
+`MOD_SUMMARY` env, version + changelog ← `CHANGELOG.md`, modId ←
 `<Mod>_modio.asset`, version tag(s) ← `CK_GAME_VERSION` env minus
 `CK_MODIO_VERSION_UNLISTED` — both **space-separated lists**, the first naming
 every build the mod runs on and the second the ones mod.io has no tag for, so
-what remains is published one compatibility tag each (all in
-`utils/CLIPublishHelper.cs`; see @docs/publishing.md for why the subtraction
-exists and when it aborts the publish).
+what remains is published one compatibility tag each — or, where mod.io has no
+tag for a build, under a shorter tag standing in for it, as 1.3.0 does for
+1.3.0.1 and 1.3.0.2 (all in `utils/CLIPublishHelper.cs`; see @docs/publishing.md
+for why the subtraction exists and when it aborts the publish).
 
 ### Runtime asmdef from the wizard
 **Run "Update Game Files" BEFORE "Create Mod".** Creating the mod freezes its
