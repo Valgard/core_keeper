@@ -157,9 +157,10 @@ def test_sdk_is_found_from_inside_a_worktree(tmp_path, monkeypatch):
     """
     monkeypatch.delenv("SDK_PATH", raising=False)
 
-    # env=git_env() on every call: run from the pre-commit hook, the ambient
-    # GIT_DIR/GIT_INDEX_FILE beat cwd and these would address the committing
-    # repository instead of the throwaway one.
+    # conftest's autouse fixture already clears GIT_*, so cwd decides. Passing
+    # env= as well is belt and braces for the one test here that *writes*: this
+    # is the call sequence that once left the real repository with core.bare
+    # and a stray identity, and it should not depend on a fixture staying put.
     env = patch_sdk.git_env()
 
     main = tmp_path / "workspace"

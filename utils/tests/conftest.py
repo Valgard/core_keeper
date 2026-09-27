@@ -1,4 +1,4 @@
-"""Make the utils/ scripts importable, and build .pixaki fixtures in both forms.
+"""Import the utils/ scripts, keep git off this repo, build .pixaki fixtures.
 
 The test modules live in utils/tests/ but import the scripts under test from
 utils/ one level up. pytest only puts the test file's own directory on
@@ -13,7 +13,32 @@ import pathlib
 import sys
 import zipfile
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+@pytest.fixture(autouse=True)
+def _isolate_git_env(monkeypatch):
+    """Clear GIT_* so a test's git calls obey their own cwd.
+
+    Inside a hook git exports GIT_DIR, GIT_INDEX_FILE and GIT_WORK_TREE, and
+    those beat `cwd`. Several suites here run git against a directory: some read
+    the sibling mod repos, others build a throwaway repository under tmp_path.
+    Without this, the first kind answers from the committing repository -- no
+    error, plausible output, wrong repo -- and the second kind *writes* there.
+    That is not hypothetical: a test doing `git init` plus `git config user.*`
+    once left this repository with `core.bare = true` and a repo-local identity,
+    after which two commits went out under the wrong name.
+
+    Autouse and in conftest rather than per call site, because the cost of
+    forgetting it falls on whoever writes the *next* suite, not on the one that
+    forgot. Production code cannot rely on this and scrubs on its own (see
+    `patch_sdk.git_env`); here it only removes the ambient leak from the tests.
+    """
+    for name in [k for k in os.environ if k.startswith("GIT_")]:
+        monkeypatch.delenv(name, raising=False)
+
 
 PIXAKI_FORMS = ("zip", "directory")
 
