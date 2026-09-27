@@ -30,7 +30,7 @@ except that your code does not run.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `ArgumentException: Undefined target method for patch method …` at load | Harmony cannot resolve the target signature — typically an `in`/`ref` parameter | `argumentVariations` (below) |
+| `ArgumentException: Undefined target method for patch method …` at load | Harmony cannot resolve the target — typically an `in`/`ref` parameter, or a method the type no longer declares itself (only inherits) | `argumentVariations` (below); for an inherited target, patch the method the type does declare ([mod anatomy](mod-anatomy.md#harmony-patches-are-auto-discovered)) |
 | Mod loads, `safetyCheck=True`, patch binds, prefix never fires | The target is Burst-compiled; the managed IL you patched is never executed | `BurstDisabler` (below) |
 | Works when a player hosts, dead on a dedicated server | an `ISystem` registered with `BurstDisabler` after the server took its snapshot — measured ordering, and it does not arise for a managed `SystemBase` | manual `AddWorld` pass (below) |
 | Mod does not compile at all (`CompileFailed`) | Not a patching problem — an ordinary compile error, or a sandbox rejection | [sandbox rules](sandbox.md) tells the two apart |
@@ -1142,13 +1142,14 @@ client is a local host. Iterate `World.All`, run
 the world with the most entities. Hardcoding a world name breaks the moment the
 topology changes.
 
-**Trap: the world you measure may not be populated yet.** The measurement is only
-safe as a one-shot if the ECS entities are certain to be deserialised by then. An
-early callback — `OnOccupied`, for example — can fire before that, and the probe
-then pins an empty or simply wrong world for the rest of the session. A scanner
-that caches its world therefore needs a re-probe path: after a run of consecutive
-empty scans, measure again and re-pin. How many empty scans is per-mod tuning,
-not a constant.
+**Trap: the world you measure may not be populated yet.** The measurement is
+only safe as a one-shot if the ECS entities are certain to be deserialised by
+then. An early callback — the player's spawn (`OnSpawn`; `OnOccupied` through
+1.2), for example — can fire before that (observed on 1.2's `OnOccupied`, not
+re-measured on 1.3), and the probe then pins an empty or simply wrong world for
+the rest of the session. A scanner that caches its world therefore needs a
+re-probe path: after a run of consecutive empty scans, measure again and re-pin.
+How many empty scans is per-mod tuning, not a constant.
 
 From there, `em.CreateEntityQuery(ComponentType.ReadOnly<…>())` →
 `ToEntityArray(Allocator.TempJob)` → `GetComponentData<T>`, `HasComponent<T>`,

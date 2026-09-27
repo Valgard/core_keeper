@@ -395,11 +395,14 @@ and the obvious "later" candidates are worse than useless: `PugDatabase.UpdateEn
 `SaveManager.SetWorldId` and `IMod.Init` itself all throw a `NullReferenceException` whose
 message points at nothing.
 
-The anchor that works is a Harmony postfix on `PlayerController.OnOccupied` that starts a
-coroutine on the player instance:
+The anchor that works is a Harmony postfix on the player's spawn method that starts a
+coroutine on the player instance. **Since 1.3 that method is `OnSpawn`**, a `protected
+override` on `PlayerController` (`Pug.Other:308561`), which is why it is named by string.
+Through 1.2 it was `OnOccupied` (1.2.1.5 `Pug.Other:298883`); 1.3 moved the spawn logic
+out of it, and `PlayerController` no longer declares `OnOccupied` at all:
 
 ```csharp
-[HarmonyPatch(typeof(PlayerController), nameof(PlayerController.OnOccupied))]
+[HarmonyPatch(typeof(PlayerController), "OnSpawn")]
 public static class WorldLoadHook
 {
     [HarmonyPostfix]
@@ -417,13 +420,17 @@ public static class WorldLoadHook
 ```
 
 **The `WaitUntil` condition is already true when it is reached — that is the point.** At
-`OnOccupied` both `Manager.main` and `Manager.main.player` exist, so this is not a
+the local player's `OnSpawn` both `Manager.main` and `Manager.main.player` exist, so this is not a
 readiness test; it is a deliberate one-frame settle. Yielding gives the ECS world an update
 cycle to bring up its singletons — the localisation sources, the database bank — before
 your first query or before `GetObjectName(localize: true)` runs. Read as a guard the line
 looks redundant and invites deletion; it is a proxy for "a frame has passed", not a signal,
 and removing it produces the worst failure shape there is: correct-looking code that fails
 sporadically.
+
+**Filter on `__instance.isLocal`.** The postfix fires for every player that spawns, remote
+ones included, and `Manager.main.player` is assigned only inside `if (isLocal)`
+(`Pug.Other:308637`).
 
 **What this anchor does *not* guarantee is a populated ECS world.** It fires early
 enough that a one-shot probe taken here can pin an empty or wrong world for the rest of
@@ -455,18 +462,27 @@ of the same reset that calls `Shutdown`.
 **A throw does not cost you one patch, it costs the rest of the pass.** The loader hands
 the whole assembly to `Harmony.PatchAll` (`PugMod.Loader:480`), which walks
 `assembly.GetTypes()` and calls `PatchClassProcessor.Patch()` on each type with nothing
-catching in between (`0Harmony:2148-2154`, `Pug.Other:9052-9062`). A target that cannot be resolved
+catching in between (`0Harmony:2148-2154`, `0Harmony:3999-4003`). A target that cannot be resolved
 makes `PatchWithAttributes` throw `ArgumentException: Undefined target method for patch
-method …` (`Pug.Other:3177-3180`), and `Patch()` catches it only to run `[HarmonyCleanup]` before
-rethrowing it wrapped as a `HarmonyException` (`0Harmony:3371`, `Pug.Other:3305-3309`). The
+method …` (`0Harmony:3242`), and `Patch()` catches it only to run `[HarmonyCleanup]` before
+rethrowing it wrapped as a `HarmonyException` (`0Harmony:3169-3174`, `0Harmony:3371`). The
 enumeration ends there: classes already processed stay patched, the rest are never
 reached — and `GetTypes()` guarantees no order, so *which* ones made it is not something
 the source tells you. The symptom is a half-patched game, not one missing feature.
 
-**That is what makes a string-named private target a bet on the whole mod.**
-`[HarmonyPatch(typeof(X), nameof(X.Y))]` cannot go stale quietly — a renamed public member
-fails to compile. A private member named by string resolves to nothing after a rename in a
-game update, which is precisely the throw above.
+**That is what makes a string-named target a bet on the whole mod.** A member named by
+string — private or, like `OnSpawn` above, protected — resolves to nothing after a rename
+in a game update, which is precisely the throw above.
+
+**`nameof` does not protect you either, when an override is dropped.**
+`[HarmonyPatch(typeof(X), nameof(X.Y))]` catches a renamed or removed member, because that
+fails to compile. It does not catch `X` ceasing to override a base method: `nameof(X.Y)`
+still compiles through the inherited member, but the attribute form resolves the target
+with `AccessTools.DeclaredMethod` (`0Harmony:1366`), which looks only at what `X` itself
+declares. The 1.3 update did exactly this to `PlayerController.OnOccupied` — the Editor
+build stayed green, and every attribute patch on it without a `[HarmonyPrepare]` guard
+failed at load with the throw above; `item-checklist` and `caveling-divining-rod` both
+did.
 
 **The guard is a `[HarmonyPrepare]` that probes for the member and returns `false`**,
 skipping that one class cleanly: Harmony runs it before resolving any target

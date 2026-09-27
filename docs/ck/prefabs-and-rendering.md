@@ -858,9 +858,10 @@ Using `delta.y` gives you height, which is ≈0 and pins the arrow at 0°/180°.
 geometry in general is covered by [world and mechanics](world-and-mechanics.md).
 
 **Gate world-anchored HUD elements on playability.** Use a predicate equivalent to
-`isInGame && isSceneHandlerReady && !Manager.load.IsLoading() && !cutsceneIsPlaying`, not
-`isInGame && player != null`. The player object already exists at `OnOccupied` while the
-load screen is up, and it survives the exit transition — a raw player-null check lets a
+`isInGame && isSceneHandlerReady && !Manager.load.IsLoading() && !cutsceneIsPlaying`,
+not `isInGame && player != null`. The player object already exists at its spawn
+(observed at 1.2's `OnOccupied`; not re-measured at 1.3's `OnSpawn`) while the load
+screen is up, and it survives the exit transition — a raw player-null check lets a
 world-anchored HUD flash over teleport and Save-&-Quit load screens.
 
 ## Mounting an always-on HUD
