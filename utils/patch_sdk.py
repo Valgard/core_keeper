@@ -140,6 +140,78 @@ CUSTOM_SCENES_AFTER = """\
 """
 
 
+STEAMWORKS_POSIX = "Assets/Plugins/CoreKeeperModSDK/Facepunch.Steamworks.Posix.dll.meta"
+STEAMWORKS_WIN64 = "Assets/Plugins/CoreKeeperModSDK/Facepunch.Steamworks.Win64.dll.meta"
+
+# The SDK ships these two importers configured for a Windows host: the Posix
+# build is excluded from macOS and pinned to Linux, the Win64 build claims the
+# Editor slot. On macOS the Editor therefore loads neither, and anything that
+# needs Steamworks -- the SDK window's Workshop tab, and any assembly that
+# references it -- fails to resolve. The repair is the platform matrix, not the
+# files: hand OSXUniversal to the Posix build and take the Editor away from the
+# Win64 one. A Windows host wants the opposite, so this stays local and is not
+# something to offer upstream.
+STEAMWORKS_POSIX_BEFORE = """\
+        Exclude OSXUniversal: 1
+        Exclude Win: 1
+        Exclude Win64: 1
+    Editor:
+      enabled: 1
+      settings:
+        CPU: AnyCPU
+        DefaultValueInitialized: true
+        OS: Linux
+    Linux64:
+      enabled: 1
+      settings:
+        CPU: AnyCPU
+    OSXUniversal:
+      enabled: 0
+      settings:
+        CPU: None
+"""
+
+STEAMWORKS_POSIX_AFTER = """\
+        Exclude OSXUniversal: 0
+        Exclude Win: 1
+        Exclude Win64: 1
+    Editor:
+      enabled: 1
+      settings:
+        CPU: AnyCPU
+        DefaultValueInitialized: true
+        OS: AnyOS
+    Linux64:
+      enabled: 1
+      settings:
+        CPU: AnyCPU
+    OSXUniversal:
+      enabled: 1
+      settings:
+        CPU: AnyCPU
+"""
+
+STEAMWORKS_WIN64_BEFORE = """\
+        Exclude Editor: 0
+        Exclude Linux64: 1
+        Exclude OSXUniversal: 1
+        Exclude Win: 0
+        Exclude Win64: 0
+    Editor:
+      enabled: 1
+"""
+
+STEAMWORKS_WIN64_AFTER = """\
+        Exclude Editor: 1
+        Exclude Linux64: 1
+        Exclude OSXUniversal: 1
+        Exclude Win: 0
+        Exclude Win64: 0
+    Editor:
+      enabled: 0
+"""
+
+
 @dataclass(frozen=True)
 class Patch:
     """One source edit: where it goes, what it replaces, what it becomes."""
@@ -170,6 +242,20 @@ PATCHES = (
         before=CUSTOM_SCENES_BEFORE,
         after=CUSTOM_SCENES_AFTER,
         why="shlwapi.dll P/Invoke aborts every build on a non-Windows host",
+    ),
+    Patch(
+        name="steamworks-posix-platforms",
+        relative_path=STEAMWORKS_POSIX,
+        before=STEAMWORKS_POSIX_BEFORE,
+        after=STEAMWORKS_POSIX_AFTER,
+        why="the Posix Steamworks library is excluded from macOS and the Editor",
+    ),
+    Patch(
+        name="steamworks-win64-platforms",
+        relative_path=STEAMWORKS_WIN64,
+        before=STEAMWORKS_WIN64_BEFORE,
+        after=STEAMWORKS_WIN64_AFTER,
+        why="the Win64 Steamworks library claims the Editor slot on macOS",
     ),
 )
 

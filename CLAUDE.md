@@ -97,14 +97,29 @@ Read it rather than reproducing it here; what follows is what this file adds.
   Rationale + canonical commands in the `corekeeper-roslyn-locale-bug` memory.
 - **`utils/patch_sdk.py apply` after every SDK update** — the same standing
   chore one layer up, for the SDK clone's own sources rather than the installed
-  game's DLLs. The SDK's `ScriptableDataEditorUtility.FilePathComparer`
-  P/Invokes into Windows' `shlwapi.dll` with no platform branch, and since
-  CK 1.3 one call site in the build path reaches it without a catch — so on
-  macOS and Linux alike **every** build fails once the SDK window's *Import Game
-  Assets* has filled the project with data blocks to sort. The script restores
-  the catch the other three call sites have; `uv run utils/patch_sdk.py` alone
-  reports without changing anything. Symptom, mechanism and why the error
-  message points nowhere useful: [`docs/build-environment.md`](docs/build-environment.md).
+  game's DLLs. Every local edit this machine needs in that clone is carried in
+  the script as a verbatim before/after pair, so `uv run utils/patch_sdk.py`
+  alone reports what is missing and `apply` puts it back. They are edits to
+  **tracked** files in a repository that is not ours, which is the whole reason
+  the script exists: a pull, a branch switch or a stray `git restore` in the
+  clone takes them away without a word, and each one used to be an undocumented
+  local change that only its author knew about. The match is exact, indentation
+  included — an upstream rewrite stops the run rather than being forced into a
+  shape nobody verified. The two it carries today:
+  - **The `shlwapi.dll` build failure.** The SDK's
+    `ScriptableDataEditorUtility.FilePathComparer` P/Invokes into Windows'
+    `shlwapi.dll` with no platform branch, and since CK 1.3 one call site in the
+    build path reaches it without a catch — so on macOS and Linux alike **every**
+    build fails once the SDK window's *Import Game Assets* has filled the project
+    with data blocks to sort. The patch restores the catch the other three call
+    sites have. Symptom, mechanism and why the error message points nowhere
+    useful: [`docs/build-environment.md`](docs/build-environment.md).
+  - **The macOS Steamworks importer settings.** The SDK's two Steamworks DLLs are
+    each restricted to one Editor platform and both are off for macOS, so a fresh
+    clone does not compile at all. The patches move the Editor slot from the
+    Win64 library to the Posix one, in the `.dll.meta` importer blocks; what that
+    means, and why enabling the managed DLL is safe with no `libsteam_api.dylib`
+    present, is [`docs/ck/troubleshooting.md`](docs/ck/troubleshooting.md#a-fresh-sdk-clone-will-not-compile-on-a-macos-editor-host).
 - **Before dispatching an agent at another mod's source, resolve the path and
   put it in the dispatch.** `uv run utils/mod_source.py <name>` answers from
   the mod.io cache, this workspace's own repos and a mirrored mod.io
