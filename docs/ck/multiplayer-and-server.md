@@ -224,12 +224,43 @@ interchangeable.** `PlayerController.adminPrivileges` reads it off the
 That last row is what makes singleplayer look like it has no permission model at
 all: everyone is a full admin there, so every admin-gated branch is taken and
 nothing ever locks. A permission feature therefore **cannot be tested in
-singleplayer** — it needs a second player who is not the host.
+singleplayer** — it needs a live session and a player holding no rights.
+
+**It does not need a second account, though.** Stage 2 is handed out by a
+bootstrap rule keyed on the *list*, not on the person: `OnPlayerConnect` calls
+`AddAdminInternal(…, 2, …)` when `adminList.Count == 0 || isLocalPlayer`
+(`DedicatedServer/Pug.Other:290085`), and a dedicated server has no local
+player. Any entry at all therefore ends the bootstrap and every later connection
+lands on stage 0, so a placeholder entry carrying a foreign `steamId` in
+`Admins.json` is enough to join one's own server without rights. That file
+matches on `steamId` rather than on the name — the server rewrites an entry's
+`name` to the connecting character's, in the `OnPlayerNameChange` that follows
+the bootstrap check, so a stale name there means nothing.
+
+**Stages 1 and 2 differ in one way that decides whether such a test is
+possible.** `RemoveAdminInternal` only matches entries with `privileges <= 1`,
+so stage 2 cannot be taken away — stage 1 can, and nothing stops a player from
+removing *themselves*: the `UNASSIGN_ADMIN` list iterates the admin list without
+filtering the local player (`ListConnectedPlayers`, `Pug.Other:343369`), and
+the server-side handler has no self-check either. Writing stage 1 into
+`Admins.json` rather than 2 therefore buys a role change **inside one running
+session**, which the next paragraph explains the need for.
 
 **`guestMode` is not a world flag alone.** `WorldInfoCD.guestMode` is the world's
 setting, but `PlayerController.guestMode` (`Pug.Other:298432`) answers the useful
 question — it returns true only when the world flag is set **and**
 `adminPrivileges < 1`. An admin in a guest-mode world is not a guest.
+
+**And it does not survive a server restart.** The only write to `guestMode` in
+the whole server assembly is the RPC handler (`NetworkCommand.SetGuestMode`,
+`DedicatedServer/Pug.Other:136529`); nothing loads it from a save, and
+`ServerConfig.json` has no such field. It lives in the running server's
+`WorldInfoCD` singleton and is gone the moment that process ends. So a check
+that enables guest mode as an admin and then restarts the server to come back
+without rights loses the very condition it set up, and loses it silently — the
+role change has to happen within the one session, which is what the revocable
+stage 1 above is for. Measured this way round: the restart produced a run
+indistinguishable from one where guest mode had never been touched.
 
 **Both change during a session.** `NetworkCommand` carries `AddOrUpdateAdmin`,
 `RemoveAdmin` and `SetGuestMode`, handled by `NetworkCommandServerSystem` behind
