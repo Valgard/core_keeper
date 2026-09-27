@@ -275,6 +275,28 @@ unresolved in both is something else — the localisation assets every mod here
 generates carry one such `m_Script`, shared across all of them and defined
 nowhere in the SDK tree, and they work.
 
+**A bundle built before the update is a separate question from a build made
+after it, and in the one case measured the old bundle kept working.** On
+2026-09-27 the published Faster Pet Talents 1.1.1 modfile, built on 2026-08-10
+against 1.2.1.x, rendered its generated setting terms correctly — in German — on
+a 1.3.0.2 client. `Localization.csv` had been deleted beforehand and no dev build
+of the mod was loaded, so the text can only have come from that bundle. Those
+term assets were authored against the GUID `ScriptableData.dll` carried before
+1.3, which 1.3 also moved and no `.meta` in the updated SDK defines any more — so
+a stale assembly GUID broke nothing in a bundle that was already built. The sweep
+above checks what an Editor can resolve when it builds, and says nothing about a
+bundle built before the update.
+
+What this does not cover: that bundle holds ten localisation data blocks and no
+prefab, and the screen they appeared on is another mod's prefab, rebuilt for 1.3.
+Data blocks of other types, some of them defined in `Pug.Other`, were not tested.
+Unity stayed at `6000.0.59f2` across this update, so neither was a change of
+engine version. A pre-update *prefab* bundle is open: Mod Settings Menu's 1.2.0
+changelog reports that 1.3 left its screen empty, but not whether that was the
+published 1.1.0 bundle, nor whether the GUID or 1.3's rewritten `LinearLayout`
+caused it. The reverse direction — a bundle built after the update, on a client
+still running the previous version — is untested.
+
 **Trap: a duplicated `metadata.guid` breaks asset loading, not identity.** The loader
 registers each mod's asset-bundle data-block loader under that GUID
 (`ScriptableData.AddDataBlocksLoader(mod.Metadata.guid, …)`), so a second mod carrying the
