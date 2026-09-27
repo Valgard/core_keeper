@@ -807,15 +807,66 @@ multiplied by `0.0625f` — one sixteenth, the units-per-pixel of CK's UI — be
 they reach a position. A `float` field invites reading it as world units, which
 would be sixteen times too much.
 
+**Since 1.3 a vertical layout places its children's `x` too, from pivots.** In
+1.2.1.5 a vertical `LinearLayoutUIComponent` wrote each child's `y` and left the
+`x` authored in the prefab alone. The exception was a `reversed` layout, which
+zeroed it, because `UIManager.PositionElementAbove` tests its `setXToZero` flag
+the wrong way round. The 1.3 rewrite writes `x` for every active child. The
+cross-axis start comes from `LinearLayoutUIComponent`'s new `pivotPosition`
+field: `…Left` puts it at `0`, `…Center` at minus half the widest child,
+`…Right` at minus the widest child. Each child is then shifted by its own
+`GetUIComponentPivotPosition()`. A `…Center` child moves right by half its width
+and a `…Right` child by all of it. A `Middle…` child moves down by half its
+height and a `Bottom…` child by all of it. A child with `centerInParent` is
+re-placed afterwards on the cross axis, which in 1.2.1.5 happened in horizontal
+layouts only. Positions are rounded to 1/16.
+
+So an `x` offset kept on a layout child in the prefab is silently overwritten.
+A prefab without the new field gets `TopLeft` and every child starts at `x = 0`,
+the layout's own origin. In the one prefab this was found in, that origin was
+the centre of its box, so every heading moved from the left edge to the middle.
+Changes that arrived with it:
+
+- **`PivotPosition` grew from `{ TopLeft, MiddleLeft }` to nine members**, in
+  row-major order (`TopLeft, TopCenter, TopRight, MiddleLeft, …, BottomRight`).
+  Unity stores an enum as its number, so a serialized `pivot: 1` that meant
+  `MiddleLeft` now means `TopCenter`, and no warning says so. `MiddleLeft` is `3`
+  now. Re-check every serialized `pivot` and `pivotPosition` a pre-1.3 prefab
+  carries.
+- **`reversed` is gone.** A layout that stacked bottom-up in 1.2.1.5 now stacks
+  top-down, and the stale field in its prefab does nothing.
+- **The layout's width now positions things.** The widest child already set a
+  vertical layout's width in 1.2.1.5. In 1.3 that width also drives the
+  cross-axis placement above and the `background` sprite's `x`. The background is
+  placed by the new `backgroundImagePivot`, which defaults to `MiddleCenter`
+  (centred on the layout) and is what a prefab without the field gets. Only the
+  main-axis size of the background is set, never its cross-axis size. A
+  `WrapperUIComponent` with `renderWidthPixels: 0` reports zero width, so, unless
+  it sets `centerInParent`, it neither centres itself nor widens its container.
+  Give the wrapper the width the row is meant to have.
+- **A layout reports its own `pivotPosition` to its parent**, where it used to
+  inherit the base class's `TopLeft`. So a nested layout's pivot matters twice.
+- **`PugText` reports a pivot from its style** (`horizontalAlignment` ×
+  `verticalAlignment`), where it used to return `MiddleLeft` unconditionally,
+  and it measures `width`/`height` from `dimensions` instead of from its glyph
+  renderers. What it draws and what it reports can disagree. Single-line text is
+  always *rendered* vertically centred, whatever the style says, but the pivot
+  it *reports* still follows `style.verticalAlignment`. So a one-line `PugText`
+  styled `top` tells the layout it is a `Top…` child while drawing as a
+  `Middle…` one, and sits half its height off — read from the source
+  (`Pug.Other:367491`), not yet seen in game. Style a layout child's text
+  `center` vertically.
+
 **A child taller than its layout slot overhangs it, and only the ends of the
 list notice.** Slot heights usually come from measured content (a text height),
 while a decoration drawn in that slot — a frame, a background — has its own
-fixed size. If the decoration is the taller one it spills past the slot,
-symmetrically when `WrapperUIComponent.pivot` is `MiddleLeft`, downward only
-when it is `TopLeft`. Between children the spill lands in `gapBetweenItems` and
-is invisible. At the **first and last** child there is no gap but the edge of
-the scroll viewport's [`SpriteMask`](#clipping-with-a-spritemask), so with `paddingStart`/`paddingEnd` at their
-default `0` the outermost pixels are clipped away.
+fixed size. If the decoration is the taller one it spills past the slot. The
+spill is symmetric when the child's pivot is a `Middle…` one, downward only for
+a `Top…` one, and upward only for a `Bottom…` one. Between children the spill
+lands in `gapBetweenItems` and is invisible. At the **first and last** child
+there is no gap but the edge of the scroll viewport's [`SpriteMask`](#clipping-with-a-spritemask), so with
+`paddingStart`/`paddingEnd` at their default `0` the outermost pixels are
+clipped away.
 
 The symptom is therefore *the first row's top and the last row's bottom look cut
 off, while every row between them is fine* — and the fix is padding, not a taller
@@ -2348,10 +2399,20 @@ space, pivot-corrected.** CK's canonical
 `UIComponentMonoBehaviour.ScrollIntoView` computes `transform.position.y -
 scrollingContent.position.y` — a world delta, valid because UI scale is 1 — and
 then, if `GetUIComponentPivotPosition() == PivotPosition.TopLeft`, subtracts
-`height / 2` to arrive at the **centre**. `PivotPosition { TopLeft, MiddleLeft
-}` is nested in `UIComponentMonoBehaviour`, and `WrapperUIComponent.pivot` is
-the authority on which one a given row uses (list rows tend to be `TopLeft`,
-ordinary rows `MiddleLeft`).
+`height / 2` to arrive at the **centre**. `PivotPosition` is nested in
+`UIComponentMonoBehaviour`. Each component type answers
+`GetUIComponentPivotPosition()` itself: a `WrapperUIComponent` from its `pivot`
+field (list rows tend to be `TopLeft`, ordinary rows `MiddleLeft`), a `PugText`
+from its style, and a `LinearLayoutUIComponent` from its `pivotPosition`. Since
+1.3 the enum has nine members, and its numbers moved (see the auto-layout notes
+under [Traps when cloning menu objects](#traps-when-cloning-menu-objects)). The test is still `== TopLeft`, though,
+so every other pivot is taken as already centred. That is right only for
+`Middle…` rows. For a `TopCenter` or `TopRight` row the scroll aims half a row
+above the row's centre, and for a `Bottom…` row half a row below it. This is
+read from the source and not yet observed in game. Under a `UIScrollWindow`,
+give a row that scrolls into view a `Middle…` pivot or `TopLeft`. The
+`ScrollableUIComponent` path applies no pivot correction at all and takes the
+row's position as its top edge.
 
 For **nested** rows — row inside box inside section inside `contentRoot`, deeper
 than vanilla's one-level menus — sum `localPosition.y` up the parent chain
