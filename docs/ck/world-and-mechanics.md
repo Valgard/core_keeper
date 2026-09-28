@@ -397,19 +397,47 @@ non-existence**: `Convert` snapshots the list
 (`SetPropertyList("PlaceableObject/canBePlacedOnObjects", …)`,
 `Pug.ECS.Conversion:3035`) and all converters run before any post-converter
 (`PugConversion:766-805`), so a `PostConvert` mutation lands in the *next*
-conversion pass — which is what makes the "requires a restart" advice true.
+conversion pass.
+
+That next pass comes within the same session, because each world is converted
+separately and the mutation stays on the in-memory prefab: `ECSManager.Init`
+converts the Default World first (`Pug.Other:2345-2356`), and every world load or
+join later runs `ConvertAuthoringDataRoutine`, which converts the ServerWorld and
+the ClientWorld, whichever of the two the process has (`Pug.Other:2619`,
+`Pug.Other:2641`). An edit made during the Default World's `PostConvert` therefore
+reaches the worlds that are actually played in, while the Default World keeps the
+unpatched list — and so does `Manager.mod.Authoring.ObjectProperties`, which is
+read from it (`Pug.Other:2362`). A dedicated server orders these the same way:
+its `ECSManager.Init` converts the Default World too (`Pug.Other:2334` in the
+server build), and its log shows that conversion before the ServerWorld's.
+Observed working in `auto-rail-bridges` on 1.3.0.2 in a host session; the edit's
+effect on a dedicated server has not been measured.
+
+Two consequences. `PostConvert` runs again on every one of those conversions, so
+the edit has to be idempotent — add an entry only if it is missing. And the
+mutation outlives a settings change: a later world load picks up an added entry
+without a restart, but taking it back needs code that removes it, or a restart.
 
 The list is reachable from `PugDatabasePostConverter.PostConvert(GameObject)`
-(`Pug.Other:3442`/`Pug.Other:3504`), which does run per world/database conversion. From a
-prefix you walk `PugDatabaseAuthoring` →
-`DatabaseConversionUtility.GetPrefabList(...)` → the `PrefabData` whose
-`ObjectInfo.objectID` matches → `ObjectInfo.prefabInfos` →
-`prefabInfo.ecsPrefab.TryGetComponent<PlaceableObjectAuthoring>()` → mutate
-`canBePlacedOnObjects`, a `List<ObjectID>` (`Pug.ECS.Authoring:3251`). Identify
-prefabs by their `objectID` enum, never by `objectName` string. Useful
-constants: `ObjectID.Pit = 233`, `ObjectID.Water = 232`. The bake runs after
-`EarlyInit` and before `Init`, so the patch must be bound in `IMod.EarlyInit`;
-the full `PostConvert` pattern is in [database and baking](database-and-baking.md).
+(`Pug.Other:3442`/`Pug.Other:3504`), which does run per world/database
+conversion. Since 1.3, walk the prefabs the way vanilla `PostConvert` itself
+does: `ScriptableData.GetDataBlocks<EntityAuthoringDataBlock>()`
+(`Pug.Other:3513`) → every block whose `prefab`'s
+`IEntityMonoBehaviourData.ObjectInfo.objectID` matches (`Pug.Other:3529`,
+`Pug.Other:3535`; vanilla keys on objectID *and* variation, `Pug.Other:3542`, so
+one object can have several blocks) →
+`block.prefab.TryGetComponent<PlaceableObjectAuthoring>()` → mutate
+`canBePlacedOnObjects`, a `List<ObjectID>` (`Pug.ECS.Authoring:3251`). The 1.2
+route through `DatabaseConversionUtility.GetPrefabList(...)` and
+`ObjectInfo.prefabInfos[].ecsPrefab` no longer compiles on 1.3; [database and baking](database-and-baking.md#injecting-a-craftable-into-a-vanilla-station-at-runtime)
+has the two versions side by side. Filter on `PugDatabaseAuthoring` first, since
+a prefix on `PostConvert` fires for every converted root object. Identify the
+game's own prefabs by their `objectID` enum, not by `objectName` string —
+objects a mod adds are a different case and are commonly looked up by name.
+Useful constants: `ObjectID.Pit = 233`, `ObjectID.Water = 232`. The Default
+World's bake runs after `EarlyInit` and before `Init`, so binding the patch in
+`IMod.EarlyInit` is what catches it; the world conversions that follow come
+later still. The full `PostConvert` pattern is in [database and baking](database-and-baking.md).
 
 **Permission has to exist before placement runs.** `canPlaceObject` is computed
 in `UpdatePlaceablePosition`, and `PlaceItem` returns early at `Pug.Other:321989` when it
