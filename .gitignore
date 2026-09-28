@@ -26,6 +26,7 @@ __pycache__
 !/docs/macos-crossover-loader.md
 !/docs/publishing.md
 !/docs/pixaki-format.md
+!/docs/roadmap.md
 # The Core Keeper modding handbook — game/SDK reference, tracked as a whole
 # directory rather than file by file, so new chapters need no gitignore edit.
 !/docs/ck/
