@@ -318,6 +318,16 @@ through a translation layer with its own Steam client, bringing the native clien
 online takes the other one offline — publishing and playing become mutually
 exclusive.
 
+The reverse order fails less legibly. When the translated client comes online
+*after* the native one — launching the game starts it — nothing reports a lost
+session: `SteamAPI_Init` succeeds, an item query still returns the item with its
+owner and metadata, and the content upload runs to 100 %. Only the final
+`SubmitItemUpdate` fails, with the generic `Fail` rather than anything naming
+the session, and the item is left untouched (its `time_updated` does not move).
+Observed twice in a row on one macOS/CrossOver host; quitting the Steam client
+inside the bottle, and changing nothing else, made the next submit succeed. The
+game being closed was not enough — its Steam client outlives it.
+
 ## macOS needs a native library the SDK does not ship
 
 On a macOS Editor the tab's *Initialize Steam* button appears to do nothing. The
