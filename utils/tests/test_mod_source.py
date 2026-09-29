@@ -88,8 +88,12 @@ def _installed_row(entry):
     return mod_id, modfile_id, name, files, title, slug
 
 
-def _write_cache(root, mods, state_disabled=()):
-    """Build a synthetic mod.io cache: folders, manifests and state.json."""
+def _write_cache(root, mods, state_disabled=(), unsubscribed=()):
+    """Build a synthetic mod.io cache: folders, manifests and state.json.
+
+    Every mod is subscribed unless its id is in `unsubscribed` -- the state a
+    fake-ID dev install is left in once the game's Mods screen has synced.
+    """
     cache = root / "mods"
     cache.mkdir(parents=True)
     rows = [_installed_row(entry) for entry in mods]
@@ -111,7 +115,7 @@ def _write_cache(root, mods, state_disabled=()):
                 "mods": entries,
                 "existingUsers": {
                     "u": {
-                        "subscribedMods": [{"id": int(m)} for m in entries],
+                        "subscribedMods": [m for m in entries if int(m) not in set(unsubscribed)],
                         "disabledMods": list(state_disabled),
                     }
                 },
@@ -186,6 +190,72 @@ def test_a_disabled_mod_is_still_found(tmp_path):
 
     assert len(mods) == 1
     assert mods[0].enabled is False
+
+
+def test_a_mod_missing_from_subscribed_mods_is_found_but_unsubscribed(tmp_path):
+    """A mod with a `mods` entry and a folder but no subscribedMods entry reads as subscribed=False.
+
+    Since CK 1.3 merely opening the Mods screen syncs subscribedMods and drops a
+    fake-ID dev install from it while leaving its folder and its `mods` entry in
+    place. The game's mod.io loader then no longer loads it, so reporting it as
+    plainly installed would be a wrong answer.
+    """
+    cache = _write_cache(
+        tmp_path,
+        [
+            (6065466, 8079348, "DisableDurability", ["Scripts/Mod.cs"]),
+            (9999999, 1, "DisableDurability", ["Scripts/Mod.cs"]),
+        ],
+        unsubscribed=[9999999],
+    )
+
+    mods, _ = mod_source.read_installed(cache)
+
+    by_id = {m.mod_id: m for m in mods}
+    assert by_id[6065466].subscribed is True
+    assert by_id[9999999].subscribed is False
+
+
+def test_an_unsubscribed_install_says_the_game_will_not_load_it(tmp_path):
+    """An installed but unsubscribed mod resolves with a note that the game will not load it."""
+    ws = _workspace(
+        tmp_path,
+        installed=[(9999986, 1, "GeneralConfigMenu", ["Scripts/G.cs"])],
+        unsubscribed=[9999986],
+    )
+
+    result = ws.resolve("GeneralConfigMenu")
+
+    assert any("not in subscribedMods" in n for n in result.notes)
+
+
+def test_an_unsubscribed_dev_build_says_the_game_will_not_load_it(tmp_path):
+    """An own mod whose dev build left subscribedMods says so beside the dev-build note."""
+    ws = _workspace(
+        tmp_path,
+        installed=[
+            (6065466, 8079348, "DisableDurability", ["Scripts/D.cs"]),
+            (9999999, 1, "DisableDurability", ["Scripts/D.cs"]),
+        ],
+        own=[("disable-durability", "DisableDurability", 6065466, 9999999)],
+        unsubscribed=[9999999],
+    )
+
+    result = ws.resolve("DisableDurability")
+
+    assert any("dev build" in n and "not in subscribedMods" in n for n in result.notes)
+
+
+def test_a_subscribed_install_carries_no_subscription_note(tmp_path):
+    """The subscription note appears only when the id is actually missing from subscribedMods."""
+    ws = _workspace(
+        tmp_path,
+        installed=[(9999986, 1, "GeneralConfigMenu", ["Scripts/G.cs"])],
+    )
+
+    result = ws.resolve("GeneralConfigMenu")
+
+    assert not any("subscribedMods" in n for n in result.notes)
 
 
 def test_truncated_state_json_warns_instead_of_crashing(tmp_path):
@@ -495,9 +565,13 @@ def _catalogue_row(entry):
     }
 
 
-def _workspace(tmp_path, installed=(), own=(), catalogue=()):
+def _workspace(tmp_path, installed=(), own=(), catalogue=(), unsubscribed=()):
     """Build a Workspace from synthetic sources, skipping any source unused by the test."""
-    cache = _write_cache(tmp_path / "bottle", list(installed)) if installed else None
+    cache = (
+        _write_cache(tmp_path / "bottle", list(installed), unsubscribed=unsubscribed)
+        if installed
+        else None
+    )
     repos = tmp_path / "repos"
     repos.mkdir(exist_ok=True)
     for repo, mod_name, mod_id, fake_id in own:

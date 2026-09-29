@@ -106,8 +106,12 @@ class InstalledMod:
     """One mod installed in the cache, read from TWO files rather than one.
 
     state.json -- the game's own record -- supplies mod_id, the live modfile
-    (and with it the folder), the mod.io title and slug, and whether the mod
-    is disabled. ModManifest.json INSIDE that folder supplies internal_name
+    (and with it the folder), the mod.io title and slug, whether the mod is
+    disabled, and whether it is still subscribed. The last is not implied by
+    the first ones: since CK 1.3 opening the game's Mods screen rebuilds
+    subscribedMods from the account and drops a fake-ID dev install from it,
+    leaving its folder and its `mods` entry behind -- and the game's mod.io
+    loader loads subscribed mods only. ModManifest.json INSIDE that folder supplies internal_name
     and source_files; state.json carries neither, which is exactly why an
     uninstalled mod's internal name is unknowable without a download.
     """
@@ -119,6 +123,7 @@ class InstalledMod:
     title: str
     slug: str
     enabled: bool
+    subscribed: bool
     source_files: list[str]
 
     @property
@@ -202,8 +207,10 @@ def read_installed(cache_dir: Path) -> tuple[list[InstalledMod], list[str]]:
         return [], warnings
 
     disabled: set[str] = set()
+    subscribed: set[str] = set()
     for user in (state.get("existingUsers") or {}).values():
         disabled |= {str(x) for x in user.get("disabledMods", [])}
+        subscribed |= {str(x) for x in user.get("subscribedMods", [])}
 
     mods: list[InstalledMod] = []
     for mod_id, entry in (state.get("mods") or {}).items():
@@ -244,6 +251,7 @@ def read_installed(cache_dir: Path) -> tuple[list[InstalledMod], list[str]]:
                 title=profile.get("name", ""),
                 slug=profile.get("name_id", ""),
                 enabled=str(mod_id) not in disabled,
+                subscribed=str(mod_id) in subscribed,
                 source_files=[
                     f["path"] for f in data.get("files", []) if f.get("path", "").endswith(".cs")
                 ],
@@ -471,6 +479,14 @@ KIND_OWN = "own"
 KIND_INSTALLED = "installed"
 KIND_PARKED = "parked"
 KIND_CATALOGUE = "catalogue"
+
+# Completes a note for a mod whose folder and `mods` entry are in the cache but
+# whose id is not subscribed -- the state a visit to the game's Mods screen
+# leaves a fake-ID dev install in. The files being there proves nothing.
+NOT_SUBSCRIBED = (
+    "not in subscribedMods, so the game's mod.io loader will not load it — "
+    "rebuild to re-register a dev build"
+)
 
 # Whether the mod that was resolved is provably the mod that was asked for.
 # Four values rather than a boolean, because the check has four outcomes and
@@ -781,6 +797,8 @@ class Workspace:
             )
             if dev is not None:
                 notes.append(f"also built as a dev build at {dev.folder}")
+                if not dev.subscribed:
+                    notes.append(f"the dev build's id {dev.mod_id} is {NOT_SUBSCRIBED}")
             return Resolution(
                 kind=KIND_OWN,
                 mod_id=owner.mod_id,
@@ -797,7 +815,8 @@ class Workspace:
             if installed.is_fake_id:
                 notes.append(
                     "temporary: this fake id belongs to no mod repo, so it is a foreign "
-                    "mod parked locally — a mod.io sync deletes such entries"
+                    "mod parked locally — opening the game's Mods screen unregisters "
+                    "it, and its Mod.io button deletes it"
                 )
                 kind = KIND_PARKED
             else:
@@ -806,6 +825,8 @@ class Workspace:
                 notes.append("ships no Scripts/ — this mod is assets only")
             if not installed.enabled:
                 notes.append("installed but disabled in the game's mod menu")
+            if not installed.subscribed:
+                notes.append(f"installed, but its id is {NOT_SUBSCRIBED}")
             return Resolution(
                 kind=kind,
                 mod_id=installed.mod_id,
