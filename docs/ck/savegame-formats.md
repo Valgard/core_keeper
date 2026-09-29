@@ -119,15 +119,17 @@ because the command that creates it does not attach `DontSerializeCD`, while
 the case directly beside it in the same switch does.
 
 **What survives the trip is less than the component you know.** On save,
-`ObjectDataCD` is repacked into `ObjectDataSerializedCD` — three `int`s,
-**12 bytes**: `ObjectID`, `Amount`, `Variation`. The fourth runtime field is
-dropped, which is why these records sit at a stride of 12 and not 16, the
-likelier guess. `MapMarkerCD` itself is never written; it comes back from the
-prefab at load. When this section was first written, against 1.2, markers
-carried **no text** — the type enums were the entire vocabulary. That cannot be
-rechecked now, since no 1.2 decompile is at hand, and the 1.3 migration adds an
-empty name only where none exists (`Pug.Other:174432`–`174435`), which leaves
-room for markers that already had one.
+`ObjectDataCD` is repacked into `ObjectDataSerializedCD` — three `int`s, **12
+bytes**: `ObjectID`, `Amount`, `Variation`. The fourth runtime field is dropped,
+which is why these records sit at a stride of 12 and not 16, the likelier guess.
+`MapMarkerCD` itself is never written; it comes back from the prefab at load.
+When this section was first written, against 1.2, markers carried **no text** —
+the type enums were the entire vocabulary. The 1.2.1.5 decompile agrees: the
+server's `CreateMapUI` handler creates the marker from a position and a
+variation and sets no name (1.2.1.5 `Pug.Other:397380`–`397389`). The 1.3
+migration adds an empty name only where none exists
+(`Pug.Other:174432`–`174435`), which leaves room for markers that already had
+one.
 
 **Since 1.3 a player's marker carries two more serialized components**, because
 its icon is no longer a slot but a data block ([world and mechanics](world-and-mechanics.md#since-13-a-user-markers-icon-is-a-data-block)):
@@ -159,7 +161,9 @@ it. A marker the 1.3 client places is prespawned with variation 0
 1.3 marker: the pre-1.3 path is still in the game, a `CreateMapUI` command
 (`Pug.Other:413185`) whose server handler creates a marker at the variation the
 caller asks for, minus 2 (`414249`–`414256`). Vanilla no longer calls it, but a
-mod can, and its markers can carry a non-zero variation.
+mod can, and its markers can carry a non-zero variation — except in a
+guest-mode world, where the server drops the command from a player who is not
+an admin (`414190`–`414196`).
 
 **World version 13 converts the old slots once.** `ConvertOldMapMarkersSystem`
 runs while a world is below version 13 (`Pug.Other:174409`) and touches only
@@ -176,9 +180,11 @@ fixed variation as a mod's. The value exists in the source of the mod meant,
 MapMarkers+, for five of its types — the four placeable markers it backs with
 vanilla art, and Ping — but it does not reach the world: the mod hands those
 markers to the game's own creation path. In the world measured below, the
-recorded scan counts nine player markers besides the mod's own, all at `Amount`
-1 (map-markers-enhanced, `docs/manual-tests.md`, "Legacy restoration"); that no
-marker there carries 0 was observed without a recorded count.
+recorded scan counts nine player markers at `Amount` 1 besides the mod's 62
+(map-markers-enhanced, `docs/manual-tests.md`, "Legacy restoration") — "at
+`Amount` 1" is the scan's counting criterion, not a finding, so a marker at any
+other amount would not appear in it. That no marker there carries 0 was observed
+without a recorded count.
 
 **Third-party mods can repurpose `Amount`.** A marker has no use for an amount,
 so the field is free — and at least one widely used marker mod stores its icon

@@ -367,8 +367,11 @@ rule, and do not build on either order.
 it returns is the `List<T>` the registry itself keeps (`ScriptableData:1430`,
 created at `1375`), so a caller that casts it back to `List<T>` can reorder it
 in place — and every later reader sees the new order until the next
-ScriptableData load, whose `Reset` clears the lists (`1180`–`1186`) before they
-are rebuilt in sorted order. Reordering this generic typed list leaves runtime
+ScriptableData load. That load's `Reset` empties the registry's dictionaries
+(`1180`–`1186`), not the lists they held, and the rebuild creates a new list per
+type (`1375`) in sorted order; the reordered list is left behind rather than
+emptied, so a caller still holding it keeps seeing the old order, while one
+that asks again gets the new list. Reordering this generic typed list leaves runtime
 IDs alone: they come from a separate untyped list and lookup (`1383`–`1384`,
 read at `1446` and `1490`), and lookup by address uses a dictionary of its own
 (`1526`). The non-generic `TryGetDataBlocks(Type, …)` is a different matter: it

@@ -209,8 +209,10 @@ Verified on 1.3.0.2 with five mod-shipped icon assets: they appear in the
 dialog, place, save and survive a restart like vanilla's. A saved marker refers
 to its block only by address, so the block needs one that never changes, and to
 the variant only by its index, so the order of `variants` has to stay stable
-too: new variants go at the end, and reordering or removing one changes what
-every existing marker shows.
+too: new variants go at the end. Reordering or removing one changes what the
+markers whose stored index it shifts show, not every marker: those below the
+change keep their variant, and an index past the shortened end is clamped to the
+last variant (`Pug.Base:15163`).
 
 **The server stores an icon address without resolving it.** Placing a marker
 sends `CreateCustomMapMarker`; the server's `MapMarkerRpc` handler
@@ -235,8 +237,11 @@ the prefab's default sprite — observed on 1.3.0.2 right after launch as a blue
 diamond (map-markers-enhanced, `docs/manual-tests.md`, "Without the mod on the
 client") — while a reused one can go on showing the icon of another user marker
 it displayed before. `UpdateColor()` still runs first and tints the element's
-colour icon in the local player's colour (`344783`), which only the resolved
-path resets to white (`344852`). That is what players without an icon mod see
+colour renderer in the local player's colour (`344783`), which only the resolved
+path resets to white (`344852`–`344856`) — but in the 1.3.0.2
+`userPlacedMapMarker.prefab`, read from the extracted resources, both colour
+renderers carry no sprite and no code assigns them one, so the tint has nothing
+visible to colour. That is what players without an icon mod see
 for markers placed with it, and what everyone sees after uninstalling it — so do
 not expect it to look like any one particular icon.
 
@@ -245,14 +250,19 @@ not expect it to look like any one particular icon.
 `EditCustomMapMarker`, and the server handler's `targetEntity` branch (`413869`)
 updates icon, variant and name of an existing marker. That branch checks only
 that the target carries `MapMarkerCustomDataCD`: it never looks at who sent the
-request, so any client could edit any player's marker, and it writes the
-request's name unconditionally (`413872`–`413875`), so an edit with an empty
-name clears the marker's name, where creation sets a name only when one is given
-(`413861`). But nothing calls `ApplyEditToExistingMarker`, in the client or the
-dedicated-server build, and the game offers no way to reach it — changing a
-marker means deleting it and placing a new one. A mod that wants editing has to
-open the dialog on an existing marker itself; whether the dead path works as it
-stands is untested.
+request, and unlike the command path it has no guest-mode check either (`414579`
+runs it unconditionally), so any client could edit any player's marker it has as
+a ghost. The target travels as a ghost id; one the server cannot map arrives as
+`Entity.Null` (`453410`–`453417`), and the handler then takes its create branch
+(`413856`) and places a new marker at the request's position, which
+`EditCustomMapMarker` never sets (`413566`–`413575`), so at the origin. The edit
+branch also writes the request's name unconditionally (`413872`–`413875`), so an
+edit with an empty name clears the marker's name, where creation sets a name
+only when one is given (`413861`). But nothing calls
+`ApplyEditToExistingMarker`, in the client or the dedicated-server build, and
+the game offers no way to reach it — changing a marker means deleting it and
+placing a new one. A mod that wants editing has to open the dialog on an
+existing marker itself; whether the dead path works as it stands is untested.
 
 **The 1.3 world migration turned old markers into these** — by their old slot
 alone, which cost one widely used marker mod every marker it had drawn with its
