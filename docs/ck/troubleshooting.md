@@ -63,24 +63,32 @@ where a working one shows `…,'Client','Script'`. If `Player.log` has no
 `DependencySorter.SortMods` and the tag path is what dropped it.
 
 **Fix:** mod.io website → the mod's profile → Edit → Tags → uncheck `Asset`,
-check `Script` → save. Then open the in-game Mods menu once (that is what syncs
+check `Script` → save. Then open the in-game Mods screen once (that is what syncs
 tags into `state.json`) and restart. `Asset` is a value the group offers that a
 script mod never earns, so anything that sets tags on publish should treat it as
 surplus rather than preserve it — see [publishing](publishing.md).
 
-**Trap: opening that menu deletes every local dev install on the machine.** The
-sync it triggers is destructive by design. `SyncUsersSubscriptions` **clears**
-the local subscription set and rebuilds it from the account's `/me/subscribed`
-response, then wakes the mod-management pass, which uninstalls every mod in the
-local registry that no user subscribes to (`ShouldThisModBeUninstalled` →
-`PerformOperation_Delete`) — the installation directory is gone, but the
-modfile archive is not: `PerformOperation_Delete` calls only the
-delete-installed-mod step, never `TryDeleteModfileArchive` (that runs only on
-a low-storage cleanup or a failed download). A locally installed dev build has
-a placeholder mod ID that resolves to nothing in the catalog, so it can never
-appear in that response and is removed without a prompt or a dialog. Starting
-the game, loading a world and playing do not trigger the sync; the mod browser
-does. Reinstall each dev build afterwards.
+**Trap: opening that screen unregisters every dev install placed in the mod.io
+cache under a placeholder ID.** The sync it triggers — for a logged-in session — is
+destructive by design. `SyncUsersSubscriptions` **clears** the local subscription set
+and rebuilds it from the account's `/me/subscribed` response. Such a dev build's
+placeholder mod ID resolves to nothing in the catalog, so it can never appear in that
+response: it drops out of the subscription set without a prompt or a dialog, and the
+mod.io loader, which loads only subscribed mods, stops loading it. Its files survive
+that step. A build side-loaded from the local mods folder is not subscription-bound
+and is not affected.
+
+Pressing **Mod.io** in that screen goes one step further: it enables the
+mod-management pass, which uninstalls every mod in the local registry that no user
+subscribes to (`ShouldThisModBeUninstalled` → `PerformOperation_Delete`) and then
+drops its `mods` entry — the installation directory is gone, but the modfile archive
+is not:
+`PerformOperation_Delete` calls only the delete-installed-mod step, never
+`TryDeleteModfileArchive` (that runs only on a low-storage cleanup or a failed
+download). Why the two steps are separate, and a measurement of the first alone, are
+in [mod anatomy](mod-anatomy.md#the-in-game-mod-menu-and-when-modio-is-contacted).
+Starting the game and loading a world trigger neither. Reinstall each such dev build
+afterwards either way.
 
 ### Cheaper if you have a log: a stale game-version compatibility tag
 
@@ -162,9 +170,11 @@ for mf in …/Public/mod.io/5289/mods/*/ModManifest.json; do jq -r .guid "$mf"; 
 
 **Fix:** give the *newer* mod's `.asset` a fresh 32-hex `metadata.guid`
 (`uuidgen | tr -d -`), rebuild, republish; leave the established mod alone.
-After publishing, open the in-game Mods menu once to re-sync the corrected
-modfile, then restart — at the price named above: **that visit deletes every
-local dev install**, so budget a reinstall of each.
+After publishing, open the in-game Mods screen and press **Mod.io** once to
+download the corrected modfile, then restart — at the price named above: **that
+visit deletes every local dev install**, so budget a reinstall of each. Opening the
+screen alone is not enough, because downloading is the part only the Mod.io browser
+enables.
 
 **Two traps while verifying the fix:**
 

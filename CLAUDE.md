@@ -296,7 +296,7 @@ asmdef cannot reference an editor-only one, so a CLI build helper (for
 ## macOS / CrossOver — distribution & loader
 
 Read `docs/macos-crossover-loader.md` for the **fake-ID dev install** — the
-three locations it writes and why the in-game Mods menu wipes them. What a
+three locations it writes and why the in-game Mods screen undoes them. What a
 Wine host breaks is `docs/ck/platforms.md`; the loader's two disable lists
 (`unsupportedModsToLoad`, `disabledMods`) and the incompatible-mod dialogue are
 `docs/ck/troubleshooting.md`.

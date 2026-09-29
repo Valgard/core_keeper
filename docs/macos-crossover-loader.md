@@ -47,20 +47,24 @@ hygiene against the Wine stale-folder issue; with `corekeeper-patch` Patch 1
 applied, the cleanup is no longer load-critical but still avoids unrelated
 clutter accumulating).
 
-**Do not open the in-game Mods menu** while a fake-ID mod is installed — it
-triggers a mod.io API sync that resolves the fake ID against the real catalog,
-finds nothing, and deletes the local files + ZIP. Game start, world load and
-gameplay are safe; only the mod browser triggers the sync. If the entry is
-wiped, re-run the mod's install step to restore all three locations.
+**Do not open the in-game Mods screen** while a fake-ID mod is installed. Since
+CK 1.3, merely opening it syncs the subscription list with mod.io, and the fake
+ID, which no real subscription contains, drops out of `subscribedMods` in
+`state.json`. The mod is then no longer loaded, although its files and ZIP are
+still on disk. Pressing **Mod.io** in that screen goes further and deletes the
+installation directory and the `mods` entry in `state.json` as well; only the ZIP
+survives. Game start and world load are safe.
+Either way, re-run the mod's install step to restore all three locations.
+Mechanism and measurement: [`docs/ck/mod-anatomy.md`](ck/mod-anatomy.md#the-in-game-mod-menu-and-when-modio-is-contacted).
 
-Subscribing to a real mod.io mod on its website does **not** install it —
-the install happens only when the in-game Mods menu is opened and the
-client syncs pending subscription changes. So opening that menu is
-sometimes unavoidable; when you do, the same sync wipes **every** fake-ID
-mod alongside applying the newly subscribed one. Plan for it as a
-two-step: open the menu to let the mod.io change land, then rebuild each
-fake-ID mod (`source .envrc && ../utils/build.sh`, which re-runs
-`install-macos.sh`) to restore all three locations.
+Subscribing to a real mod.io mod on its website does **not** install it — the
+download happens only once **Mod.io** is pressed in the in-game Mods screen, which
+enables mod.io's install machinery for the session. So that visit is sometimes
+unavoidable; when you make it, it unregisters and deletes **every** fake-ID mod
+alongside installing the newly subscribed one. Plan for it as a two-step: open
+the Mods screen and press Mod.io to let the change land, then rebuild each fake-ID
+mod (`source .envrc && ../utils/build.sh`, which re-runs `install-macos.sh`) to
+restore all three locations.
 
 ## Constants & paths
 

@@ -51,7 +51,8 @@
 # Idempotent — safe to re-run after each build.
 #
 # IMPORTANT: after running this, launch Core Keeper but DO NOT open the
-# in-game Mod menu — it triggers a mod.io API sync that deletes the cache.
+# in-game Mod menu — its mod.io sync drops the fake ID from subscribedMods,
+# and its Mod.io button deletes the installed files too.
 
 set -euo pipefail
 
@@ -202,4 +203,4 @@ fi
 echo "✓ Install complete."
 echo
 echo "  Next: launch Core Keeper. Do NOT open the in-game Mod menu — that"
-echo "  triggers a mod.io API sync that will delete this fake entry."
+echo "  triggers a mod.io sync that unregisters this fake entry."

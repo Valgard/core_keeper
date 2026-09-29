@@ -766,28 +766,65 @@ mod.io catalogue tag, which is described in [publishing](publishing.md).
 
 ## The in-game mod menu, and when mod.io is contacted
 
-The mod browser behind the main menu is not Pugstorm's UI.
-`RadicalMainMenuOption_OpenMods` (`Pug.Other:351233`) calls `Browser.Open()`
-on mod.io's embedded drop-in UI package — `modio.UI.dll`, namespace `ModIOBrowser`.
-Pugstorm embedded it rather than rebuilding it, so what you see there is mod.io's
-behaviour, not the game's.
+In the 1.3 builds the Mods entry in the main menu opens a screen of Pugstorm's own,
+`ModListMenu` (`Pug.Other:351763`): the installed mods from all sources in load order —
+plus pending, failed and mod.io-disabled ones — with reorder controls and one button per
+source. In 1.2.1.5 the same entry, `RadicalMainMenuOption_OpenMods`, went from its
+confirmation popup straight to `Browser.Open()`, with no list in between; older notes
+that say "the Mods menu" mean the mod.io browser. The source buttons are **Mod.io** and
+**Local**, plus **Steam** on Steam builds only (`Pug.Other:352607`). Their `OnActivated`
+switch (`Pug.Other:353909`) sends **Mod.io** to
+`RadicalMainMenuOption_OpenMods.OpenModUI` (`Pug.Other:351421`), which calls
+`Browser.Open()` on mod.io's embedded drop-in UI package — `modio.UI.dll`, namespace
+`ModIOBrowser`. **Steam** opens the Workshop page (in the Steam overlay when it is
+enabled), **Local** the local mods folder. Pugstorm embedded mod.io's browser rather
+than rebuilding it, so what you see behind that button is mod.io's behaviour, not the
+game's.
 
 That matters for when the game learns that a mod has a new release.
-`ModIOUnity.FetchUpdates()` has four callers, all four inside that embedded UI:
+`ModIOUnity.FetchUpdates()` has five callers — four inside that embedded UI, and one
+that is the list screen itself:
 
 | Caller | When |
 |---|---|
-| `Browser.IsInitialized()` | Opening the mod menu (`Browser.Open()` runs into it) — and only when the session is already authenticated |
+| `ModListMenu.Activate()` (`Pug.Other:351943`) | **Every time the Mods screen opens**, before any button is pressed — and only when the session is already authenticated |
+| `Browser.IsInitialized()` | Pressing **Mod.io** (`Browser.Open()` runs into it) — and only when the session is already authenticated |
 | `Authentication.CodeSubmitted(Result)` | After an email-code login succeeds |
 | `Authentication.ThirdPartyAuthenticationSubmitted(…)` | After a Steam/portal login succeeds |
 | `Collection.CheckForUpdates()` | The "check for updates" button in that same UI |
 
-**There is no timer and no startup hook.** A session that never opens the mod menu and
-never authenticates from it never asks mod.io whether anything changed.
-`ModIOUnity.EnableModManagement(...)` has four call sites of its own, all in the same UI
-and three of them the same members — in `Browser.IsInitialized()` it sits *after* the
-authentication branch and therefore runs unconditionally. So the automatic
-download-and-install machinery is likewise armed only by going through that UI.
+**There is no timer and no startup hook.** A session that never opens the Mods screen
+never asks mod.io whether anything changed.
+
+**Syncing and installing are two separate steps, and the list screen does only the
+first.** `FetchUpdates` rebuilds the local subscription set from the account's
+subscriptions (`SyncUsersSubscriptions` **clears** it first, `modio.UnityPlugin:31146`),
+refreshes each subscribed mod's cached profile — tags included — and saves the
+registry. Downloading, installing and uninstalling are the mod-management pass, which
+it wakes but which does nothing unless it has been enabled (`modio.UnityPlugin:33339`).
+`ModIOUnity.EnableModManagement(...)` has four call sites, all in the embedded UI and
+three of them the members above; in `Browser.IsInitialized()` it sits *after* the
+authentication branch, so the call is always made — but it sets the flag only for an
+authenticated session (`modio.UnityPlugin:32153`). So apart from `state.json` itself, the
+list screen writes and deletes no mod files until **Mod.io** has been pressed, logged
+in, in that session. From then on the flag stays set until a logout in the browser or
+quitting the game (`DisableModManagement`, reached from `RemoveUserData` and
+`ShutdownOperations`), so every later visit to the list screen in that session runs the
+full pass as well — that half is read from the code, not measured.
+
+When the pass runs, it uninstalls a mod the account no longer subscribes to — the
+installation directory, then its `mods` entry in `state.json`
+(`modio.UnityPlugin:33762`) — and installs a missing subscribed one or replaces it when
+a newer modfile exists; an up-to-date mod whose directory exists is left as it is,
+contents unchecked.
+
+Measured on 1.3.0.3 with a fake-ID dev install present (a placeholder mod id that no
+subscription can contain): fresh launch, open the Mods screen, close it without
+pressing anything, quit. The id was gone from `subscribedMods` in `state.json`, while
+its `mods` entry, its installation directory and its modfile archive were all still
+there. The mod.io loader (`ModIOLoader`) loads only subscribed mods, so from the code the
+next launch would not load it; the side-loader and the Steam Workshop loader are not
+subscription-bound.
 
 The locally held state, by contrast, is readable at any time with no network traffic:
 `ModIOUnity.GetSubscribedMods(out Result)` returns entries of

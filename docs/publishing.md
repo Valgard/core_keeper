@@ -502,7 +502,8 @@ Three distinct uses of a "mod.io ID", deliberately kept separate:
 - **Publishing** uses the **real** mod ID, stored in
   `unity/<MOD_NAME>/Editor/<MOD_NAME>_modio.asset`.
 - **Playing** the published mod uses the **real** ID — written by the game
-  client when you subscribe normally in the in-game Mods menu.
+  client when you subscribe normally through the Mod.io button of the in-game
+  Mods screen.
 - **Local dev builds** use the **fake** `FAKE_MOD_ID` via `install-macos.sh`,
   which is the mechanism by which a not-yet-published mod can be loaded at
   all through the mod.io path; the loader also has a `StreamingAssets/Mods`

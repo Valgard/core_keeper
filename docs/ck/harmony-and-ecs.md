@@ -1118,8 +1118,9 @@ cascade and desynchronise *other* mods, not only yours — see [troubleshooting]
 
 **Two traps when instrumenting a third-party mod:**
 
-- **Do not open the in-game Mods menu.** The mod.io sync re-extracts the mod and
-  your edit is gone.
+- **Do not press Mod.io in the in-game Mods screen while a newer release of that
+  mod exists.** The mod-management pass it enables installs the new modfile over
+  your edit; an up-to-date mod is left alone ([when that pass runs](mod-anatomy.md#the-in-game-mod-menu-and-when-modio-is-contacted)).
 - Every mod update replaces the cache folder outright. Keep a backup of the
   original file **outside** the `Scripts/` tree — a `.bak` left inside it would
   be compiled along with everything else — unless the manifest is the authority,
