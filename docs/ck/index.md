@@ -133,7 +133,7 @@ symptom, not the topic.
 | "Game version mismatch" between client and server | [Multiplayer and server](multiplayer-and-server.md) — a mod-set mismatch, or a protocol hash moved by a new ECS component or `IRpcCommand`; neither names a mod |
 | Dedicated server fails to generate a world | [Multiplayer and server](multiplayer-and-server.md) — the server renders, so `-nographics` breaks it |
 | A call works in single-player but not on a server | [Multiplayer and server](multiplayer-and-server.md) — some subsystems are compiled out server-side |
-| A map marker is a plain blue diamond and `Failed to resolve MapMarkerIconDataBlock` repeats in the log | [World and mechanics](world-and-mechanics.md#since-13-a-user-markers-icon-is-a-data-block) — the marker's icon block is not loaded |
+| `Failed to resolve MapMarkerIconDataBlock` repeats in the log, and a map marker shows a blue diamond or another marker's icon | [World and mechanics](world-and-mechanics.md#since-13-a-user-markers-icon-is-a-data-block) — the marker's icon block is not loaded |
 
 ## Start from the task
 

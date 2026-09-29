@@ -323,43 +323,62 @@ address and nothing else.
 
 **A runtime block created without an address gets a new one on every launch.**
 `CreateRuntimeInstance<T>(modId)` passes `DataBlockAddress.NewAddress()`
-(`PugMod.Loader:2213`), which is `Guid.NewGuid()` (`ScriptableData:71`). Nothing
-that persists can refer to such a block: in a probe mod on 1.3.0.2, markers
-placed with a runtime icon lost it at the next restart. The overload taking an
-address is stable — the block's address is a SHA-256 over the mod's GUID and the
-given address (`PugMod.Loader:2272`) — but it also records the given address as
-the block's `m_overload` (`2240`), declaring it an overload of that block. Going
-by `ScriptableData.Initialize`, a block whose overload target nothing carries
-registers under its own hashed address (`ScriptableData:1327`–`1330`); that is
-untried in game. A shipped asset avoids the question: it registers under the
-`m_address` it carries.
+(`PugMod.Loader:2213`), which is `Guid.NewGuid()` (`ScriptableData:71`). So no
+saved reference can name such a block by its address: in a probe mod on
+1.3.0.2, markers placed with a runtime icon lost it at the next restart —
+observed, without a recorded test. That concerns references by address only. An
+item built on a runtime block saves fine through its `ObjectID`, which is how
+CoreLib's and caveling-divining-rod's runtime blocks persist. The overload
+taking an address is stable — the block's address is a SHA-256 over the mod's
+GUID and the given address (`PugMod.Loader:2272`) — but it also records the
+given address as the block's `m_overload` (`2240`), declaring it an overload of
+the block at that address. What that does depends on whether such a block
+exists. If one does, `ScriptableData.Initialize` resolves the given address to
+the runtime block (`ScriptableData:1341`–`1345`) and leaves the original out of
+every runtime list (`1361`–`1363`): the call replaces it. If none does, the
+runtime block registers under its own hashed address only (`1327`–`1330`). Both
+cases are read from the code and untried in game. A shipped asset avoids the
+question: it registers under the `m_address` it carries.
 
 **Within one loader, blocks are sorted by address.** Every loader's set is
 sorted as it loads (`ScriptableData:1238` async, `1264` sync), and
 `ScriptableDataBlock.CompareTo` compares addresses (`1808`). `Initialize` then
 walks the loaders in registration order (`1284`) and appends each set to the
-typed lists (`AddDataBlocksToRuntimeLists`, `1350`). So a mod that wants its
-blocks in a particular order gives them ascending addresses. Keeping the first
-hex digit of each at `0`–`7` sidesteps a question not checked here: whether the
-GUID's first 32-bit field compares signed or unsigned on the game's runtime.
+typed lists (`AddDataBlocksToRuntimeLists`, `1350`). So a mod that wants the
+blocks it ships as assets in a particular order gives them ascending addresses.
+That does not carry over to runtime blocks: they sit in a runtime loader of
+their own (`PugMod.Loader:2184`), and one created with an address is stored
+under the hash above, so its position does not follow the address it was given.
+Keeping the first hex digit of each at `0`–`7` sidesteps a question not checked
+here: whether the GUID's first 32-bit field compares signed or unsigned on the
+game's runtime.
 
 **Across loaders, the order observed is not the one the code suggests.** The
 addressables loader, which holds the game's own blocks, registers at
 `AfterAssembliesLoaded` (`ScriptableData.Addressables:237`), before any mod is
-loaded. Yet in one measured run on 1.3.0.2 the log listed every mod loader
-before it, and the map-marker dialog showed a mod's icons in front of the
-game's. The decompile does not explain this. Record it as observed, not as a
+loaded. Yet in one run on 1.3.0.2 the log listed every mod loader before it,
+and the map-marker dialog showed a mod's icons in front of the game's. That was
+observed without a recorded test: map-markers-enhanced's `docs/manual-tests.md`
+("Icon order and scrolling") records only the order after that mod moved its
+icons. The decompile does not explain it. Treat it as an observation, not as a
 rule, and do not build on either order.
 
 **`TryGetDataBlocks<T>` hands out the live typed list.** The `IReadOnlyList<T>`
 it returns is the `List<T>` the registry itself keeps (`ScriptableData:1430`,
 created at `1375`), so a caller that casts it back to `List<T>` can reorder it
-in place — and every later reader sees the new order. Runtime IDs are not
-affected: they come from a separate untyped list and lookup (`1383`–`1384`,
+in place — and every later reader sees the new order until the next
+ScriptableData load, whose `Reset` clears the lists (`1180`–`1186`) before they
+are rebuilt in sorted order. Reordering this generic typed list leaves runtime
+IDs alone: they come from a separate untyped list and lookup (`1383`–`1384`,
 read at `1446` and `1490`), and lookup by address uses a dictionary of its own
-(`1526`).
+(`1526`). The non-generic `TryGetDataBlocks(Type, …)` is a different matter: it
+hands out that untyped list itself, just as live (`1417`–`1421`), so reordering
+it would change which block a runtime ID resolves to (`1495`) while the lookup
+keeps the old indices.
 Verified on 1.3.0.2: a Harmony prefix that moved a mod's map-marker icons to the
-end of this list, before the dialog read it, put them behind the game's icons.
+end of the generic list, before the dialog read it, put them behind the game's
+icons (map-markers-enhanced, `docs/manual-tests.md`, "Icon order and
+scrolling").
 This is an implementation detail; a later version could hand out a copy.
 
 ## Naming objects: `ObjectID`, `ObjectType` and class names

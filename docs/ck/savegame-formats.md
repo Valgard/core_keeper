@@ -123,8 +123,11 @@ the case directly beside it in the same switch does.
 **12 bytes**: `ObjectID`, `Amount`, `Variation`. The fourth runtime field is
 dropped, which is why these records sit at a stride of 12 and not 16, the
 likelier guess. `MapMarkerCD` itself is never written; it comes back from the
-prefab at load. Up to 1.2 markers also carry **no text** — the type enums are
-the entire vocabulary.
+prefab at load. When this section was first written, against 1.2, markers
+carried **no text** — the type enums were the entire vocabulary. That cannot be
+rechecked now, since no 1.2 decompile is at hand, and the 1.3 migration adds an
+empty name only where none exists (`Pug.Other:174432`–`174435`), which leaves
+room for markers that already had one.
 
 **Since 1.3 a player's marker carries two more serialized components**, because
 its icon is no longer a slot but a data block ([world and mechanics](world-and-mechanics.md#since-13-a-user-markers-icon-is-a-data-block)):
@@ -141,7 +144,7 @@ The two ObjectIDs are `MapMarker = 2402` and `MapMarkerCoreAttention = 2403`.
 | Amount | Variation | Meaning |
 |---|---|---|
 | 1 | 0–3 | placed by the player through the vanilla UI, up to 1.2 |
-| 1 | 0 | placed by the player since 1.3 — the icon is in `MapMarkerCustomDataSerializedCD` |
+| 1 | 0 | placed by the player through the vanilla UI since 1.3 — the icon is in `MapMarkerCustomDataSerializedCD` |
 | 1 | 14 | automatic, lowest-segment marker |
 | 1 | 30–37 | automatic, injected by a world-version migration for echo dungeons |
 | ≥ 6000 | 1 up to 1.2, 0 once migrated | written by a mod, see below |
@@ -152,7 +155,11 @@ only the object id and the variation, so an amount of `1` on those is observed
 rather than written, and a marker arriving by some other route need not carry
 it. A marker the 1.3 client places is prespawned with variation 0
 (`Pug.Other:345625`) and created by the server with amount 1
-(`Pug.Other:413859`).
+(`Pug.Other:413859`). That covers markers the vanilla client creates, not every
+1.3 marker: the pre-1.3 path is still in the game, a `CreateMapUI` command
+(`Pug.Other:413185`) whose server handler creates a marker at the variation the
+caller asks for, minus 2 (`414249`–`414256`). Vanilla no longer calls it, but a
+mod can, and its markers can carry a non-zero variation.
 
 **World version 13 converts the old slots once.** `ConvertOldMapMarkersSystem`
 runs while a world is below version 13 (`Pug.Other:174409`) and touches only
@@ -166,10 +173,12 @@ paragraph turns on.
 
 An earlier version of the table above also listed an `Amount` of 0 alongside a
 fixed variation as a mod's. The value exists in the source of the mod meant,
-MapMarkers+, for the four markers it backs with vanilla art, but it does not
-reach the world: the mod hands those markers to the game's own creation path,
-and in the world measured below no marker carries 0 — every player marker that
-is not one of the mod's own carries 1.
+MapMarkers+, for five of its types — the four placeable markers it backs with
+vanilla art, and Ping — but it does not reach the world: the mod hands those
+markers to the game's own creation path. In the world measured below, the
+recorded scan counts nine player markers besides the mod's own, all at `Amount`
+1 (map-markers-enhanced, `docs/manual-tests.md`, "Legacy restoration"); that no
+marker there carries 0 was observed without a recorded count.
 
 **Third-party mods can repurpose `Amount`.** A marker has no use for an amount,
 so the field is free — and at least one widely used marker mod stores its icon
@@ -218,9 +227,9 @@ one** — it is capacity times record size, and both change.
 
 **1.3 changed exactly that.** A 1.3 player marker carries the two components
 above as well, which makes it a different archetype, and on 1.3.0.2 the +1536
-walk no longer lands on the positions. The object records themselves are still
-found by the pattern below; the position summand has to be derived again, and
-has not been here.
+walk no longer landed on the positions — observed while scanning, without a
+recorded test. The object records themselves are still found by the pattern
+below; the position summand has to be derived again, and has not been here.
 
 That makes the whole scan: decompress, walk 4-byte-aligned for the little-endian
 ObjectID, read the next two `int`s as amount and variation, take the position at
