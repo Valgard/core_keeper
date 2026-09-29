@@ -657,8 +657,13 @@ running yet. Check the runtime asmdef and add the DLL there too.
 
 Neither switch requires giving up the sandbox; this works with `skipSafetyChecks: 0`. What
 is established here is the two-switch mechanism. Whether a particular foreign assembly's
-API is then usable in practice is a separate question per assembly — for
-`modio.UnityPlugin` specifically that has not been carried through to a working build.
+API is then usable in practice is a separate question per assembly. For
+`modio.UnityPlugin` it is **unverified**: no mod here has been carried through to a
+working build, but the published third-party mod ItemBrowser ships a sandboxed call to
+`ModIOUnity.GetSubscribedMods` (`skipSafetyChecks: false`, `accessesExtraAssemblies:
+true`, `ModUtility.cs:41`). It has not been run on this machine — it is disabled
+there — so whether that call compiles in the sandbox and returns data is the open
+question, and ItemBrowser is the place to settle it.
 
 ### Why an editor helper needs its own `*.Editor.asmdef`
 
