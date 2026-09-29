@@ -46,7 +46,7 @@ machinery those arrangements sit on.
 | [The load-time sandbox](sandbox.md) | What the verification rejects and what it does not, why an Editor build proves nothing, why Harmony attributes are exempt, and how to find the identifier that failed |
 | [Storing configuration and state](persistence.md) | The three routes a sandboxed mod has to a file, what the rest of the catalogue actually uses, and writing state in lockstep with the game's own save |
 | [Harmony and ECS](harmony-and-ecs.md) | Why Burst-compiled systems swallow patches, `BurstDisabler` and its silent failure on dedicated servers, patch binding, instrumenting generated DOTS code, live ECS access |
-| [Database and baking](database-and-baking.md) | Editing baked object data through the converter hook, the `(objectID, variation)` key, variations and paint, item level and sell value, adding a craftable item, fileIDs |
+| [Database and baking](database-and-baking.md) | Editing baked object data through the converter hook, the `(objectID, variation)` key, variations and paint, item level and sell value, adding a craftable item, data-block addresses and their order, fileIDs |
 | [UI framework](ui-framework.md) | Sprite UI instead of uGUI, mounting windows, options-menu entries, rebindable keybinds, the hint bar, text input, redirecting menu input, scrolling, and disabled-but-visible options |
 | [Prefabs and rendering](prefabs-and-rendering.md) | When a prefab may be edited by script, nested prefabs and variants, sprite import, masking, Z-sorting, PugText and the font system, HUD versus world space |
 | [World and mechanics](world-and-mechanics.md) | World geometry and the origin, tile layers and the `AddTile` queue, the placement permission model, map markers, entity radii, ore boulders, livestock and pets, cooked food |
@@ -133,6 +133,7 @@ symptom, not the topic.
 | "Game version mismatch" between client and server | [Multiplayer and server](multiplayer-and-server.md) — a mod-set mismatch, or a protocol hash moved by a new ECS component or `IRpcCommand`; neither names a mod |
 | Dedicated server fails to generate a world | [Multiplayer and server](multiplayer-and-server.md) — the server renders, so `-nographics` breaks it |
 | A call works in single-player but not on a server | [Multiplayer and server](multiplayer-and-server.md) — some subsystems are compiled out server-side |
+| A map marker is a plain blue diamond and `Failed to resolve MapMarkerIconDataBlock` repeats in the log | [World and mechanics](world-and-mechanics.md#since-13-a-user-markers-icon-is-a-data-block) — the marker's icon block is not loaded |
 
 ## Start from the task
 
@@ -150,6 +151,7 @@ symptom, not the topic.
 | Work with prefabs, sprites or fonts | [Prefabs and rendering](prefabs-and-rendering.md) |
 | Place tiles, or understand where things may be built | [World and mechanics](world-and-mechanics.md) |
 | Read or place map markers | [World and mechanics](world-and-mechanics.md) — at runtime; [Savegame formats](savegame-formats.md) — out of a world file |
+| Add map-marker icons | [World and mechanics](world-and-mechanics.md#since-13-a-user-markers-icon-is-a-data-block), then [Database and baking](database-and-baking.md#scriptabledata-blocks-addresses-and-order) for the address |
 | Ship a mod that works in multiplayer | [Multiplayer and server](multiplayer-and-server.md) |
 | Send something to the server, or gate on admin rights | [Multiplayer and server](multiplayer-and-server.md) |
 | Translate your mod's text | [Localisation](localisation.md) |

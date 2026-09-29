@@ -370,6 +370,18 @@ foreach (var mod in API.ModLoader.LoadedMods)
 
 `EarlyInit` is early enough for this.
 
+**`LoadedMod.Assets` holds each asset's main object, not its sub-assets.** When
+a bundle ships with its `.manifest` beside it, as the SDK's build output does,
+the loader reads the asset names from it and calls `LoadAsset(name)` once per
+entry (`PugMod.Loader:1569`–`1580`), and that list is what `Assets` exposes
+(`1723`) — while `LoadAsset` returns the main object.
+A sliced sprite sheet therefore contributes its `Texture2D` and none of its
+sprites. Only a bundle without a manifest goes through `LoadAllAssets()`
+(`1586`), which would include them. The sprites are still in the bundle: reach
+them through the bundle handle above, or reference them from an asset that
+ships in the bundle — a prefab or a data block — which is how a map-marker icon
+block carries a sprite sheet's slices.
+
 ### Ordering details that matter
 
 `EarlyInit` and `ModObjectLoaded` are **interleaved per mod**, not run as two global

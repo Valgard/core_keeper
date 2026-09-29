@@ -123,8 +123,16 @@ the case directly beside it in the same switch does.
 **12 bytes**: `ObjectID`, `Amount`, `Variation`. The fourth runtime field is
 dropped, which is why these records sit at a stride of 12 and not 16, the
 likelier guess. `MapMarkerCD` itself is never written; it comes back from the
-prefab at load. Markers also carry **no text** — the type enums are the entire
-vocabulary.
+prefab at load. Up to 1.2 markers also carry **no text** — the type enums are
+the entire vocabulary.
+
+**Since 1.3 a player's marker carries two more serialized components**, because
+its icon is no longer a slot but a data block ([world and mechanics](world-and-mechanics.md#since-13-a-user-markers-icon-is-a-data-block)):
+`MapMarkerCustomDataSerializedCD` — the icon's `DataBlockAddress`, a 16-byte
+GUID, and a variant index (`Pug.ECS.Components:8898`), written from the runtime
+`MapMarkerCustomDataCD` (`Pug.Other:181931`) — and `NameSerializedCD`, the
+marker's name as a `FixedString64Bytes` (`Pug.ECS.Components:8955`). So a 1.3
+save does hold marker text.
 
 The two ObjectIDs are `MapMarker = 2402` and `MapMarkerCoreAttention = 2403`.
 
@@ -132,16 +140,36 @@ The two ObjectIDs are `MapMarker = 2402` and `MapMarkerCoreAttention = 2403`.
 
 | Amount | Variation | Meaning |
 |---|---|---|
-| 1 | 0–3 | placed by the player through the vanilla UI |
+| 1 | 0–3 | placed by the player through the vanilla UI, up to 1.2 |
+| 1 | 0 | placed by the player since 1.3 — the icon is in `MapMarkerCustomDataSerializedCD` |
 | 1 | 14 | automatic, lowest-segment marker |
 | 1 | 30–37 | automatic, injected by a world-version migration for echo dungeons |
-| ≥ 6000, or 0 alongside a fixed variation | — | written by a mod, see below |
+| ≥ 6000 | 1 up to 1.2, 0 once migrated | written by a mod, see below |
 
 Match the automatic ranges on `Variation` and treat `Amount` as confirmation
 rather than as the key: the migration that injects the echo-dungeon markers sets
 only the object id and the variation, so an amount of `1` on those is observed
 rather than written, and a marker arriving by some other route need not carry
-it.
+it. A marker the 1.3 client places is prespawned with variation 0
+(`Pug.Other:345625`) and created by the server with amount 1
+(`Pug.Other:413859`).
+
+**World version 13 converts the old slots once.** `ConvertOldMapMarkersSystem`
+runs while a world is below version 13 (`Pug.Other:174409`) and touches only
+markers with variation 0–3 (`174423`): each gets a
+`MapMarkerCustomDataSerializedCD` holding the vanilla icon its slot used to show
+(`GetDefaultIconForVariation`, `174447`; variation 1 becomes the yellow question
+mark, icon `7e09f30c-8838-5604-2b46-8c13b0ef771e` with variant 9), its variation
+is set to 0 (`174431`), and an empty `NameSerializedCD` is added where none
+exists (`174434`). **`Amount` is not touched** — which is what the next
+paragraph turns on.
+
+An earlier version of the table above also listed an `Amount` of 0 alongside a
+fixed variation as a mod's. The value exists in the source of the mod meant,
+MapMarkers+, for the four markers it backs with vanilla art, but it does not
+reach the world: the mod hands those markers to the game's own creation path,
+and in the world measured below no marker carries 0 — every player marker that
+is not one of the mod's own carries 1.
 
 **Third-party mods can repurpose `Amount`.** A marker has no use for an amount,
 so the field is free — and at least one widely used marker mod stores its icon
@@ -156,9 +184,22 @@ whether or not you care about that mod:
 - **A modded marker outlives the mod.** It rides on vanilla's entity, so
   uninstalling leaves it in the world, rendering as whatever plain icon its
   `Variation` names.
+- **And the 1.3 migration reads that `Variation` too.** MapMarkers+ stored all
+  of its own markers in slot `Marker2`, variation 1, so version 13 turned every
+  one of them into the same question mark. Measured on one real world (1.3.0.2):
+  62 markers, all question marks, all still carrying their original `6016` to
+  `6028`. Because `Amount` survives, the original type is still recoverable
+  from the save — until something rewrites it.
 
 A mod's own icon table is in its installed sources, and it grows with each of
 its releases — read it rather than hardcoding it.
+
+**A changed `Amount` on an existing marker is saved.** `SerializeObjectJob`
+rewrites `ObjectDataSerializedCD` from the live `ObjectDataCD` in every chunk
+whose `ObjectDataCD` changed since the last save (`Pug.Other:181610`, the
+`Amount` copy at `181620`). Measured on 1.3.0.2: a mod set `Amount` from
+`6016`–`6028` to 1 on those 62 markers on a copy of the world, and a scan of the
+next save found none left at or above 6000.
 
 **Position comes from a fixed offset, not from a parser** — and the position is
 stored under a different type than the one the running entity carries. A live
@@ -171,13 +212,27 @@ nothing.
 That reduction is also where the arithmetic comes from: a `Translation` is 12
 bytes, the array follows the object array in the same chunk slot-parallel, so
 the position of the record at offset *N* is at *N* + (chunk capacity × 12) — for
-this archetype +1536. `y` is always exactly `0.0`, and x/z are integers.
-**Derive the summand for any other archetype rather than reusing this one** — it
-is capacity times record size, and both change.
+the 1.2 marker archetype +1536. `y` is always exactly `0.0`, and x/z are
+integers. **Derive the summand for any other archetype rather than reusing this
+one** — it is capacity times record size, and both change.
+
+**1.3 changed exactly that.** A 1.3 player marker carries the two components
+above as well, which makes it a different archetype, and on 1.3.0.2 the +1536
+walk no longer lands on the positions. The object records themselves are still
+found by the pattern below; the position summand has to be derived again, and
+has not been here.
 
 That makes the whole scan: decompress, walk 4-byte-aligned for the little-endian
 ObjectID, read the next two `int`s as amount and variation, take the position at
 the fixed offset.
+
+**Trap: a count taken right after a save can include a record that is not
+there.** Counting player markers by this pattern in one 1.3.0.2 world gave 72
+after the save in which a mod had restored 62 legacy markers, and 71 — the 9
+other player markers plus the 62 — after the save of the next launch. The extra
+record was gone on its own. Most likely it was a stale record in the recycled
+entity pool described below, which the next save reclaimed; that is not traced.
+Before trusting a count, compare two consecutive saves.
 
 **How to know the scan is right, which is the harder half.** A byte pattern that
 matches is not a finding — see the false-positive trap above. What settles it is

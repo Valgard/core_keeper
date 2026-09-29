@@ -305,6 +305,63 @@ on each pass — so a `canCraftObjects` list mutated from `Init` is read by the
 next per-world conversion, not lost to it. Whether it also needs the same
 re-entrancy guard a `PostConvert` prefix needs remains open.
 
+## ScriptableData blocks: addresses and order
+
+`EntityAuthoringDataBlock` above is one of many `ScriptableDataBlock` types;
+map-marker icons, text and skins are others. What follows holds for all of
+them, and matters as soon as anything stores a reference to a block.
+
+**A block's identity is its address.** `DataBlockAddress` is a `Guid` overlaid
+on two `long`s, `m_low` at offset 0 and `m_high` at offset 8
+(`ScriptableData:34`–`45`). A block asset stores those two fields, so writing
+one by hand means taking the GUID's .NET byte layout — the byte order Python's
+`uuid.UUID(...).bytes_le` produces — and reading bytes 0–7 and 8–15 each as a
+signed little-endian 64-bit integer. Verified on 1.3.0.2: five assets written
+that way registered under exactly the intended addresses. A saved reference —
+a map marker's icon, for one ([world and mechanics](world-and-mechanics.md#since-13-a-user-markers-icon-is-a-data-block)) — holds this
+address and nothing else.
+
+**A runtime block created without an address gets a new one on every launch.**
+`CreateRuntimeInstance<T>(modId)` passes `DataBlockAddress.NewAddress()`
+(`PugMod.Loader:2213`), which is `Guid.NewGuid()` (`ScriptableData:71`). Nothing
+that persists can refer to such a block: in a probe mod on 1.3.0.2, markers
+placed with a runtime icon lost it at the next restart. The overload taking an
+address is stable — the block's address is a SHA-256 over the mod's GUID and the
+given address (`PugMod.Loader:2272`) — but it also records the given address as
+the block's `m_overload` (`2240`), declaring it an overload of that block. Going
+by `ScriptableData.Initialize`, a block whose overload target nothing carries
+registers under its own hashed address (`ScriptableData:1327`–`1330`); that is
+untried in game. A shipped asset avoids the question: it registers under the
+`m_address` it carries.
+
+**Within one loader, blocks are sorted by address.** Every loader's set is
+sorted as it loads (`ScriptableData:1238` async, `1264` sync), and
+`ScriptableDataBlock.CompareTo` compares addresses (`1808`). `Initialize` then
+walks the loaders in registration order (`1284`) and appends each set to the
+typed lists (`AddDataBlocksToRuntimeLists`, `1350`). So a mod that wants its
+blocks in a particular order gives them ascending addresses. Keeping the first
+hex digit of each at `0`–`7` sidesteps a question not checked here: whether the
+GUID's first 32-bit field compares signed or unsigned on the game's runtime.
+
+**Across loaders, the order observed is not the one the code suggests.** The
+addressables loader, which holds the game's own blocks, registers at
+`AfterAssembliesLoaded` (`ScriptableData.Addressables:237`), before any mod is
+loaded. Yet in one measured run on 1.3.0.2 the log listed every mod loader
+before it, and the map-marker dialog showed a mod's icons in front of the
+game's. The decompile does not explain this. Record it as observed, not as a
+rule, and do not build on either order.
+
+**`TryGetDataBlocks<T>` hands out the live typed list.** The `IReadOnlyList<T>`
+it returns is the `List<T>` the registry itself keeps (`ScriptableData:1430`,
+created at `1375`), so a caller that casts it back to `List<T>` can reorder it
+in place — and every later reader sees the new order. Runtime IDs are not
+affected: they come from a separate untyped list and lookup (`1383`–`1384`,
+read at `1446` and `1490`), and lookup by address uses a dictionary of its own
+(`1526`).
+Verified on 1.3.0.2: a Harmony prefix that moved a mod's map-marker icons to the
+end of this list, before the dialog read it, put them behind the game's icons.
+This is an implementation detail; a later version could hand out a copy.
+
 ## Naming objects: `ObjectID`, `ObjectType` and class names
 
 **Constant names are not derivable.** `ObjectID.IronWorkBench` capitalises the
