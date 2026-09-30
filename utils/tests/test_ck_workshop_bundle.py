@@ -79,10 +79,17 @@ def tool():
         if not (PLUGINS / name).is_file():
             pytest.skip(f"{name} is not in the SDK clone — see utils/fetch_steam_lib.sh")
 
-    # -getProperty:TargetPath builds and then reports the assembly's exact
-    # path, so the configuration and target framework never have to be guessed
-    # at here — they live in the csproj, and a change there cannot silently
-    # leave this suite running a stale binary from a path it hardcoded.
+    # -getProperty:TargetPath reports the assembly's exact path, so the
+    # configuration and target framework never have to be guessed at here —
+    # they live in the csproj, and a change there cannot silently leave this
+    # suite running a stale binary from a path it hardcoded.
+    #
+    # -t:Build is what makes it build at all. -getProperty on its own only
+    # evaluates the project: it printed the path of whatever binary was there
+    # and compiled nothing, so the suite ran against the last build from
+    # anywhere else — measured with a probe edit that left the assembly's
+    # mtime unchanged, and found when a new mode's tests failed against a
+    # binary that predated it.
     built = subprocess.run(
         [
             "dotnet",
@@ -91,6 +98,7 @@ def tool():
             "-v",
             "q",
             "--nologo",
+            "-t:Build",
             "-getProperty:TargetPath",
         ],
         capture_output=True,
