@@ -101,6 +101,7 @@ def _env(tmp_path, **overrides):
     env = {
         "MOD_NAME": "DisableDurability",
         "CK_MODIO_TYPE": "Item|Overhaul|Quality of Life",
+        "CK_GAME_VERSION": "1.3.0.2 1.3.0.1 1.2.1.5",
         "MOD_INSTALL_PATH": str(tmp_path / "build"),
     }
     env.update(overrides)
@@ -114,7 +115,12 @@ def _preflight_env(**overrides):
     preflight's whole purpose is to run BEFORE the mod.io build, so a fixture
     that quietly supplied one would stop the tests here from proving that.
     """
-    return {"MOD_NAME": "DisableDurability", "CK_MODIO_TYPE": "Item", **overrides}
+    return {
+        "MOD_NAME": "DisableDurability",
+        "CK_MODIO_TYPE": "Item",
+        "CK_GAME_VERSION": "1.3.0.2",
+        **overrides,
+    }
 
 
 def _asset_with_dependencies(*declared):
@@ -223,14 +229,16 @@ def test_the_title_falls_back_to_the_internal_name(tmp_path):
     assert bundle["title"] == "DisableDurability"
 
 
-def test_tags_combine_all_three_groups(tmp_path):
-    """The bundle's tags union three groups: mod.io type, Application Type, Access Type.
+def test_tags_combine_all_four_groups(tmp_path):
+    """The bundle's tags union four groups: game version, type, Application Type, Access Type.
 
-    All three combined into one flat list.
+    All four combined into one flat list.
     """
     bundle = steam_bundle.build_bundle(_repo(tmp_path), _env(tmp_path), tmp_path / "p.png")
 
     assert set(bundle["tags"]) == {
+        "1.3.0",
+        "1.2.1",
         "Item",
         "Overhaul",
         "Quality of Life",
@@ -240,19 +248,86 @@ def test_tags_combine_all_three_groups(tmp_path):
     }
 
 
+def test_version_tags_are_cut_to_the_three_components_the_loader_compares():
+    r"""SteamWorkshopLoader passes entry.Tags to ModVersion.IsCompatible.
+
+    That matches `^(\d+)\.(\d+)\.(\d+)` against the game version and each
+    tag alike and compares those three groups only, so `1.3.0.1` and `1.3.0.2`
+    would be two tags with one meaning. One tag per three-part prefix, in the
+    order the builds are listed, is the whole set.
+    """
+    assert steam_bundle.version_tags("1.3.0.2 1.3.0.1 1.2.1.5 1.2.1.0 1.2.0.7") == [
+        "1.3.0",
+        "1.2.1",
+        "1.2.0",
+    ]
+
+
+def test_version_tags_skip_what_the_loader_could_never_match():
+    """A value without three numeric components can match no game version.
+
+    Sending it would only add a tag Steam may keep and the loader ignores.
+    """
+    assert steam_bundle.version_tags("  1.3  nonsense 1.3.0.2 ") == ["1.3.0"]
+
+
+def test_every_tag_set_leads_with_the_version(tmp_path):
+    """Without a version tag the loader refuses the mod in every game build.
+
+    The dialogue it raises offers "Disable" first, and a subscriber who takes
+    it sees exactly "fails to load" — which is how a subscriber reported the
+    first items this pipeline published, all of them without it.
+    """
+    tags = steam_bundle.derive_tags({"requiredOn": 1, "skipSafetyChecks": 0}, "Visual", "1.3.0.2")
+
+    assert tags[0] == "1.3.0"
+
+
+def test_check_prerequisites_requires_a_game_version(tmp_path):
+    """No CK_GAME_VERSION means an item no game build would load.
+
+    The failure it prevents is the silent kind: Steam accepts an item with no
+    version tag, the publish reports success, and only a subscriber finds out.
+    """
+    repo = _repo(tmp_path)
+
+    with pytest.raises(ValueError, match="CK_GAME_VERSION"):
+        steam_bundle.check_prerequisites(repo, _preflight_env(CK_GAME_VERSION=""))
+
+
+def test_a_game_version_the_loader_cannot_parse_is_refused(tmp_path):
+    """Set is not the same as usable — "1.3" yields no three-part tag at all."""
+    repo = _repo(tmp_path)
+
+    with pytest.raises(ValueError, match="CK_GAME_VERSION"):
+        steam_bundle.check_prerequisites(repo, _preflight_env(CK_GAME_VERSION="1.3"))
+
+
+def test_a_typo_beside_valid_versions_is_refused_not_dropped(tmp_path):
+    """A value that parses beside one that does not would otherwise hide the typo.
+
+    version_tags skips it, the set still has a tag, and the build the typo was
+    meant to name would refuse the item with nobody told.
+    """
+    repo = _repo(tmp_path)
+
+    with pytest.raises(ValueError, match=r"three numeric parts: 1\.3$"):
+        steam_bundle.check_prerequisites(repo, _preflight_env(CK_GAME_VERSION="1.3.0.2 1.3"))
+
+
 # requiredOn is the literal field name in the ModBuilderSettings .asset YAML
 # (metadata.requiredOn) -- these names name the field they test, not a choice
 # of ours.
 def test_requiredOn_1_is_client_only():  # noqa: N802
     """requiredOn=1 (Client) tags the item Client-only, not both sides."""
-    tags = steam_bundle.derive_tags({"requiredOn": 1, "skipSafetyChecks": 0}, "Visual")
+    tags = steam_bundle.derive_tags({"requiredOn": 1, "skipSafetyChecks": 0}, "Visual", "1.3.0.2")
 
     assert "Client" in tags and "Server" not in tags
 
 
 def test_requiredOn_0_produces_no_application_type_tag():  # noqa: N802
     """requiredOn=0 produces neither tag — a mod gating neither side gets no Application Type."""
-    tags = steam_bundle.derive_tags({"requiredOn": 0, "skipSafetyChecks": 0}, "Visual")
+    tags = steam_bundle.derive_tags({"requiredOn": 0, "skipSafetyChecks": 0}, "Visual", "1.3.0.2")
 
     assert "Client" not in tags and "Server" not in tags
 
@@ -289,7 +364,7 @@ def test_requiredOn_is_read_bitwise_not_looked_up():  # noqa: N802 (see above)
     Anything that maps whole values instead drops the tags for that one
     input — and Steam discards a missing tag without a word.
     """
-    tags = steam_bundle.derive_tags({"requiredOn": -1, "skipSafetyChecks": 0}, "Visual")
+    tags = steam_bundle.derive_tags({"requiredOn": -1, "skipSafetyChecks": 0}, "Visual", "1.3.0.2")
 
     assert "Client" in tags and "Server" in tags
 
@@ -301,7 +376,7 @@ def test_an_unknown_application_type_warns_instead_of_going_out_silently(capsys)
     own path; saying it on one platform only is how the two publish
     targets diverge.
     """
-    steam_bundle.derive_tags({"requiredOn": 0, "skipSafetyChecks": 0}, "Visual")
+    steam_bundle.derive_tags({"requiredOn": 0, "skipSafetyChecks": 0}, "Visual", "1.3.0.2")
 
     err = capsys.readouterr().err
     assert "Application Type" in err and "requiredOn" in err
@@ -309,7 +384,7 @@ def test_an_unknown_application_type_warns_instead_of_going_out_silently(capsys)
 
 def test_elevated_access_changes_the_access_tag():
     """skipSafetyChecks=1 tags the item "Script (Elevated Access)" instead of plain "Script"."""
-    tags = steam_bundle.derive_tags({"requiredOn": 1, "skipSafetyChecks": 1}, "Library")
+    tags = steam_bundle.derive_tags({"requiredOn": 1, "skipSafetyChecks": 1}, "Library", "1.3.0.2")
 
     assert "Script (Elevated Access)" in tags and "Script" not in tags
 
@@ -609,7 +684,16 @@ def test_the_bundle_is_exactly_these_values(tmp_path):
         "fileId": 0,
         "title": "Disable Durability",
         "description": "[b]Bold[/b]",
-        "tags": ["Item", "Overhaul", "Quality of Life", "Client", "Server", "Script"],
+        "tags": [
+            "1.3.0",
+            "1.2.1",
+            "Item",
+            "Overhaul",
+            "Quality of Life",
+            "Client",
+            "Server",
+            "Script",
+        ],
         "changelog": (
             "[h2]1.1.1[/h2]\n\n[h3]Added[/h3]\n\n[list]\n[*] A thing.\n[*] Another thing.\n[/list]"
         ),

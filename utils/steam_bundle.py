@@ -189,12 +189,51 @@ def category_tags(modio_type: str) -> list[str]:
     return [part.strip() for part in modio_type.split("|") if part.strip()]
 
 
-def derive_tags(metadata: Mapping[str, object], modio_type: str) -> list[str]:
-    """Category tags from CK_MODIO_TYPE, plus the two derived groups.
+LOADER_VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)")
+
+
+def version_tags(game_versions: str) -> list[str]:
+    r"""The game-version tags for CK_GAME_VERSION's space-separated builds.
+
+    Not optional, although Steam has no tag group for them. The game's own
+    `SteamWorkshopLoader` passes a subscribed item's tags to
+    `ModVersion.IsCompatible`, exactly as `ModIOLoader` does with a mod.io
+    profile's — and an item with no matching tag is refused in every build
+    unless the player force-loads it, from a dialogue whose first button
+    disables it instead. The SDK's Workshop tab appends such a tag on its own
+    (`GameVersionTagRegistry.GetCurrentVersion`, once Update Game Files has
+    recorded one); this pipeline never did.
+
+    Cut to three components because that is all `IsCompatible` compares — its
+    regex takes `^(\d+)\.(\d+)\.(\d+)` from the tag as well as from the game —
+    so `1.3.0.1` and `1.3.0.2` would be two tags meaning the same thing. One
+    per three-part prefix is what the SDK tab sends too. A value that yields no
+    three parts can match no game version, so `_check_tag_sources` refuses it
+    rather than letting it vanish here.
+
+    `CK_MODIO_VERSION_UNLISTED` is deliberately not subtracted. It exists
+    because mod.io's tag vocabulary lacks some builds; the cut above maps every
+    build onto a three-part tag, so no build here needs a stand-in.
+    """
+    tags: list[str] = []
+    for build in game_versions.split():
+        match = LOADER_VERSION.match(build)
+        if match and match.group(0) not in tags:
+            tags.append(match.group(0))
+    return tags
+
+
+def derive_tags(metadata: Mapping[str, object], modio_type: str, game_versions: str) -> list[str]:
+    """Version and category tags from the environment, plus the two derived groups.
 
     Sent flat: Core Keeper's Workshop configuration owns the grouping, so a
-    value like "Quality of Life" needs no prefix. Steam drops an unknown value
-    without a word, exactly as mod.io does.
+    value like "Quality of Life" needs no prefix. The handbook records that
+    Steam drops an unknown value without a word; version values are not among
+    them, although no group lists them (`docs/ck/steam-workshop.md`).
+
+    The version tags lead because they are the ones the game reads — see
+    `version_tags`. `game_versions` has no default for the same reason: an
+    empty one is the defect this parameter was added to close.
 
     `requiredOn` is read bit by bit, the way the mod.io path reads it — it is a
     [Flags] enum, and the SDK's own settings GUI writes -1 ("Everything") when
@@ -202,7 +241,7 @@ def derive_tags(metadata: Mapping[str, object], modio_type: str) -> list[str]:
     input with nothing at all, on the one platform that never says a tag went
     missing, while mod.io tagged both from the same field.
     """
-    tags = category_tags(modio_type)
+    tags = version_tags(game_versions) + category_tags(modio_type)
 
     required_on = int(metadata.get("requiredOn") or 0)
     app_types = [name for bit, name in APPLICATION_TYPE if required_on & bit]
@@ -264,21 +303,7 @@ def check_prerequisites(repo_root: Path, env: Mapping[str, str]) -> list[dict] |
     dependency should surface before it, not after, on a mod.io release that
     already went out.
     """
-    mod_name = env.get("MOD_NAME")
-    if not mod_name:
-        raise ValueError("MOD_NAME is not set")
-
-    # Checked here because --steam-only is the one path that reaches a publish
-    # without CLIPublishHelper, which is where this is otherwise enforced. Steam
-    # discards a tag value it does not know without a word, and an unset variable
-    # sends no value at all — so an unchecked publish puts up an item with no
-    # category tags and reports success. Tested for what comes OUT of the split,
-    # not for the variable being set: "|" is neither empty nor a category.
-    if not category_tags(env.get("CK_MODIO_TYPE", "")):
-        raise ValueError(
-            "CK_MODIO_TYPE names no category — pipe-separated mod.io 'Type' tags, "
-            'e.g. CK_MODIO_TYPE="Visual|Quality of Life"'
-        )
+    mod_name = _check_tag_sources(env)
 
     asset = repo_root / "unity" / f"{mod_name}.asset"
     if not asset.is_file():
@@ -307,6 +332,52 @@ def check_prerequisites(repo_root: Path, env: Mapping[str, str]) -> list[dict] |
         parse_dependencies(asset_text),
         Path(env["STEAM_DEPS_MAP"]) if env.get("STEAM_DEPS_MAP") else None,
     )
+
+
+def _check_tag_sources(env: Mapping[str, str]) -> str:
+    """MOD_NAME, and the two variables a tag set is derived from; returns MOD_NAME.
+
+    Shared by the preflight and `tag_bundle`, so that a retag cannot accept an
+    environment a publish would refuse — the two send the same tags.
+    """
+    mod_name = env.get("MOD_NAME")
+    if not mod_name:
+        raise ValueError("MOD_NAME is not set")
+
+    # Checked here because --steam-only is the one path that reaches a publish
+    # without CLIPublishHelper, which is where this is otherwise enforced. Steam
+    # discards a tag value it does not know without a word, and an unset variable
+    # sends no value at all — so an unchecked publish puts up an item with no
+    # category tags and reports success. Tested for what comes OUT of the split,
+    # not for the variable being set: "|" is neither empty nor a category.
+    if not category_tags(env.get("CK_MODIO_TYPE", "")):
+        raise ValueError(
+            "CK_MODIO_TYPE names no category — pipe-separated mod.io 'Type' tags, "
+            'e.g. CK_MODIO_TYPE="Visual|Quality of Life"'
+        )
+
+    # The same shape of check for the same reason: an item without a version tag
+    # is published without complaint and then refused by the game for every
+    # subscriber (see version_tags). It lives in the parent .envrc, so a mod
+    # repo run outside direnv is the likely way to arrive here.
+    game_versions = env.get("CK_GAME_VERSION", "")
+    if not version_tags(game_versions):
+        raise ValueError(
+            "CK_GAME_VERSION names no build the loader can match — space-separated game "
+            'versions with at least three parts, e.g. CK_GAME_VERSION="1.3.0.2 1.3.0.1". '
+            "Without one every game build refuses the Workshop item as incompatible."
+        )
+    # Refused rather than skipped: beside valid values, a typo such as "1.3"
+    # would otherwise just go missing from the tag set, and the build it was
+    # meant to name would refuse the item without anyone having been told.
+    unparseable = [build for build in game_versions.split() if not LOADER_VERSION.match(build)]
+    if unparseable:
+        raise ValueError(
+            "CK_GAME_VERSION has values with fewer than three numeric parts: "
+            + ", ".join(unparseable)
+        )
+
+    return mod_name
 
 
 def build_bundle(
@@ -378,7 +449,7 @@ def build_bundle(
         "fileId": file_id or 0,
         "title": metadata.get("displayName") or metadata.get("name") or mod_name,
         "description": description_path.read_text(),
-        "tags": derive_tags(metadata, env.get("CK_MODIO_TYPE", "")),
+        "tags": derive_tags(metadata, env.get("CK_MODIO_TYPE", ""), env.get("CK_GAME_VERSION", "")),
         # Converted here rather than at either caller, because this is the one
         # place both publishing paths pass through — `utils/upload.sh` for an
         # ordinary release and `utils/steam_backfill.py` for a mirrored one —
