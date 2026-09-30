@@ -472,3 +472,30 @@ def build_bundle(
     if item_metadata is not None:
         bundle["metadata"] = item_metadata
     return bundle
+
+
+def tag_bundle(repo_root: Path, env: Mapping[str, str]) -> dict:
+    """The bundle for `ck-workshop --tags-only`: an existing item's id and its whole tag set.
+
+    The tags come out of `derive_tags`, the function a publish uses, so a retag
+    sends exactly what the next ordinary release would. Whole because
+    SetItemTags replaces the item's set rather than adding to it — a partial
+    list would strip every category it left out.
+
+    Refuses a mod with no Workshop item: there is nothing to retag, and the
+    tool's fileId 0 means "create one", which a tag correction must never do.
+    """
+    mod_name = _check_tag_sources(env)
+    asset = repo_root / "unity" / f"{mod_name}.asset"
+    if not asset.is_file():
+        raise ValueError(f"no ModBuilderSettings asset at {asset}")
+
+    file_id = steam_identity.read_file_id(steam_identity.asset_path(repo_root, mod_name))
+    if not file_id:
+        raise ValueError(f"{mod_name} has no Workshop item yet — nothing to retag")
+
+    metadata = _read_metadata(asset.read_text())
+    return {
+        "fileId": file_id,
+        "tags": derive_tags(metadata, env.get("CK_MODIO_TYPE", ""), env.get("CK_GAME_VERSION", "")),
+    }

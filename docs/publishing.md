@@ -173,14 +173,14 @@ twice with nothing to order them by.
 `--no-steam` publishes to mod.io only; `--steam-only` skips mod.io and
 publishes to Steam alone. `upload.sh` refuses to run with both set.
 
-**A Steam preflight runs before mod.io, and a failure there skips Steam
-instead of aborting the run.** `steam_bundle.check_prerequisites` validates
-the repository-side inputs a Steam publish needs: `MOD_NAME`, a
-`CK_MODIO_TYPE` that names at least one category, the ModBuilderSettings
-`.asset`, `steam-description.txt`, a `CHANGELOG.md` whose topmost `## [x.y.z]`
-entry parses, `Editor/logo.png`, a recognizable `<Mod>_Steam.asset`, and a
-Workshop id for every dependency the `.asset` marks `required` — an
-unresolvable *optional* one only warns.
+**A Steam preflight runs before mod.io, and a failure there skips Steam instead
+of aborting the run.** `steam_bundle.check_prerequisites` validates the
+repository-side inputs a Steam publish needs: `MOD_NAME`, a `CK_MODIO_TYPE` that
+names at least one category, a `CK_GAME_VERSION` whose every value has three
+numeric parts, the ModBuilderSettings `.asset`, `steam-description.txt`, a
+`CHANGELOG.md` whose topmost `## [x.y.z]` entry parses, `Editor/logo.png`, a
+recognizable `<Mod>_Steam.asset`, and a Workshop id for every dependency the
+`.asset` marks `required` — an unresolvable *optional* one only warns.
 
 It is not a check of everything the stage needs, and reading it as one is how a
 gap goes unnoticed: `libsteam_api.dylib`, a working `dotnet` toolchain and a
@@ -228,6 +228,34 @@ attempting an equivalent: the former edits a mod.io modfile's changelog text,
 which the Workshop's single-item model has no counterpart for, and the latter
 has no metadata-only publish path on the Steam side yet — running it there would
 ship a full Workshop update for what was asked to be a text-only mod.io edit.
+So `--profile-only` leaves the Workshop's tags alone too, even when it changes
+the mod.io ones; tags are the one field with a Steam path of their own (below).
+
+**Every Steam publish carries game-version tags, derived from
+`CK_GAME_VERSION`.** The game refuses a Workshop item whose tags name no build
+matching its own first three version components ([the mechanism](ck/steam-workshop.md#a-version-tag-decides-whether-the-game-loads-the-item)),
+so `steam_bundle.version_tags` cuts each configured build to that form and
+de-duplicates — `1.3.0.2 1.3.0.1 1.2.1.5` becomes `1.3.0 1.2.1`. Unlike mod.io,
+nothing is subtracted: `CK_MODIO_VERSION_UNLISTED` exists because mod.io's
+vocabulary lacks some builds, and a three-part tag covers every build it
+shortens. The preflight refuses a value without three numeric parts rather than
+dropping it. The items published before this existed went out with no version
+tag at all, and every build refused them unless force-loaded, until they were
+retagged.
+
+**`utils/steam_retag.py` corrects an item's tags without a release.** It derives
+the same set a publish would send, compares it with the live item through the
+public Web API, and with `--execute` sends only `SetItemTags` through
+`ck-workshop --tags-only` — no build, and on the item where it was counted no
+change-history entry — then reads the item back to confirm Steam kept every
+value. Run it whenever an input of the tag set changes without a release:
+`CK_GAME_VERSION` after a game update above all, which is when the tags go
+stale, but also `CK_MODIO_TYPE`, `requiredOn` or `skipSafetyChecks`:
+
+~~~bash
+utils/steam_retag.py                           # every mod: live tags vs derived
+utils/steam_retag.py --execute <mod-dir> ...   # send, then verify
+~~~
 
 **The description comes from `steam-description.txt`, and it is BBCode.**
 The Workshop renders `[b]`, `[h2]`, `[list][*]…[/list]` — a literal `##` or

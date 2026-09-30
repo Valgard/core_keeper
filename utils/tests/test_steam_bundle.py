@@ -922,3 +922,40 @@ def test_the_parsers_hold_against_every_real_mod_asset():
         assert len(declared) == text.count("- modName:"), f"{name}: missed an entry"
         for dep_name, _ in declared:
             assert dep_name.isidentifier(), f"{name}: parsed {dep_name!r} as a mod name"
+
+
+def _published(repo, file_id=3791385803):
+    """Give the fixture repo a Workshop identity, as a published mod has."""
+    identity = repo / "unity" / "DisableDurability" / "DisableDurability_Steam.asset"
+    identity.write_text(f"MonoBehaviour:\n  fileId: {file_id}\n")
+    return repo
+
+
+def test_tag_bundle_carries_the_id_and_the_same_tags_a_publish_sends(tmp_path):
+    """A retag must send exactly what the next release would, or the two fight.
+
+    SetItemTags replaces the whole set, so anything derive_tags would add and
+    this left out would be stripped from the item by the retag and restored by
+    the next publish.
+    """
+    repo = _published(_repo(tmp_path))
+    env = _env(tmp_path)
+
+    retag = steam_bundle.tag_bundle(repo, env)
+    publish = steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
+
+    assert retag == {"fileId": 3791385803, "tags": publish["tags"]}
+
+
+def test_tag_bundle_refuses_a_mod_with_no_workshop_item(tmp_path):
+    """A fileId of 0 tells ck-workshop to create an item; a tag fix must never do that."""
+    with pytest.raises(ValueError, match="no Workshop item"):
+        steam_bundle.tag_bundle(_repo(tmp_path), _env(tmp_path))
+
+
+def test_tag_bundle_refuses_what_a_publish_would_refuse(tmp_path):
+    """Same environment checks as the preflight: a retag without a version tag is the bug itself."""
+    repo = _published(_repo(tmp_path))
+
+    with pytest.raises(ValueError, match="CK_GAME_VERSION"):
+        steam_bundle.tag_bundle(repo, _env(tmp_path, CK_GAME_VERSION=""))

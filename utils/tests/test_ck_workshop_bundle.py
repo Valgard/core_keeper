@@ -509,3 +509,56 @@ class TestDependencyPlan:
         assert "exit 9" not in err
         assert "exit 7" not in err
         assert "skipped" in err.lower()
+
+
+class TestTagsOnly:
+    """`--tags-only` reads a bundle's fileId and tags, and nothing else.
+
+    It sends SetItemTags alone, so the fields a publish must carry are exactly
+    the ones it must not require — and the two it does read are the ones whose
+    mistakes are destructive: SetItemTags replaces the whole set.
+    """
+
+    @staticmethod
+    def retag(tool, bundle):
+        """Run the tool in tag-only mode (and, through the fixture, as a dry run)."""
+        return run([*tool, "--tags-only"], bundle)
+
+    def test_fileid_and_tags_alone_are_enough(self, tool):
+        """No content, preview or change note — the mode sends none of them."""
+        done = self.retag(
+            tool, {"fileId": 3791299348, "tags": ["1.3.0", "Library", "Client", "Script"]}
+        )
+        assert done.returncode == 0, done.stderr
+        assert result_line(done) == {
+            "fileId": 3791299348,
+            "created": False,
+            "success": True,
+            "modOwner": 0,
+        }
+        assert "tags only" in done.stderr
+
+    def test_the_golden_bundle_is_accepted_and_only_its_tags_are_reported(self, tool, golden):
+        """A full publish bundle works too; its other fields are simply not read."""
+        done = self.retag(tool, {**golden, "fileId": 3791299348, "visibility": "unchanged"})
+        assert done.returncode == 0, done.stderr
+        assert "Content:" not in done.stderr
+
+    def test_a_new_item_is_refused(self, tool):
+        """A fileId of 0 asks a publish to create an item; retagging creates nothing."""
+        done = self.retag(tool, {"fileId": 0, "tags": ["1.3.0"]})
+        assert done.returncode == 2
+        assert "existing item" in done.stderr
+
+    @pytest.mark.parametrize("tags", [None, []])
+    def test_no_tags_is_refused_because_nothing_would_be_sent(self, tool, tags):
+        """Facepunch skips an empty SetItemTags: the submit would change nothing, yet succeed."""
+        done = self.retag(tool, {"fileId": 3791299348, "tags": tags})
+        assert done.returncode == 2
+        assert "submit nothing" in done.stderr
+
+    def test_a_blank_tag_is_refused(self, tool):
+        """A blank value is a producer bug, not a tag."""
+        done = self.retag(tool, {"fileId": 3791299348, "tags": ["1.3.0", " "]})
+        assert done.returncode == 2
+        assert "blank" in done.stderr

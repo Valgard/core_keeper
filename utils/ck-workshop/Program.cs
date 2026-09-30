@@ -17,12 +17,22 @@
 // keys its stored File ID on the display title (CoreKeeperModSDK#11), and it
 // finds its content through a five-entry UI ring buffer.
 //
-// It has one other mode, `--read-item <fileId>`, which sends nothing: it prints
+// It has two other modes. `--read-item <fileId>` sends nothing: it prints
 // what a Workshop item currently says about itself, including the publisher-only
 // Metadata string. utils/steam_backfill.py reads its own progress out of that
 // field, so it needs a read that is guaranteed to have ASKED for it — a query
 // that does not returns null there, and null read as "nothing recorded" is the
 // one mistake that turns an append-only history into a duplicated one.
+//
+// And `--tags-only`, which takes a bundle but reads only its fileId and tags,
+// and sends nothing but SetItemTags: no content, no change note, no title,
+// description, preview, visibility, dependencies or metadata. It exists because
+// the tags are what the game's loader judges compatibility by, and correcting
+// them must not cost a full release — nor put a build onto the item that
+// nobody asked to ship. SetItemTags replaces the item's whole tag set, so the
+// bundle has to carry all of them, which utils/steam_retag.py derives from the
+// same function a publish uses. Whether Steam kept every value is checked on
+// that side, against the public Web API, rather than here.
 //
 // Exit codes, which utils/upload.sh reports as the run's own:
 //   0  published — or a dry run, which sends nothing and says so; or an item read
@@ -156,6 +166,13 @@ internal static class Program
         {
             Console.Error.WriteLine($"bundle is not valid JSON: {ex.Message}");
             return 2;
+        }
+
+        // Branched before Validate, which demands the content, preview and
+        // change note this mode deliberately does not send.
+        if (Array.IndexOf(args, "--tags-only") >= 0)
+        {
+            return await RetagItem(bundle, dryRun);
         }
 
         var unusable = Validate(bundle, out var visibility);
@@ -351,6 +368,117 @@ internal static class Program
         {
             SteamClient.Shutdown();
         }
+    }
+
+    // Replace an existing item's tags and change nothing else — see the header.
+    // Emits the same result line as a publish, so a caller parses one shape.
+    private static async Task<int> RetagItem(Bundle bundle, bool dryRun)
+    {
+        var unusable = ValidateTagsOnly(bundle);
+        if (unusable != null)
+        {
+            Console.Error.WriteLine(unusable);
+            return 2;
+        }
+
+        Console.Error.WriteLine($"  Item:    {bundle.FileId}");
+        Console.Error.WriteLine($"  Tags:    {string.Join(", ", bundle.Tags)}");
+        Console.Error.WriteLine("  Sends:   tags only — no content, change note or other field");
+
+        if (dryRun)
+        {
+            Console.Error.WriteLine("  (dry run — nothing sent)");
+            EmitResult(bundle.FileId, created: false, success: true);
+            return 0;
+        }
+
+        try
+        {
+            SteamClient.Init(CoreKeeperAppId);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Steam could not be initialised: {ex.Message}");
+            Console.Error.WriteLine("  Is the desktop Steam client running and signed in?");
+            Console.Error.WriteLine("  Is libsteam_api.dylib installed? See utils/fetch_steam_lib.sh");
+            return 3;
+        }
+
+        _modOwner = SteamApps.AppOwner.Value;
+
+        try
+        {
+            var existing = await Item.GetAsync(bundle.FileId);
+            if (!existing.HasValue)
+            {
+                Console.Error.WriteLine($"Workshop item {bundle.FileId} not found.");
+                return 4;
+            }
+            if (existing.Value.Owner.Id != SteamClient.SteamId)
+            {
+                Console.Error.WriteLine($"Workshop item {bundle.FileId} belongs to someone else.");
+                return 4;
+            }
+
+            // Nothing but tags on the editor: SubmitAsync sets exactly the
+            // fields that were given, so this is what keeps the build, the
+            // description and the visibility as they are.
+            var editor = new Editor(bundle.FileId);
+            foreach (var tag in bundle.Tags)
+            {
+                editor = editor.WithTag(tag);
+            }
+
+            var result = await editor.SubmitAsync();
+            if (!result.Success)
+            {
+                Console.Error.WriteLine($"Workshop tag update failed: {result.Result}");
+                EmitResult(bundle.FileId, created: false, success: false);
+                return 5;
+            }
+
+            EmitResult(bundle.FileId, created: false, success: true);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Workshop tag update threw: {ex.GetType().Name}: {ex.Message}");
+            return 6;
+        }
+        finally
+        {
+            SteamClient.Shutdown();
+        }
+    }
+
+    // Narrower than Validate on purpose: this mode reads two fields, and
+    // demanding the rest would force a caller to invent a content path for a
+    // submit that never touches content.
+    private static string ValidateTagsOnly(Bundle bundle)
+    {
+        if (bundle == null)
+        {
+            return "bundle is empty";
+        }
+        // Retagging creates nothing, and fileId 0 is how a publish asks to
+        // create an item — so 0 here is a caller's mistake, not a new item.
+        if (bundle.FileId == 0)
+        {
+            return "--tags-only needs an existing item: bundle field \"fileId\" is 0 or missing";
+        }
+        // Facepunch skips SetItemTags for an empty list, so this would submit
+        // an update that changes nothing and report success for it. Every
+        // real tag set has at least a version and an access tag, so an empty
+        // one means the producer lost them, which is worth hearing about.
+        if (bundle.Tags == null || bundle.Tags.Length == 0)
+        {
+            return "--tags-only needs tags: an empty set would submit nothing and still report success";
+        }
+        if (bundle.Tags.Any(string.IsNullOrWhiteSpace))
+        {
+            return "bundle field \"tags\" has a blank entry";
+        }
+        return null;
     }
 
     // Print what a Workshop item says about itself, and send nothing. One JSON
