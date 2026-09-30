@@ -73,10 +73,6 @@ delimit the identifier, which is what they were there for. And a note written
 in Markdown does not degrade gracefully: `###` and `**` appear as themselves,
 which is worse than plain prose would have been.
 
-There is also **no Game Version dimension**. mod.io carries compatibility tags per
-build; the Workshop has no equivalent, so a mod cannot advertise which game
-versions it runs on.
-
 ## The change history is append-only to every API, and editable in the browser
 
 The distinction matters and is easy to collapse into "immutable", which is
@@ -142,6 +138,51 @@ The vocabulary overlaps Core Keeper's mod.io groups closely but not exactly, and
 **Steam drops an unknown value without a word**, exactly as mod.io does. Anything
 setting tags programmatically should validate before sending, because the platform
 will not.
+
+## A version tag decides whether the game loads the item
+
+The listing has no Game Version heading, but the game reads one anyway.
+`SteamWorkshopLoader.InitAsync` hands the item's `entry.Tags` to
+`ModVersion.IsCompatible(Application.version, …)`, exactly as the mod.io loader
+hands over a profile's tags (`PugMod.Loader`, 1.3.0.2), and passes the answer to
+`AddMod`. An item with no tag whose first three components match the running
+build is refused in every build unless the player force-loads it: the log says
+`mod <Title> is not compatible with current version`, and the main menu raises [the incompatible-mod dialogue](troubleshooting.md#cheaper-if-you-have-a-log-a-stale-game-version-compatibility-tag).
+A subscriber who picks **Disable** there reports the mod as one that "fails to
+load".
+
+**That Disable does not stick for a Workshop item** — read from the code, not
+tried. The dialogue handles every refused mod alike and calls
+`ModIOUnity.DisableMod` with the mod's id (`TitleMenuIncompatibleModWarning`,
+`Pug.Other`, 1.3.0.2). For a Workshop item that id is its file id, which lands
+in the mod.io plugin's `disabledMods`, a list the Workshop loader never reads.
+So the item is judged afresh at the next launch: once its tags are corrected it
+loads, and until then it raises the same dialogue every time. The two ways out
+are **Load Anyway**, which puts its GUID on the force-load list until the next
+game update clears it, and unsubscribing.
+
+**Steam keeps a version value, although none of its tag groups lists one.**
+`1.3.0`, `1.2.1` and `1.2.0`, sent as plain tags, were stored and returned by
+`GetPublishedFileDetails` on fourteen items. So whatever unknown values Steam
+drops (above), these are not among them. Three components are enough, because
+`IsCompatible` applies its three-part regex to the tag as well: `1.3.0.1` and
+`1.3.0.2` would be two tags with the meaning `1.3.0` already has.
+
+**The SDK's Workshop tab adds the tag itself; any other uploader has to.** The
+tab appends `GameVersionTagRegistry.GetCurrentVersion()` to every upload — one
+three-part version, recorded when **Update Game Files** reads the installed
+game, and nothing at all if that has never run. An uploader that builds its tag
+list from the category groups alone publishes items that no build loads without
+a force-load, and nothing on the upload side reports an error.
+
+**Tags can be corrected without a release, and the correction takes effect at
+the next launch.** An update that sets only tags — no content, no change note —
+left `time_updated` and visibility alone on all fourteen items, and on the one
+item counted before and after it added no change-history entry and did not
+change the file size. `SetItemTags` replaces the whole set, so such an update
+has to carry every tag the item should keep, not just the missing one. After it,
+a relaunch no longer logs `is not compatible` for the item, allow-listed or not —
+that line is written before the allowlist is consulted.
 
 ## The preview image is capped at 1 MB
 

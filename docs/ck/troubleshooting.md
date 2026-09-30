@@ -108,6 +108,16 @@ GUID into `unsupportedModsToLoad`, the force-load allowlist that makes the
 loader skip this rejection on the next launch ([the loader's two disable lists](#the-loaders-two-disable-lists-are-opposites),
 below).
 
+**A Steam Workshop subscription takes the same check by a second route.** The
+Workshop loader passes the item's tags to the same `IsCompatible` and logs the
+same first line; the refusal then reads `not loading incompatible mod <ModName>`
+and `failed to load mod <ModName> from steam workshop (<Title>)`. Once the GUID
+is in `unsupportedModsToLoad`, the first line still appears but is followed by
+`loaded mod <ModName> from steam workshop` — so in a log that first line alone
+tells you the tag is missing, whichever way the rest went. The Workshop has no
+version tag group, so an item gets a version tag only if its uploader adds one
+([why, and how to correct an item](steam-workshop.md#a-version-tag-decides-whether-the-game-loads-the-item)).
+
 **This bites only when the first three version components change.**
 `ModVersion.IsCompatible` matches `^(\d+)\.(\d+)\.(\d+)` against both the
 game version and each tag and compares only those three groups, so `1.2.1.4` and
