@@ -166,9 +166,10 @@ all 17 pre-allocated arrow instances carried the swapped root. An edit made afte
 creation would miss the instances already allocated, and a swapped root would no longer
 match the pool's recorded type. What follows came out of giving seven vanilla signs a
 label and an interaction (`sign-labels`): observed in game across the 1.3.0 hotfixes,
-the full in-game check on 1.3.0.3, always in a singleplayer (hosting) client; line
-numbers against 1.3.0.4. Whether the same edit behaves identically on a dedicated server
-is **unverified** — the converters run there too, but nothing here was measured on one.
+the full in-game check on 1.3.0.3 in a singleplayer (hosting) client; line numbers
+against 1.3.0.4. The same edit was confirmed on a dedicated server too: a 1.3.0.4 run
+(2026-09-30, one client) logged the same five `edited` lines and no `failed` line on
+the server side. Not yet observed there: a second client.
 
 ### The loaded prefab takes components, not children
 

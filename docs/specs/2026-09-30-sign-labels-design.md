@@ -137,12 +137,12 @@ child `Interactable` in `Awake`, before `base.Awake()` caches it.
 
 ### Trap 3: visibility and drop amount share one field
 
-Mining an object drops `amount` items unless it has `AlwaysDropOneCD`
-(`Pug.Other:90158`). A sign set to Always has `amount = 2`, so without that
-component it would drop two. The text sign carries it (`AlwaysDropOneAuthoring`
-on its entity prefab), and the spec review found it on every other vanilla
-label carrier as well. The converter adds it unconditionally, before anything
-else can fail.
+Mining an object drops `amount` items (at least one) unless it has
+`AlwaysDropOneCD` (`Pug.Other:90158`). A sign set to Always has `amount = 2`,
+so without that component it would drop two. The text sign carries it
+(`AlwaysDropOneAuthoring` on its entity prefab), and the spec review found it
+on every other vanilla label carrier as well. The converter adds it
+unconditionally, before anything else can fail.
 
 ### Bake time: what the entity needs
 
@@ -237,20 +237,24 @@ placements — signs loaded from a save keeping their state, and a sign
 window opened right after placing switching to the default on its own,
 with or without text typed.
 
+On a 1.3.0.4 dedicated server (2026-09-30, one client, same CrossOver bottle
+as the client): the server-side prefab edit — five `edited` lines and no
+`failed` line in the server log — mining a sign set to Always dropping
+exactly one item, painting the Arrow Sign, and More Labels 2.1.1 loaded
+alongside with its hover option left at default, with no interference
+observed.
+
 Still unobserved:
 
-- that mining a sign set to Always drops exactly one item — decompile-backed;
-- painting the arrow;
 - a sign streamed in by walking into its chunk keeping its state;
 - a toggle the player changes in the window before the default is sent
   being kept — the gap is too short to click in by hand, so this rests on
   code review;
-- **the prefab edit on a dedicated server.** The server's trigger components
-  depend on it succeeding there, and every run so far was a hosting client.
-  If it failed on the server while clients succeed, the two would disagree on
-  those entities' components. Text, visibility and the placing player's
-  default reaching a second client are untested with it;
-- the combination with More Labels.
+- a second client — the placing player's default reaching another client,
+  and that client's own signs;
+- the combination with More Labels with its hover option changed from
+  default — only the default option ran alongside the dedicated-server
+  checks.
 
 ## Error handling
 
@@ -320,7 +324,7 @@ In-game, written into the mod's `docs/manual-tests.md`:
 
 - Repo `sign-labels`, namespace `SignLabels`, display name "Sign Labels" —
   the three levels match.
-- Dependency: Mod Settings Menu.
+- Dependencies: CoreLib, Mod Settings Menu.
 - mod.io type: Quality of Life.
 - Personal-use, non-commercial (Pugstorm EULA), like every mod here.
 
