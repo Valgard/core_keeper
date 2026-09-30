@@ -200,12 +200,12 @@ price for its own hook. The design:
    object; the spawn does, and only target signs are `LabeledSign`s. Text
    on the sign does not block the default: a label is not a visibility
    choice.
-3. The spawn is a client-predicted ghost (`GhostInstance.ghostId == 0`,
-   `PredictedGhostSpawnRequest` present), and an RPC naming it cannot be
-   resolved by the server. NetCode later promotes the same entity to the
-   server-confirmed ghost, so the client sends `SetWorldLabelVisibility`
-   only then — provided the sign still exists and is still at Hover — and
-   gives up after 5 s.
+3. The spawn is a client-predicted ghost (`GhostInstance.ghostId == 0`),
+   and an RPC naming it reaches the server as `Entity.Null`. NetCode later
+   promotes the same entity to the server-confirmed ghost, so the client
+   sends `SetWorldLabelVisibility` only once the ghost id is non-zero —
+   provided the sign still exists and is still at Hover — and gives up
+   after 5 s.
 4. The game's sign window reads the state only when it opens. If it is open
    on the sign when the send is due, a toggle the player already moved off
    Hover wins and nothing is sent; otherwise the toggle is set to the

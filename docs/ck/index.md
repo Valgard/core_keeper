@@ -135,7 +135,7 @@ symptom, not the topic.
 | A call works in single-player but not on a server | [Multiplayer and server](multiplayer-and-server.md) — some subsystems are compiled out server-side |
 | `Failed to resolve MapMarkerIconDataBlock` repeats in the log, and a map marker shows a blue diamond or another marker's icon | [World and mechanics](world-and-mechanics.md#since-13-a-user-markers-icon-is-a-data-block) — the marker's icon block is not loaded |
 | An object turns invisible (edge-on) or cannot be used after you gave it an interactable | [Prefabs and rendering](prefabs-and-rendering.md#interactable-must-be-set-and-on-a-directional-object-it-must-be-a-child) — `interactable` is null, or points at the root |
-| The game hangs on exit after you added interaction components at bake time | [Prefabs and rendering](prefabs-and-rendering.md#interaction-triggers-need-an-interactableobject-first) — the post converter found no `InteractableObject` |
+| ECS initialisation fails after you added interaction components at bake time (on a Wine host, the game then hangs on exit) | [Prefabs and rendering](prefabs-and-rendering.md#interaction-triggers-need-an-interactableobject-first) — the post converter found no `InteractableObject` |
 | An RPC about an object the player just placed has no effect | [Multiplayer and server](multiplayer-and-server.md#a-just-placed-object-cannot-be-named-in-an-rpc-yet) — the object is still a predicted ghost with no id |
 | The sign or chest window shows a stale visibility state | [UI framework](ui-framework.md#the-sign-window-reads-the-visibility-state-once) — it reads the state only when it opens |
 

@@ -208,28 +208,41 @@ if (!__instance.isLocal)
 ### A just-placed object cannot be named in an RPC yet
 
 On the client that places it, an object first spawns as a **client-predicted
-ghost**: its entity carries `GhostInstance.ghostId == 0` and a
-`PredictedGhostSpawnRequest`. An RPC that names an entity sends its ghost id —
-CK's player-command serializer writes `ghostInstance.ghostId` for `entity0`
-(`Pug.Other:453607`) — so an RPC naming the predicted object carries id `0`, and
-the server has nothing to resolve it to. Observed on 1.3.0.4 with
-`SetWorldLabelVisibility` sent the moment a placed sign spawned: no error anywhere,
-and a second later the sign's state was unchanged.
+ghost**, and its entity carries `GhostInstance.ghostId == 0`. (It also carries a
+`PredictedGhostSpawnRequest` in the frame it spawns, but NetCode's
+`PredictedGhostSpawnSystem` removes that through a command buffer at the next
+simulation step, so the component is no marker to wait on.) An RPC that names an
+entity sends its ghost id — CK's player-command serializer writes
+`ghostInstance.ghostId` for `entity0` (`Pug.Other:453607`) — and the receiving
+side resolves `0` to nothing: it sets `entity0` to `Entity.Null` and looks the
+id up only when it is non-zero (`Pug.Other:453648-453649`). For
+`SetWorldLabelVisibility` the handler then reads `ObjectDataCD` from
+`Entity.Null` (`Pug.Other:415472`), which `EntityUtility.GetComponentData`
+catches and logs as *"GetComponentData<…> called on invalid entity"*
+(`Pug.Other:262831`), and writes the result back to `Entity.Null`
+(`Pug.Other:415474`). Observed on 1.3.0.4 with the RPC sent the moment a placed
+sign spawned: a second later the sign's state was unchanged. The server-side log
+line is derived from the source; that run did not capture the server's log. The
+same command is also dropped outright on a guest-mode world when the sender has
+no admin rights (`Pug.Other:415199`, see below), whatever it names.
 
-The server's ghost does not arrive as a second object. CK's own
-`PugSpawnClassificationSystem` pairs an incoming ghost with a predicted spawn of the
-same ghost type less than three tiles away on the XZ plane (`Pug.Other:459631`) and
-hands it that spawn's entity (`Pug.Other:459655`), so NetCode promotes the **same**
-entity to the real ghost. An `Entity` or a `MonoBehaviour` captured at the predicted
-spawn therefore stays valid, and no second spawn was observed. Measured on
-1.3.0.4 in singleplayer, the promotion took 0.12–0.18 s across ten placements; over
-a real network it is at least a round trip, **unverified** in practice.
+When the server's ghost arrives, CK's own `PugSpawnClassificationSystem` looks for a
+predicted spawn of the same ghost type, takes the nearest one less than three tiles
+away on the XZ plane (`Pug.Other:459631`) — or, for a ghost without a position in its
+snapshot, the oldest one by spawn tick — and hands the incoming ghost that spawn's
+entity (`Pug.Other:459655`), so NetCode promotes the **same** entity to the real
+ghost. An `Entity` or a `MonoBehaviour` captured at the predicted spawn then stays
+valid, and no second spawn was observed. That holds only when a match is found: a
+predicted spawn destroyed meanwhile, or a server ghost more than three tiles off,
+leaves the ghost to spawn as an object of its own. Measured on 1.3.0.4 in
+singleplayer, the promotion took 0.12–0.18 s across ten placements; over a real
+network it is at least a round trip, **unverified** in practice.
 
-So an RPC about something the local player just placed waits for the promotion:
-keep the entity, check each frame for a non-zero `GhostInstance.ghostId` and no
-`PredictedGhostSpawnRequest`, send then, and give up after a timeout. Re-check
-before sending that the entity still exists and still is the object you matched — a
-pooled `MonoBehaviour` can be handed to a different entity in the meantime.
+So an RPC about something the local player just placed waits for the promotion: keep
+the entity, check each frame for a non-zero `GhostInstance.ghostId`, send then, and
+give up after a timeout. Re-check before sending that the entity still exists and
+still is the object you matched — a pooled `MonoBehaviour` can be handed to a
+different entity in the meantime.
 
 ### Who is allowed to change things: admin level and guest mode
 

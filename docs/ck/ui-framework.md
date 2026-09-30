@@ -631,7 +631,9 @@ The window a text sign opens is `SignTextUI` (`Pug.Other:338804`, reachable as
 `activeWorldLabel`, and its two halves refresh differently:
 
 - **The text is live.** `LateUpdate` re-reads the label's text every frame while
-  the window shows, except while the input field is being typed in.
+  the window shows — except while the input field is being typed in, while a
+  profanity check is pending, and for a second after the player's own edit — and
+  shows new text once the platform's text filter has returned.
 - **The visibility toggle is not.** `ShowUI` reads `GetState()` once, when the
   window opens (`Pug.Other:338845`), and sets the toggle from it. Nothing reads
   the state again while the window stays open.

@@ -156,7 +156,15 @@ The Editor-or-script rule above is about a mod's own prefab YAML. A vanilla obje
 **graphical prefab** — the GameObject the game pools and instantiates for each spawned
 entity of that object — is a different case: a mod can reach it during the bake and
 change it in memory, and every instance the game spawns afterwards carries the change,
-pooled and reused ones included. What follows came out of giving seven vanilla signs a
+pooled and reused ones included — on one condition. The pools are built from the
+prefab, not re-read from it: `MemoryManager` queues `CreatePools()` with
+`Manager.RunAfterInitComplete` (`Pug.Other:277804`), and `CreatePools` takes each
+pool's component type from the prefab's `IPoolable` root at that moment
+(`Pug.Other:277824`, `Pug.Other:277830`) and pre-allocates its instances. An edit made
+in the bake lands before that, so the pool is built from the edited prefab — observed:
+all 17 pre-allocated arrow instances carried the swapped root. An edit made after pool
+creation would miss the instances already allocated, and a swapped root would no longer
+match the pool's recorded type. What follows came out of giving seven vanilla signs a
 label and an interaction (`sign-labels`): observed in game across the 1.3.0 hotfixes,
 the full in-game check on 1.3.0.3, always in a singleplayer (hosting) client; line
 numbers against 1.3.0.4. Whether the same edit behaves identically on a dedicated server
@@ -164,9 +172,10 @@ is **unverified** — the converters run there too, but nothing here was measure
 
 ### The loaded prefab takes components, not children
 
-`PrefabInfo.GetGraphical()` returns the data block's prefab (`Pug.Base:4753`) — the
-asset itself, not an instance of it: `gameObject.scene.IsValid()` is `false`. On that
-object, from a converter during the bake:
+`PrefabInfo.GetGraphical()` returns the data block's prefab (`Pug.Base:4753`), or the
+legacy `prefab` field's object when the data block does not resolve (`Pug.Base:4755`) —
+in both cases the asset itself, not an instance of it: `gameObject.scene.IsValid()` is
+`false`. On that object, from a converter during the bake:
 
 - `AddComponent` works, and `Object.DestroyImmediate(component, true)` removes a
   component (the `true` is what permits destroying on an asset).
@@ -189,34 +198,45 @@ name, so everything the two declare in common (sprites, shadow, paint options) c
 over — then destroy the old one. That preserves data, not behaviour. It is shown only
 for roots whose class body is empty: the five sign prefabs above, whose classes
 (`SignArrow`, `SignPostSkull`, `SignPostBrute`, `YellowWarningSign`, `WoodenSign`) add
-nothing to `EntityMonoBehaviour`. A root that overrides anything loses it — the
-holoboards' roots play their break effects in `OnDeath` (`Pug.Objects:3050`), and the
-small one picks its sprite variant in `UpdateGraphicsFromObjectInfo`
-(`Pug.Objects:3092`). Read the class body in `Pug.Objects` before swapping; where it is
-not empty, the new component belongs beside the original root, not in its place.
+nothing to `EntityMonoBehaviour`. A root that overrides anything loses it — all three
+holoboards play their break effects in their own `OnDeath` (`InfoBoardBroken`
+`Pug.Objects:3050`, `InfoBoardLarge` `Pug.Objects:3062`, `InfoBoardSmall`
+`Pug.Objects:3084`), and the small one also picks its sprite variant in
+`UpdateGraphicsFromObjectInfo` (`Pug.Objects:3092`). Read the class body in
+`Pug.Objects` before swapping; where it is not empty, the new component belongs beside
+the original root, not in its place.
 
 ### `interactable` must be set, and on a directional object it must be a child
 
-`EntityMonoBehaviour.interactable` (`Pug.Other:283916`) does two jobs, and both fail
-without an error:
+`EntityMonoBehaviour.interactable` (`Pug.Other:283916`) does three jobs, and each
+fails without an error:
 
 - When the graphical object spawns, `CreateGraphicalObjectSystem` copies it into the
   entity's `InteractableObjectReferenceCD` (`Pug.Other:458871-458875`) — only if it is
   not null. That reference is how the interaction system gets back to the component
   whose `onUseActions` it invokes. Left null, the hover outline flickers on and
   interacting does nothing.
-- `OnSpawn` rotates `interactable.transform` to the object's direction whenever the
-  entity has a `DirectionCD` (`Pug.Other:284915-284918`). Pointed at the root, that
-  rotates the whole object: on the arrow and the warning signs the sprite and the label
-  turned edge-on to the camera and vanished, while the flat shadow stayed. An object
-  without `DirectionCD` tolerates the root.
+- `OnSpawn` sets `interactable.transform`'s local rotation and position for the
+  object's direction whenever the entity has a `DirectionCD`
+  (`Pug.Other:284915-284918`). Pointed at the root, that rotates the whole object (its
+  position is restored right after, its rotation is not): on the arrow and the warning
+  signs the sprite and the label turned edge-on to the camera and vanished, while the
+  flat shadow stayed. An object without `DirectionCD` tolerates the root.
+- The hover outline goes through it too: `EntityMonoBehaviour.UpdateOutline`
+  (`Pug.Other:285392`) switches `interactable.optionalOutlineController`
+  (`Pug.Other:285409`) and the sprite outlines listed in its `subInteractingData`.
+  Outline references copied from another prefab's `InteractableObject` point at that
+  prefab's objects, so they have to be replaced with the object's own sprite.
 
-`Awake` caches whether the field is set (`Pug.Other:284253`), so a subclass assigns it
-**before** calling `base.Awake()`. The text sign is the shape to copy: its
-`InteractableObject` sits on a child named `Interactable`. A bake-time edit cannot add
-that child (above), so the asset carries the `InteractableObject` on its root — the
-post converter below needs one there — and each instance moves it onto a new child in
-`Awake` and points `interactable` at it.
+`Awake` caches whether the field is set (`Pug.Other:284253`) and, if it is, the
+interactable's local position and rotation (`Pug.Other:284275-284276`), which
+`OnSpawn` later rotates from. So a subclass creates the child, moves the
+`InteractableObject` onto it and points `interactable` at it **before** calling
+`base.Awake()` — assigning the field alone is not enough. The text sign is the shape to
+copy: its `InteractableObject` sits on a child named `Interactable`. A bake-time edit
+cannot add a child (above); where the prefab has no suitable child already, the asset
+carries the `InteractableObject` on its root — the post converter below needs one
+somewhere in the prefab — and each instance moves it onto a new child in `Awake`.
 
 ### Interaction triggers need an `InteractableObject` first
 
@@ -225,9 +245,18 @@ post converter below needs one there — and each instance moves it onto a new c
 collects the graphical prefab's `InteractableObject`s, and takes the first without
 checking that there is one (`Pug.Other:450315`). A mod that adds either trigger buffer
 to an object whose graphical prefab has no `InteractableObject` makes it throw there:
-ECS initialisation failed, and the game hung on its way out — observed on a Wine host.
-Add the trigger components only once the edit that supplies the `InteractableObject`
-has verifiably succeeded, and never speculatively.
+ECS initialisation failed, and the game hung on its way out. That hang was observed
+only on a Wine (CrossOver) host; what the same exception does elsewhere is
+**unverified**, but the failed initialisation is not host-specific. Add the trigger
+components only once the edit that supplies the `InteractableObject` has verifiably
+succeeded, and never speculatively.
+
+That first `InteractableObject` is also where the interaction's shape comes from. The
+post converter bakes the per-direction interaction point from its transform
+(`Pug.Other:450320`) and its radius and flags into `InteractableBlobData`
+(`Pug.Other:450332-450339`) — the component as it sits on the asset at bake time. Moving
+it onto a child at runtime does not change what was baked, so its radius and its
+position on the asset are what decide where and from how far the object can be used.
 
 The vanilla route to those components, `LocalInteractableAuthoring` →
 `LocalInteractableConverter`, adds them only when the first `InteractableObject`'s
@@ -237,11 +266,12 @@ registered on entity"* (`Interaction.Converters:104`) and adds nothing. Persiste
 are authored in the Editor. A mod can only obtain them by copying an existing
 `InteractableObject`, and the copies still target the source prefab's component — the
 text sign's, in this case — not the mod's. So a mod's own `Converter` adds what that
-converter would for a primary use interaction — `TriggerUseInteractionBuffer`,
-`LocalUseInteractionTriggerCD` (disabled), `LocalUseInteractionTriggerSubIndexCD
-{ subIndex = 0 }`, `TriggerExitInteractionBuffer`, `LocalExitInteractionTriggerCD`
-(disabled) — and each instance hands the events fresh `UnityEvent`s and wires its
-handlers with `AddListener` in `Awake`.
+converter would: for a primary use interaction `TriggerUseInteractionBuffer`,
+`LocalUseInteractionTriggerCD` (disabled) and `LocalUseInteractionTriggerSubIndexCD {
+subIndex = 0 }`, and for an exit action — vanilla adds this pair only when
+`onTriggerExitActions` has a persistent call — `TriggerExitInteractionBuffer` and
+`LocalExitInteractionTriggerCD` (disabled). Each instance hands the events fresh
+`UnityEvent`s and wires its handlers with `AddListener` in `Awake`.
 
 ## Sprite import: a PNG is not automatically a Sprite
 

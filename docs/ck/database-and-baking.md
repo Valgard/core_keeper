@@ -459,21 +459,26 @@ applies to the objects you enumerate before reading the field.
 
 **On an object that shows a world label, `amount` is the label's visibility
 state** — and still the drop count, which is where the two meanings collide.
-`WorldLabel` hides the label at `0`, shows it at `1` only while the object is the
-player's current interactable, and always otherwise (`Pug.Other:321350`,
+`WorldLabel` hides the label at `0`, shows it at `1` only while the object is
+the player's current interactable, and always otherwise (`Pug.Other:321350`,
 `Pug.Other:321354`); the Hover check compares against the object's first
 `InteractableObject` found with `GetComponentInChildren`, so one on a child
 counts. The sign window's toggle writes it through the `SetWorldLabelVisibility`
 RPC, whose server handler sets `amount` on whatever entity it is handed, with no
-type check (`Pug.Other:415473`). A freshly placed sign was observed to start at
-`1`, which is why Hover is what a new sign shows; vanilla offers no other default.
+type check (`Pug.Other:415473`) — and drops it, like the text RPC, from a player
+without admin rights on a guest-mode world (`Pug.Other:415199`; see [multiplayer and server](multiplayer-and-server.md#who-is-allowed-to-change-things-admin-level-and-guest-mode)).
+A freshly placed sign was observed to start at `1`, which is why Hover is what a
+new sign shows; vanilla offers no other default.
 
 An object that drops itself when mined drops `max(1, amount)` unless the entity
 has `AlwaysDropOneCD` (`Pug.Other:90854`, in `DropLootSystem.DropSelfJob`). A
 label set to "always" sits at `2`, so without that component it would drop two.
 Vanilla pairs the two: in the 1.3.0.4 assets the entity prefabs carrying
 `DescriptionAuthoring` (the label text) and those carrying
-`AlwaysDropOneAuthoring` are the same 80 — every chest and the three text signs.
+`AlwaysDropOneAuthoring` are the same 80 — 77 chest entities and the three text
+signs. The locked chests are the exception on both counts: the ten
+`Locked*ChestEntity` prefabs and three `…_TitanTempleScene_*` variants of them carry
+neither component.
 A mod that gives a label to an object that had none has to add `AlwaysDropOneCD`
 as well, and first, so that no partial failure of the rest leaves the label
 without it. How such an object is made labelled at all is in [prefabs and rendering](prefabs-and-rendering.md#editing-a-vanilla-graphical-prefab-at-bake-time).
