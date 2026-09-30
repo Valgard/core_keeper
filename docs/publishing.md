@@ -473,23 +473,23 @@ deleted. Tags outside these four groups are never touched.
 
 - **A build without a tag of its own can be published under a stand-in.** The
   1.3 update got a single tag, `1.3.0`, while the builds that shipped are
-  `1.3.0.1` and `1.3.0.2`. A shorter tag stands in for a build when it is a
-  whole-segment prefix of it and the build *it* spells, padded to four
-  segments, never shipped: `1.3.0.0` never did, so `1.3.0` can only mean the
-  update, and both 1.3 builds are published under it. `1.1.2` is the opposite
-  case — it sits beside `1.1.2.1` … `1.1.2.10` and names build `1.1.2.0`, so a
-  later untagged 1.1.2 hotfix fails validation rather than being listed under a
-  build it was never tested on. Only builds in `ck-game-versions.json` get a
-  stand-in, which keeps a typo such as `1.3.0.20` a failure, and that list is
-  also what the rule is decided on — without `CK_KNOWN_GAME_VERSIONS` no build
-  gets one. An exact tag always wins, so once mod.io adds `1.3.0.2` the next
-  publish moves the mod onto it and drops `1.3.0` as surplus, unless `1.3.0.1`
-  still needs it. `utils/refresh_game_versions.py` applies the same rule and
-  reports such a tag as a stand-in, not as a missing build `1.3.0.0`. The rule
-  is `GameVersionTags` at the end of `CLIPublishHelper.cs`, tested by
-  `utils/publish-helper-tests`. It needs the live taxonomy, so when
-  `GetTagCategories` fails the builds go out as they are, mod.io drops those
-  it has no tag for, and the warning names them.
+  `1.3.0.1`, `1.3.0.2`, `1.3.0.3` and `1.3.0.4`. A shorter tag stands in for a
+  build when it is a whole-segment prefix of it and the build *it* spells,
+  padded to four segments, never shipped: `1.3.0.0` never did, so `1.3.0` can
+  only mean the update, and all four 1.3 builds are published under it. `1.1.2`
+  is the opposite case — it sits beside `1.1.2.1` … `1.1.2.10` and names build
+  `1.1.2.0`, so a later untagged 1.1.2 hotfix fails validation rather than being
+  listed under a build it was never tested on. Only builds in
+  `ck-game-versions.json` get a stand-in, which keeps a typo such as `1.3.0.20`
+  a failure, and that list is also what the rule is decided on — without
+  `CK_KNOWN_GAME_VERSIONS` no build gets one. An exact tag always wins, so once
+  mod.io adds `1.3.0.2` the next publish moves the mod onto it and drops `1.3.0`
+  as surplus, unless `1.3.0.1` still needs it. `utils/refresh_game_versions.py`
+  applies the same rule and reports such a tag as a stand-in, not as a missing
+  build `1.3.0.0`. The rule is `GameVersionTags` at the end of
+  `CLIPublishHelper.cs`, tested by `utils/publish-helper-tests`. It needs the
+  live taxonomy, so when `GetTagCategories` fails the builds go out as they are,
+  mod.io drops those it has no tag for, and the warning names them.
 
 - **Group membership comes from the live API** (`GetTagCategories`), never a
   hardcoded value list.
