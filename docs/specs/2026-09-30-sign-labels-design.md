@@ -2,9 +2,10 @@
 
 - **Date:** 2026-09-30
 - **Mod:** `sign-labels` (new repo)
-- **Status:** design settled, pending implementation — except that the
-  placement watch rests on an unmeasured premise; see *What is not yet
-  observed*
+- **Status:** implemented; what the running game has and has not confirmed
+  is under *What is not yet observed*
+- **Citations:** every `Pug.*:N` line number refers to Core Keeper
+  `1.3.0.2`, the build this design was written against
 
 ## Problem
 
@@ -171,7 +172,8 @@ components itself.
 | `SignLabelConverter : Converter` | Per target entity: `AlwaysDropOneCD`, `DescriptionBuffer`, and — only after a successful prefab edit — `TriggerUseInteractionBuffer`, `LocalUseInteractionTriggerCD` (disabled), `LocalUseInteractionTriggerSubIndexCD { subIndex = 0 }`, `TriggerExitInteractionBuffer`, `LocalExitInteractionTriggerCD` (disabled). |
 | `GraphicalPrefabEditor` | Edits one graphical prefab exactly once, **keyed by the prefab, not by `ObjectID`**, because two pairs of targets share one. Swaps the vanilla root component for `LabeledSign`, carrying its serialized fields over with `JsonUtility`. Adds an `InteractableObject` to the root, copied from the text sign's, with fresh event lists and the outline pointed at the sign's own sprite. Leaves `interactable` null on the asset. |
 | `LabeledSign : WorldLabel` | Per instance in `Awake`: moves the `InteractableObject` onto a child and sets `interactable`, clones the text sign's `WorldText` child and sets `worldLabel`, subscribes `Interact` / `OnPlayerLeft`. Both mirror `SignText`'s. |
-| `DefaultVisibility` | The Mod Settings Menu option plus the placement watch below. |
+| `PlacementMatcher` | Pure matching logic, no Unity types: a placement (start tick and tile) against a sign spawned on that tile within a short window. |
+| `DefaultVisibility` | The Mod Settings Menu option, the placement watch, and the deferred send below. |
 
 The text sign's graphical prefab is reachable at bake time through
 `PugDatabase.GetObjectInfo(ObjectID.SignText)` — measured, not assumed.
@@ -187,16 +189,30 @@ them whether it predicted the placement or received it from the server.
 The mod reads that state instead of intercepting the placement. That needs no
 Harmony patch and, in particular, not the process-wide Burst change a patch on
 `PlaceObjectSlot.UpdateEquipment` would require — `auto-rail-bridges` pays that
-price for its own hook. The plan:
+price for its own hook. The design:
 
 1. Each frame, the client reads the local player's `PlacementCD`. A
    `timeSincePlaced.startTick` different from the last one seen means a
    placement at `positionLastPlacedAt`; it is recorded with the time.
-2. When a `LabeledSign` spawns on that tile within a short window — its
-   length a measured value, set in the implementation — still at
-   `amount = 1` and without text, the client sends `SetWorldLabelVisibility`
-   with its configured default, once. The placement record does not name
-   the object; the spawn does, and only target signs are `LabeledSign`s.
+2. When a `LabeledSign` spawns on that tile within a short window, still at
+   `amount = 1`, the sign is matched once and the default is taken as the
+   option reads at that moment. The placement record does not name the
+   object; the spawn does, and only target signs are `LabeledSign`s. Text
+   on the sign does not block the default: a label is not a visibility
+   choice.
+3. The spawn is a client-predicted ghost (`GhostInstance.ghostId == 0`,
+   `PredictedGhostSpawnRequest` present), and an RPC naming it cannot be
+   resolved by the server. NetCode later promotes the same entity to the
+   server-confirmed ghost, so the client sends `SetWorldLabelVisibility`
+   only then — provided the sign still exists and is still at Hover — and
+   gives up after 5 s.
+4. The game's sign window reads the state only when it opens. If it is open
+   on the sign when the send is due, a toggle the player already moved off
+   Hover wins and nothing is sent; otherwise the toggle is set to the
+   default. For 2 s after the send, the client waits for the new state to
+   arrive and then sets the toggle of a window still open on that sign,
+   unless the player has moved it off Hover. The toggle is set directly,
+   never through the window's own send, which would repeat the RPC.
 
 The vanilla RPC is the only write, so the mod adds no network message. In
 multiplayer the placing player's own default applies, which matches how the
@@ -205,29 +221,36 @@ well: a guest without admin rights on a guest-mode world has the RPC dropped,
 so their signs start at Hover whatever the option says — just as that guest
 cannot change the toggle.
 
-If the replicated state does not reach the client as expected, the fallback is
-a Harmony postfix on `PlaceObjectSlot.UpdateEquipment` (`Pug.Other:321960`),
-with the Burst change it brings. Should neither work, the default could apply
-when the sign is first labelled instead — a change of the user's decision,
-which needs their approval first.
+The replicated state reaches the client as the design assumed, so the
+fallback — a Harmony postfix on `PlaceObjectSlot.UpdateEquipment`
+(`Pug.Other:321960`), with the Burst change it brings — was not needed.
 
 ### What is not yet observed
 
-The spike covered one object in one direction. Unverified until the
-implementation's tests run:
+Observed since, in singleplayer on macOS/CrossOver (the mod's
+`docs/manual-tests.md` has the runs): on 1.3.0.3, all seven signs on all
+five graphical prefabs — interaction, text, the three visibility states,
+save and reload, the arrow and a warning sign in all four directions, a
+pooled instance reused after mining; on 1.3.0.4, the placement watch and
+the default — Off and Always applied 0.12–0.18 s after placing, across ten
+placements — signs loaded from a save keeping their state, and a sign
+window opened right after placing switching to the default on its own,
+with or without text typed.
 
-- the placement watch — that the local player's `PlacementCD` changes on the
-  client when a sign is placed;
-- the other four graphical prefabs — alike where it matters (a plain
-  `EntityMonoBehaviour` root, no interaction point, no text object), but they
-  differ in their other root components, and the skull's has an extra
-  subtree;
-- the three untested directions;
+Still unobserved:
+
 - that mining a sign set to Always drops exactly one item — decompile-backed;
+- painting the arrow;
+- a sign streamed in by walking into its chunk keeping its state;
+- a toggle the player changes in the window before the default is sent
+  being kept — the gap is too short to click in by hand, so this rests on
+  code review;
 - **the prefab edit on a dedicated server.** The server's trigger components
-  depend on it succeeding there, and the spike ran only in a hosting client.
+  depend on it succeeding there, and every run so far was a hosting client.
   If it failed on the server while clients succeed, the two would disagree on
-  those entities' components.
+  those entities' components. Text, visibility and the placing player's
+  default reaching a second client are untested with it;
+- the combination with More Labels.
 
 ## Error handling
 
@@ -305,5 +328,5 @@ In-game, written into the mod's `docs/manual-tests.md`:
 
 - The three traps go into the handbook — trap 1 and 2 into
   `docs/ck/prefabs-and-rendering.md`, trap 3 into
-  `docs/ck/world-and-mechanics.md` — so the next mod does not rediscover them.
+  `docs/ck/database-and-baking.md` — so the next mod does not rediscover them.
 - The spike repo is deleted once this mod reproduces its results.
