@@ -685,6 +685,30 @@ This is a property of Core Keeper's data, not a search that was given up on too
 early. The sanctioned fallback is a curated tag + `ObjectID` list that the user
 can edit.
 
+### The moment of placement is recorded on the player, not the object
+
+What the stored object lacks, the placing player's entity carries for a moment.
+`PlaceObjectSlot.PlaceItem` restarts `PlacementCD.timeSincePlaced`
+(`Pug.Other:322969`) — for anything but a critter (`Pug.Other:322967`) — and writes
+the placed tile to `PlacementCD.positionLastPlacedAt` (`Pug.Other:322973`). Both are
+`[GhostField]`s (`Pug.ECS.Components:4434-4438`), so the placing client holds them
+whether it predicted the placement or received it from the server. A client that
+reads its local player's `PlacementCD` every frame therefore sees each of its own
+placements as a new `timeSincePlaced.startTick`, together with the tile. That needs
+no Harmony patch and, in particular, not the process-wide Burst change a patch on
+the placement path would bring (see [Harmony and ECS](harmony-and-ecs.md)).
+
+The record does not name the object; pair it with the object that spawns on that
+tile shortly afterwards. Observed working on 1.3.0.4 in singleplayer, for 1×1 signs
+placed by the local player, matched against the sign's own spawn on the same tile.
+Three limits follow from the source rather than from a test: the tile is the
+placement position minus the object's `prefabCornerOffset`, which only a 1×1 object
+makes identical to its position; `SeederSlot` writes `positionLastPlacedAt` for a
+seed (`Pug.Other:323883`) without restarting the timer, so seeding is invisible to a
+watch keyed on `startTick`; and whether another player's `PlacementCD` reaches this
+client is **unverified**. It is an event, not a property — nothing of it survives in
+the save.
+
 ### A workbench is CK's de-facto "the player built this" marker
 
 Neither position nor cluster density separates a base from a world structure,

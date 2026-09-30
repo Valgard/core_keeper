@@ -150,6 +150,99 @@ the mechanism behind it, if any, is unexplained. Route `ModObjectLoaded` by an
 explicit **name whitelist** of the objects you actually care about regardless — an
 else-register-everything branch is worth avoiding either way.
 
+## Editing a vanilla graphical prefab at bake time
+
+The Editor-or-script rule above is about a mod's own prefab YAML. A vanilla object's
+**graphical prefab** — the GameObject the game pools and instantiates for each spawned
+entity of that object — is a different case: a mod can reach it during the bake and
+change it in memory, and every instance the game spawns afterwards carries the change,
+pooled and reused ones included. What follows came out of giving seven vanilla signs a
+label and an interaction (`sign-labels`): observed in game across the 1.3.0 hotfixes,
+the full in-game check on 1.3.0.3, always in a singleplayer (hosting) client; line
+numbers against 1.3.0.4. Whether the same edit behaves identically on a dedicated server
+is **unverified** — the converters run there too, but nothing here was measured on one.
+
+### The loaded prefab takes components, not children
+
+`PrefabInfo.GetGraphical()` returns the data block's prefab (`Pug.Base:4753`) — the
+asset itself, not an instance of it: `gameObject.scene.IsValid()` is `false`. On that
+object, from a converter during the bake:
+
+- `AddComponent` works, and `Object.DestroyImmediate(component, true)` removes a
+  component (the `true` is what permits destroying on an asset).
+- `Object.Instantiate(x, assetTransform)` does **not** parent. Unity logs *"Cannot
+  instantiate objects with a parent which is persistent"* and leaves the new object
+  unparented in the scene.
+
+So change only components on the asset, and build any hierarchy per instance — in
+`Awake` of a component you put on the root, where the object is a scene object and
+takes children normally. Edit each prefab once, keyed by the prefab rather than by
+`ObjectID`: several objects can share one graphical prefab (the yellow and the red
+warning sign do, and so do the two wooden signs), and the converter that makes the
+edit runs once per world.
+
+**The root component can be swapped for a subclass of another type**, which is how an
+object that derives from `EntityMonoBehaviour` directly becomes a `WorldLabel`: add the
+new component, copy the old one's serialized fields across with
+`JsonUtility.FromJsonOverwrite(JsonUtility.ToJson(oldRoot), newRoot)` — fields match by
+name, so everything the two declare in common (sprites, shadow, paint options) carries
+over — then destroy the old one. That preserves data, not behaviour. It is shown only
+for roots whose class body is empty: the five sign prefabs above, whose classes
+(`SignArrow`, `SignPostSkull`, `SignPostBrute`, `YellowWarningSign`, `WoodenSign`) add
+nothing to `EntityMonoBehaviour`. A root that overrides anything loses it — the
+holoboards' roots play their break effects in `OnDeath` (`Pug.Objects:3050`), and the
+small one picks its sprite variant in `UpdateGraphicsFromObjectInfo`
+(`Pug.Objects:3092`). Read the class body in `Pug.Objects` before swapping; where it is
+not empty, the new component belongs beside the original root, not in its place.
+
+### `interactable` must be set, and on a directional object it must be a child
+
+`EntityMonoBehaviour.interactable` (`Pug.Other:283916`) does two jobs, and both fail
+without an error:
+
+- When the graphical object spawns, `CreateGraphicalObjectSystem` copies it into the
+  entity's `InteractableObjectReferenceCD` (`Pug.Other:458871-458875`) — only if it is
+  not null. That reference is how the interaction system gets back to the component
+  whose `onUseActions` it invokes. Left null, the hover outline flickers on and
+  interacting does nothing.
+- `OnSpawn` rotates `interactable.transform` to the object's direction whenever the
+  entity has a `DirectionCD` (`Pug.Other:284915-284918`). Pointed at the root, that
+  rotates the whole object: on the arrow and the warning signs the sprite and the label
+  turned edge-on to the camera and vanished, while the flat shadow stayed. An object
+  without `DirectionCD` tolerates the root.
+
+`Awake` caches whether the field is set (`Pug.Other:284253`), so a subclass assigns it
+**before** calling `base.Awake()`. The text sign is the shape to copy: its
+`InteractableObject` sits on a child named `Interactable`. A bake-time edit cannot add
+that child (above), so the asset carries the `InteractableObject` on its root — the
+post converter below needs one there — and each instance moves it onto a new child in
+`Awake` and points `interactable` at it.
+
+### Interaction triggers need an `InteractableObject` first
+
+`InteractablePostConverter` (`Pug.Other:450274`) runs for every entity that carries a
+`TriggerUseInteractionBuffer` or a `TriggerExitInteractionBuffer` (`Pug.Other:450280`),
+collects the graphical prefab's `InteractableObject`s, and takes the first without
+checking that there is one (`Pug.Other:450315`). A mod that adds either trigger buffer
+to an object whose graphical prefab has no `InteractableObject` makes it throw there:
+ECS initialisation failed, and the game hung on its way out — observed on a Wine host.
+Add the trigger components only once the edit that supplies the `InteractableObject`
+has verifiably succeeded, and never speculatively.
+
+The vanilla route to those components, `LocalInteractableAuthoring` →
+`LocalInteractableConverter`, adds them only when the first `InteractableObject`'s
+`onUseActions` or `onTriggerExitActions` carries a **persistent** UnityEvent call
+(`Interaction.Converters:135`); otherwise it logs *"No local interaction events
+registered on entity"* (`Interaction.Converters:104`) and adds nothing. Persistent calls
+are authored in the Editor. A mod can only obtain them by copying an existing
+`InteractableObject`, and the copies still target the source prefab's component — the
+text sign's, in this case — not the mod's. So a mod's own `Converter` adds what that
+converter would for a primary use interaction — `TriggerUseInteractionBuffer`,
+`LocalUseInteractionTriggerCD` (disabled), `LocalUseInteractionTriggerSubIndexCD
+{ subIndex = 0 }`, `TriggerExitInteractionBuffer`, `LocalExitInteractionTriggerCD`
+(disabled) — and each instance hands the events fresh `UnityEvent`s and wires its
+handlers with `AddListener` in `Awake`.
+
 ## Sprite import: a PNG is not automatically a Sprite
 
 `ModBuilder` calls `ContentPipeline.BuildAssetBundles(...)` with every asset path under

@@ -48,7 +48,7 @@ machinery those arrangements sit on.
 | [Harmony and ECS](harmony-and-ecs.md) | Why Burst-compiled systems swallow patches, `BurstDisabler` and its silent failure on dedicated servers, patch binding, instrumenting generated DOTS code, live ECS access |
 | [Database and baking](database-and-baking.md) | Editing baked object data through the converter hook, the `(objectID, variation)` key, variations and paint, item level and sell value, adding a craftable item, data-block addresses and their order, fileIDs |
 | [UI framework](ui-framework.md) | Sprite UI instead of uGUI, mounting windows, options-menu entries, rebindable keybinds, the hint bar, text input, redirecting menu input, scrolling, and disabled-but-visible options |
-| [Prefabs and rendering](prefabs-and-rendering.md) | When a prefab may be edited by script, nested prefabs and variants, sprite import, masking, Z-sorting, PugText and the font system, HUD versus world space |
+| [Prefabs and rendering](prefabs-and-rendering.md) | When a prefab may be edited by script, nested prefabs and variants, editing a vanilla object's graphical prefab at bake time, sprite import, masking, Z-sorting, PugText and the font system, HUD versus world space |
 | [World and mechanics](world-and-mechanics.md) | World geometry and the origin, tile layers and the `AddTile` queue, the placement permission model, map markers, entity radii, ore boulders, livestock and pets, cooked food |
 | [Multiplayer and server](multiplayer-and-server.md) | The NetCode/ghost protocol and what changes its hashes, declaring an RPC and what it costs, admin level and guest mode, the mod set as a second compatibility layer, how the dedicated server build differs |
 | [Localisation](localisation.md) | The game-wide table, first-write-wins and its consequences, the ways localisation has shipped broken, term-key conventions |
@@ -134,6 +134,10 @@ symptom, not the topic.
 | Dedicated server fails to generate a world | [Multiplayer and server](multiplayer-and-server.md) — the server renders, so `-nographics` breaks it |
 | A call works in single-player but not on a server | [Multiplayer and server](multiplayer-and-server.md) — some subsystems are compiled out server-side |
 | `Failed to resolve MapMarkerIconDataBlock` repeats in the log, and a map marker shows a blue diamond or another marker's icon | [World and mechanics](world-and-mechanics.md#since-13-a-user-markers-icon-is-a-data-block) — the marker's icon block is not loaded |
+| An object turns invisible (edge-on) or cannot be used after you gave it an interactable | [Prefabs and rendering](prefabs-and-rendering.md#interactable-must-be-set-and-on-a-directional-object-it-must-be-a-child) — `interactable` is null, or points at the root |
+| The game hangs on exit after you added interaction components at bake time | [Prefabs and rendering](prefabs-and-rendering.md#interaction-triggers-need-an-interactableobject-first) — the post converter found no `InteractableObject` |
+| An RPC about an object the player just placed has no effect | [Multiplayer and server](multiplayer-and-server.md#a-just-placed-object-cannot-be-named-in-an-rpc-yet) — the object is still a predicted ghost with no id |
+| The sign or chest window shows a stale visibility state | [UI framework](ui-framework.md#the-sign-window-reads-the-visibility-state-once) — it reads the state only when it opens |
 
 ## Start from the task
 
@@ -150,6 +154,8 @@ symptom, not the topic.
 | Build a HUD element or a menu window | [UI framework](ui-framework.md), [Prefabs and rendering](prefabs-and-rendering.md) |
 | Work with prefabs, sprites or fonts | [Prefabs and rendering](prefabs-and-rendering.md) |
 | Place tiles, or understand where things may be built | [World and mechanics](world-and-mechanics.md) |
+| Notice the local player's own placements | [World and mechanics](world-and-mechanics.md#the-moment-of-placement-is-recorded-on-the-player-not-the-object) |
+| Give a vanilla object an interaction or a label | [Prefabs and rendering](prefabs-and-rendering.md#editing-a-vanilla-graphical-prefab-at-bake-time), then [Database and baking](database-and-baking.md#trap-objectdatacdamount-is-not-a-stack-size-everywhere) for the drop count |
 | Read or place map markers | [World and mechanics](world-and-mechanics.md) — at runtime; [Savegame formats](savegame-formats.md) — out of a world file |
 | Add map-marker icons | [World and mechanics](world-and-mechanics.md#since-13-a-user-markers-icon-is-a-data-block), then [Database and baking](database-and-baking.md#scriptabledata-blocks-addresses-and-order) for the address |
 | Ship a mod that works in multiplayer | [Multiplayer and server](multiplayer-and-server.md) |

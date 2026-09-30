@@ -205,6 +205,32 @@ if (!__instance.isLocal)
     return;
 ```
 
+### A just-placed object cannot be named in an RPC yet
+
+On the client that places it, an object first spawns as a **client-predicted
+ghost**: its entity carries `GhostInstance.ghostId == 0` and a
+`PredictedGhostSpawnRequest`. An RPC that names an entity sends its ghost id —
+CK's player-command serializer writes `ghostInstance.ghostId` for `entity0`
+(`Pug.Other:453607`) — so an RPC naming the predicted object carries id `0`, and
+the server has nothing to resolve it to. Observed on 1.3.0.4 with
+`SetWorldLabelVisibility` sent the moment a placed sign spawned: no error anywhere,
+and a second later the sign's state was unchanged.
+
+The server's ghost does not arrive as a second object. CK's own
+`PugSpawnClassificationSystem` pairs an incoming ghost with a predicted spawn of the
+same ghost type less than three tiles away on the XZ plane (`Pug.Other:459631`) and
+hands it that spawn's entity (`Pug.Other:459655`), so NetCode promotes the **same**
+entity to the real ghost. An `Entity` or a `MonoBehaviour` captured at the predicted
+spawn therefore stays valid, and no second spawn was observed. Measured on
+1.3.0.4 in singleplayer, the promotion took 0.12–0.18 s across ten placements; over
+a real network it is at least a round trip, **unverified** in practice.
+
+So an RPC about something the local player just placed waits for the promotion:
+keep the entity, check each frame for a non-zero `GhostInstance.ghostId` and no
+`PredictedGhostSpawnRequest`, send then, and give up after a timeout. Re-check
+before sending that the entity still exists and still is the object you matched — a
+pooled `MonoBehaviour` can be handed to a different entity in the meantime.
+
 ### Who is allowed to change things: admin level and guest mode
 
 A mod that gates anything on "may this player do that" does not need to invent a

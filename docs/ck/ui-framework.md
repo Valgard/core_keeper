@@ -1,14 +1,15 @@
 # The UI framework
 
 Core Keeper's interface is not built the way a Unity developer expects. There is
-no Canvas, no `RectTransform`, no `Image` in the sprite UI you build — it is sprites on a
-dedicated layer, driven by the game's own `UIelement` hierarchy. This chapter
-covers the pattern every UI mod follows, how to mount a window and suppress the
-gameplay UI behind it, how to show a vanilla item tooltip, how to add a row to
-the options menu and a rebindable key to the controls screen, what the footer
-hint bar will and will not let you do, how to get a text field, how to make a
-scroll window clip its content and follow the selection, and how to grey out a
-setting the player may not change right now.
+no Canvas, no `RectTransform`, no `Image` in the sprite UI you build — it is
+sprites on a dedicated layer, driven by the game's own `UIelement` hierarchy.
+This chapter covers the pattern every UI mod follows, how to mount a window and
+suppress the gameplay UI behind it, how to show a vanilla item tooltip, when the
+sign window reads a label's state, how to add a row to the options menu and a
+rebindable key to the controls screen, what the footer hint bar will and will
+not let you do, how to get a text field, how to make a scroll window clip its
+content and follow the selection, and how to grey out a setting the player may
+not change right now.
 
 ## Sprite UI, not uGUI
 
@@ -622,6 +623,41 @@ icon.transform.localPosition = objectInfo.iconOffset;
 **`iconOffset` is slot-relative**, so the icon transform must be a **child of
 the slot**. As a sibling, the assignment discards the slot position and snaps
 the icon to the row origin.
+
+## The sign window reads the visibility state once
+
+The window a text sign opens is `SignTextUI` (`Pug.Other:338804`, reachable as
+`Manager.ui.signUI`). It edits whatever `WorldLabel` is the local player's
+`activeWorldLabel`, and its two halves refresh differently:
+
+- **The text is live.** `LateUpdate` re-reads the label's text every frame while
+  the window shows, except while the input field is being typed in.
+- **The visibility toggle is not.** `ShowUI` reads `GetState()` once, when the
+  window opens (`Pug.Other:338845`), and sets the toggle from it. Nothing reads
+  the state again while the window stays open.
+
+Setting the toggle and sending the state are separate calls.
+`SignStateToggle.SetState(int)` (`Pug.Other:370207`) sets `stateIndex` and swaps
+the icons, and sends nothing. The RPC comes from `SignTextUI.SetVisibilityState()`,
+which sends `SetWorldLabelVisibility` with the toggle's current `stateIndex`
+(`Pug.Other:338892`).
+
+A mod that changes a label's state while the window may be open on it —
+`signUI.isShowing` and `activeWorldLabel` being that object — therefore has to
+set the toggle itself, with `SetState`: calling `SetVisibilityState` would send
+the RPC a second time. And it has to do so **after the new state has arrived on
+the client**. The RPC goes to the server and the state (`ObjectDataCD.amount`,
+see [database and baking](database-and-baking.md#trap-objectdatacdamount-is-not-a-stack-size-everywhere)) comes back by replication, so a window opened between
+the send and the answer reads the old state in `ShowUI` and keeps showing it.
+Observed on 1.3.0.4: setting the toggle at send time was not enough; watching
+`GetState()` until it equals the sent value, then setting the toggle of a window
+still open on that object, was. A toggle whose `stateIndex` already differs from
+what the window opened with has been changed by the player, and a mod that wants
+to respect that choice leaves it alone — that case was reviewed in code, not
+observed.
+
+The chest window's label row does the same: `ChestInventoryUI.ShowContainerUI`
+reads the state once (`Pug.Other:331603`) — from the decompile only, not observed.
 
 ## Adding an entry to the options menu
 
