@@ -485,26 +485,18 @@ namespace {mod_name}
     /// </summary>
     public sealed class {mod_name}Mod : IMod
     {{
-        public void EarlyInit()
-        {{
-        }}
+        public void EarlyInit() {{ }}
 
         public void Init()
         {{
             Debug.Log("[{mod_name}] Mod initialized.");
         }}
 
-        public void ModObjectLoaded(Object obj)
-        {{
-        }}
+        public void ModObjectLoaded(Object obj) {{ }}
 
-        public void Shutdown()
-        {{
-        }}
+        public void Shutdown() {{ }}
 
-        public void Update()
-        {{
-        }}
+        public void Update() {{ }}
     }}
 }}
 """

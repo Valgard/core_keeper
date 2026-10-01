@@ -3,6 +3,8 @@
 import json
 import pathlib
 import re as _re
+import shutil
+import subprocess
 
 import new_mod as nm
 import pytest
@@ -422,6 +424,28 @@ def test_bootstrap_cs_declares_imod_in_mod_namespace():
     assert "class FasterPetTalentsMod : IMod" in cs
     for method in ("EarlyInit", "Init", "ModObjectLoaded", "Shutdown", "Update"):
         assert method in cs
+
+
+def test_bootstrap_cs_passes_the_formatting_gate(tmp_path):
+    """The generated Mod.cs is already CSharpier-clean under the generated .csharpierrc.
+
+    Every scaffolded repo carries the pre-commit CSharpier gate, so a bootstrap
+    that fails it is rejected the first time its author stages it. Checked with
+    the real tool rather than a model of its rules, which would only agree with
+    itself.
+    """
+    if shutil.which("dotnet") is None:
+        pytest.skip("dotnet is not installed")
+    (tmp_path / ".csharpierrc").write_text(nm.build_csharpierrc())
+    cs = tmp_path / "FasterPetTalentsMod.cs"
+    cs.write_text(nm.build_bootstrap_cs("FasterPetTalents"))
+    result = subprocess.run(
+        ["dotnet", "csharpier", "check", str(cs)],
+        cwd=pathlib.Path(__file__).resolve().parent.parent.parent,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def _envrc(**kw):
