@@ -1046,6 +1046,70 @@ on every single-line label, **before** `Render`.
 the window opens but cannot be closed with ESC or E, and world input leaks
 through it.
 
+### Destroying a text that still holds glyphs drains the shared pool
+
+Every pooled `PugText` in the game draws its glyphs from one pool, created with
+a ceiling of 10,240 (`Pug.Other:279773`). The glyph `SpriteRenderer`s are not
+copies: `PugFont.Render` takes them from that pool (`Pug.Other:366080`), parents
+each one under its line container (`Pug.Other:366129`), and the containers
+**under the `PugText` itself** (`Pug.Other:366017`). So they share the text's
+fate. Destroy the GameObject while it still holds them and they die with it,
+while the pool goes on counting them as in use. Once the ceiling is reached,
+`GetFreeComponent` returns null, the render loop `break`s (`Pug.Other:366083`),
+and from then on text is missing in **every** menu and HUD in the game — not in
+the screen that caused it — until a restart.
+
+Only two paths give glyphs back. `PugText.OnDestroy` is not one of them; it
+releases a material and nothing else (`Pug.Other:366907`).
+
+- **`OnDisable`, when `freeResourcesOnDisable` is set** (`Pug.Other:366936`).
+  It does not free on the spot: it queues the glyphs, and `TextManager` frees
+  the queue in its next `LateUpdate` (`Pug.Other:366938`). A text that is
+  disabled *because* it is being destroyed queues glyphs that are gone by the
+  time the queue is read, and `TextManager` can only log it
+  (`Pug.Other:280067`).
+- **`Clear()`** frees immediately (`Pug.Other:367424`), and unless called with
+  `temporaryClear` or `bypassSetActive` it also deactivates the text's
+  GameObject (`Pug.Other:367435`).
+
+**The trap: detaching a doomed object can wake it up.** A screen that rebuilds
+its rows on every open, and detaches the old ones with `SetParent(null)` before
+the deferred `Destroy` so the layout stops counting them this frame, does so
+while the menu is still inactive. The old rows are `activeSelf`; once they are
+roots they are active in the hierarchy again. Each of their `PugText`s receives
+`OnEnable`, which with `renderOnStart` set re-renders (`Pug.Other:366918-366920`)
+and takes a fresh set of glyphs from the pool. End of frame: the `Destroy`
+lands, `OnDisable` queues those glyphs, and the same destruction removes them.
+The glyphs the rows held before were freed correctly when the menu closed
+(`RadicalMenu.Deactivate`, `Pug.Other:358159`); it is the re-render the detach
+caused that leaks.
+
+Measured in Mod Settings Menu 1.2.0 on CK 1.3.0.4: 1,211 glyphs lost on every
+open, the pool full on the seventh, and on each open exactly as many lines of:
+
+~~~
+Glyph was destroyed while waiting to be freed.
+~~~
+
+followed, once the ceiling is hit, by `Pool<TextGlyph>: Couldn't allocate 1
+objects because max capacity (10240) exceeded!` (`Pug.Other:279274`). Those two
+lines are the diagnosis; the visible symptom points at whichever screen happens
+to render next. The rate scales with how much text the screen draws, which is
+why the same leak takes a handful of opens with many entries and dozens with
+few.
+
+Either cure closes it, and both were measured flat over 36 and more opens:
+
+- `old.SetActive(false)` before the detach, so the row never becomes active
+  again and has nothing to re-render.
+- `Clear()` on every `PugText` in the row before the detach
+  (`GetComponentsInChildren<PugText>(includeInactive: true)`), which frees the
+  glyphs and deactivates each text as a side effect.
+
+To measure a suspected leak, log `Manager.text.glyphPool.InUseCount` at the
+start of each open. Not at close — the glyphs are only queued then, so every
+close would read as a leak.
+
 ### Text input: `TextInputField`
 
 CK ships `TextInputField : UIelement, InputManager.TextInputInterface`
