@@ -521,10 +521,19 @@ each mod's own `CLAUDE.md` describes its logo. Reuse arrow-ring
 (reusable-cattle-box), infinity on crossed tools (disable-durability),
 checkmarks + "?" (item-checklist), fanned cards + "+"
 (simple-crafting-pool-extender), star + cubes (faster-talents), paw + cube
-(faster-pet-talents), crossed rods + orb (caveling-divining-rod), gear +
-toggle-slider (mod-settings-menu), ornate gemmed key (rebalance-key-crafting),
-type-case tray with glowing gold characters (complete-tiny-font). Invent a
-fitting gesture for the new mod rather than copying one.
+(faster-pet-talents), Y-shaped rod with an orb in the fork
+(caveling-divining-rod), gear + toggle-slider (mod-settings-menu), ornate
+gemmed key (rebalance-key-crafting), type-case tray with glowing gold
+characters (complete-tiny-font). Invent a fitting gesture for the new mod
+rather than copying one.
+
+**Judge every candidate at thumbnail size, not only at 1024².** The Workshop
+browse grid shows a logo at roughly 200 px, where detail drops away and the
+silhouette is all that is left. Caveling Divining Rod's first logo — two
+crossed rods, each bent into a right-angle hook at both ends — read as a
+swastika there, which a player pointed out on Steam (2026-10); it was replaced
+by a single Y-shaped rod. Rule out silhouettes with rotational
+symmetry and hooked arms in the prompt itself.
 
 **Generation workflow** — the global `image-generation` skill
 (`~/.claude/skills/image-generation/`, Gemini "Nano Banana Pro"). Both of its
