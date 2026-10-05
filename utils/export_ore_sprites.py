@@ -20,11 +20,21 @@ Usage:
 
 <out-dir> defaults to `ore_sprites/` in the current directory and must be empty
 or absent, so an export never mixes with one from an earlier game build.
---resources defaults to the canonical decompile checkout's `Resources/`.
+--resources defaults to the canonical decompile checkout's `Resources/`; the
+decompiled `Pug.Base.decompiled.cs` is expected one level above it.
 
-Everything the game data could quietly change after an update is pinned below
--- the ore list, which ores glow, which tilesets carry veins -- and a mismatch
-aborts the run. A silent skip would hand over an export that looks complete.
+**The ores come from the game's own code**, the `ObjectID` enum: every
+`<Name>Ore` is an ore item, every `<Name>OreBoulder` its boulder. An ore added by
+an update is therefore exported without touching this script, and an asset it
+names that cannot be found aborts the run rather than dropping the ore. The enum
+and the asset dump come from different tools, so they are checked against each
+other both ways -- enum boulders against shadow textures, enum ores against
+item icons -- and a decompile from another build aborts instead of shrinking
+the export.
+
+What the code does not record is pinned below instead -- which boulders glow,
+which tilesets carry veins -- and a mismatch aborts the run. A silent skip would
+hand over an export that looks complete.
 """
 
 import argparse
@@ -36,18 +46,9 @@ from pathlib import Path
 from PIL import Image
 
 DEFAULT_RESOURCES = Path.home() / "Projects/checkouts/CoreKeeperDecompile/Resources"
-ORES = [
-    "copper",
-    "tin",
-    "iron",
-    "gold",
-    "scarlet",
-    "octarine",
-    "galaxite",
-    "solarite",
-    "pandorium",
-    "relucite",
-]
+ENUM_SOURCE = "Pug.Base.decompiled.cs"
+OBJECT_ID_ENUM = re.compile(r"^public enum ObjectID\n\{\n(.*?)^\}", re.S | re.M)
+ORE_MEMBER = re.compile(r"^\s*([A-Z]\w*?)Ore(Boulder)?\s*=\s*-?\d+", re.M)
 
 # Boulders with an extra emissive texture.
 EMISSIVE_ORES = {"solarite"}
@@ -81,7 +82,9 @@ class Exporter:
         """Index every GUID and every Sprite asset once; lookups afterwards are by name."""
         self.assets = assets
         self.out = out
-        self.written = 0
+        # Everything is resolved into this plan first and written only at the end,
+        # so a missing asset aborts before a single file lands in `out`.
+        self.plan: list[tuple[str, Image.Image | Path]] = []
         self.textures = self._index_guids()
         self.sprites = self._index_sprites()
 
@@ -101,19 +104,24 @@ class Exporter:
                     index.setdefault(p.stem, []).append(p)
         return index
 
-    def _target(self, rel: str) -> Path:
-        p = self.out / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        self.written += 1
-        return p
-
     def save(self, img: Image.Image, rel: str) -> None:
-        """Write an image to `rel` below the output directory."""
-        img.save(self._target(rel))
+        """Plan an image for `rel` below the output directory."""
+        self.plan.append((rel, img))
 
     def copy(self, src: Path, rel: str) -> None:
-        """Copy a texture file unchanged to `rel` below the output directory."""
-        shutil.copyfile(src, self._target(rel))
+        """Plan an unchanged copy of a texture file for `rel` below the output directory."""
+        self.plan.append((rel, src))
+
+    def write(self) -> int:
+        """Write the plan; called once everything in it has been resolved."""
+        for rel, item in self.plan:
+            target = self.out / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if isinstance(item, Path):
+                shutil.copyfile(item, target)
+            else:
+                item.save(target)
+        return len(self.plan)
 
     def sprite(self, name: str) -> Image.Image:
         """Cut a Sprite out of its sheet; m_Rect is bottom-left origin, PNG rows run top-down."""
@@ -136,14 +144,24 @@ class Exporter:
             sys.exit(f"texture missing: {p}")
         return p
 
-    def run(self) -> None:
+    def run(self, ores: list[str], boulders: set[str]) -> None:
         """Export items, boulders, boulder debris, wall veins and the shimmer effect."""
         tex = self.assets / "Texture2D"
-        # Every boulder has a shadow, so the shadows name the ores the game ships.
-        shipped = {
+        # The dump (AssetRipper) and the enum (ILSpy) are two artefacts that nothing ties to
+        # one build. Every boulder has exactly one shadow, so the shadows are the dump's own
+        # list of boulders: a decompile older than the assets would otherwise leave a new
+        # ore out with exit 0.
+        shadows = {
             f.stem.removeprefix("oreBoulder_shadow_") for f in tex.glob("oreBoulder_shadow_*.png")
         }
-        expect(shipped == set(ORES), "ores", set(ORES), shipped)
+        expect(shadows == boulders, "boulders (enum vs. asset dump)", boulders, shadows)
+        # The same in the other direction for items: an ore icon the enum does not know.
+        icons = {
+            n.removeprefix("lootsprite_").removesuffix("Ore")
+            for n in self.sprites
+            if n.startswith("lootsprite_") and n.endswith("Ore")
+        }
+        expect(icons == set(ores), "ores (enum vs. asset dump)", set(ores), icons)
         glowing = {
             f.stem.removeprefix("oreBoulder_").removesuffix("_emissive")
             for f in tex.glob("oreBoulder_*_emissive.png")
@@ -151,11 +169,13 @@ class Exporter:
         expect(glowing == EMISSIVE_ORES, "emissive boulders", EMISSIVE_ORES, glowing)
         veins = self._wall_ore_sheets()
 
-        for ore in ORES:
+        for ore in ores:
             self.save(self.sprite(f"lootsprite_{ore}Ore"), f"items/{ore}_ore/icon.png")
             self.save(self.sprite(f"lootsprite_{ore}Ore_small"), f"items/{ore}_ore/icon_small.png")
 
-        for ore in ORES:
+        for ore in ores:
+            if ore not in boulders:
+                continue
             d = f"boulders/{ore}_ore_boulder"
             self.copy(
                 self.texture("oreBoulder" if ore == "copper" else f"oreBoulder_{ore}"),
@@ -217,6 +237,29 @@ class Exporter:
         return strips
 
 
+def ores_from_enum(source: Path) -> tuple[list[str], set[str]]:
+    """Ore names as the assets spell them (`copper`), and those that also have a boulder."""
+    if not source.is_file():
+        sys.exit(f"no decompiled ObjectID enum at {source}")
+    body = OBJECT_ID_ENUM.search(source.read_text(errors="ignore"))
+    if not body:
+        sys.exit(f"no `public enum ObjectID` in {source}")
+    ores: list[str] = []
+    boulders: set[str] = set()
+    for name, boulder in ORE_MEMBER.findall(body.group(1)):
+        asset_name = name[0].lower() + name[1:]  # CopperOre -> lootsprite_copperOre
+        if boulder:
+            boulders.add(asset_name)
+        elif asset_name not in ores:
+            ores.append(asset_name)
+    if not ores:
+        sys.exit(f"no `<Name>Ore` members in the ObjectID enum of {source}")
+    orphans = boulders - set(ores)
+    if orphans:
+        sys.exit(f"boulders without an ore item in the ObjectID enum: {sorted(orphans)}")
+    return ores, boulders
+
+
 def expect(ok: bool, what: str, pinned: set[str], found: set[str]) -> None:
     """Abort when the game data no longer matches what this script was verified against."""
     if not ok:
@@ -234,9 +277,10 @@ def main() -> None:
         sys.exit(f"no AssetRipper export at {assets}")
     if args.out.exists() and any(args.out.iterdir()):
         sys.exit(f"{args.out} is not empty; move it away first")
+    ores, boulders = ores_from_enum(args.resources.parent / ENUM_SOURCE)
     exporter = Exporter(assets, args.out)
-    exporter.run()
-    print(f"{exporter.written} files -> {args.out}")
+    exporter.run(ores, boulders)
+    print(f"{exporter.write()} files -> {args.out}")
 
 
 if __name__ == "__main__":

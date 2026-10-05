@@ -11,6 +11,7 @@ from export_ore_sprites import ORE_COLUMN
 from export_ore_sprites import TILESET_HEIGHT
 from export_ore_sprites import WALL_ORE_DIRS
 from export_ore_sprites import Exporter
+from export_ore_sprites import ores_from_enum
 from PIL import Image
 
 GUID = "0123456789abcdef0123456789abcdef"
@@ -95,3 +96,45 @@ def test_wall_ore_aborts_when_the_vein_set_drifts(tmp_path):
     assert {"Dirt", "Crystal"} <= WALL_ORE_DIRS
     with pytest.raises(SystemExit, match="wall-ore tilesets changed"):
         Exporter(_tileset_tree(tmp_path), tmp_path / "out")._wall_ore_sheets()
+
+
+ENUM = """\
+public enum Biome
+{
+	CopperOre = 7,
+}
+public enum ObjectID
+{
+	None = 0,
+	CopperOre = 1500,
+	MoonOre = 1599,
+	Core = 30,
+	OreAndBlockPouch = 8450,
+	CopperOreBoulder = 2200,
+}
+public enum Other
+{
+	TinOreBoulder = 9,
+}
+"""
+
+
+def test_ores_come_from_the_object_id_enum_only(tmp_path):
+    """Members outside ObjectID, `Core` and `OreAndBlockPouch` are no ores; Moon has no boulder."""
+    source = tmp_path / "Pug.Base.decompiled.cs"
+    source.write_text(ENUM)
+    assert ores_from_enum(source) == (["copper", "moon"], {"copper"})
+
+
+def test_a_boulder_without_its_ore_item_aborts(tmp_path):
+    """A boulder named after no ore item means the naming rule no longer holds."""
+    source = tmp_path / "Pug.Base.decompiled.cs"
+    source.write_text(ENUM.replace("\tCopperOre = 1500,\n", ""))
+    with pytest.raises(SystemExit, match="boulders without an ore item"):
+        ores_from_enum(source)
+
+
+def test_a_missing_enum_aborts(tmp_path):
+    """No decompile next to the asset dump is an error, not an empty ore list."""
+    with pytest.raises(SystemExit, match="no decompiled ObjectID enum"):
+        ores_from_enum(tmp_path / "Pug.Base.decompiled.cs")
