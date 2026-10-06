@@ -608,20 +608,22 @@ the prefix binds and never fires: you need
 `DisableBurstForSystemAndJobs<EquipmentUpdateSystem>()`. A patch that binds
 without firing is the failure this chapter opens with.
 
-**Trap when picking the overload:** `PlaceObjectSlot` (decompile lines
-311283–311632) declares exactly *one* `PlaceItem`, the three-argument `(in
-EquipmentUpdateAspect, EquipmentUpdateSharedData, LookupEquipmentUpdateData)` at
-`Pug.Other:322944`. Identical-looking ones at `Pug.Other:321778` and
-`Pug.Other:322723` belong to `BucketSlot` (`Pug.Other:321754`) and
-`PaintToolSlot` (`Pug.Other:322702`) — patching by shape rather than by owning
-type binds the wrong method.
+**Trap when picking the overload:** `PlaceObjectSlot` (`Pug.Other:322908-323258`)
+declares exactly *one* `PlaceItem`, the three-argument `(in EquipmentUpdateAspect,
+EquipmentUpdateSharedData, LookupEquipmentUpdateData)` at `Pug.Other:322944`.
+`BucketSlot` (`Pug.Other:321754`) declares one of the same shape at
+`Pug.Other:321778`, and `PaintToolSlot` (`Pug.Other:322702`) one that takes a
+leading `ref NativeList<…>` as well, at `Pug.Other:322724` — so patching by shape
+rather than by owning type can bind the wrong method.
 
 **Those are subclasses, and that costs you coverage rather than merely risking a
 mis-bind.** `BucketSlot`, `PaintToolSlot` and `WaterCanSlot`
 (`Pug.Other:321754`, `Pug.Other:322702`, `Pug.Other:324278`) all derive from
-`PlaceObjectSlot` and shadow both `UpdateEquipment` and `PlaceItem` with `public
-new static` members of their own (`Pug.Other:321762`, `Pug.Other:322706`,
-`Pug.Other:324286`). Because these are statics there is no virtual dispatch to
+`PlaceObjectSlot` and declare both `UpdateEquipment` and `PlaceItem` of their
+own: `UpdateEquipment` as `public new static`, shadowing the base's
+(`Pug.Other:321762`, `Pug.Other:322706`, `Pug.Other:324286`), and `PlaceItem` as
+`private static`, as the base's own is (`Pug.Other:321778`, `Pug.Other:322724`,
+`Pug.Other:324308`). Because these are statics there is no virtual dispatch to
 carry a patch across — the caller names the class outright, one branch per slot
 type (`Pug.Other:438887-438893`) — so the "sole caller" relation above holds for
 each class separately. A patch on `PlaceObjectSlot.PlaceItem` therefore covers
