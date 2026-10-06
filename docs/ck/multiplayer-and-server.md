@@ -143,8 +143,8 @@ with `name.Substring(0, min(UTF8MaxLengthInBytes / 2, len))`
 characters are all that survive. Matching is unaffected, and for a **published**
 mod neither is the display: when the server demands a mod the client lacks, the
 client resolves `modId` through `ModIOUnity.GetMod` and prints the mod.io
-profile name instead (`Pug.Other:125770`), or `"Unknown"` if that lookup fails
-(`Pug.Other:130214`, `Pug.Other:130233`) — `GetMod` is only ever called for a **positive**
+profile name instead (`Pug.Other:130237`), or `"Unknown"` if that lookup fails
+(`Pug.Other:130230`, `Pug.Other:130233`) — `GetMod` is only ever called for a **positive**
 `modId` (`Pug.Other:130225-130244`). For a **negative** one — a mod
 side-loaded from `StreamingAssets/Mods` — `GetMod` is skipped entirely, and
 the truncated field is exactly what reaches the player. In the other
@@ -286,7 +286,7 @@ the server-side handler has no self-check either. Writing stage 1 into
 session**, which the next paragraph explains the need for.
 
 **`guestMode` is not a world flag alone.** `WorldInfoCD.guestMode` is the world's
-setting, but `PlayerController.guestMode` (`Pug.Other:299357`) answers the useful
+setting, but `PlayerController.guestMode` (`Pug.Other:309027`) answers the useful
 question — it returns true only when the world flag is set **and**
 `adminPrivileges < 1`. An admin in a guest-mode world is not a guest.
 
@@ -327,7 +327,7 @@ worked example below.
 **The world you wrote it in decides the direction, and there is only one
 direction.** Snapshots are produced in the server world — `GhostSendSystem`,
 which `NetworkingManager.InitWorld` (`Pug.Other:294692`, the class itself at
-`Pug.Other:285374`) configures only in the world that has one, called from
+`Pug.Other:293821`) configures only in the world that has one, called from
 `ECSManager.InitWorld` (`Pug.Other:3133`) for both worlds — and applied in the
 client world, `GhostUpdateSystem`, which CK fetches from
 `Manager.ecs.ClientWorld`. So a `[GhostField]` write in the server world
@@ -343,7 +343,7 @@ component:
 | Component | Replicated |
 |---|---|
 | `HealthCD` | yes — declared `[GhostField]`, so a server-side change travels to the client |
-| `PlacementCD`'s placement-permission flags — `canPlaceOnWalkableTiles` through `blockedByObjectsOnWalls` (`Pug.ECS.Components:4476-4494`) | no — the tail of the struct carries no `[GhostField]` and none of those fields appears in the generated snapshot, so they are world-local state. The rest of `PlacementCD` *is* replicated, `canPlaceGround` (`Pug.ECS.Components:4288`) and `canPlaceRoofHole` (`Pug.ECS.Components:4468`) included — this is a per-field answer, not a per-component one |
+| `PlacementCD`'s placement-permission flags — `canPlaceOnWalkableTiles` through `blockedByObjectsOnWalls` (`Pug.ECS.Components:4476-4494`) | no — the tail of the struct carries no `[GhostField]` and none of those fields appears in the generated snapshot, so they are world-local state. The rest of `PlacementCD` *is* replicated, `canPlaceGround` (`Pug.ECS.Components:4465`) and `canPlaceRoofHole` (`Pug.ECS.Components:4468`) included — this is a per-field answer, not a per-component one |
 
 What the client then *does* with a replicated value is a separate question: for
 `HealthCD` it is **unverified** whether a damage-stage sprite or a progress bar
@@ -351,7 +351,7 @@ refreshes on its own.
 
 For those flags the consequence runs the other way — writing them on one side
 changes nothing on the other. The surrounding code is present on both:
-`EquipmentSystemGroup` (`Pug.Other:439661`) runs in the server **and** the client
+`EquipmentSystemGroup` (`Pug.Other:437851`) runs in the server **and** the client
 simulation world, and `EquipmentUpdateSystem.UpdateJob` is a scheduled job.
 Whether a Harmony prefix in that area therefore behaves identically across
 singleplayer, a hosted session and a dedicated server is **unverified** — treat
@@ -479,7 +479,7 @@ hashes the two sides compare. Nothing in the message mentions mods.
 split in the table above decides who can hit this. CK's own connect handshake rejects on two
 values (`Pug.Other:131348`, `Pug.Other:131364`): `localVersionHash`, which is
 `PlayerConnectRequestRPC.GetVersionHash(Manager.version)` — the game version and
-nothing else (`Pug.Other:127349`) — and `ghostCollectionHash`, the XOR of every
+nothing else (`Pug.ECS.Components:3815`) — and `ghostCollectionHash`, the XOR of every
 `GhostCollectionPrefab.Hash` in the default world
 (`ECSManager.TryCalculateGhostCollectionHash`, `Pug.Other:2580`). NetCode's own
 `NetworkProtocolVersion` check compares the same kind of thing one layer down.

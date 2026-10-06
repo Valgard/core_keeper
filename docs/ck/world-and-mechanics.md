@@ -139,7 +139,7 @@ does, rather than assuming a mouse exists.
 The player marker drawn on the map is rasterised independently, through
 `MakePixelPerfectMapPosition` (`Pug.Other:347582`, called from `Pug.Other:346946`), which
 quantises with `GetPixelPerfectQuantization()` — `0.0625f / GetCurrentZoom()`
-(`Pug.Other:333956`) — so the step shrinks as you zoom in rather than staying fixed at
+(`Pug.Other:346473`) — so the step shrinks as you zoom in rather than staying fixed at
 `0.0625f`. The literal `RoundToMultiple(0.0625f)` does exist in the code, but
 in `MapUI.CenterMapOnLocalPlayer` (`Pug.Other:347064`), operating on a screen-coordinate
 offset, not on the marker.
@@ -362,7 +362,7 @@ with neither `ground` nor `bridge` — gated on a third condition alongside the
 missing-substrate check: a ground item must exist for that tileset. The wall
 itself does not follow automatically in the same click; it needs a second
 click, handled by `IsPlacingWallAfterPreviouslyPlacedGround`
-(`Pug.Other:323196-323203`). Inserting a missing substrate is an established pattern,
+(`Pug.Other:323197-323204`). Inserting a missing substrate is an established pattern,
 not a hack.
 
 ## `AddTile` is a queue append, not a commit
@@ -512,7 +512,7 @@ a rail on a pit does not conjure a substrate: the rail still needs `ground` or
 sites is expected, not a sign the converter never fires: converters are found by
 reflection and invoked virtually.
 `ConversionManager.FindAllConvertersInCurrentAssembly()`
-(`PugConversion:723-741`) scans the executing assembly and every loaded assembly
+(`PugConversion:724-742`) scans the executing assembly and every loaded assembly
 referencing it; `RunConverters` (`PugConversion:1080-1091`) calls
 `converter.Convert(gameObject)`, which `SingleAuthoringComponentConverter<T>`
 (`PugConversion:1478-1488`) forwards to the abstract `Convert(T authoring)` — the same
@@ -938,7 +938,7 @@ two distinct consume sites:
 | Event | Where | What happens |
 |---|---|---|
 | Capture | `CageCattle()` `Pug.Other:422841` | Gated on `objectID == ObjectID.CattleCage`; calls `EntityUtility.DropPetInCage(...)`, `DestroyEntity(cattle)` (`Pug.Other:422887`), then `Create.ConsumeEntityAt(.., 1, destroy: true, ..)` (`Pug.Other:422891`) eats the empty box |
-| Release | `PlaceItem()` `Pug.Other:323090` | The carried item is placed and consumed via `Create.ConsumeEntityAt(.., destroy: false, ..)`, amount from `objectDataCD2.amount` (`Pug.Other:323076-323079`); `Pug.Other:323013` is the `else` branch, not the consume |
+| Release | `PlaceItem()` `Pug.Other:323090` | The carried item is placed and consumed via `Create.ConsumeEntityAt(.., destroy: false, ..)`, amount from `objectDataCD2.amount` (`Pug.Other:323076-323079`); `Pug.Other:323012` is the `else` branch, not the consume |
 
 **There is no "filled box" item.** This is the natural assumption and it is
 wrong. `DropPetInCage` spawns a `DroppedItem` that carries the

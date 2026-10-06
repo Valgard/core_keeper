@@ -89,16 +89,16 @@ same pass, immediately before the dispatch. The two come apart only where that
 re-derive did not happen — `flag2` set that frame, or a prefix of your own — and
 that is what a selection assigned from code is betting on. Which handler
 receives the click then depends on what is selected: an `InventorySlotUI` goes
-through the repair / trash / lock / move branch (`Pug.Other:356924`), everything else
+through the repair / trash / lock / move branch (`Pug.Other:373501`), everything else
 through `Manager.ui.currentSelectedUIElement?.LeftClick(…)` (`Pug.Other:373595`).
 
 That selection is assigned **unconditionally** (`UIManager.OnUIElementSelected`,
-`Pug.Other:282428`), after a deselect branch that runs *before* it and only for
+`Pug.Other:282429`), after a deselect branch that runs *before* it and only for
 a non-`isMenuOption` predecessor (`Pug.Other:282425`). Unlike
 `DeselectAnySelectedUIElement` it never calls `DeselectAnyCurrentOption`, so it
 never clears `selectedIndex` to `-1` — but it does not leave the index alone
 either: an incoming element that reports `isMenuOption` ends in
-`Manager.menu.SelectOption` (`Pug.Other:282434`-`Pug.Other:282437`), which moves
+`Manager.menu.SelectOption` (`Pug.Other:282434-282437`), which moves
 the index onto that option (`Pug.Other:359273`) exactly as hover does. Selection
 is assigned first and branched on after, so **being selected and being
 highlighted are different things** — and both of those differences turn on one
@@ -111,12 +111,11 @@ it to `-1` on the way in.
 **A menu option's highlight is no evidence that this element carries a
 collider.** What the option draws follows from `IsSelected()`, which asks only
 whether the parent menu's selected option is this one
-(`Pug.Other:359554`-`Pug.Other:359558`) — the ray appears nowhere in that
-answer. What an element needs in order to be selectable *by the pointer* is
-listed below.
+(`Pug.Other:359555-359558`) — the ray appears nowhere in that answer. What an
+element needs in order to be selectable *by the pointer* is listed below.
 
 **The selection is not always re-derived.** `TrySelectNewElement` sits behind
-`!flag2 && (six disjuncts)` (`Pug.Other:373489`): a gamepad system, an interact
+`!flag2 && (six disjuncts)` (`Pug.Other:373490`): a gamepad system, an interact
 button down this frame, the pointer *moved*, nothing currently selected, the
 current selection no longer visible, or no visible `UIelement` under the ray.
 The first is not a property of the machine but of the moment: it reads
@@ -168,7 +167,7 @@ between the window and that render height decides how far the mouse has to
 travel — and that height is a serialized setting, not a constant. `PugRP`
 initializes `m_outputHeight` to 270 (`PugRP:1450`), but whether it is used at all
 hangs on `m_outputMode` (`PugRP:1432`), whose C# default is the first enum member,
-`Native` (`PugRP:1266`-`PugRP:1271`). The ratio therefore cannot be read off the code,
+`Native` (`PugRP:1266-1271`). The ratio therefore cannot be read off the code,
 which is itself why "nudge the mouse by a pixel" is not a portable instruction
 for forcing a re-derive.
 
@@ -206,7 +205,7 @@ Moving the mouse into empty space calls
 regardless of any override of yours. What that does to a field the player is
 editing is in [text rendering and text input](#text-rendering-and-text-input).
 
-**`TrySelectNewElement` (`Pug.Other:373680`) clears on an edge and selects through a
+**`TrySelectNewElement` (`Pug.Other:373681`) clears on an edge and selects through a
 guard — the second call is reached on every pass with a target, its effect is
 not:**
 
@@ -231,26 +230,26 @@ concluded that per-`OnSelected` work runs every frame, which it does not.
 The cooldown (`Pug.Other:278044`, a `TimerSimple(0.05f, unscaled: true)` checked at
 `Pug.Other:278243`) matters in the opposite direction: two menu sounds closer together
 than 50 ms collapse into one — and since the timer restarts on every play
-(`Pug.Other:270118`), a steady stream of triggers is capped at about twenty a second, not
+(`Pug.Other:278246`), a steady stream of triggers is capped at about twenty a second, not
 throttled pairwise. An *expected* sound can therefore go missing. That makes a
 sound a poor thing to assert in a check — and the highlight beside it is no
 better, for the reason given further up: it follows `selectedIndex`, not the
 pointer. `unscaled` is why the window elapses at all while the menu holds the
 game at `timescale = 0`.
 
-**`MenuManager.SelectOption` (`Pug.Other:277953`) is guarded, but not by the
+**`MenuManager.SelectOption` (`Pug.Other:278849`) is guarded, but not by the
 thing you would expect.** It ignores `SelectOptionIndex`'s return value and
 sounds regardless (`Pug.Other:278857`-`Pug.Other:278858`), so an option that is
 already the selected index still sounds when something calls `SelectOption`
 directly. What it *does* check is that a top menu exists and that the option is
-in that menu's `menuOptions` (`Pug.Other:278852`, `Pug.Other:277929`) — fail
+in that menu's `menuOptions` (`Pug.Other:278852`, `Pug.Other:278855`) — fail
 either and it returns in silence. Hover reaches it whenever hover moves the
 selection onto a **menu option**, which is the ordinary case and the menu
 selection sound you hear. What hover does not do is reach it a second time while
 the pointer rests on the option it already selected.
 
 **`SelectOptionIndex` never asks whether the option can be selected.** Its only
-guards are `CanChangeIndex()` and "the index is already that" (`Pug.Other:359255`,
+guards are `CanChangeIndex()` and "the index is already that" (`Pug.Other:359258`,
 `Pug.Other:359262`); it then sets `selectedIndex` and calls `OnSelected()` on whatever
 sits there — inactive, invisible or `GRAYED_OUT` alike. Only
 `SelectIndexInDirection` filters on `IsSelectionEnabled()`. That asymmetry is a
@@ -672,7 +671,7 @@ vanilla's own menu objects with Harmony. Three classes matter:
 | `RadicalOptionsMenu` | the options screen specifically |
 | `RadicalMenuOption` | one row; subclass it for your own widgets |
 
-`RadicalMenu.Awake()` (`Pug.Other:343567`) collects rows with
+`RadicalMenu.Awake()` (`Pug.Other:359043`) collects rows with
 `GetComponentsInChildren(includeInactive, menuOptions)`, so any
 `RadicalMenuOption` sitting under the menu at `Awake` time is registered
 automatically. That single fact dictates *when* you must inject. Note that this
@@ -796,17 +795,16 @@ the static is sandbox-legal) and let the effect drive hover.
 
 **Selection reaches an option through `RadicalMenuOption.OnSelected`**
 (`Pug.Other:359690`): it fires the element-selected event, then its
-`selectionListeners`, then walks `menuOptionEffects`
-(`Pug.Other:358760`-`Pug.Other:358765`) and calls each effect's own
-`OnSelected`, which first stops that effect's deselection wind-down timers
-(`Pug.Other:350587`-`Pug.Other:366079`; `OnDeselected` is what starts them,
-`Pug.Other:366096`-`Pug.Other:366097`) and then recolours its `PugText` and any
-`SpriteRenderer`s wired beside it (`Pug.Other:366087`-`Pug.Other:366091`). Note
-that the recolour dereferences the text without a guard, so an effect on a
-component with no `PugText` throws rather than skipping — and its base class
-`PugTextEffect` carries `[RequireComponent(typeof(PugText))]`
-(`Pug.Other:349859`). Hand-edited prefab YAML — which this family does routinely
-— is one way to reach it regardless.
+`selectionListeners`, then walks `menuOptionEffects` (`Pug.Other:358760-358765`)
+and calls each effect's own `OnSelected`, which first stops that effect's
+deselection wind-down timers (`Pug.Other:366085-366086`; `OnDeselected` is what
+starts them, `Pug.Other:366096-366097`) and then recolours its `PugText` and any
+`SpriteRenderer`s wired beside it (`Pug.Other:366087-366091`). Note that the
+recolour dereferences the text without a guard, so an effect on a component with
+no `PugText` throws rather than skipping — and its base class `PugTextEffect`
+carries `[RequireComponent(typeof(PugText))]` (`Pug.Other:365357`). Hand-edited
+prefab YAML — which this family does routinely — is one way to reach it
+regardless.
 
 **The effect is wired by GameObject, not by `labelText`.** `PugTextEffect.Awake`
 binds `_text = GetComponent<PugText>()` (`Pug.Other:365377`) — the text on its
@@ -944,7 +942,7 @@ the same job.
 if (_priority > priority && textBackground.gameObject.activeSelf) return;
 ```
 
-(`Pug.Other:358512`), so a dialog already on screen with a higher priority swallows yours
+(`Pug.Other:358500`), so a dialog already on screen with a higher priority swallows yours
 whole — no dialog, no callback, no log line, and nothing at the call site that
 could notice. Passing `priority: 0`, as most mod code does, loses every such
 race. In a menu this is rare but not impossible: world events raise popups while
@@ -969,7 +967,7 @@ are easy to confuse because both read as "make it harder to confirm":
   the reason a dialog that appears under the cursor is not a hazard.
 
   > ⚠️ **`CanBeActivated()` does not gate the mouse.** It is consulted by the
-  > input poll (`MenuManager.UpdateInputAndApplyToCurrentMenu`, `Pug.Other:270692`), which
+  > input poll (`MenuManager.UpdateInputAndApplyToCurrentMenu`, `Pug.Other:278872`), which
   > is what keyboard and controller activation runs through. A click takes the
   > other path: `UIMouse` → `UIelement.LeftClick` (`Pug.Other:375488`) →
   > `RadicalMenuOption.OnLeftClicked` (`Pug.Other:359756`), whose entire body is
@@ -1064,7 +1062,7 @@ releases a material and nothing else (`Pug.Other:367914`).
 
 - **`OnDisable`, when `freeResourcesOnDisable` is set** (`Pug.Other:367943`). It
   does not free on the spot: it queues the glyphs (`Pug.Other:367945`), and
-  `TextManager` frees the queue in its next `LateUpdate` (`Pug.Other:280974`). A
+  `TextManager` frees the queue in its next `LateUpdate` (`Pug.Other:280978`). A
   text that is disabled *because* it is being destroyed queues glyphs that are
   gone by the time the queue is read, and `TextManager` can only log it
   (`Pug.Other:280982`).
@@ -1417,17 +1415,17 @@ The last row is worth stating precisely because it looks like it would shift: th
 carriage return leaves the iteration early, but it adds its entry first.
 
 **The dynamic-font path may not populate the list at all.** There the list is
-filled only under `trackDynamicTextCharacterEndPositions` (`Pug.Other:368519`), and even
+filled only under `trackDynamicTextCharacterEndPositions` (`Pug.Other:368521`), and even
 inside that gate a prefix whose `TMP_TextInfo` reports no characters adds nothing
 (`Pug.Other:368528`). With the flag off, nothing on that path ever writes an entry — and
 an empty list makes a nearest-entry search return 0 for every query, so every
 insertion silently goes to the **front** of the string.
 
 **Two doors lead to that path, and only one of them is about language.**
-`PugText.SetFont` tests `isWrittenToByUser` first (`Pug.Other:352514`). If it is set, the
+`PugText.SetFont` tests `isWrittenToByUser` first (`Pug.Other:367997`). If it is set, the
 face comes from `TextManager.GetFontToUseForString` (`Pug.Other:367999`), which picks
 whichever font matches the most characters of the current string — and hands back
-the Thai *unicode* font, i.e. `SetDynamicFont` (`Pug.Other:358592`), whenever the pixel
+the Thai *unicode* font, i.e. `SetDynamicFont` (`Pug.Other:368031`), whenever the pixel
 faces match fewer (`Pug.Other:280919-280932`). No language is consulted anywhere in it, so
 this door opens for **any** locale the moment a typed character is one the pixel
 face does not map. Only with the flag off does control reach
@@ -1452,7 +1450,7 @@ reports a fault on every blank row.
 **Vanilla's own `AppendString` already inserts at the caret**, not at the end
 (`Pug.Other:359901`) — so a replacement has to carry the insertion point over, or typing
 into the middle of a value starts appending at its end instead. `currentCharIndex`
-itself is `private` (`Pug.Other:344286`). It is still reachable, through the SDK's checked
+itself is `private` (`Pug.Other:359779`). It is still reachable, through the SDK's checked
 reflection rather than `System.Reflection` (see [resolving a private member](sandbox.md#reaching-a-private-member-resolving-it-is-only-half-the-job)); a mod
 that instead derives the index from the caret's position trades an authoritative
 counter for one recomputed from glyph metrics, which is what makes every
@@ -1474,18 +1472,18 @@ So anything recovering a caret index from a position has to subtract the whole
 basis back off, and anything compared against a caret-derived number — a scroll
 offset, a clamp, a hit test — has to stay in that same basis or the two quietly
 disagree. This is not one screen's quirk: `TextInputField.Update`
-(`Pug.Other:371367-371374`) builds the same x basis for the other input class.
+(`Pug.Other:371366-371374`) builds the same x basis for the other input class.
 
 **`dimensions.xMin` is not zero by nature — but only one of four writers sets it
 per alignment.** `PugText.Render` branches three ways (`Pug.Other:368373-368392`), and an
 empty string short-circuits before all of them with `dimensions = Rect.zero`
 (`Pug.Other:368342`). On the pooled pixel path `PugFont.Render` sets `xMin` per
 horizontal alignment: `0 + rightToLeftXOffset` for `left` (`Pug.Other:367218`),
-`round(-width / 2) + rightToLeftXOffset` for `center` (`Pug.Other:367081`), `-width +
-rightToLeftXOffset` for `right` (`Pug.Other:366644`). On the dynamic path
-`RenderDynamicText` builds it from TMP mesh bounds instead (`Pug.Other:368519`), where
+`round(-width / 2) + rightToLeftXOffset` for `center` (`Pug.Other:367223`), `-width +
+rightToLeftXOffset` for `right` (`Pug.Other:367239`). On the dynamic path
+`RenderDynamicText` builds it from TMP mesh bounds instead (`Pug.Other:368520`), where
 alignment enters only through the pivot. And in the non-pooled branch
-`pooledObj` is null, so the write at `Pug.Other:367258-367260` never happens at all and
+`pooledObj` is null, so the write at `Pug.Other:367257-367260` never happens at all and
 `dimensions` keeps whatever the previous render left in it.
 
 A bound written as `dimensions.width - w` and one written as `dimensions.xMin +
@@ -1534,8 +1532,8 @@ if (Input.GetKeyDown(keyCode) || (!checkOnlyOnPressedDown && Input.GetKey(keyCod
 
 A held key therefore fires on the press, then again every 0.05 s after a 0.3 s
 delay. Backspace, Delete and the two arrow keys all go through it (`Pug.Other:278600`,
-`Pug.Other:278604`, `Pug.Other:278635`, `Pug.Other:270476`); Return and KeypadEnter pass
-`checkOnlyOnPressedDown: true` (`Pug.Other:278598`), which suppresses the repeat for them
+`Pug.Other:278604`, `Pug.Other:278635`, `Pug.Other:278639`); Return and KeypadEnter pass
+`checkOnlyOnPressedDown: true` (`Pug.Other:278608`), which suppresses the repeat for them
 alone.
 
 **So a patch on the typing path that triggers on plain `Input.GetKeyDown` fires
@@ -1546,11 +1544,11 @@ moves only on its own ticks, so anything the patch does to compensate for
 vanilla's action is now wrong on all the frames in between.
 
 **Carrying an equivalent timer is the obvious answer, and `typingInputCooldown`
-is one field rather than one per key** (`Pug.Other:278146`). Whichever *key* fires
+is one field rather than one per key** (`Pug.Other:278149`). Whichever *key* fires
 restarts that same timer — not whichever branch, which is the tempting
-shorthand and is wrong: `Start` sits inside `IsKeyDown`'s `if` (`Pug.Other:278522`), so
-a call returning false restarts nothing, and the paste branch (`Pug.Other:270480`), the
-`Input.inputString` branch (`Pug.Other:278628`) and `Pug.Other:278598` reached through
+shorthand and is wrong: `Start` sits inside `IsKeyDown`'s `if` (`Pug.Other:278694`), so
+a call returning false restarts nothing, and the paste branch (`Pug.Other:278643`), the
+`Input.inputString` branch (`Pug.Other:278647`) and `Pug.Other:278608` reached through
 `IsMenuBackButtonDown()` all claim a frame without any `Start` running. A
 private copy receives none of those resets, so it drifts once a second key
 takes a turn, and the two intervals become literals in the mod with nothing
@@ -1560,7 +1558,7 @@ tying them to the game's.
 `API.Reflection` reaches inside the sandbox (see [resolving a private member](sandbox.md#reaching-a-private-member-resolving-it-is-only-half-the-job)),
 and that route hands back a boxed *copy* of the struct — so reading
 `isTimerElapsed`, whose getter ticks the timer forward
-(`Pug.UnityExtensions:7858-7865` and `Pug.UnityExtensions:7811`), leaves the
+(`Pug.UnityExtensions:7858-7865` and `Pug.UnityExtensions:7904`), leaves the
 game's own field alone. The copy belongs to the **route**, not to the field:
 Harmony's `ref ___field` injection reaches the same kind of private
 `TimerSimple` by *reference*, where no such guarantee holds. A shipping
@@ -1588,7 +1586,7 @@ running, which is exactly the failure being fixed. The mod's own test has to be
 That combination is an over-set of vanilla's per-key condition, because a prefix
 cannot know which branch will claim the frame: it reports ready in frames where
 Backspace (`Pug.Other:278600`), Delete (`Pug.Other:278604`) or the Return branch
-(`Pug.Other:278598`) takes it and no arrow moves at all. Whether the surplus is
+(`Pug.Other:278608`) takes it and no arrow moves at all. Whether the surplus is
 harmless is a property of the patch and not of the game — it is, for one that
 recomputes an absolute target from the current state; it is not for one that
 steps relative to a remembered value, appends, plays a sound, or sends anything,
@@ -1596,8 +1594,8 @@ where a spurious fire at 20 Hz is its own defect.
 
 **The postfix route removes that surplus for a vanilla install, and it has been
 measured.** The chain holds six `IsKeyDown` calls on five lines —
-`Pug.Other:278600`, `Pug.Other:278604`, `Pug.Other:278598` twice, since Return
-and KeypadEnter share a branch, `Pug.Other:278635` and `Pug.Other:270476` — and
+`Pug.Other:278600`, `Pug.Other:278604`, `Pug.Other:278608` twice, since Return
+and KeypadEnter share a branch, `Pug.Other:278635` and `Pug.Other:278639` — and
 those are the only calls in the assembly. So once Backspace claims the frame the
 arrows are never asked about, and no arrow verdict exists to be surplus. What
 reading could not settle is whether a private method this small survives the
@@ -1624,8 +1622,8 @@ on a press edge only, at most one stray verdict per physical press, against the
 apart, and reading them as the same thing overstates the hazard.
 
 **The larger foreign hazard is not the postfix's at all — it is the shared
-timer.** `typingInputCooldown` is one field (`Pug.Other:278146`), and a foreign probe that
-returns `true` restarts it through `Pug.Other:278522`. BetterTextInput probes `Escape`,
+timer.** `typingInputCooldown` is one field (`Pug.Other:278149`), and a foreign probe that
+returns `true` restarts it through `Pug.Other:278694`. BetterTextInput probes `Escape`,
 `Home`, `End`, both vertical arrows, `A`, `C` and `X`, none of which vanilla's
 chain asks about, so the timer is restarted in frames it otherwise would not be —
 which moves the repeat schedule under a **prefix** reading that same field just
@@ -1640,9 +1638,9 @@ for the press edge and for every repeat through the same `return`
 (`Pug.Other:278695`), so `__result` on its own does not separate them — but a
 postfix holds `keyCode` and runs inside the same `MenuManager.Update()` frame,
 so `Input.GetKeyDown(keyCode)` there is vanilla's own first disjunct and
-separates them exactly. The 0.3f/0.05f written at `Pug.Other:278522` is a second
+separates them exactly. The 0.3f/0.05f written at `Pug.Other:278694` is a second
 route to the same answer — it lands in `TimerSimple.lifespan`, which is a public
-field (`Pug.UnityExtensions:7790`, assigned at `Pug.UnityExtensions:7874`) — but
+field (`Pug.UnityExtensions:7848`, assigned at `Pug.UnityExtensions:7932`) — but
 a narrower one than it looks: the write sits inside the `if`, so it says nothing
 after a `false` return and the shared field may still carry another key's value,
 and `typingInputCooldown` itself is private, so reaching it still costs the
@@ -1656,9 +1654,9 @@ untouched by any of this.
 
 **`IsKeyDown` also has a side effect worth knowing.** It sets
 `typingActionWasClicked` from `GetKeyUp || GetKeyDown || GetKey`
-(`Pug.Other:278535`), and that flag gates the two branches at the bottom of
+(`Pug.Other:278691`), and that flag gates the two branches at the bottom of
 `HandleTypingInput` that reach `AppendString` at all — paste
-(`Pug.Other:270480`) and `Input.inputString` (`Pug.Other:278628`). So while any
+(`Pug.Other:278643`) and `Input.inputString` (`Pug.Other:278647`). So while any
 of those keys is held, typed characters and paste are suppressed for that frame;
 the flag is reset at the top of each call (`Pug.Other:278585`).
 
@@ -2000,7 +1998,7 @@ either — useful as a second lock, not as the mechanism.
 ### CK's own mode idiom: `handleNavigationInternally`
 
 The overrides above are one way in. **CK's own is a public flag on the option**
-— `RadicalMenuOption.handleNavigationInternally` (`Pug.Other:344012`). While it is set,
+— `RadicalMenuOption.handleNavigationInternally` (`Pug.Other:359500`). While it is set,
 `SelectIndexInDirection` (`Pug.Other:359187`) hands the direction to that option's
 `NavigateInternally(Direction.Id)` instead of moving the selection. The base
 implementation (`Pug.Other:359746`) returns `false`, so an option that sets the flag and
@@ -2017,7 +2015,7 @@ working because `SkimLeft/Right` fall through to the option after
 `NavigateInternally` declines.
 
 To move a *sub-element* rather than swallow input, copy the player list
-(`Pug.Other:332647`): ask `GetAdjacentUIElement` on the currently selected child and call
+(`Pug.Other:344288`): ask `GetAdjacentUIElement` on the currently selected child and call
 `Select()` on the result.
 
 **Redirecting focus onto a remembered child is something you do yourself, in
@@ -2027,7 +2025,7 @@ hook that asks an option "who should get focus now?" on the way in.
 
 > **`GetInternalOption()` is not that hook**, and it reads exactly as if it
 > were. It has one production call site in the whole game
-> (`RadicalMenu.SelectOptionIndex`, `Pug.Other:358842`), and it is asked of the option
+> (`RadicalMenu.SelectOptionIndex`, `Pug.Other:359269`), and it is asked of the option
 > being **left**, not the one being entered:
 >
 > ```csharp
@@ -2036,7 +2034,7 @@ hook that asks an option "who should get focus now?" on the way in.
 > menuOptions[index].OnPreSelected(previousInternalOption);                 // entering
 > ```
 >
-> `RadicalMenuOption.OnPreSelected` (`Pug.Other:346258`) is an empty virtual, so unless
+> `RadicalMenuOption.OnPreSelected` (`Pug.Other:359681`) is an empty virtual, so unless
 > the entering option overrides it the value is computed and thrown away. Its
 > real purpose is positional: the player list uses the previous element's
 > `transform.position` to enter at the nearest row. Override
@@ -2069,7 +2067,7 @@ if (currentSelectedUIElement.isMenuOption)  Manager.menu.SelectOption(currentSel
 
 `UIelement.isMenuOption` is `false` (`Pug.Other:375434`); `RadicalMenuOption` overrides it
 to `true` (`Pug.Other:359524`), and it is the only override in the game.
-`MenuManager.SelectOption` (`Pug.Other:277953`) looks the element up in the **top menu's**
+`MenuManager.SelectOption` (`Pug.Other:278849`) looks the element up in the **top menu's**
 `menuOptions` and, when it is not there, does nothing at all — silently, no log.
 
 So a `RadicalMenuOption` used as a child of a row, never registered in
@@ -2157,13 +2155,13 @@ it does, so `Select()`'s guard still holds on the hovered element and nothing
 re-selects it — a property of the base rather than a guarantee, since
 `SelectOptionIndex` goes on to call the option's own `OnSelected`
 (`Pug.Other:359274`) and that is virtual: vanilla's `ListConnectedPlayers`
-overrides it and calls `Select()` from there (`Pug.Other:347993`,
+overrides it and calls `Select()` from there (`Pug.Other:344232`,
 `Pug.Other:344250`), which does write `currentSelectedUIElement`. Two things
 keep it from being the answer above. The field is on `ButtonUIElement`
 (`Pug.Other:348474`), a **sibling** of `RadicalMenuOption` (`Pug.Other:359485`)
 rather than a base of it, so a control in the shape this section describes does
 not have it. And `SelectOption` looks its target up with `GetIndexForOption` and
-acts only on a hit (`Pug.Other:278854`-`Pug.Other:277929`), so that target must
+acts only on a hit (`Pug.Other:278854-278855`), so that target must
 be a registered menu option — exactly what the opted-out control is not. It
 redirects the other way: from a plain button *to* a real option. Worth knowing
 as the shape of a redirect that does not fight, not as a drop-in for this one.
@@ -2428,7 +2426,7 @@ own mask over it then decides nothing.
 The failure looks like a bug in the vanilla element rather than in your prefab.
 Measured on 2026-08-30: the confirmation dialogue's hold-to-confirm bar showed
 as already full while the hold still had to be completed. That bar is a mask
-reveal, not a fill — `PopUpOption.Update` (`Pug.Other:342790`) scales `_exitMaskBarPivot`
+reveal, not a fill — `PopUpOption.Update` (`Pug.Other:358227`) scales `_exitMaskBarPivot`
 — so a foreign mask covering it simply showed all of it.
 
 Two properties made it hard to read. The mask belonged to a **row template**, so
@@ -2635,7 +2633,7 @@ can be intercepted from a subclass. This matters for any menu built from data �
 a list that filters to nothing, a screen whose rows all failed to wire.
 
 **1. `Activate()` itself, before any input.** With `rememberSelectedIndex` set
-on the prefab (`Pug.Other:359146-359158`):
+on the prefab (`Pug.Other:359145-359158`):
 
 ```csharp
 if (selectedIndex != MathUtilities.Clamp(selectedIndex, 0, menuOptions.Count - 1))

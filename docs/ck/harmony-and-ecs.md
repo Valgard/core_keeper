@@ -91,7 +91,7 @@ and the server trap does not arise.
 **The `AndJobs` variant is the exception — it is not `ISystem`-only.** Both
 branches end in `CreateCompleteDependencyPatch` (`PugMod.SDK.Runtime:850`),
 called from `PatchSystem` (`PugMod.SDK.Runtime:793`, `isManaged: false`) and
-from `PatchManagedSystem` (`PugMod.SDK.Runtime:797`, `isManaged: true`). A
+from `PatchManagedSystem` (`PugMod.SDK.Runtime:798`, `isManaged: true`). A
 managed system therefore gets the same dependency-completing postfix from the
 same flag; only the route to it differs.
 
@@ -133,7 +133,7 @@ armed, and only then.
 nested job. `EquipmentUpdateSystem` (`Pug.Other:438756`) does everything in
 `UpdateJob`, which carries its own `[BurstCompile]` (`Pug.Other:438758`) and calls
 `PlaceObjectSlot.UpdateEquipment` (`Pug.Other:438890`). Note the blast radius before
-reaching for it: that call sits in a `switch` on `slotType` (`Pug.Other:438885`) covering
+reaching for it: that call sits in a `switch` on `slotType` (`Pug.Other:438884`) covering
 `ShovelSlot`, `EatableSlot`, `WaterCanSlot` and the rest, so un-Bursting this
 one system takes the equipment path off Burst for **every** slot type, not only
 the one you meant to patch. With the plain variant, **no** patch on that path
@@ -146,7 +146,7 @@ below, and its log line is the false shortcut described just after this one.
 **The criterion is what you patch, not which system it belongs to.**
 `DisableBurstForSystem<T>` calls `DisableBurstForSystemInternal(type,
 burstEnabled, addCompleteDependencyPatch: false)` (`PugMod.SDK.Runtime:706`);
-`DisableBurstForSystemAndJobs<T>` passes `true` (`PugMod.SDK.Runtime:707`). For an unmanaged
+`DisableBurstForSystemAndJobs<T>` passes `true` (`PugMod.SDK.Runtime:711`). For an unmanaged
 `ISystem`, `PatchSystem` (`PugMod.SDK.Runtime:788-796`) does nothing with that flag off — it
 builds an empty method list and stops. With the flag on, it adds exactly one
 more thing: a postfix on `OnUpdate(ref SystemState)` that calls
@@ -262,14 +262,14 @@ from a host neither reproduces nor refutes it.
 The cause is the lifecycle order — which is **measured**, not derived; the
 paragraphs below say why no derivation replaces it, and one that was tried was
 wrong. `BurstDisabler.AddWorld` is called from exactly one place,
-`ECSManager.StartEcs` (`Pug.Other:2799` in the client build, `Pug.Other:2785` in the
-server build), and it **snapshots** the types registered up to that moment.
-Nothing back-fills that snapshot for a world already passed to `AddWorld` — but
-neither set is permanent, and a later world load rebuilds them correctly; see
-the bound on this below. Two different resetters exist and only one of them
-appears there: `ResetWorlds` clears the per-world handles, while
-`BurstDisabler.Init()` (`PugMod.SDK.Runtime:665-676`) — a
-`[RuntimeInitializeOnLoadMethod(SubsystemRegistration)]`, so once per process
+`ECSManager.StartEcs` (`Pug.Other:2799` in the client build,
+`DedicatedServer/Pug.Other:2777` in the server build), and it **snapshots** the
+types registered up to that moment. Nothing back-fills that snapshot for a world
+already passed to `AddWorld` — but neither set is permanent, and a later world
+load rebuilds them correctly; see the bound on this below. Two different
+resetters exist and only one of them appears there: `ResetWorlds` clears the
+per-world handles, while `BurstDisabler.Init()` (`PugMod.SDK.Runtime:665-676`) —
+a `[RuntimeInitializeOnLoadMethod(SubsystemRegistration)]`, so once per process
 start rather than per world — additionally unpatches Harmony, clears
 `_patchedMethods`, and clears the **type** registry itself.
 
@@ -298,7 +298,7 @@ state is not the same on the two sides.
 the only route.** The server build's own guard names its real entry point and
 then acts on it — `UnityEngine.Debug.LogError("Server should start from
 ServerMain!")` followed immediately by `Application.Quit()`
-(`Pug.Other:378657-378658`, server build), so a server build reaching
+(`DedicatedServer/Pug.Other:378856-378857`, server build), so a server build reaching
 `SceneHandler.Awake` with a ServerWorld already created terminates rather than
 continuing. That is what rules the `SceneHandler.Awake` → `StartEcs` route out
 as the server's ordinary path. And `ServerMain` exists nowhere as a type:
@@ -309,15 +309,15 @@ settles the question.
 
 **That table is a measurement, and no derivation has replaced it — one was tried
 and was wrong.** The tempting mechanism is: `StartEcs` is reached from
-`SceneHandler.Awake` (`Pug.Other:362091`, calls at
-`Pug.Other:383104`/`Pug.Other:378673` in the server build) while `IMod.Init()`
-comes from `Loader.Update` (`PugMod.Loader:1214`, `PugMod.Loader:1216`), so
-Unity's rule that every `Awake` precedes every `Update` fixes the order. **It
-does not.** `Loader.Update` is reached from two places, not one. Both go through
-`Integration.Instance.Update()` — an `IIntegration` interface call that lands on
-`Loader` only because `Loader : IIntegration` — and one of them sits in
-`Manager.EarlyInit` (`Pug.Other:272276`, client build; server
-`DedicatedServer/Pug.Other:272213`), which is a
+`SceneHandler.Awake` (`Pug.Other:383067`, calls at
+`Pug.Other:383104`/`DedicatedServer/Pug.Other:378867` in the server build) while
+`IMod.Init()` comes from `Loader.Update` (`PugMod.Loader:1214`,
+`PugMod.Loader:1216`), so Unity's rule that every `Awake` precedes every
+`Update` fixes the order. **It does not.** `Loader.Update` is reached from two
+places, not one. Both go through `Integration.Instance.Update()` — an
+`IIntegration` interface call that lands on `Loader` only because `Loader :
+IIntegration` — and one of them sits in `Manager.EarlyInit` (`Pug.Other:272276`,
+client build; server `DedicatedServer/Pug.Other:272213`), which is a
 `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]`
 (`Pug.Other:272188` client, `DedicatedServer/Pug.Other:272131` server) and
 therefore runs *before* any scene `Awake`. The other, the MonoBehaviour
@@ -386,10 +386,11 @@ is why the bug reads as "dead from launch" rather than intermittent — and why 
 dedicated server, whose world in an observed session was loaded once at startup
 and kept, never got the second chance a world switch would hand it. Nothing in
 either tree makes that a property of the binary: the server build carries a full
-`UnloadWorldsInternal` (`Pug.Other:3021`), reachable from `OnSceneUnload` and
-from `StartEcs`'s own "Trying to start new ECS instance without unloading old"
-path (`Pug.Other:2752-2756`), so a second `StartEcs` there is not forbidden —
-merely not something an ordinary server run does.
+`UnloadWorldsInternal` (`DedicatedServer/Pug.Other:3022`), reachable from
+`OnSceneUnload` and from `StartEcs`'s own "Trying to start new ECS instance
+without unloading old" path (`DedicatedServer/Pug.Other:2752-2756`), so a second
+`StartEcs` there is not forbidden — merely not something an ordinary server run
+does.
 
 **`EarlyInit` is not the fix.** Moving the registration there fails on client
 *and* server: `TypeManager` is not initialised that early, so
@@ -643,7 +644,7 @@ valid placement spot, cooldown, and so on. While the player **holds the place
 button down** on a placeable item, that is roughly one call per input tick.
 
 **Correction: it is not called while the item is merely equipped.** The call
-site guards it twice before entering (`Pug.Other:312239`, `Pug.Other:322936`):
+site guards it twice before entering (`Pug.Other:322932`, `Pug.Other:322936`):
 
 ```csharp
 if (!secondInteractHeld) return false;
@@ -737,7 +738,7 @@ The robust target is the point where all routes converge. Queuing a tile means
 writing into the `TileUpdateBuffer`, and `EntityUtility.AddTile` is the
 convergence point of **equipment-driven** placement; the foreign mod calls it
 too. One call is not one buffer entry, though: placing a wall appends a second,
-a `Command.Remove` for `roofHole` at the same position (`Pug.Other:265235-265247`), so a
+a `Command.Remove` for `roofHole` at the same position (`Pug.Other:265234-265245`), so a
 prefix that counts or rewrites entries one-for-one is wrong for every wall. Many
 other things write the buffer directly, without passing through it at all —
 world generation, plant growth and the `SpawnTileOnDeathCD` handler among them,
@@ -905,7 +906,7 @@ triggers no deserialize, and nothing in either tree links it to
 **Nothing couples them at the producer — the pairing is the caller's ordering.**
 `OnAfterDeserialize` is Unity's `ISerializationCallbackReceiver` hook: it
 appears once as an explicit call, in the routine that resets a character slot,
-`_ClearCharacter(int i)` (`Pug.Other:381562`); every other invocation comes from
+`_ClearCharacter(int i)` (`Pug.Other:381563`); every other invocation comes from
 Unity itself, through `SaveManager.DecodeJson<T>` (`Pug.Other:380713-380717`),
 which runs `JsonUtility.FromJsonOverwrite` over the bytes read for a character.
 `SetCharacterId` has four call sites in the client tree. The one the worked
@@ -1011,7 +1012,7 @@ therefore what the numbers support, on the amount rather than on a log line that
 named the caller.
 
 **Neither of those two callers is reachable by a prefix either, and for the
-same reason as `PetHandlerSystem`.** `AttemptToDealDamageToEnemy` (`Pug.Other:304770`)
+same reason as `PetHandlerSystem`.** `AttemptToDealDamageToEnemy` (`Pug.Other:314659`)
 is a `private static bool` taking `in` aspects and `NativeArray`s, and the
 pet-candy path (`Pug.Other:94938`) sits inside a Bursted `IJobEntity`. When a value is
 written by several paths and some of them are Burst, a prefix on the managed
@@ -1191,7 +1192,7 @@ before hand-rolling a category test: `ObjectCategoryTagsCD` (`Pug.ECS.Conversion
 "is this any of these kinds of thing" without an `objectID` list.
 
 ```csharp
-// Pug.ECS.Components:3890-3893
+// Pug.ECS.Components:4065-4068
 public struct ObjectTypeCD : IComponentData, IQueryTypeParameter { public ObjectType Value; }
 ```
 
@@ -1211,7 +1212,7 @@ carries the same component set — so the query is almost never the filter.
 `DiggableCD` is a null-byte tag:
 
 ```csharp
-// Pug.ECS.Components:4503-4507
+// Pug.ECS.Components:4687-4691
 [StructLayout(LayoutKind.Sequential, Size = 1)]
 [GhostComponent(PrefabType = GhostPrefabType.All)]
 public struct DiggableCD : IComponentData, IQueryTypeParameter { }

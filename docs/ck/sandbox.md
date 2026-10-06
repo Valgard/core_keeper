@@ -223,8 +223,8 @@ on it:
   no narrower channel to listen on.
 - **A refusal is `Debug.Log`, not a warning, in one of three strings.**
   `Trying to patch disallowed type {type}` (`PugMod.Loader:580`), `Patching mod
-  loading not allowed` (`PugMod.Loader:568`), `Trying to patch type {type} from unknown
-  assembly` (`PugMod.Loader:591`). Grepping for one of them finds a third of the refusals.
+  loading not allowed` (`PugMod.Loader:586`), `Trying to patch type {type} from unknown
+  assembly` (`PugMod.Loader:609`). Grepping for one of them finds a third of the refusals.
 
 **The prefix test does not separate the game from mods, and reading it that way
 is the trap.** Classifying the 122 decompiled assemblies against the five

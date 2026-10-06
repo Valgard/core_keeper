@@ -580,7 +580,7 @@ material bug, and it is a pure off-by-one.
 
 ## PugText that switches itself off
 
-`PugText.Start()` (`Pug.Other:352413`) is:
+`PugText.Start()` (`Pug.Other:367896`) is:
 
 ```csharp
 if (!renderOnStart) { if (!keepEnabledOnStart) { gameObject.SetActive(false); } return; }
@@ -1157,7 +1157,7 @@ exactly — this is one to finish by looking, not by arithmetic.
 
 `PugText.dimensions` is a `Rect`, not just the height the formula above uses, and
 `PugFont.Render` fills its horizontal bounds **per alignment** (`Pug.Other:367218` for
-left, `Pug.Other:367081` centre, `Pug.Other:366644` right). Where `xMin` ends up:
+left, `Pug.Other:367223` centre, `Pug.Other:367239` right). Where `xMin` ends up:
 
 | `horizontalAlignment` | `dimensions.xMin` lands |
 |---|---|

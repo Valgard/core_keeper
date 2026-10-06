@@ -751,7 +751,7 @@ A mod without the relevant flag is removed from the check list, but by two diffe
 mechanisms depending on direction: in the `Server` direction, `localMods.RemoveAt`
 (`Pug.Other:130105-130107`) drops it outright; in the `Client` direction, the server reports
 `required = false` for it and the client never adds it to `modsToCheck` in the first
-place (`Pug.Other:129738-129739`). Either way it never interferes with a connection.
+place (`Pug.Other:129737-129739`). Either way it never interferes with a connection.
 
 ### Choosing a value
 
