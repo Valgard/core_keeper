@@ -180,7 +180,7 @@ differ, and normally should.
 ## The side-loader accepts a hand-written manifest
 
 Everything above is the SDK build pipeline. The loader has a second path in
-that needs none of it: `SideLoader.Update()` (`PugMod.Loader:2343-2403`) scans
+that needs none of it: `SideLoader.Update()` (`PugMod.Loader:2366-2426`) scans
 `Application.streamingAssetsPath + "/Mods"` for directories, and for each one
 holding a `ModManifest.json` reads it with `JsonUtility.FromJson<ModMetadata>`,
 then calls `Integration.Instance.AddMod(metadata, <directory>, ModId,
@@ -193,7 +193,7 @@ the mod once the manifest disappears.
 From there the ordinary load path runs, same as for a built mod: the loader reads each
 entry of `metadata.files` relative to the mod directory, source-gen-patches the texts,
 writes them into the temp `ModLoader/<name>/` tree and compiles them with [the sandbox](sandbox.md)
-active unless `skipSafetyChecks` is set (`PugMod.Loader:1352-1385`). So an unlisted file
+active unless `skipSafetyChecks` is set (`PugMod.Loader:1353-1386`). So an unlisted file
 is never opened, and a listed `.cs` is all a code mod needs. **`files`'s
 "build-generated" above describes the SDK pipeline, not a requirement of the loader** —
 `SideLoader` never touches `ModBuilder`, and a manifest it accepts is nothing a person
@@ -373,11 +373,11 @@ foreach (var mod in API.ModLoader.LoadedMods)
 **What `LoadedMod.Assets` holds depends on the bundle's `.manifest`.** When a
 bundle ships with its `.manifest` beside it, as the SDK's build output does, the
 loader reads the asset names from it and calls `LoadAsset(name)` once per entry
-(`PugMod.Loader:1569`–`1580`), and that list is what `Assets` exposes (`1723`).
+(`PugMod.Loader:1570`–`1581`), and that list is what `Assets` exposes (`1724`).
 `LoadAsset` returns the named asset's main object only, so a sliced sprite sheet
 contributes its `Texture2D` and none of its sprites — measured with a probe mod
 on 1.3.0.2: one asset, no sprite. A bundle without a manifest goes through
-`LoadAllAssets()` instead (`1586`), which includes sub-assets such as those
+`LoadAllAssets()` instead (`1587`), which includes sub-assets such as those
 sprites, and that case is not hypothetical: six installed third-party mods ship
 their bundles without one. Either way the sprites are in the bundle: reach them
 through the bundle handle above, or reference them from an asset that ships in
@@ -427,7 +427,7 @@ message points at nothing.
 
 The anchor that works is a Harmony postfix on the player's spawn method that starts a
 coroutine on the player instance. **Since 1.3 that method is `OnSpawn`**, a `protected
-override` on `PlayerController` (`Pug.Other:308561`), which is why it is named by string.
+override` on `PlayerController` (`Pug.Other:309491`), which is why it is named by string.
 Through 1.2 it was `OnOccupied` (1.2.1.5 `Pug.Other:298883`); 1.3 moved the spawn logic
 out of it, and `PlayerController` no longer declares `OnOccupied` at all:
 
@@ -460,7 +460,7 @@ sporadically.
 
 **Filter on `__instance.isLocal`.** The postfix fires for every player that spawns, remote
 ones included, and `Manager.main.player` is assigned only inside `if (isLocal)`
-(`Pug.Other:308637`).
+(`Pug.Other:309567`).
 
 **What this anchor does *not* guarantee is a populated ECS world.** It fires early
 enough that a one-shot probe taken here can pin an empty or wrong world for the rest of
@@ -485,12 +485,12 @@ itself. Two metadata fields govern the pass:
 Failures are logged and do **not** abort the load, so a mod whose patches never bound
 still reports as loaded. Two lines, two different causes: `mod <name>: patching failed`
 is the safety check rejecting the assembly, while `failed to patch mod <name>, got
-exception` — followed by the exception itself — is Harmony throwing (`PugMod.Loader:1474-1483`).
+exception` — followed by the exception itself — is Harmony throwing (`PugMod.Loader:1475-1484`).
 On reload the loader undoes your patches (unless `disableHarmonyPatching` is set) as part
 of the same reset that calls `Shutdown`.
 
 **A throw does not cost you one patch, it costs the rest of the pass.** The loader hands
-the whole assembly to `Harmony.PatchAll` (`PugMod.Loader:480`), which walks
+the whole assembly to `Harmony.PatchAll` (`PugMod.Loader:481`), which walks
 `assembly.GetTypes()` and calls `PatchClassProcessor.Patch()` on each type with nothing
 catching in between (`0Harmony:2148-2154`, `0Harmony:3999-4003`). A target that cannot be resolved
 makes `PatchWithAttributes` throw `ArgumentException: Undefined target method for patch
@@ -743,14 +743,14 @@ symptom-first index: [troubleshooting](troubleshooting.md).
 
 | Check site | Test | Effect |
 |---|---|---|
-| `NetworkClientStartSystem` (`Pug.Other:129394`) | `localMod.required = (requiredOn & ModExistsOn.Server) != 0` | The **Server** flag makes the **client** demand the mod on the server |
-| `ModInfoRpcSystem` (`Pug.Other:130395`) | `required = (requiredOn & ModExistsOn.Client) != 0` | The **Client** flag makes the **server** demand it on the client |
+| `NetworkClientStartSystem` (`Pug.Other:130089`) | `localMod.required = (requiredOn & ModExistsOn.Server) != 0` | The **Server** flag makes the **client** demand the mod on the server |
+| `ModInfoRpcSystem` (`Pug.Other:131090`) | `required = (requiredOn & ModExistsOn.Client) != 0` | The **Client** flag makes the **server** demand it on the client |
 
 A mod without the relevant flag is removed from the check list, but by two different
 mechanisms depending on direction: in the `Server` direction, `localMods.RemoveAt`
-(`Pug.Other:129410-129412`) drops it outright; in the `Client` direction, the server reports
+(`Pug.Other:130105-130107`) drops it outright; in the `Client` direction, the server reports
 `required = false` for it and the client never adds it to `modsToCheck` in the first
-place (`Pug.Other:129043-129044`). Either way it never interferes with a connection.
+place (`Pug.Other:129738-129739`). Either way it never interferes with a connection.
 
 ### Choosing a value
 
@@ -772,14 +772,14 @@ mod.io catalogue tag, which is described in [publishing](publishing.md).
 ## The in-game mod menu, and when mod.io is contacted
 
 In the 1.3 builds the Mods entry in the main menu opens a screen of Pugstorm's own,
-`ModListMenu` (`Pug.Other:351763`): the installed mods from all sources in load order —
+`ModListMenu` (`Pug.Other:352757`): the installed mods from all sources in load order —
 plus pending, failed and mod.io-disabled ones — with reorder controls and one button per
 source. In 1.2.1.5 the same entry, `RadicalMainMenuOption_OpenMods`, went from its
 confirmation popup straight to `Browser.Open()`, with no list in between; older notes
 that say "the Mods menu" mean the mod.io browser. The source buttons are **Mod.io** and
-**Local**, plus **Steam** on Steam builds only (`Pug.Other:352607`). Their `OnActivated`
-switch (`Pug.Other:353909`) sends **Mod.io** to
-`RadicalMainMenuOption_OpenMods.OpenModUI` (`Pug.Other:351421`), which calls
+**Local**, plus **Steam** on Steam builds only (`Pug.Other:353601`). Their `OnActivated`
+switch (`Pug.Other:354903`) sends **Mod.io** to
+`RadicalMainMenuOption_OpenMods.OpenModUI` (`Pug.Other:352415`), which calls
 `Browser.Open()` on mod.io's embedded drop-in UI package — `modio.UI.dll`, namespace
 `ModIOBrowser`. **Steam** opens the Workshop page (in the Steam overlay when it is
 enabled), **Local** the local mods folder. Pugstorm embedded mod.io's browser rather
@@ -792,7 +792,7 @@ that is the list screen itself:
 
 | Caller | When |
 |---|---|
-| `ModListMenu.Activate()` (`Pug.Other:351943`) | **Every time the Mods screen opens**, before any button is pressed — and only when the session is already authenticated |
+| `ModListMenu.Activate()` (`Pug.Other:352937`) | **Every time the Mods screen opens**, before any button is pressed — and only when the session is already authenticated |
 | `Browser.IsInitialized()` | Pressing **Mod.io** (`Browser.Open()` runs into it) — and only when the session is already authenticated |
 | `Authentication.CodeSubmitted(Result)` | After an email-code login succeeds |
 | `Authentication.ThirdPartyAuthenticationSubmitted(…)` | After a Steam/portal login succeeds |

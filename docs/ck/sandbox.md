@@ -186,13 +186,13 @@ API.Reflection.Invoke(UpdateScrollHeight, scrollWindow);
 
 **Both halves are SDK surface, so the whole recipe costs no dependency at all.**
 `GetNameChecked` and `GetMembersChecked` are extension methods in
-`PugMod.SDK.Runtime` (`PugMod.SDK.Runtime:616`, `PugMod.SDK.Runtime:656`)
+`PugMod.SDK.Runtime` (`PugMod.SDK.Runtime:567`, `PugMod.SDK.Runtime:607`)
 alongside `API.Reflection` itself — CoreLib is not involved anywhere in this.
 
 **A PRIVATE member is reported only by the type that declares it, so aim the
 lookup there and not at a subclass you happen to hold.** `GetMembersChecked`
 calls `type.GetMembers(Instance | Static | Public | NonPublic)`
-(`PugMod.SDK.Runtime:658`) with no `DeclaredOnly` — inherited *public* and
+(`PugMod.SDK.Runtime:609`) with no `DeclaredOnly` — inherited *public* and
 *protected* members come back from a subclass just fine, which is what makes the
 private case easy to miss. Reading `RadicalMenuOptionTextInput.currentCharIndex`
 from a row class deriving from it means `typeof(RadicalMenuOptionTextInput)`,
@@ -208,12 +208,12 @@ itself. Three things differ on this route and are worth knowing before relying
 on it:
 
 - **It fires per call, not once before `PatchAll`.** `ModAPIReflection` holds its
-  own `InvokeChecker` (`Pug.Other:409282`), separate from the loader's, and
+  own `InvokeChecker` (`Pug.Other:410288`), separate from the loader's, and
   `Invoke` / `GetValue` / `SetValue` each run `CheckType` on entry
-  (`PugMod.Loader:570`). So the patch path's all-or-nothing rejection has no
+  (`PugMod.Loader:571`). So the patch path's all-or-nothing rejection has no
   counterpart here: one refused type costs you that one call.
 - **A refusal throws rather than returning `false`** —
-  `InvalidOperationException` at your call site (`Pug.Other:409345` for
+  `InvalidOperationException` at your call site (`Pug.Other:410351` for
   `GetValue`). A `catch` cannot identify it as a refusal, because those three
   methods throw the same type for shape mistakes too: `Invoke` on a non-method,
   `GetValue`/`SetValue` on a member that is neither field nor property,
@@ -222,9 +222,9 @@ on it:
   and throws at read time, and a caller that must not lose the user's input has
   no narrower channel to listen on.
 - **A refusal is `Debug.Log`, not a warning, in one of three strings.**
-  `Trying to patch disallowed type {type}` (`PugMod.Loader:579`), `Patching mod
-  loading not allowed` (`PugMod.Loader:567`), `Trying to patch type {type} from unknown
-  assembly` (`PugMod.Loader:590`). Grepping for one of them finds a third of the refusals.
+  `Trying to patch disallowed type {type}` (`PugMod.Loader:580`), `Patching mod
+  loading not allowed` (`PugMod.Loader:568`), `Trying to patch type {type} from unknown
+  assembly` (`PugMod.Loader:591`). Grepping for one of them finds a third of the refusals.
 
 **The prefix test does not separate the game from mods, and reading it that way
 is the trap.** Classifying the 122 decompiled assemblies against the five
@@ -233,7 +233,7 @@ code: `WorldGen`, `Interaction`, `ObjectLookup`, `ScriptableData`, `Affixes`,
 `Assembly-CSharp` — and `0Harmony`. What it reliably reaches is `Pug*` and
 `Unity*`. That mods fall outside is a consequence of naming, not of design: the
 check has no concept of a mod, a mod's compiled assembly is named
-`metadata.name + ".dll"` verbatim (`PugMod.Loader:1372`, the Roslyn path), and
+`metadata.name + ".dll"` verbatim (`PugMod.Loader:1373`, the Roslyn path), and
 CoreLib is refused because its manifest name is `CoreLib`. Nothing would stop a
 mod that named itself `Pug…`.
 
@@ -265,15 +265,15 @@ Wine host, one mod set, on 1.2.1.5: **3.57 µs** for a cached-`MemberInfo` read,
 and **0.404 ms** for the first such call in that session. What the 0.404 ms
 contains is not settled — the candidates are the `GetMembersChecked` scan behind
 a `beforefieldinit` static, and `InvokeChecker.LazyInit`'s one-off walk over
-every type of every loaded assembly (`PugMod.Loader:559-566`) — and on this
+every type of every loaded assembly (`PugMod.Loader:560-567`) — and on this
 machine CoreLib already reaches `API.Reflection` during mod load for keybind
 registration, so a later caller likely finds that walk already paid. Treat the
 figures as an order of magnitude: a read per keystroke or per click needs no
 budgeting, and a shipped mod does one per frame in a `LateUpdate` without
 apparent trouble. The uncached *lookup* is the half to keep out of a hot path
 regardless — `GetMembersChecked` allocates two arrays plus one wrapper object
-per member on every call (`PugMod.SDK.Runtime:658-664`,
-`PugMod.SDK.Runtime:696`), which is why the recipe above caches it in a `static
+per member on every call (`PugMod.SDK.Runtime:609-615`,
+`PugMod.SDK.Runtime:647`), which is why the recipe above caches it in a `static
 readonly`.
 
 ## What is not banned
@@ -302,7 +302,7 @@ Verified by passing live loads:
 - **`UnityEngine.JsonUtility`** — the deny lists never touch `JsonUtility`:
   among Members they name only `UnityEngine.Application.Quit` and
   `System.Type.InvokeMember`. The loader itself serialises with it:
-  `JsonUtility.ToJson` in `ModAPIConfig.Set` (`Pug.Other:288071`).
+  `JsonUtility.ToJson` in `ModAPIConfig.Set` (`Pug.Other:288994`).
 - **`Object.FindFirstObjectByType<T>()`** and the `GetComponentsInChildren`
   overloads — plain `UnityEngine.CoreModule` API, on none of the four lists.
   Worth stating because the name suggests otherwise: the method resolves types

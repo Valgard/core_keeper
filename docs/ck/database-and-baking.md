@@ -34,7 +34,7 @@ wrong one for the authoring values that get copied into the blob.
 > and `ObjectInfo.prefabInfos`, so it no longer compiles: the loader reports
 > `CompileFailed` with `CS0103: The name 'DatabaseConversionUtility' does not
 > exist`. `PostConvert` itself now reads the prefabs from
-> `ScriptableData.GetDataBlocks<EntityAuthoringDataBlock>()` (`Pug.Other:3513`),
+> `ScriptableData.GetDataBlocks<EntityAuthoringDataBlock>()` (`Pug.Other:3716`),
 > so that is the list a 1.3 prefix would walk; `rebalance-key-crafting` and
 > `auto-rail-bridges` carry such prefixes, unreleased, and neither has been
 > seen running — **unverified**. The runtime station lookup further down has both forms.
@@ -152,16 +152,16 @@ The lifecycle itself is in [Mod anatomy](mod-anatomy.md).
 The obvious alternative — patching the runtime craft — is closed to a plain
 Harmony patch. The path is `InventoryUpdateSystem` → `ProcessCraftingJob` →
 `InventoryUtility.Craft`, and it is **Burst-compiled twice over**:
-`InventoryUpdateSystem` is a `[BurstCompile] ISystem` (`Pug.Other:426385`), and
+`InventoryUpdateSystem` is a `[BurstCompile] ISystem` (`Pug.Other:427388`), and
 the work sits in the separately `[BurstCompile]`d `IJob` it schedules
-(`ProcessCraftingJob`, `Pug.Other:408848`; scheduled at `Pug.Other:427108`, calling
-`InventoryUtility.Craft` at `Pug.Other:426805`).
+(`ProcessCraftingJob`, `Pug.Other:409854`; scheduled at `Pug.Other:428112`, calling
+`InventoryUtility.Craft` at `Pug.Other:427808`).
 
 **The distinction that matters is which `BurstDisabler` call.**
 `DisableBurstForSystem<InventoryUpdateSystem>()` does not reach it — that takes
 the *system's* `OnUpdate` off Burst and leaves the job it schedules to run its
 own Burst-compiled form. A nested job needs `DisableBurstForSystemAndJobs<T>()`
-(`PugMod.SDK.Runtime:797`), which additionally completes the system's job
+(`PugMod.SDK.Runtime:709`), which additionally completes the system's job
 dependency inside the un-Bursted window. That variant is verified to make
 patches fire on another `ISystem` whose work sits in a nested `[BurstCompile]`
 job, but whether it does the same for the craft path is **unverified** — see [Harmony and ECS](harmony-and-ecs.md)
@@ -182,17 +182,17 @@ not for the item.
 **Since 1.3 the prefab also needs an `EntityAuthoringDataBlock`, or the item
 is missing from the database.** `PugDatabasePostConverter` builds the database
 bank from `ScriptableData.GetDataBlocks<EntityAuthoringDataBlock>()` and nothing
-else (`Pug.Other:3513`); through 1.2 the prefab list also took in the loader's
+else (`Pug.Other:3716`); through 1.2 the prefab list also took in the loader's
 `Manager.mod.ExtraAuthoring`, which is why a 1.2 mod needed no block.
 
 What a missing block looks like was measured in `caveling-divining-rod` on
 1.3.0.2, with CoreLib's `EntityModule` loaded: the rod still resolved to an
 `ObjectID` — which path assigned it is not traced — so its Iron Workbench recipe
 resolved (`moddedObjectID` goes through `API.Authoring.GetObjectID`,
-`Pug.ECS.Conversion:1760`) and an extra crafting window opened, because that
-test only asks for a non-`None` ID (`Pug.Other:338062`, the check at `338096`).
+`Pug.ECS.Conversion:1765`) and an extra crafting window opened, because that
+test only asks for a non-`None` ID (`Pug.Other:339028`, the check at `339062`).
 The slot inside it stayed empty, because drawing one asks the bank
-(`PugDatabase.HasObject`, `Pug.Other:429747`), and nothing could be crafted. No
+(`PugDatabase.HasObject`, `Pug.Other:430751`), and nothing could be crafted. No
 error was logged.
 
 **Most 1.3 item mods ship the block as an asset.** StoragePlus, ChestsGalore,
@@ -217,7 +217,7 @@ public void EarlyInit()
 ```
 
 - **It has to be `EarlyInit`.** Runtime blocks are refused once ScriptableData
-  has started loading — the loader throws and says so (`PugMod.Loader:2265`).
+  has started loading — the loader throws and says so (`PugMod.Loader:2288`).
 - **Take the prefab from `LoadedMod.Assets`.** In `caveling-divining-rod`,
   `AssetBundle.LoadAsset<GameObject>("<prefab name>")` returned null in game
   for a prefab that `Assets` contained; why is **unverified**.
@@ -323,15 +323,15 @@ address and nothing else.
 
 **A runtime block created without an address gets a new one on every launch.**
 `CreateRuntimeInstance<T>(modId)` passes `DataBlockAddress.NewAddress()`
-(`PugMod.Loader:2213`), which is `Guid.NewGuid()` (`ScriptableData:71`). So no
+(`PugMod.Loader:2236`), which is `Guid.NewGuid()` (`ScriptableData:71`). So no
 saved reference can name such a block by its address: in a probe mod on
 1.3.0.2, markers placed with a runtime icon lost it at the next restart —
 observed, without a recorded test. That concerns references by address only. An
 item built on a runtime block saves fine through its `ObjectID`, which is how
 CoreLib's and caveling-divining-rod's runtime blocks persist. The overload
 taking an address is stable — the block's address is a SHA-256 over the mod's
-GUID and the given address (`PugMod.Loader:2272`) — but it also records the
-given address as the block's `m_overload` (`2240`), declaring it an overload of
+GUID and the given address (`PugMod.Loader:2295`) — but it also records the
+given address as the block's `m_overload` (`2263`), declaring it an overload of
 the block at that address. What that does depends on whether such a block
 exists. If one does, `ScriptableData.Initialize` resolves the given address to
 the runtime block (`ScriptableData:1341`–`1345`) and leaves the original out of
@@ -347,7 +347,7 @@ walks the loaders in registration order (`1284`) and appends each set to the
 typed lists (`AddDataBlocksToRuntimeLists`, `1350`). So a mod that wants the
 blocks it ships as assets in a particular order gives them ascending addresses.
 That does not carry over to runtime blocks: they sit in a runtime loader of
-their own (`PugMod.Loader:2184`), and one created with an address is stored
+their own (`PugMod.Loader:2207`), and one created with an address is stored
 under the hash above, so its position does not follow the address it was given.
 Keeping the first hex digit of each at `0`–`7` sidesteps a question not checked
 here: whether the GUID's first 32-bit field compares signed or unsigned on the
@@ -406,7 +406,7 @@ belongs to before using its number.
 **Biome variants split one logical object over several ObjectIDs.** Digging
 spots occupy `5532`–`5536` for five biome variants beside the generic `5530`,
 while CK's own checks (`objectID == ObjectID.DiggingSpot`, in `Pug.Other` at
-`296438` and `310904`) test only the generic one. Filtering on a single
+`306900` and `322507`) test only the generic one. Filtering on a single
 `ObjectID` then produces a mod that works in one biome and not in another —
 which reads like a bug everywhere except at the filter. Biome variants are
 common but not universal, so the rule is: **check the enum neighbourhood before
