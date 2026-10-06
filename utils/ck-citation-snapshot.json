@@ -66,11 +66,23 @@
     "DedicatedServer/Pug.Other:3022": [
       "private void UnloadWorldsInternal()"
     ],
+    "DedicatedServer/Pug.Other:302717": [
+      "bool flag8 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
+    ],
+    "DedicatedServer/Pug.Other:303127": [
+      "bool flag4 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
+    ],
     "DedicatedServer/Pug.Other:3038": [
       "if (ServerWorld != null)"
     ],
     "DedicatedServer/Pug.Other:3046": [
       "BurstDisabler.ResetWorlds();"
+    ],
+    "DedicatedServer/Pug.Other:318313": [
+      "if (diggableEntityAndInfo2.objectID == ObjectID.DiggingSpot && top.tileset == 0)"
+    ],
+    "DedicatedServer/Pug.Other:378828": [
+      "private void Awake()"
     ],
     "DedicatedServer/Pug.Other:378856-378857": [
       "UnityEngine.Debug.LogError(\"Server should start from ServerMain!\");",
@@ -1325,6 +1337,9 @@
     "Pug.Other:278624": [
       "Manager.input.activeInputField.Deactivate(!Manager.input.IsMenuBackButtonDown());"
     ],
+    "Pug.Other:278631": [
+      "else if (IsKeyDown(KeyCode.Tab))"
+    ],
     "Pug.Other:278635": [
       "else if (IsKeyDown(KeyCode.LeftArrow))"
     ],
@@ -1681,6 +1696,9 @@
     ],
     "Pug.Other:321778": [
       "private static void PlaceItem(in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)"
+    ],
+    "Pug.Other:322332": [
+      "private static void PlaceItem(in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData)"
     ],
     "Pug.Other:322507": [
       "if (diggableEntityAndInfo2.objectID == ObjectID.DiggingSpot && top.tileset == 0)"
@@ -2168,6 +2186,9 @@
       "return false;",
       "}"
     ],
+    "Pug.Other:323802": [
+      "private static void PlaceItem(ref NativeList<PlacementHandler.EntityAndInfoFromPlacement> entitiesToSeed, in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)"
+    ],
     "Pug.Other:323883": [
       "valueRW.positionLastPlacedAt = x.ToInt3();"
     ],
@@ -2391,14 +2412,6 @@
     "Pug.Other:358500": [
       "if (_priority > priority && textBackground.gameObject.activeSelf)"
     ],
-    "Pug.Other:358760-358765": [
-      "if (menuOptionEffects != null)",
-      "{",
-      "PugTextEffectMenuOption[] array = menuOptionEffects;",
-      "for (int i = 0; i < array.Length; i++)",
-      "{",
-      "array[i].OnSelected();"
-    ],
     "Pug.Other:358974": [
       "public RadicalMenuOption GetSelectedMenuOption()"
     ],
@@ -2515,6 +2528,16 @@
     ],
     "Pug.Other:359690": [
       "public override void OnSelected()"
+    ],
+    "Pug.Other:359697-359704": [
+      "if (menuOptionEffects != null)",
+      "{",
+      "PugTextEffectMenuOption[] array = menuOptionEffects;",
+      "for (int num = 0; num < array.Length; num++)",
+      "{",
+      "array[num].OnSelected();",
+      "}",
+      "}"
     ],
     "Pug.Other:359746": [
       "public virtual bool NavigateInternally(Direction.Id id)"
@@ -2972,12 +2995,26 @@
     "Pug.Other:375488": [
       "public void LeftClick(bool mod1 = false, bool mod2 = false, bool autoActivated = false)"
     ],
+    "Pug.Other:380189": [
+      "public class CharacterData : ISerializationCallbackReceiver"
+    ],
+    "Pug.Other:380275-380277": [
+      "public void OnAfterDeserialize()",
+      "{",
+      "}"
+    ],
+    "Pug.Other:380299": [
+      "public void UpgradeIfOutdated()"
+    ],
     "Pug.Other:380713-380717": [
       "private static bool DecodeJson<T>(byte[] data, T characterData) where T : class",
       "{",
       "try",
       "{",
       "JsonUtility.FromJsonOverwrite(Encoding.UTF8.GetString(data), characterData);"
+    ],
+    "Pug.Other:380739": [
+      "characterData.UpgradeIfOutdated();"
     ],
     "Pug.Other:380743-380751": [
       "public void SetCharacterId(int id)",
@@ -2990,17 +3027,23 @@
       "_characterId = id;",
       "}"
     ],
+    "Pug.Other:380762": [
+      "characterData[_characterId].UpgradeIfOutdated();"
+    ],
     "Pug.Other:380890": [
       "public bool SetObjectAsDiscovered(ObjectDataCD objectData)"
     ],
-    "Pug.Other:381563": [
-      "private void _ClearCharacter(int i)"
+    "Pug.Other:381589": [
+      "characterData[i].UpgradeIfOutdated();"
     ],
     "Pug.Other:381612": [
       "public void WriteCharacter()"
     ],
     "Pug.Other:381617": [
       "public void WriteCharacter(int saveId)"
+    ],
+    "Pug.Other:381686": [
+      "characterData[i].UpgradeIfOutdated();"
     ],
     "Pug.Other:383067": [
       "private void Awake()"
@@ -3153,17 +3196,17 @@
     "Pug.Other:438884": [
       "switch (equipmentUpdateAspect.equipmentSlotCD.ValueRO.slotType)"
     ],
-    "Pug.Other:438887-438893": [
-      "flag6 = ShovelSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);",
-      "break;",
-      "case EquipmentSlotType.PlaceObjectSlot:",
-      "flag6 = PlaceObjectSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);",
-      "break;",
-      "case EquipmentSlotType.EatableSlot:",
-      "flag6 = EatableSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);"
-    ],
     "Pug.Other:438890": [
       "flag6 = PlaceObjectSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);"
+    ],
+    "Pug.Other:438896": [
+      "flag6 = WaterCanSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);"
+    ],
+    "Pug.Other:438908": [
+      "flag6 = PaintToolSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);"
+    ],
+    "Pug.Other:438917": [
+      "flag6 = BucketSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);"
     ],
     "Pug.Other:439560": [
       "public void OnUpdate(ref SystemState state)"
@@ -3684,8 +3727,8 @@
     "PugMod.SDK.Runtime:795": [
       "_patchedMethods[systemType] = list;"
     ],
-    "PugMod.SDK.Runtime:798": [
-      "internal static void PatchManagedSystem(Type systemType, Harmony harmony, bool addCompleteDependencyPatch)"
+    "PugMod.SDK.Runtime:811": [
+      "CreateCompleteDependencyPatch(systemType, harmony, patchedMethods, isManaged: true);"
     ],
     "PugMod.SDK.Runtime:850": [
       "private static void CreateCompleteDependencyPatch(Type systemType, Harmony harmony, List<MethodInfo> patchedMethods, bool isManaged)"
