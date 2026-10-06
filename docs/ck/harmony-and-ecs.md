@@ -906,11 +906,19 @@ triggers no deserialize, and nothing in either tree links it to
 `CharacterData.OnAfterDeserialize`.
 
 **Nothing couples them at the producer — the pairing is the caller's ordering.**
-`OnAfterDeserialize` is Unity's `ISerializationCallbackReceiver` hook: it
-appears once as an explicit call, in the routine that resets a character slot,
-`_ClearCharacter(int i)` (`Pug.Other:381563`); every other invocation comes from
-Unity itself, through `SaveManager.DecodeJson<T>` (`Pug.Other:380713-380717`),
-which runs `JsonUtility.FromJsonOverwrite` over the bytes read for a character.
+`OnAfterDeserialize` is Unity's `ISerializationCallbackReceiver` hook, which
+`CharacterData` implements (`Pug.Other:380189`). Since 1.3 nothing in the game
+calls it explicitly: every invocation comes from Unity itself, through
+`SaveManager.DecodeJson<T>` (`Pug.Other:380713-380717`), which runs
+`JsonUtility.FromJsonOverwrite` over the bytes read for a character. Its body is
+empty (`Pug.Other:380275-380277`). Through 1.2 it carried the save-version
+upgrade and had one explicit caller as well — `_ClearCharacter(int i)`, the
+routine that resets a character slot — so a postfix on it also fired on every
+slot reset. 1.3 moved that work into `CharacterData.UpgradeIfOutdated()`
+(`Pug.Other:380299`), which the game calls explicitly after each character read
+(`Pug.Other:380739`, `Pug.Other:380762`, `Pug.Other:381686`) and at the end of
+`_ClearCharacter` (`Pug.Other:381589`); a postfix on `OnAfterDeserialize` now
+sees the deserialize callbacks and nothing else.
 `SetCharacterId` has four call sites in the client tree. The one the worked
 example is about, `StartGame(int characterID)` (`Pug.Other:360558-360570`), sets
 the id and then immediately triggers the scene load —
