@@ -126,7 +126,8 @@ which is why these records sit at a stride of 12 and not 16, the likelier guess.
 When this section was first written, against 1.2, markers carried **no text** —
 the type enums were the entire vocabulary. The 1.2.1.5 decompile agrees: the
 server's `CreateMapUI` handler creates the marker from a position and a
-variation and sets no name (1.2.1.5 `Pug.Other:397380`–`397389`). The 1.3
+variation and sets no name (1.2.1.5: the `case Command.CreateMapUI` branch of
+`PlayerCommand.ServerSystem.OnUpdate` in `Pug.Other`). The 1.3
 migration adds an empty name only where none exists
 (`Pug.Other:175136-175139`), which leaves room for markers that already had
 one.

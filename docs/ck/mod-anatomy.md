@@ -427,9 +427,10 @@ message points at nothing.
 
 The anchor that works is a Harmony postfix on the player's spawn method that starts a
 coroutine on the player instance. **Since 1.3 that method is `OnSpawn`**, a `protected
-override` on `PlayerController` (`Pug.Other:309491`), which is why it is named by string.
-Through 1.2 it was `OnOccupied` (1.2.1.5 `Pug.Other:298883`); 1.3 moved the spawn logic
-out of it, and `PlayerController` no longer declares `OnOccupied` at all:
+override` on `PlayerController` (`Pug.Other:309491`), which is why it is named by
+string. Through 1.2 it was `OnOccupied` (1.2.1.5: `PlayerController.OnOccupied` in
+`Pug.Other`); 1.3 moved the spawn logic out of it, and `PlayerController` no longer
+declares `OnOccupied` at all:
 
 ```csharp
 [HarmonyPatch(typeof(PlayerController), "OnSpawn")]
