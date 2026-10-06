@@ -91,7 +91,7 @@ and the server trap does not arise.
 **The `AndJobs` variant is the exception — it is not `ISystem`-only.** Both
 branches end in `CreateCompleteDependencyPatch` (`PugMod.SDK.Runtime:850`),
 called from `PatchSystem` (`PugMod.SDK.Runtime:793`, `isManaged: false`) and
-from `PatchManagedSystem` (`PugMod.SDK.Runtime:798`, `isManaged: true`). A
+from `PatchManagedSystem` (`PugMod.SDK.Runtime:811`, `isManaged: true`). A
 managed system therefore gets the same dependency-completing postfix from the
 same flag; only the route to it differs.
 

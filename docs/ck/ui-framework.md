@@ -795,7 +795,7 @@ the static is sandbox-legal) and let the effect drive hover.
 
 **Selection reaches an option through `RadicalMenuOption.OnSelected`**
 (`Pug.Other:359690`): it fires the element-selected event, then its
-`selectionListeners`, then walks `menuOptionEffects` (`Pug.Other:358760-358765`)
+`selectionListeners`, then walks `menuOptionEffects` (`Pug.Other:359697-359704`)
 and calls each effect's own `OnSelected`, which first stops that effect's
 deselection wind-down timers (`Pug.Other:366085-366086`; `OnDeselected` is what
 starts them, `Pug.Other:366096-366097`) and then recolours its `PugText` and any
