@@ -1062,11 +1062,11 @@ the screen that caused it — until a restart.
 Only two paths give glyphs back. `PugText.OnDestroy` is not one of them; it
 releases a material and nothing else (`Pug.Other:367914`).
 
-- **`OnDisable`, when `freeResourcesOnDisable` is set** (`Pug.Other:367943`).
-  It does not free on the spot: it queues the glyphs, and `TextManager` frees
-  the queue in its next `LateUpdate` (`Pug.Other:367945`). A text that is
-  disabled *because* it is being destroyed queues glyphs that are gone by the
-  time the queue is read, and `TextManager` can only log it
+- **`OnDisable`, when `freeResourcesOnDisable` is set** (`Pug.Other:367943`). It
+  does not free on the spot: it queues the glyphs (`Pug.Other:367945`), and
+  `TextManager` frees the queue in its next `LateUpdate` (`Pug.Other:280974`). A
+  text that is disabled *because* it is being destroyed queues glyphs that are
+  gone by the time the queue is read, and `TextManager` can only log it
   (`Pug.Other:280982`).
 - **`Clear()`** frees immediately (`Pug.Other:368431`), and unless called with
   `temporaryClear` or `bypassSetActive` it also deactivates the text's

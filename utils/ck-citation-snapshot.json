@@ -1423,6 +1423,9 @@
       "return fontInfo;",
       "}"
     ],
+    "Pug.Other:280974": [
+      "foreach (SpriteRenderer item in glyphsAwaitingFree)"
+    ],
     "Pug.Other:280982": [
       "UnityEngine.Debug.LogWarning(\"Glyph was destroyed while waiting to be freed.\");"
     ],
