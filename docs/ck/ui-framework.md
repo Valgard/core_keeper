@@ -1531,10 +1531,10 @@ if (Input.GetKeyDown(keyCode) || (!checkOnlyOnPressedDown && Input.GetKey(keyCod
 ```
 
 A held key therefore fires on the press, then again every 0.05 s after a 0.3 s
-delay. Backspace, Delete and the two arrow keys all go through it (`Pug.Other:278600`,
-`Pug.Other:278604`, `Pug.Other:278635`, `Pug.Other:278639`); Return and KeypadEnter pass
-`checkOnlyOnPressedDown: true` (`Pug.Other:278608`), which suppresses the repeat for them
-alone.
+delay. Backspace, Delete, Tab and the two arrow keys all go through it
+(`Pug.Other:278600`, `Pug.Other:278604`, `Pug.Other:278631`, `Pug.Other:278635`,
+`Pug.Other:278639`); Return and KeypadEnter pass `checkOnlyOnPressedDown: true`
+(`Pug.Other:278608`), which suppresses the repeat for them alone.
 
 **So a patch on the typing path that triggers on plain `Input.GetKeyDown` fires
 once while vanilla keeps going.** Hold the arrow key and the caret walks the
@@ -1585,24 +1585,24 @@ running, which is exactly the failure being fixed. The mod's own test has to be
 
 That combination is an over-set of vanilla's per-key condition, because a prefix
 cannot know which branch will claim the frame: it reports ready in frames where
-Backspace (`Pug.Other:278600`), Delete (`Pug.Other:278604`) or the Return branch
-(`Pug.Other:278608`) takes it and no arrow moves at all. Whether the surplus is
-harmless is a property of the patch and not of the game — it is, for one that
-recomputes an absolute target from the current state; it is not for one that
-steps relative to a remembered value, appends, plays a sound, or sends anything,
-where a spurious fire at 20 Hz is its own defect.
+Backspace (`Pug.Other:278600`), Delete (`Pug.Other:278604`), the Return branch
+(`Pug.Other:278608`) or Tab (`Pug.Other:278631`) takes it and no arrow moves at
+all. Whether the surplus is harmless is a property of the patch and not of the
+game — it is, for one that recomputes an absolute target from the current state;
+it is not for one that steps relative to a remembered value, appends, plays a
+sound, or sends anything, where a spurious fire at 20 Hz is its own defect.
 
 **The postfix route removes that surplus for a vanilla install, and it has been
-measured.** The chain holds six `IsKeyDown` calls on five lines —
+measured.** The chain holds seven `IsKeyDown` calls on six lines —
 `Pug.Other:278600`, `Pug.Other:278604`, `Pug.Other:278608` twice, since Return
-and KeypadEnter share a branch, `Pug.Other:278635` and `Pug.Other:278639` — and
-those are the only calls in the assembly. So once Backspace claims the frame the
-arrows are never asked about, and no arrow verdict exists to be surplus. What
-reading could not settle is whether a private method this small survives the
-JIT: inlining is a known Harmony pitfall, and a patch on an inlined callee binds
-cleanly and never fires. Measured in game rather than argued — a postfix on
-`Pug.Other:278689` does fire, first observed call `Backspace -> False`. No mod
-in the installed corpus had patched it before.
+and KeypadEnter share a branch, `Pug.Other:278631` for Tab, `Pug.Other:278635`
+and `Pug.Other:278639` — and those are the only calls in the assembly. So once
+Backspace claims the frame the arrows are never asked about, and no arrow
+verdict exists to be surplus. What reading could not settle is whether a private
+method this small survives the JIT: inlining is a known Harmony pitfall, and a
+patch on an inlined callee binds cleanly and never fires. Measured in game
+rather than argued — a postfix on `Pug.Other:278689` does fire, first observed
+call `Backspace -> False`. No mod in the installed corpus had patched it before.
 
 **"In the assembly" is the load-bearing qualifier, and a mod can break it.**
 BetterTextInput ships an accessor assembly and calls `MenuManager.IsKeyDown` from
