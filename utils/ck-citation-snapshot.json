@@ -47,6 +47,13 @@
     "DedicatedServer/Pug.Other:272213": [
       "Integration.Instance.Update();"
     ],
+    "DedicatedServer/Pug.Other:2752-2756": [
+      "if (ClientWorld != null || ServerWorld != null)",
+      "{",
+      "UnityEngine.Debug.LogError(\"Trying to start new ECS instance without unloading old\");",
+      "UnloadWorldsInternal();",
+      "}"
+    ],
     "DedicatedServer/Pug.Other:2777": [
       "BurstDisabler.AddWorld(allWorld);"
     ],
@@ -56,11 +63,21 @@
     "DedicatedServer/Pug.Other:291009": [
       "if (adminList.adminList.Count == 0 || isLocalPlayer)"
     ],
+    "DedicatedServer/Pug.Other:3022": [
+      "private void UnloadWorldsInternal()"
+    ],
     "DedicatedServer/Pug.Other:3038": [
       "if (ServerWorld != null)"
     ],
     "DedicatedServer/Pug.Other:3046": [
       "BurstDisabler.ResetWorlds();"
+    ],
+    "DedicatedServer/Pug.Other:378856-378857": [
+      "UnityEngine.Debug.LogError(\"Server should start from ServerMain!\");",
+      "Application.Quit();"
+    ],
+    "DedicatedServer/Pug.Other:378867": [
+      "Manager.ecs.StartEcs(startClient: false, serverWorld, frameWorkloadTimer, null);"
     ],
     "DedicatedServer/Pug.Other:450832-450848": [
       "public StandaloneFilesystem(string partition, PlatformInterface platformInterface)",
@@ -101,6 +118,11 @@
     ],
     "Pug.Base:15155": [
       "public List<Variant> variants = new List<Variant>();"
+    ],
+    "Pug.Base:15159-15161": [
+      "if (variants == null || variants.Count == 0)",
+      "{",
+      "return default(Variant);"
     ],
     "Pug.Base:15163": [
       "return variants[Math.Clamp(index, 0, variants.Count - 1)];"
@@ -250,11 +272,11 @@
     "Pug.ECS.Components:3803": [
       "public ulong ghostCollectionHash;"
     ],
+    "Pug.ECS.Components:3815": [
+      "public static uint GetVersionHash(string version)"
+    ],
     "Pug.ECS.Components:3856": [
       "public struct ModInfoRPC : IRpcCommand, IComponentData, IQueryTypeParameter"
-    ],
-    "Pug.ECS.Components:4288": [
-      "}"
     ],
     "Pug.ECS.Components:43908": [
       "public struct PlacementCDGhostComponentSerializer : IGhostSerializer"
@@ -265,6 +287,9 @@
       "",
       "[GhostField]",
       "public int3 positionLastPlacedAt;"
+    ],
+    "Pug.ECS.Components:4465": [
+      "public bool canPlaceGround;"
     ],
     "Pug.ECS.Components:4468": [
       "public bool canPlaceRoofHole;"
@@ -345,12 +370,6 @@
     "Pug.Other:125248": [
       "[BurstCompile]"
     ],
-    "Pug.Other:125770": [
-      ""
-    ],
-    "Pug.Other:127349": [
-      "}"
-    ],
     "Pug.Other:12805": [
       "ecb.AppendToBuffer(entity6, new AddPetExperienceBuffer"
     ],
@@ -360,7 +379,8 @@
     "Pug.Other:129731": [
       "if ((__this.localMods[num].modId != 0L && __this.localMods[num].modId == modInfo.modId) || (__this.localMods[num].modGuid.IsValid && __this.localMods[num].modGuid == modInfo.modGuid))"
     ],
-    "Pug.Other:129738-129739": [
+    "Pug.Other:129737-129739": [
+      "if (modInfo.required && !flag)",
       "{",
       "List<ModCheck> list = __this.modsToCheck;"
     ],
@@ -422,9 +442,6 @@
       "{",
       "localMods.RemoveAt(num);"
     ],
-    "Pug.Other:130214": [
-      ""
-    ],
     "Pug.Other:130225-130244": [
       "if (mod.modId > 0)",
       "{",
@@ -447,8 +464,14 @@
       "{",
       "Callback(mod.modId, mod.modGuid, mod.modName);"
     ],
+    "Pug.Other:130230": [
+      "if (!result.result.Succeeded())"
+    ],
     "Pug.Other:130233": [
       "modName = \"Unknown\";"
+    ],
+    "Pug.Other:130237": [
+      "modName = result.value.name;"
     ],
     "Pug.Other:130659": [
       "[BurstCompile]"
@@ -471,14 +494,35 @@
     "Pug.Other:175113": [
       "if (__query_927245375_1.TryGetSingleton<WorldVersionSerializedCD>(out var value) && value.Version >= 13)"
     ],
+    "Pug.Other:175127": [
+      "if (variation >= 0 && variation <= 3)"
+    ],
     "Pug.Other:175131": [
       "iconAddress = GetDefaultIconForVariation(variation),"
     ],
-    "Pug.Other:175136": [
-      "if (!InternalCompilerInterface.HasComponentAfterCompletingDependency(ref __TypeHandle.__NameSerializedCD_RO_ComponentLookup, ref state, entity2))"
+    "Pug.Other:175135": [
+      "uncheckedRefRW2.ValueRW.Variation = 0;"
+    ],
+    "Pug.Other:175136-175139": [
+      "if (!InternalCompilerInterface.HasComponentAfterCompletingDependency(ref __TypeHandle.__NameSerializedCD_RO_ComponentLookup, ref state, entity2))",
+      "{",
+      "entityCommandBuffer.AddComponent(entity2, default(NameSerializedCD));",
+      "}"
+    ],
+    "Pug.Other:175138": [
+      "entityCommandBuffer.AddComponent(entity2, default(NameSerializedCD));"
+    ],
+    "Pug.Other:175151": [
+      "private static DataBlockAddress GetDefaultIconForVariation(int variation)"
+    ],
+    "Pug.Other:175163": [
+      "private static int GetDefaultVariantForOldVariation(int variation)"
     ],
     "Pug.Other:182314": [
       "if (batchInChunk.DidChange(ObjectData, serializedChunk.ChangeVersion))"
+    ],
+    "Pug.Other:182324": [
+      "Amount = objectDataCD.amount,"
     ],
     "Pug.Other:182635": [
       "EntityTransaction.SetComponentData(entity23, new MapMarkerCustomDataSerializedCD"
@@ -1134,7 +1178,8 @@
       "if (tile.tileType == PugTilemap.TileType.wall)",
       "{"
     ],
-    "Pug.Other:265235-265247": [
+    "Pug.Other:265234-265245": [
+      "if (tile.tileType == PugTilemap.TileType.wall)",
       "{",
       "tileUpdateBuffer.Add(new TileUpdateBuffer",
       "{",
@@ -1145,21 +1190,7 @@
       "tileType = PugTilemap.TileType.roofHole",
       "}",
       "});",
-      "}",
-      "else if (tile.tileType == PugTilemap.TileType.ground)",
-      "{"
-    ],
-    "Pug.Other:270118": [
-      ""
-    ],
-    "Pug.Other:270476": [
       "}"
-    ],
-    "Pug.Other:270480": [
-      "}"
-    ],
-    "Pug.Other:270692": [
-      ""
     ],
     "Pug.Other:272141": [
       "public static NetworkingManager networking => main._networkingManager;"
@@ -1187,13 +1218,6 @@
     ],
     "Pug.Other:274976": [
       "public static Vector3 RoundPosition(Vector3 p, float ppu = 16f)"
-    ],
-    "Pug.Other:2752-2756": [
-      "}",
-      "",
-      "public void OnSceneUnload()",
-      "{",
-      "if (Manager.sceneHandler.isInGame || (Manager.load.GetNameOfNextScene() == \"Title\" && Manager.sceneHandler.isIntro))"
     ],
     "Pug.Other:276069": [
       "public TextInputInterface activeInputField { get; private set; }"
@@ -1243,17 +1267,11 @@
     "Pug.Other:277830": [
       "Type type = component.GetType();"
     ],
-    "Pug.Other:277929": [
-      ""
-    ],
-    "Pug.Other:277953": [
-      "}"
-    ],
     "Pug.Other:278044": [
       "private TimerSimple sfxCooldownTimer = new TimerSimple(0.05f, unscaled: true);"
     ],
-    "Pug.Other:278146": [
-      ""
+    "Pug.Other:278149": [
+      "private TimerSimple typingInputCooldown = new TimerSimple(0.3f, unscaled: true);"
     ],
     "Pug.Other:2782": [
       "if (worldId != -1 && requestedPlayType != ClientServerBootstrap.PlayType.Client)"
@@ -1264,6 +1282,9 @@
     "Pug.Other:278243": [
       "if (!sfxCooldownTimer.isRunning || sfxCooldownTimer.isTimerElapsed)"
     ],
+    "Pug.Other:278246": [
+      "sfxCooldownTimer.Start();"
+    ],
     "Pug.Other:2784": [
       "_allWorlds.Add(CreateServerWorld(\"ServerWorld\", worldId));"
     ],
@@ -1273,17 +1294,8 @@
     "Pug.Other:278418": [
       "List<MenuHelperButtons.HelpButtonTypes> buttonsToShow = (topMenu.UseCustomHelpButtons ? topMenu.GetHelpButtonsToShow() : defaultHelpButtons);"
     ],
-    "Pug.Other:2785": [
-      "}"
-    ],
     "Pug.Other:278500": [
       "if (Manager.input.activeInputField != null && !Manager.input.inputFieldWasSetThisFrame && HandleTypingInput())"
-    ],
-    "Pug.Other:278522": [
-      ""
-    ],
-    "Pug.Other:278535": [
-      ""
     ],
     "Pug.Other:278566": [
       "private bool HandleTypingInput()"
@@ -1301,28 +1313,34 @@
     "Pug.Other:278585": [
       "typingActionWasClicked = false;"
     ],
-    "Pug.Other:278598": [
-      "}"
-    ],
     "Pug.Other:278600": [
       "if (!flag && IsKeyDown(KeyCode.Backspace))"
     ],
     "Pug.Other:278604": [
       "else if (!flag && IsKeyDown(KeyCode.Delete))"
     ],
+    "Pug.Other:278608": [
+      "else if (Manager.input.IsMenuBackButtonDown() || IsKeyDown(KeyCode.Return, checkOnlyOnPressedDown: true) || IsKeyDown(KeyCode.KeypadEnter, checkOnlyOnPressedDown: true))"
+    ],
     "Pug.Other:278624": [
       "Manager.input.activeInputField.Deactivate(!Manager.input.IsMenuBackButtonDown());"
     ],
-    "Pug.Other:278628": [
-      "}"
-    ],
     "Pug.Other:278635": [
       "else if (IsKeyDown(KeyCode.LeftArrow))"
+    ],
+    "Pug.Other:278639": [
+      "else if (IsKeyDown(KeyCode.RightArrow))"
+    ],
+    "Pug.Other:278643": [
+      "else if (!typingActionWasClicked && Manager.input.IsPasteButtonDown())"
     ],
     "Pug.Other:278643-278645": [
       "else if (!typingActionWasClicked && Manager.input.IsPasteButtonDown())",
       "{",
       "Manager.input.activeInputField.AppendString(GUIUtility.systemCopyBuffer);"
+    ],
+    "Pug.Other:278647": [
+      "else if (!typingActionWasClicked && !string.IsNullOrEmpty(Input.inputString))"
     ],
     "Pug.Other:278674": [
       "private void TrySetInputText(bool success, string input)"
@@ -1342,17 +1360,30 @@
       "return false;",
       "}"
     ],
+    "Pug.Other:278691": [
+      "typingActionWasClicked = Input.GetKeyUp(keyCode) || Input.GetKeyDown(keyCode) || Input.GetKey(keyCode) || typingActionWasClicked;"
+    ],
     "Pug.Other:278692": [
       "if (Input.GetKeyDown(keyCode) || (!checkOnlyOnPressedDown && Input.GetKey(keyCode) && (typingInputCooldown.isTimerElapsed || !typingInputCooldown.isRunning)))"
+    ],
+    "Pug.Other:278694": [
+      "typingInputCooldown.Start(Input.GetKeyDown(keyCode) ? 0.3f : 0.05f);"
     ],
     "Pug.Other:278695": [
       "return true;"
     ],
+    "Pug.Other:278849": [
+      "public void SelectOption(UIelement option)"
+    ],
     "Pug.Other:278852": [
       "if (topMenu != null)"
     ],
-    "Pug.Other:278854": [
-      "int indexForOption = topMenu.GetIndexForOption(option);"
+    "Pug.Other:278854-278855": [
+      "int indexForOption = topMenu.GetIndexForOption(option);",
+      "if (indexForOption >= 0)"
+    ],
+    "Pug.Other:278855": [
+      "if (indexForOption >= 0)"
     ],
     "Pug.Other:278857": [
       "topMenu.SelectOptionIndex(indexForOption);"
@@ -1423,8 +1454,8 @@
       "return fontInfo;",
       "}"
     ],
-    "Pug.Other:280974": [
-      "foreach (SpriteRenderer item in glyphsAwaitingFree)"
+    "Pug.Other:280978": [
+      "glyphPool.Free(item);"
     ],
     "Pug.Other:280982": [
       "UnityEngine.Debug.LogWarning(\"Glyph was destroyed while waiting to be freed.\");"
@@ -1447,13 +1478,13 @@
     "Pug.Other:282425": [
       "if (currentSelectedUIElement != null && !currentSelectedUIElement.isMenuOption)"
     ],
-    "Pug.Other:282428": [
-      "}"
+    "Pug.Other:282429": [
+      "currentSelectedUIElement = uiElement;"
     ],
-    "Pug.Other:282434": [
-      "if (currentSelectedUIElement.isMenuOption)"
-    ],
-    "Pug.Other:282437": [
+    "Pug.Other:282434-282437": [
+      "if (currentSelectedUIElement.isMenuOption)",
+      "{",
+      "Manager.menu.SelectOption(currentSelectedUIElement);",
       "}"
     ],
     "Pug.Other:282440": [
@@ -1481,9 +1512,6 @@
       "DirectionCD.RotateTransform(interactableDefaultRotation, interactableDefaultPosition, DirectionBasedOnVariationCD.GetVariationFromDirection(direction.RoundToInt2()), objectInfo.prefabCornerOffset.ToInt2(), objectInfo.prefabTileSize.ToInt2(), out var newOrientation, out var newTranslation);",
       "interactable.transform.SetLocalPositionAndRotation(newTranslation, newOrientation);"
     ],
-    "Pug.Other:285374": [
-      "}"
-    ],
     "Pug.Other:285392": [
       "public void UpdateOutline(OutlineType outlineType, int outlineSubIndex)"
     ],
@@ -1499,6 +1527,9 @@
     "Pug.Other:288994": [
       "string s = JsonUtility.ToJson(modConfigFile, prettyPrint: true);"
     ],
+    "Pug.Other:293821": [
+      "public class NetworkingManager : ManagerBase, INetworkStreamDriverConstructor"
+    ],
     "Pug.Other:294692": [
       "public void InitWorld(World world)"
     ],
@@ -1512,18 +1543,6 @@
     ],
     "Pug.Other:297418": [
       "public bool GetControllerTextInput(string description, int maxChars, string currentText, PlatformInterface.GotControllerTextInput callback, bool hidden = false)"
-    ],
-    "Pug.Other:298883": [
-      "TryToPlayCommand(commandData3, new GeneratedCommandsContainer"
-    ],
-    "Pug.Other:299357": [
-      "}"
-    ],
-    "Pug.Other:3021": [
-      "UnloadWorlds();"
-    ],
-    "Pug.Other:304770": [
-      ""
     ],
     "Pug.Other:305813": [
       "public static void UpdatePlaceablePosition(Entity placementPrefab, ref NativeList<EntityAndInfoFromPlacement> diggableEntityAndInfos, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData)"
@@ -1606,6 +1625,9 @@
     "Pug.Other:308966": [
       "public int adminPrivileges"
     ],
+    "Pug.Other:309027": [
+      "public bool guestMode"
+    ],
     "Pug.Other:309491": [
       "protected override void OnSpawn()"
     ],
@@ -1617,9 +1639,6 @@
     ],
     "Pug.Other:311921": [
       "public static bool CanConsumeEntityInSlot(Entity containedObjectPrefab, ObjectData objectData, int consumedAmount, ComponentLookup<CattleCD> cattleLookup)"
-    ],
-    "Pug.Other:312239": [
-      ""
     ],
     "Pug.Other:312445": [
       "if (PugDatabase.HasComponent<CookedFoodCD>(anyObjectIDReplaceForNameAndDesc))"
@@ -1638,6 +1657,9 @@
     ],
     "Pug.Other:3133": [
       "private void InitWorld(World world)"
+    ],
+    "Pug.Other:314659": [
+      "private static bool AttemptToDealDamageToEnemy(in PlayerAttackAspect playerAttackAspect, in PlayerAttackShared playerAttackShared, in PlayerAttackLookups playerAttackLookups, Entity entityToTakeDamage, float3 entityToTakeDamagePosition, NativeArray<SummarizedConditionsBuffer> conditionsAtHit, NativeArray<SummarizedConditionEffectsBuffer> conditionEffectsAtHit, int damage, bool isRanged, bool isMagic, int manaCost, bool isBeam, bool isExplosive, bool isWoundup, float windupMult, bool shouldKnockback, Vector3 projectileDirection, bool shouldShowHitFeedbackOnHitEntityPart, bool shouldHandleImmuneToDamageOnEntityPart, Entity hitEntityPart, out int attackerHealthChange, out int ownerHealthChange, out int attackerManaChange, out bool gainSkill)"
     ],
     "Pug.Other:314790": [
       "int experienceFromDamage = PetExtensions.GetExperienceFromDamage(damageAfterReduction);"
@@ -1669,8 +1691,364 @@
     "Pug.Other:322706": [
       "public new static bool UpdateEquipment(bool interactHeld, bool secondInteractHeld, in ClientInput clientInput, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData, bool hasItemInMouse)"
     ],
-    "Pug.Other:322723": [
-      ""
+    "Pug.Other:322724": [
+      "private static void PlaceItem(ref NativeList<PlacementHandler.EntityAndInfoFromPlacement> diggableEntityAndInfos, in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)"
+    ],
+    "Pug.Other:322908-323258": [
+      "public class PlaceObjectSlot : EquipmentSlot",
+      "{",
+      "public const float SLOT_COOLDOWN = 0.25f;",
+      "",
+      "public const float PLACE_STOP_DURATION = 0.05f;",
+      "",
+      "public PlacementHandler placementHandler;",
+      "",
+      "protected override EquipmentSlotType slotType => EquipmentSlotType.PlaceObjectSlot;",
+      "",
+      "public static bool UpdateEquipment(bool interactHeld, bool secondInteractHeld, in ClientInput clientInput, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData, bool hasItemInMouse)",
+      "{",
+      "if (clientInput.IsButtonStateSet(CommandInputButtonStateNames.Rotate_Pressed))",
+      "{",
+      "Rotate(in equipmentUpdateAspect, in equipmentUpdateSharedData, in equipmentUpdateLookupData);",
+      "}",
+      "Entity equipmentPrefab = equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab;",
+      "if (equipmentUpdateLookupData.objectPropertiesLookup.TryGetComponent(equipmentPrefab, out var componentData) && componentData.Has(1718179513))",
+      "{",
+      "AlignWithPlayer(in equipmentUpdateAspect, in equipmentUpdateSharedData, in equipmentUpdateLookupData);",
+      "}",
+      "NativeList<PlacementHandler.EntityAndInfoFromPlacement> diggableEntityAndInfos = new NativeList<PlacementHandler.EntityAndInfoFromPlacement>(Allocator.Temp);",
+      "PlacementHandler.UpdatePlaceablePosition(equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab, ref diggableEntityAndInfos, in equipmentUpdateAspect, in equipmentUpdateSharedData, in equipmentUpdateLookupData);",
+      "diggableEntityAndInfos.Dispose();",
+      "if (!secondInteractHeld)",
+      "{",
+      "return false;",
+      "}",
+      "if (hasItemInMouse)",
+      "{",
+      "return false;",
+      "}",
+      "PlaceItem(in equipmentUpdateAspect, equipmentUpdateSharedData, equipmentUpdateLookupData);",
+      "return true;",
+      "}",
+      "",
+      "private static void PlaceItem(in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)",
+      "{",
+      "ref PlacementCD valueRW = ref equipmentUpdateAspect.placementCD.ValueRW;",
+      "if (!valueRW.canPlaceObject)",
+      "{",
+      "return;",
+      "}",
+      "ObjectDataCD objectDataCD = equipmentUpdateAspect.equippedObjectCD.ValueRO.containedObject.objectData;",
+      "ref PugDatabase.EntityObjectInfo entityObjectInfo = ref PugDatabase.GetEntityObjectInfo(objectDataCD.objectID, equipmentUpdateSharedData.databaseBank.databaseBankBlob, objectDataCD.variation);",
+      "bool flag = entityObjectInfo.objectType == ObjectType.Critter;",
+      "int2 prefabCornerOffset = entityObjectInfo.prefabCornerOffset;",
+      "int3 int5 = valueRW.bestPositionToPlaceAt - new int3(prefabCornerOffset.x, 0, prefabCornerOffset.y);",
+      "Entity equipmentPrefab = equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab;",
+      "if (!CanPlaceItem(equipmentPrefab, ref entityObjectInfo, int5, in equipmentUpdateAspect, in equipmentUpdateSharedData, in equipmentUpdateLookupData))",
+      "{",
+      "return;",
+      "}",
+      "int3 int6 = int5;",
+      "if (valueRW.timeSincePlaced.isRunning && valueRW.timeSincePlaced.GetElapsedSeconds(equipmentUpdateSharedData.currentTick, equipmentUpdateSharedData.tickRate) < 1f && math.all(int6 == valueRW.positionLastPlacedAt) && !IsPlacingWallAfterPreviouslyPlacedGround(in valueRW, ref entityObjectInfo))",
+      "{",
+      "UnityEngine.Debug.LogWarning(\"Trying to place in same spot or the same entity too quick, gotta wait for server.\");",
+      "return;",
+      "}",
+      "if (!flag)",
+      "{",
+      "valueRW.timeSincePlaced.Start(equipmentUpdateSharedData.currentTick);",
+      "}",
+      "float3 float5 = float3.zero;",
+      "ObjectDataCD objectDataCD2 = equipmentUpdateAspect.equippedObjectCD.ValueRO.containedObject.objectData;",
+      "valueRW.positionLastPlacedAt = int6;",
+      "if (!PlayerController.CanConsumeEntityInSlot(equipmentPrefab, objectDataCD2, 1, equipmentUpdateLookupData.cattleLookup))",
+      "{",
+      "return;",
+      "}",
+      "if (!equipmentUpdateSharedData.worldInfoCD.IsWorldModeEnabled(WorldMode.Creative) && entityObjectInfo.objectType != ObjectType.PlaceablePrefab && entityObjectInfo.objectType != ObjectType.Critter && entityObjectInfo.objectType != ObjectType.TrainingDummy && !equipmentUpdateLookupData.cattleLookup.HasComponent(equipmentPrefab) && !equipmentUpdateLookupData.mountLookup.HasComponent(equipmentPrefab))",
+      "{",
+      "UnityEngine.Debug.LogError(\"Tried to consume an item that is not a placeable prefab or critter or training dummy and we're not a creative mode character, aborting\");",
+      "return;",
+      "}",
+      "ref PugDatabase.EntityObjectInfo entityObjectInfo2 = ref PugDatabase.GetEntityObjectInfo(objectDataCD2.objectID, equipmentUpdateSharedData.databaseBank.databaseBankBlob, objectDataCD2.variation);",
+      "float2 float6 = (float2)entityObjectInfo2.prefabTileSize / 2f;",
+      "float3 float7 = new float3(float6.x - 0.5f, 0f, float6.y - 0.5f);",
+      "float3 positionToPlaceAt = valueRW.bestPositionToPlaceAt + float7;",
+      "if (valueRW.rotationVariationToPlace > 0)",
+      "{",
+      "DirectionCD.RotateTransform(quaternion.identity, float7, valueRW.rotationVariationToPlace, entityObjectInfo2.prefabCornerOffset, entityObjectInfo2.prefabTileSize, out var _, out var newTranslation);",
+      "positionToPlaceAt = valueRW.bestPositionToPlaceAt + newTranslation;",
+      "}",
+      "equipmentUpdateAspect.placeObjectStateCD.ValueRW.positionToPlaceAt = positionToPlaceAt;",
+      "equipmentUpdateAspect.playerStateCD.ValueRW.PushState(PlayerStateEnum.PlaceObject);",
+      "float cooldown = (equipmentUpdateLookupData.godModeLookup.IsComponentEnabled(equipmentUpdateAspect.entity) ? 0.15f : 0.25f);",
+      "EquipmentSlot.StartCooldownForItem(in equipmentUpdateAspect, equipmentUpdateSharedData, equipmentUpdateLookupData, cooldown);",
+      "float3 float8 = valueRW.bestPositionToPlaceAt;",
+      "bool critterDamageKillEvenIfSquashBugsIsOff = true;",
+      "float3 position = equipmentUpdateLookupData.localTransformLookup[equipmentUpdateAspect.entity].Position;",
+      "TileAccessor tileAccessor = equipmentUpdateSharedData.tileAccessor;",
+      "if (equipmentUpdateLookupData.tileLookup.HasComponent(equipmentPrefab))",
+      "{",
+      "PugTilemap.TileType tileTypeToPlace = GetTileTypeToPlace(int5, ref entityObjectInfo, in equipmentUpdateSharedData.tileAccessor, in equipmentUpdateSharedData.tileWithTilesetToObjectDataMapCD);",
+      "DynamicBuffer<TileUpdateBuffer> tileUpdateBuffer = equipmentUpdateLookupData.tileUpdateBufferLookup[equipmentUpdateSharedData.tileUpdateBufferEntity];",
+      "EntityUtility.AddTile(entityObjectInfo.tileset, tileTypeToPlace, new int2(int5.x, int5.z), equipmentUpdateSharedData.worldInfoCD.IsWorldModeEnabled(WorldMode.Creative), tileUpdateBuffer);",
+      "equipmentUpdateLookupData.inventoryUpdateBuffer[equipmentUpdateSharedData.inventoryUpdateBufferEntity].Add(new InventoryChangeBuffer",
+      "{",
+      "inventoryChangeData = Create.ConsumeEntityAt(equipmentUpdateAspect.entity, equipmentUpdateAspect.equippedObjectCD.ValueRO.equippedSlotIndex, 1, destroy: true, equipmentUpdateLookupData.godModeLookup.IsComponentEnabled(equipmentUpdateAspect.entity), position, objectDataCD2.variation),",
+      "playerEntity = equipmentUpdateAspect.entity",
+      "});",
+      "valueRW.previouslyPlacedTileType = tileTypeToPlace;",
+      "}",
+      "else",
+      "{",
+      "float3 float9 = new float3(int5.x, 0f, int5.z);",
+      "if (!equipmentUpdateLookupData.objectPropertiesLookup.TryGetComponent(equipmentPrefab, out var componentData))",
+      "{",
+      "UnityEngine.Debug.LogError(\"tried to place an item without object properties\");",
+      "return;",
+      "}",
+      "componentData.TryGet<int>(245919617, out valueRW.currentPrefabVariation);",
+      "DynamicBuffer<AdaptiveEntityBuffer> bufferData;",
+      "ObjectPropertiesCD componentData2;",
+      "int value;",
+      "if (flag)",
+      "{",
+      "valueRW.currentPrefabVariation = 1;",
+      "}",
+      "else if (equipmentUpdateLookupData.adaptiveEntityBufferLookup.TryGetBuffer(equipmentPrefab, out bufferData))",
+      "{",
+      "if (bufferData.IsCreated && bufferData.Length > 0)",
+      "{",
+      "int2 int7 = float9.RoundToInt2();",
+      "TileCD top = tileAccessor.GetTop(int7 + AdjacentDir.GetInt2(1));",
+      "TileCD top2 = tileAccessor.GetTop(int7 + AdjacentDir.GetInt2(16));",
+      "TileCD top3 = tileAccessor.GetTop(int7 + AdjacentDir.GetInt2(64));",
+      "TileCD top4 = tileAccessor.GetTop(int7 + AdjacentDir.GetInt2(4));",
+      "PlacementHandler.AdaptiveVariationCanBePlaced(valueRW.currentPrefabVariation, out valueRW.currentPrefabVariation, bufferData, top, top2, top3, top4);",
+      "}",
+      "}",
+      "else if (valueRW.placeObjectOnWall)",
+      "{",
+      "bool variationZeroIsNoDirection = componentData.IsValid && componentData.Has(-377237680);",
+      "valueRW.currentPrefabVariation = DirectionBasedOnVariationCD.GetVariationFromDirection(valueRW.wallSideToPlaceObject, variationZeroIsNoDirection);",
+      "float9 += valueRW.wallSideToPlaceObject.ToFloat3();",
+      "}",
+      "else if (equipmentUpdateLookupData.directionBasedOnVariationLookup.HasComponent(equipmentPrefab))",
+      "{",
+      "valueRW.currentPrefabVariation = valueRW.rotationVariationToPlace;",
+      "}",
+      "else if (equipmentUpdateLookupData.objectPropertiesLookup.TryGetComponent(equipmentPrefab, out componentData2) && componentData2.TryGet<int>(1273594437, out value))",
+      "{",
+      "critterDamageKillEvenIfSquashBugsIsOff = false;",
+      "if (value > 0)",
+      "{",
+      "float num = 3f + (float)equipmentUpdateLookupData.summarizedConditionsBufferLookup[equipmentUpdateAspect.entity][126].value;",
+      "if (num > 0f)",
+      "{",
+      "float num2 = equipmentUpdateAspect.randomCD.ValueRW.Value.NextFloat();",
+      "float num3 = num / 100f;",
+      "if (num2 < num3)",
+      "{",
+      "valueRW.currentPrefabVariation = value;",
+      "}",
+      "}",
+      "}",
+      "}",
+      "if (PlacementHandler.ObjectCanBeRotated(equipmentPrefab, equipmentUpdateLookupData.directionBasedOnVariationLookup, equipmentUpdateLookupData.objectPropertiesLookup, equipmentUpdateLookupData.directionLookup) && PlacementHandler.ShouldRotatePhysics(equipmentPrefab, equipmentUpdateLookupData.directionLookup))",
+      "{",
+      "float5 = DirectionBasedOnVariationCD.GetDirectionFromVariation(valueRW.rotationVariationToPlace).ToFloat3();",
+      "}",
+      "else if (PlacementHandler.ObjectCanBeToggledToNewNonRotationOption(equipmentPrefab, equipmentUpdateLookupData.objectPropertiesLookup))",
+      "{",
+      "valueRW.currentPrefabVariation = valueRW.nonRotationVariationToPlace;",
+      "}",
+      "int amount = 1;",
+      "if (entityObjectInfo2.objectType == ObjectType.Creature)",
+      "{",
+      "amount = objectDataCD2.amount;",
+      "valueRW.currentPrefabVariation = objectDataCD2.variation;",
+      "}",
+      "bool flag2 = equipmentUpdateLookupData.godModeLookup.IsComponentEnabled(equipmentUpdateAspect.entity);",
+      "if (!flag2 && equipmentUpdateLookupData.hasExplodedLookup.HasComponent(equipmentPrefab) && !equipmentUpdateLookupData.proximityTriggerLookup.HasComponent(equipmentPrefab) && !equipmentUpdateLookupData.electricityLookup.HasComponent(equipmentPrefab))",
+      "{",
+      "float num4 = equipmentUpdateAspect.randomCD.ValueRW.Value.NextFloat();",
+      "int value2 = equipmentUpdateLookupData.summarizedConditionsBufferLookup[equipmentUpdateAspect.entity][305].value;",
+      "flag2 = num4 < (float)value2 / 100f;",
+      "}",
+      "equipmentUpdateLookupData.inventoryUpdateBuffer[equipmentUpdateSharedData.inventoryUpdateBufferEntity].Add(new InventoryChangeBuffer",
+      "{",
+      "inventoryChangeData = Create.ConsumeEntityAt(equipmentUpdateAspect.entity, equipmentUpdateAspect.equippedObjectCD.ValueRO.equippedSlotIndex, amount, destroy: false, flag2, float9, valueRW.currentPrefabVariation, float5),",
+      "playerEntity = equipmentUpdateAspect.entity",
+      "});",
+      "}",
+      "if (!flag)",
+      "{",
+      "int2 prefabTileSize = entityObjectInfo.prefabTileSize;",
+      "float3 float10 = valueRW.bestPositionToPlaceAt + new float3(prefabTileSize.x, 0f, prefabTileSize.y) / 2f - new float3(0.5f, 0f, 0.5f);",
+      "float3 critterDamageSize = new float3(prefabTileSize.x, 1f, prefabTileSize.y);",
+      "equipmentUpdateAspect.dealDamageToEntityBuffer.Add(new DealDamageToEntityBuffer",
+      "{",
+      "attackType = DealDamageToEntityBuffer.AttackType.CritterDamage,",
+      "hitPosition = float10,",
+      "optionalFromPosition = float10,",
+      "critterDamageSize = critterDamageSize,",
+      "critterDamageCanDamageFlying = true,",
+      "critterDamageKillEvenIfSquashBugsIsOff = critterDamageKillEvenIfSquashBugsIsOff",
+      "});",
+      "}",
+      "if (entityObjectInfo.tileType != PugTilemap.TileType.none)",
+      "{",
+      "DynamicBuffer<GhostEffectEventBuffer> ghostEffectEventBuffer = equipmentUpdateAspect.ghostEffectEventBuffer;",
+      "ref GhostEffectEventBufferPointerCD valueRW2 = ref equipmentUpdateAspect.ghostEffectEventBufferPointerCD.ValueRW;",
+      "GhostEffectEventBuffer item = new GhostEffectEventBuffer",
+      "{",
+      "Tick = equipmentUpdateSharedData.currentTick,",
+      "value = new EffectEventCD",
+      "{",
+      "effectID = EffectID.PlaceTile,",
+      "position1 = float8,",
+      "value1 = (int)entityObjectInfo.tileType",
+      "}",
+      "};",
+      "ghostEffectEventBuffer.AddToRingBuffer(ref valueRW2, in item);",
+      "}",
+      "else if (flag)",
+      "{",
+      "DynamicBuffer<GhostEffectEventBuffer> ghostEffectEventBuffer2 = equipmentUpdateAspect.ghostEffectEventBuffer;",
+      "ref GhostEffectEventBufferPointerCD valueRW3 = ref equipmentUpdateAspect.ghostEffectEventBufferPointerCD.ValueRW;",
+      "GhostEffectEventBuffer item = new GhostEffectEventBuffer",
+      "{",
+      "Tick = equipmentUpdateSharedData.currentTick,",
+      "value = new EffectEventCD",
+      "{",
+      "effectID = EffectID.PlaceCritter,",
+      "position1 = float8 - new float3(0f, 0.5f, 0f)",
+      "}",
+      "};",
+      "ghostEffectEventBuffer2.AddToRingBuffer(ref valueRW3, in item);",
+      "}",
+      "else",
+      "{",
+      "DynamicBuffer<GhostEffectEventBuffer> ghostEffectEventBuffer3 = equipmentUpdateAspect.ghostEffectEventBuffer;",
+      "ref GhostEffectEventBufferPointerCD valueRW4 = ref equipmentUpdateAspect.ghostEffectEventBufferPointerCD.ValueRW;",
+      "GhostEffectEventBuffer item = new GhostEffectEventBuffer",
+      "{",
+      "Tick = equipmentUpdateSharedData.currentTick,",
+      "value = new EffectEventCD",
+      "{",
+      "effectID = EffectID.PlaceObject,",
+      "position1 = float8,",
+      "value1 = (int)entityObjectInfo.objectID,",
+      "vector1 = float5",
+      "}",
+      "};",
+      "ghostEffectEventBuffer3.AddToRingBuffer(ref valueRW4, in item);",
+      "}",
+      "}",
+      "",
+      "private static bool CanPlaceItem(Entity placementPrefab, ref PugDatabase.EntityObjectInfo objectToPlaceInfo, int3 pos, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData)",
+      "{",
+      "ref PlacementCD valueRW = ref equipmentUpdateAspect.placementCD.ValueRW;",
+      "if (!equipmentUpdateLookupData.tileLookup.HasComponent(placementPrefab))",
+      "{",
+      "valueRW.tilePlacementTimer.Stop(equipmentUpdateSharedData.currentTick);",
+      "return true;",
+      "}",
+      "PugTilemap.TileType tileTypeToPlace = GetTileTypeToPlace(pos, ref objectToPlaceInfo, in equipmentUpdateSharedData.tileAccessor, in equipmentUpdateSharedData.tileWithTilesetToObjectDataMapCD);",
+      "int num;",
+      "if (!equipmentUpdateAspect.clientInput.ValueRO.IsButtonStateSet(CommandInputButtonStateNames.SecondInteract_Pressed) && (tileTypeToPlace == PugTilemap.TileType.wall || tileTypeToPlace == PugTilemap.TileType.ground) && (tileTypeToPlace != PugTilemap.TileType.wall || valueRW.previouslyPlacedTileType != PugTilemap.TileType.wall) && (tileTypeToPlace != PugTilemap.TileType.ground || valueRW.previouslyPlacedTileType != PugTilemap.TileType.ground) && valueRW.tilePlacementTimer.isRunning)",
+      "{",
+      "num = (valueRW.tilePlacementTimer.IsTimerElapsed(equipmentUpdateSharedData.currentTick) ? 1 : 0);",
+      "if (num == 0)",
+      "{",
+      "goto IL_00ca;",
+      "}",
+      "}",
+      "else",
+      "{",
+      "num = 1;",
+      "}",
+      "valueRW.tilePlacementTimer.Start(equipmentUpdateSharedData.currentTick, 0.65f, equipmentUpdateSharedData.tickRate);",
+      "goto IL_00ca;",
+      "IL_00ca:",
+      "return (byte)num != 0;",
+      "}",
+      "",
+      "private static PugTilemap.TileType GetTileTypeToPlace(int3 pos, ref PugDatabase.EntityObjectInfo objectToPlaceInfo, in TileAccessor tileAccessor, in TileWithTilesetToObjectDataMapCD tileWithTilesetToObjectDataMapCD)",
+      "{",
+      "int2 worldPosition = pos.ToInt2();",
+      "if (objectToPlaceInfo.tileType == PugTilemap.TileType.wall && !tileAccessor.HasType(worldPosition, PugTilemap.TileType.ground) && !tileAccessor.HasType(worldPosition, PugTilemap.TileType.bridge) && PugDatabase.TryGetTileItemInfo(PugTilemap.TileType.ground, (Tileset)objectToPlaceInfo.tileset, in tileWithTilesetToObjectDataMapCD).objectID != ObjectID.None)",
+      "{",
+      "return PugTilemap.TileType.ground;",
+      "}",
+      "return objectToPlaceInfo.tileType;",
+      "}",
+      "",
+      "private static bool IsPlacingWallAfterPreviouslyPlacedGround(in PlacementCD placementCD, ref PugDatabase.EntityObjectInfo objectToPlaceInfo)",
+      "{",
+      "if (placementCD.previouslyPlacedTileType == PugTilemap.TileType.ground)",
+      "{",
+      "return objectToPlaceInfo.tileType == PugTilemap.TileType.wall;",
+      "}",
+      "return false;",
+      "}",
+      "",
+      "public static void Rotate(in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData)",
+      "{",
+      "if (PlacementHandler.ObjectCanBeRotated(equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab, equipmentUpdateLookupData.directionBasedOnVariationLookup, equipmentUpdateLookupData.objectPropertiesLookup, equipmentUpdateLookupData.directionLookup))",
+      "{",
+      "ref PlacementCD valueRW = ref equipmentUpdateAspect.placementCD.ValueRW;",
+      "valueRW.rotationVariationToPlace = (valueRW.rotationVariationToPlace + 1) % 4;",
+      "}",
+      "else if (PlacementHandler.ObjectCanBeToggledToNewNonRotationOption(equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab, equipmentUpdateLookupData.objectPropertiesLookup))",
+      "{",
+      "int value = 0;",
+      "if (equipmentUpdateLookupData.objectPropertiesLookup.TryGetComponent(equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab, out var componentData))",
+      "{",
+      "componentData.TryGet<int>(-1876849774, out value);",
+      "}",
+      "ref PlacementCD valueRW2 = ref equipmentUpdateAspect.placementCD.ValueRW;",
+      "valueRW2.nonRotationVariationToPlace = (valueRW2.nonRotationVariationToPlace + 1) % value;",
+      "}",
+      "}",
+      "",
+      "public static void AlignWithPlayer(in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData)",
+      "{",
+      "if (PlacementHandler.ObjectCanBeRotated(equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab, equipmentUpdateLookupData.directionBasedOnVariationLookup, equipmentUpdateLookupData.objectPropertiesLookup, equipmentUpdateLookupData.directionLookup))",
+      "{",
+      "ref PlacementCD valueRW = ref equipmentUpdateAspect.placementCD.ValueRW;",
+      "Direction facingDirection = equipmentUpdateAspect.animationOrientationCD.ValueRO.facingDirection;",
+      "valueRW.rotationVariationToPlace = DirectionBasedOnVariationCD.GetVariationFromDirection(new int2((int)facingDirection.vec2.x, (int)facingDirection.vec2.y));",
+      "}",
+      "}",
+      "",
+      "public override void OnFree()",
+      "{",
+      "placementHandler.Disable();",
+      "base.OnFree();",
+      "}",
+      "",
+      "public override void OnEquip(PlayerController player)",
+      "{",
+      "placementHandler.Enable();",
+      "base.OnEquip(player);",
+      "}",
+      "",
+      "public override void OnUnequip(PlayerController player)",
+      "{",
+      "placementHandler.Disable();",
+      "base.OnUnequip(player);",
+      "}",
+      "",
+      "public override void OnPickUp(PlayerController player, bool fireSceneEvent)",
+      "{",
+      "base.OnPickUp(player, fireSceneEvent);",
+      "placementHandler.Disable();",
+      "}",
+      "}"
+    ],
+    "Pug.Other:322932": [
+      "if (!secondInteractHeld)"
     ],
     "Pug.Other:322936": [
       "if (hasItemInMouse)"
@@ -1720,8 +2098,8 @@
     "Pug.Other:323007": [
       "inventoryChangeData = Create.ConsumeEntityAt(equipmentUpdateAspect.entity, equipmentUpdateAspect.equippedObjectCD.ValueRO.equippedSlotIndex, 1, destroy: true, equipmentUpdateLookupData.godModeLookup.IsComponentEnabled(equipmentUpdateAspect.entity), position, objectDataCD2.variation),"
     ],
-    "Pug.Other:323013": [
-      "{"
+    "Pug.Other:323012": [
+      "else"
     ],
     "Pug.Other:323014": [
       "float3 float9 = new float3(int5.x, 0f, int5.z);"
@@ -1780,15 +2158,15 @@
       "}",
       "return objectToPlaceInfo.tileType;"
     ],
-    "Pug.Other:323196-323203": [
-      "",
+    "Pug.Other:323197-323204": [
       "private static bool IsPlacingWallAfterPreviouslyPlacedGround(in PlacementCD placementCD, ref PugDatabase.EntityObjectInfo objectToPlaceInfo)",
       "{",
       "if (placementCD.previouslyPlacedTileType == PugTilemap.TileType.ground)",
       "{",
       "return objectToPlaceInfo.tileType == PugTilemap.TileType.wall;",
       "}",
-      "return false;"
+      "return false;",
+      "}"
     ],
     "Pug.Other:323883": [
       "valueRW.positionLastPlacedAt = x.ToInt3();"
@@ -1798,6 +2176,9 @@
     ],
     "Pug.Other:324286": [
       "public new static bool UpdateEquipment(bool interactHeld, bool secondInteractHeld, in ClientInput clientInput, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData, bool hasItemInMouse)"
+    ],
+    "Pug.Other:324308": [
+      "private static void PlaceItem(ref NativeList<PlacementHandler.EntityAndInfoFromPlacement> entitiesToRemoveByWater, in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)"
     ],
     "Pug.Other:330522-330530": [
       "private void LateUpdate()",
@@ -1812,12 +2193,6 @@
     ],
     "Pug.Other:331603": [
       "int state = activeWorldLabel.GetState();"
-    ],
-    "Pug.Other:332647": [
-      "}"
-    ],
-    "Pug.Other:333956": [
-      ""
     ],
     "Pug.Other:336149-336150": [
       "float num = (float)EntityUtility.GetConditionEffectValue(ConditionEffect.ChanceToGainExtraCookedFood, player.entity, player.world) / 1000f;",
@@ -1878,38 +2253,56 @@
     "Pug.Other:339028": [
       "if (AnyAvailableRecipeInRange(recipes, num3, num3 + 6))"
     ],
+    "Pug.Other:339062": [
+      "if (canCraftBuffer[i].objectID != ObjectID.None)"
+    ],
     "Pug.Other:339830": [
       "public List<TextAndFormatFields> GetHoverStats(ContainedObjectsBuffer containedObject, bool previewReinforced, bool previewUpgraded)"
     ],
-    "Pug.Other:342790": [
-      ""
-    ],
-    "Pug.Other:343567": [
-      "}"
-    ],
-    "Pug.Other:344012": [
-      ""
+    "Pug.Other:344232": [
+      "public override void OnSelected()"
     ],
     "Pug.Other:344250": [
       "lastSelectedPlayerButton.Select();"
     ],
-    "Pug.Other:344286": [
-      "}"
+    "Pug.Other:344288": [
+      "public override bool NavigateInternally(Direction.Id id)"
     ],
     "Pug.Other:344335": [
       "else if (menuType == PlayersListType.UNASSIGN_ADMIN)"
     ],
+    "Pug.Other:344966": [
+      "if (!_iconsPopulated)"
+    ],
     "Pug.Other:345044": [
       "if (!ScriptableData.TryGetDataBlocks(out IReadOnlyList<MapMarkerIconDataBlock> dataBlocks))"
+    ],
+    "Pug.Other:345754": [
+      "UpdateColor();"
     ],
     "Pug.Other:345757": [
       "TryApplyCustomMarkerSprite();"
     ],
+    "Pug.Other:345815": [
+      "UnityEngine.Debug.LogError($\"Failed to resolve MapMarkerIconDataBlock at address {value.iconAddress} for map marker entity {mapMarkerEntity}.\", this);"
+    ],
+    "Pug.Other:345823-345827": [
+      "colorIcon.color = UnityEngine.Color.white;",
+      "}",
+      "if (miniMapColorIcon != null)",
+      "{",
+      "miniMapColorIcon.color = UnityEngine.Color.white;"
+    ],
+    "Pug.Other:346082-346084": [
+      "if (!_freeMarkers.TryPop(out var result))",
+      "{",
+      "result = new MapMarker(UnityEngine.Object.Instantiate(_prefab, _parent));"
+    ],
     "Pug.Other:346255": [
       "private List<MapMarker> _allNonEntityMarkers = new List<MapMarker>();"
     ],
-    "Pug.Other:346258": [
-      ""
+    "Pug.Other:346473": [
+      "return 0.0625f / GetCurrentZoom();"
     ],
     "Pug.Other:346589": [
       "private void ApplyEditToExistingMarker(Entity entity, DataBlockAddress iconAddress, int variantIndex, string markerName)"
@@ -1923,14 +2316,17 @@
     "Pug.Other:347064": [
       "screenCoordinateOffset = screenCoordinateOffset.RoundToMultiple(0.0625f);"
     ],
+    "Pug.Other:347537-347540": [
+      "private void ReturnToPool(MapMarker marker)",
+      "{",
+      "marker.UiElement.mapMarkerEntity = Entity.Null;",
+      "marker.UiElement.player = null;"
+    ],
     "Pug.Other:347582": [
       "private float3 MakePixelPerfectMapPosition(float2 worldPos)"
     ],
     "Pug.Other:347596": [
       "public float2 GetCursorScreenPosition()"
-    ],
-    "Pug.Other:347993": [
-      ""
     ],
     "Pug.Other:348474": [
       "public class ButtonUIElement : UIelement"
@@ -1941,17 +2337,11 @@
     "Pug.Other:348622": [
       "Manager.menu.SelectOption(optionToSelectOnHover);"
     ],
-    "Pug.Other:349859": [
-      "}"
-    ],
     "Pug.Other:350318": [
       "public override bool SelectNextIndex()"
     ],
     "Pug.Other:350323": [
       "public override bool SelectPrevIndex()"
-    ],
-    "Pug.Other:350587": [
-      ""
     ],
     "Pug.Other:351546": [
       "Manager.ecs.StartEcs(startClient: true, -1, frameWorkloadTimer, delegate(bool result)"
@@ -1959,14 +2349,8 @@
     "Pug.Other:352266": [
       "Mods.OnModManagementEvent = (ModManagementEventDelegate)Delegate.Combine(Mods.OnModManagementEvent, new ModManagementEventDelegate(ModManagementEventCallback));"
     ],
-    "Pug.Other:352413": [
-      "}"
-    ],
     "Pug.Other:352415": [
       "private void OpenModUI()"
-    ],
-    "Pug.Other:352514": [
-      "}"
     ],
     "Pug.Other:352616": [
       "helpButtonToGameObject.Add(HelpButtonTypes.RESET_DEFAULTS, resetDefaults);"
@@ -1992,40 +2376,40 @@
     "Pug.Other:354903": [
       "switch (_sourceType)"
     ],
-    "Pug.Other:356924": [
-      "}"
-    ],
     "Pug.Other:357044": [
       "public class RadicalOptionsMenuOption_Slider : RadicalPauseMenuOption"
     ],
     "Pug.Other:358090": [
       "public class PopUpOption : RadicalMenuOption"
     ],
+    "Pug.Other:358227": [
+      "protected override void Update()"
+    ],
     "Pug.Other:358229": [
       "if (_isHoldingToConfirm && (Manager.input.IsMenuInteractButtonPressed() || Manager.input.IsMenuMouseInteractButtonPressed()))"
     ],
-    "Pug.Other:358512": [
-      "{"
+    "Pug.Other:358500": [
+      "if (_priority > priority && textBackground.gameObject.activeSelf)"
     ],
-    "Pug.Other:358592": [
-      ""
-    ],
-    "Pug.Other:358760": [
-      "if (menuOptionEffects != null)"
-    ],
-    "Pug.Other:358765": [
+    "Pug.Other:358760-358765": [
+      "if (menuOptionEffects != null)",
+      "{",
+      "PugTextEffectMenuOption[] array = menuOptionEffects;",
+      "for (int i = 0; i < array.Length; i++)",
+      "{",
       "array[i].OnSelected();"
-    ],
-    "Pug.Other:358842": [
-      ""
     ],
     "Pug.Other:358974": [
       "public RadicalMenuOption GetSelectedMenuOption()"
     ],
+    "Pug.Other:359043": [
+      "protected virtual void Awake()"
+    ],
     "Pug.Other:359122": [
       "Manager.menu.AttemptToPlayMenuSfx(SfxID.FIXME_menu_select, 0.6f, 0f, reuse: false);"
     ],
-    "Pug.Other:359146-359158": [
+    "Pug.Other:359145-359158": [
+      "else if (rememberSelectedIndex)",
       "{",
       "if (selectedIndex != MathUtilities.Clamp(selectedIndex, 0, menuOptions.Count - 1))",
       "{",
@@ -2048,9 +2432,6 @@
     ],
     "Pug.Other:359222": [
       "if (menuOptions.Count <= 0)"
-    ],
-    "Pug.Other:359255": [
-      ""
     ],
     "Pug.Other:359256-359276": [
       "public bool SelectOptionIndex(int index)",
@@ -2075,8 +2456,14 @@
       "OnSelectedOptionChanged();",
       "return true;"
     ],
+    "Pug.Other:359258": [
+      "if (!CanChangeIndex())"
+    ],
     "Pug.Other:359262": [
       "if (selectedIndex == index)"
+    ],
+    "Pug.Other:359269": [
+      "previousInternalOption = menuOptions[selectedIndex].GetInternalOption();"
     ],
     "Pug.Other:359273": [
       "selectedIndex = index;"
@@ -2102,6 +2489,9 @@
     "Pug.Other:359485": [
       "public abstract class RadicalMenuOption : UIelement"
     ],
+    "Pug.Other:359500": [
+      "public bool handleNavigationInternally;"
+    ],
     "Pug.Other:359510": [
       "public PugText labelText;"
     ],
@@ -2111,14 +2501,17 @@
     "Pug.Other:359524": [
       "public override bool isMenuOption => true;"
     ],
-    "Pug.Other:359554": [
-      ""
-    ],
-    "Pug.Other:359558": [
+    "Pug.Other:359555-359558": [
+      "public bool IsSelected()",
+      "{",
+      "return parentMenu?.GetSelectedMenuOption() == this;",
       "}"
     ],
     "Pug.Other:359606": [
       "menuOptionEffects = GetComponentsInChildren<PugTextEffectMenuOption>(includeInactive: true);"
+    ],
+    "Pug.Other:359681": [
+      "public virtual void OnPreSelected(UIelement previousInternalOption)"
     ],
     "Pug.Other:359690": [
       "public override void OnSelected()"
@@ -2128,6 +2521,9 @@
     ],
     "Pug.Other:359756": [
       "public override void OnLeftClicked(bool mod1, bool mod2)"
+    ],
+    "Pug.Other:359779": [
+      "private int currentCharIndex;"
     ],
     "Pug.Other:359814-359815": [
       "public int MaxCharactersForOnScreenKeyboard { get; private set; } = 255;",
@@ -2180,32 +2576,29 @@
       "Manager.menu.PushMenu(RadicalMenu.MenuType.CHARACTER_TYPE_SELECTION);",
       "}"
     ],
-    "Pug.Other:362091": [
-      "}"
-    ],
     "Pug.Other:3645": [
       "public class PugDatabasePostConverter : PostConverter"
+    ],
+    "Pug.Other:365357": [
+      "[RequireComponent(typeof(PugText))]"
     ],
     "Pug.Other:365377": [
       "_text = GetComponent<PugText>();"
     ],
-    "Pug.Other:366079": [
+    "Pug.Other:366085-366086": [
+      "jumpCooloff.Stop();",
       "colorCooloff.Stop();"
     ],
-    "Pug.Other:366087": [
-      "base.text.SetTempColor(isValueText ? SELECTED_VALUE_COLOR : SELECTED_TEXT_COLOR);"
-    ],
-    "Pug.Other:366091": [
+    "Pug.Other:366087-366091": [
+      "base.text.SetTempColor(isValueText ? SELECTED_VALUE_COLOR : SELECTED_TEXT_COLOR);",
+      "foreach (SpriteRenderer spriteRenderer in spriteRenderers)",
+      "{",
+      "spriteRenderer.color = (isValueText ? SELECTED_VALUE_COLOR : SELECTED_TEXT_COLOR);",
       "}"
     ],
-    "Pug.Other:366096": [
-      "jumpCooloff.Start();"
-    ],
-    "Pug.Other:366097": [
+    "Pug.Other:366096-366097": [
+      "jumpCooloff.Start();",
       "colorCooloff.Start();"
-    ],
-    "Pug.Other:366644": [
-      "}"
     ],
     "Pug.Other:366892": [
       "public string charset"
@@ -2236,9 +2629,6 @@
     ],
     "Pug.Other:367080": [
       "i += 2;"
-    ],
-    "Pug.Other:367081": [
-      "}"
     ],
     "Pug.Other:367086": [
       "i += 10;"
@@ -2281,7 +2671,14 @@
     "Pug.Other:367218": [
       "dimensions.xMin = 0f + num2;"
     ],
-    "Pug.Other:367258-367260": [
+    "Pug.Other:367223": [
+      "dimensions.xMin = RoundToPixelPerfectPosition.RoundFloat((0f - num7) / 2f) + num2;"
+    ],
+    "Pug.Other:367239": [
+      "dimensions.xMin = 0f - num7 + num2;"
+    ],
+    "Pug.Other:367257-367260": [
+      "if (pooledObj != null)",
       "{",
       "pooledObj.dimensions = dimensions;",
       "}"
@@ -2365,6 +2762,9 @@
       "{",
       "style.horizontalAlignment = PugTextStyle.HorizontalAlignment.right;"
     ],
+    "Pug.Other:367896": [
+      "private void Start()"
+    ],
     "Pug.Other:367914": [
       "private void OnDestroy()"
     ],
@@ -2379,11 +2779,17 @@
     "Pug.Other:367945": [
       "Manager.text.glyphsAwaitingFree.AddRange(glyphs);"
     ],
+    "Pug.Other:367997": [
+      "if (isWrittenToByUser)"
+    ],
     "Pug.Other:367999": [
       "TextManager.FontInfo fontToUseForString = Manager.text.GetFontToUseForString(textString, newFontFace);"
     ],
     "Pug.Other:368009": [
       "else if (!ShouldForceLatinFont() && Manager.text.ShouldUseDynamicFont(newFontFace, localize))"
+    ],
+    "Pug.Other:368031": [
+      "private void SetDynamicFont(TextManager.DynamicFontInfo dynamicFont)"
     ],
     "Pug.Other:368339": [
       "if (string.IsNullOrEmpty(textString))"
@@ -2456,8 +2862,11 @@
     "Pug.Other:368498": [
       "PugTextStyle.VerticalAlignment verticalAlignment = ((displayedTextStringLinesAmount <= 1) ? PugTextStyle.VerticalAlignment.center : style.verticalAlignment);"
     ],
-    "Pug.Other:368519": [
-      "}"
+    "Pug.Other:368520": [
+      "dimensions = new Rect(textBounds.center - textBounds.size / 2f, textBounds.size);"
+    ],
+    "Pug.Other:368521": [
+      "if (trackDynamicTextCharacterEndPositions)"
     ],
     "Pug.Other:368528": [
       "if (textInfo.characterCount > 0)"
@@ -2468,7 +2877,8 @@
     "Pug.Other:3707": [
       "public override void PostConvert(GameObject authoring)"
     ],
-    "Pug.Other:371367-371374": [
+    "Pug.Other:371366-371374": [
+      "protected void Update()",
       "{",
       "UpdateHintText();",
       "Vector2 vector = new Vector2(pugText.transform.position.x, pugText.transform.position.y);",
@@ -2517,8 +2927,11 @@
     "Pug.Other:373472": [
       "Manager.input.touchpadInUse = singleplayerInputModule.WasButtonPressedDownThisFrame(PlayerInput.InputType.TOUCHPAD);"
     ],
-    "Pug.Other:373489": [
-      "}"
+    "Pug.Other:373490": [
+      "if (!flag2 && (flag || flag3 || prevPointerPosition != pointer.localPosition || Manager.ui.currentSelectedUIElement == null || !Manager.ui.currentSelectedUIElement.isVisibleOnScreen || uIelement2 == null))"
+    ],
+    "Pug.Other:373501": [
+      "if (Manager.ui.currentSelectedUIElement is InventorySlotUI inventorySlotUI)"
     ],
     "Pug.Other:373595": [
       "Manager.ui.currentSelectedUIElement?.LeftClick(flag13, flag14);"
@@ -2526,8 +2939,8 @@
     "Pug.Other:373631": [
       "else if (isHoldingAnyEntity && !_releaseGrabbedItemQueued)"
     ],
-    "Pug.Other:373680": [
-      ""
+    "Pug.Other:373681": [
+      "private void TrySelectNewElement(UIelement selectedUIElement, bool interactDownThisFrame)"
     ],
     "Pug.Other:3738": [
       "ObjectInfo objectInfo = component2.ObjectInfo;"
@@ -2559,13 +2972,6 @@
     "Pug.Other:375488": [
       "public void LeftClick(bool mod1 = false, bool mod2 = false, bool autoActivated = false)"
     ],
-    "Pug.Other:378657-378658": [
-      "if (data.triggerEffects != value)",
-      "{"
-    ],
-    "Pug.Other:378673": [
-      "if (data.faceMouseDirection != value)"
-    ],
     "Pug.Other:380713-380717": [
       "private static bool DecodeJson<T>(byte[] data, T characterData) where T : class",
       "{",
@@ -2587,8 +2993,8 @@
     "Pug.Other:380890": [
       "public bool SetObjectAsDiscovered(ObjectDataCD objectData)"
     ],
-    "Pug.Other:381562": [
-      ""
+    "Pug.Other:381563": [
+      "private void _ClearCharacter(int i)"
     ],
     "Pug.Other:381612": [
       "public void WriteCharacter()"
@@ -2596,20 +3002,17 @@
     "Pug.Other:381617": [
       "public void WriteCharacter(int saveId)"
     ],
+    "Pug.Other:383067": [
+      "private void Awake()"
+    ],
     "Pug.Other:383104": [
       "Manager.ecs.StartEcs(startClient: true, Manager.saves.GetWorldId(), frameWorkloadTimer, delegate(bool result)"
-    ],
-    "Pug.Other:397380": [
-      "116, 73, 99, 111, 110, 0, 0, 0, 0, 21,"
     ],
     "Pug.Other:403908": [
       "[ActionIdFieldInfo(categoryName = \"Common actions used in multiple input contexts\", friendlyName = \"UIInteract\")]"
     ],
     "Pug.Other:404182": [
       "public const int OpenProfile = 223;"
-    ],
-    "Pug.Other:409854": [
-      "}"
     ],
     "Pug.Other:410009": [
       "public World World => Manager.ecs.ServerWorld;"
@@ -2623,14 +3026,60 @@
     "Pug.Other:414191": [
       "public void CreateMapUI(float3 worldPosition, int activeUserMapMarkerType)"
     ],
+    "Pug.Other:414572-414581": [
+      "public void EditCustomMapMarker(Entity targetEntity, DataBlockAddress iconAddress, int variantIndex, FixedString64Bytes name = default(FixedString64Bytes))",
+      "{",
+      "Entity entity = base.EntityManager.CreateEntity(mapMarkerRpcArchetype);",
+      "base.EntityManager.SetComponentData(entity, new MapMarkerRpc",
+      "{",
+      "targetEntity = targetEntity,",
+      "iconAddress = iconAddress,",
+      "variantIndex = variantIndex,",
+      "name = name",
+      "});"
+    ],
     "Pug.Other:414855": [
       "private void OriginalLambdaBody(in MapMarkerRpc rpc, in ReceiveRpcCommandRequest rpcSource)"
+    ],
+    "Pug.Other:414862": [
+      "if (rpc.targetEntity == Entity.Null)"
     ],
     "Pug.Other:414865": [
       "Entity e = EntityUtility.CreateEntity(ecb, rpc.position, ObjectID.MapMarker, 1, databaseLocal, out prefabEntity);"
     ],
+    "Pug.Other:414867": [
+      "if (rpc.name.Length > 0)"
+    ],
+    "Pug.Other:414875": [
+      "else if (__MapMarkerCustomDataCD_ComponentLookup.HasComponent(rpc.targetEntity))"
+    ],
+    "Pug.Other:414878-414881": [
+      "ecb.SetComponent(rpc.targetEntity, new NameCD",
+      "{",
+      "Value = rpc.name",
+      "});"
+    ],
+    "Pug.Other:415196-415202": [
+      "if (guestMode)",
+      "{",
+      "Command command = component.command;",
+      "if (command != Command.MapPing && command != Command.RemoveLoginImmunity && command != Command.SetPlayerState && command != Command.UnlockCurrentState && fromEntity.GetAdminLevelOnServer(component2.SourceConnection) <= 0)",
+      "{",
+      "continue;",
+      "}"
+    ],
     "Pug.Other:415199": [
       "if (command != Command.MapPing && command != Command.RemoveLoginImmunity && command != Command.SetPlayerState && command != Command.UnlockCurrentState && fromEntity.GetAdminLevelOnServer(component2.SourceConnection) <= 0)"
+    ],
+    "Pug.Other:415255-415262": [
+      "case Command.CreateMapUI:",
+      "{",
+      "ObjectDataCD objectDataCD = new ObjectDataCD",
+      "{",
+      "objectID = ObjectID.MapMarker,",
+      "variation = component.int0 - 2",
+      "};",
+      "EntityUtility.CreateEntity(ecb, component.position0, objectDataCD.objectID, 1, databaseLocal, out var _, objectDataCD.variation);"
     ],
     "Pug.Other:415472": [
       "ObjectDataCD componentData5 = EntityUtility.GetComponentData<ObjectDataCD>(component.entity0, base.World);"
@@ -2640,6 +3089,9 @@
     ],
     "Pug.Other:415474": [
       "ecb.SetComponent(component.entity0, componentData5);"
+    ],
+    "Pug.Other:415585": [
+      "ServerSystem_4A171A05_LambdaJob_1_Execute(ref ecb, ref databaseLocal);"
     ],
     "Pug.Other:422703": [
       "private static void OpenItemAndSpawnLoot(SpawnsItemsOnUseCD spawnsItemsOnUseCD, StateUpdateAspect stateUpdateAspect, SharedStateUpdateData sharedStateUpdateData, LookupStateUpdateData lookupStateUpdateData)"
@@ -2662,6 +3114,9 @@
     "Pug.Other:427388": [
       "[BurstCompile]"
     ],
+    "Pug.Other:427755": [
+      "private struct ProcessCraftingJob : IJob"
+    ],
     "Pug.Other:427808": [
       "InventoryUtility.Craft(in inventoryHandlerShared, inventories[0], componentData2, inventories, new CanCraftObjectsBuffer"
     ],
@@ -2676,6 +3131,9 @@
     ],
     "Pug.Other:430751": [
       "if (PugDatabase.HasObject(objectId, databaseBankCD.databaseBankBlob))"
+    ],
+    "Pug.Other:437851": [
+      "public class EquipmentSystemGroup : ComponentSystemGroup"
     ],
     "Pug.Other:438077": [
       "public BufferLookup<ContainedObjectsBuffer> containedObjectsBufferLookup;"
@@ -2692,8 +3150,8 @@
     "Pug.Other:438877": [
       "bool flag3 = lookupEquipmentUpdateData.containedObjectsBufferLookup.TryGetBuffer(equipmentUpdateAspect.entity, out bufferData) && lookupEquipmentUpdateData.craftingLookup.TryGetComponent(equipmentUpdateAspect.entity, out componentData) && bufferData.Length > componentData.outputSlotIndex && bufferData[componentData.outputSlotIndex].objectID != ObjectID.None;"
     ],
-    "Pug.Other:438885": [
-      "{"
+    "Pug.Other:438884": [
+      "switch (equipmentUpdateAspect.equipmentSlotCD.ValueRO.slotType)"
     ],
     "Pug.Other:438887-438893": [
       "flag6 = ShovelSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);",
@@ -2709,9 +3167,6 @@
     ],
     "Pug.Other:439560": [
       "public void OnUpdate(ref SystemState state)"
-    ],
-    "Pug.Other:439661": [
-      ""
     ],
     "Pug.Other:439668": [
       "return __TypeHandle.__PlayerEquipment_EquipmentUpdateSystem_UpdateJob_WithDefaultQuery_JobEntityTypeHandle.Schedule(ref job, query, dependency);"
@@ -2757,6 +3212,16 @@
       "data.entity0 = Entity.Null;",
       "if (num != 0 && state.ghostMap.TryGetValue(new SpawnedGhost"
     ],
+    "Pug.Other:454422-454429": [
+      "data.targetEntity = Entity.Null;",
+      "if (num != 0 && state.ghostMap.TryGetValue(new SpawnedGhost",
+      "{",
+      "ghostId = num,",
+      "spawnTick = spawnTick",
+      "}, out var item))",
+      "{",
+      "data.targetEntity = item;"
+    ],
     "Pug.Other:458871-458875": [
       "if (component.interactable != null)",
       "{",
@@ -2782,11 +3247,8 @@
     "Pug.UnityExtensions:5344": [
       "public static int Clamp(int x, int low, int high)"
     ],
-    "Pug.UnityExtensions:7790": [
-      ""
-    ],
-    "Pug.UnityExtensions:7811": [
-      "}"
+    "Pug.UnityExtensions:7848": [
+      "public float lifespan;"
     ],
     "Pug.UnityExtensions:7858-7865": [
       "public float elapsedTime",
@@ -2798,8 +3260,8 @@
       "}",
       "}"
     ],
-    "Pug.UnityExtensions:7874": [
-      ""
+    "Pug.UnityExtensions:7904": [
+      "private void Update()"
     ],
     "Pug.UnityExtensions:7919-7928": [
       "public void Start(bool reset = true)",
@@ -2812,6 +3274,9 @@
       "Update();",
       "isRunning = true;",
       "}"
+    ],
+    "Pug.UnityExtensions:7932": [
+      "lifespan = newLifespan;"
     ],
     "PugConversion:1080-1091": [
       "private void RunConverters(List<int> converterIndices, GameObject gameObject, int objectIndex, int uniqueObjectIndex, Entity entity)",
@@ -2840,8 +3305,7 @@
       "",
       "protected abstract void Convert(T authoring);"
     ],
-    "PugConversion:723-741": [
-      "",
+    "PugConversion:724-742": [
       "public static List<Type> FindAllConvertersInCurrentAssembly()",
       "{",
       "using (_reflectionMarker.Auto())",
@@ -2859,6 +3323,7 @@
       "}",
       "}",
       "return list;",
+      "}",
       "}"
     ],
     "PugConversion:850-889": [
@@ -2989,11 +3454,28 @@
       "UnityEngine.Debug.LogException(exception);",
       "}"
     ],
-    "PugMod.Loader:1570": [
-      "string text2 = text + \".manifest\";"
+    "PugMod.Loader:1570-1581": [
+      "string text2 = text + \".manifest\";",
+      "if (File.Exists(text2))",
+      "{",
+      "foreach (KeyValuePair<string, string> item in GetAssetNameToGUIDMap(text2))",
+      "{",
+      "UnityEngine.Object obj = assetBundle.LoadAsset(item.Key);",
+      "if (obj == null)",
+      "{",
+      "UnityEngine.Debug.Log(\"couldn't load \" + item.Key + \" from asset bundle \" + bundleFile.path);",
+      "continue;",
+      "}",
+      "mod.LoadedAssets.Add(obj);"
     ],
     "PugMod.Loader:158": [
       "bool flag2 = ModVersion.IsCompatible(Application.version, entry.Tags);"
+    ],
+    "PugMod.Loader:1587": [
+      "mod.LoadedAssets.AddRange(assetBundle.LoadAllAssets());"
+    ],
+    "PugMod.Loader:1724": [
+      "Assets = mod.LoadedAssets,"
     ],
     "PugMod.Loader:1798": [
       "List<ModFile> list2 = mod.Metadata.files.FindAll((ModFile x) => x.path.EndsWith(\".cs\"));"
@@ -3006,6 +3488,9 @@
     ],
     "PugMod.Loader:2236": [
       "return CreateRuntimeInstance(type, modId, DataBlockAddress.NewAddress(), overloadExisting: false);"
+    ],
+    "PugMod.Loader:2263": [
+      "_overloadField.SetValue(scriptableDataBlock, new DataBlockRef<ScriptableDataBlock>(address));"
     ],
     "PugMod.Loader:2288": [
       "throw new InvalidOperationException(\"Runtime data blocks must be created before ScriptableData loading starts. Try creating your runtime datablocks in IMod.EarlyInit()\");"
@@ -3098,17 +3583,17 @@
       "select p;",
       "_disallowedTypes = new HashSet<Type>(collection);"
     ],
-    "PugMod.Loader:568": [
-      "}"
-    ],
     "PugMod.Loader:571": [
       "public bool CheckType(Type type)"
     ],
     "PugMod.Loader:580": [
       "UnityEngine.Debug.Log($\"Trying to patch disallowed type {type}\");"
     ],
-    "PugMod.Loader:591": [
-      "return true;"
+    "PugMod.Loader:586": [
+      "UnityEngine.Debug.Log(\"Patching mod loading not allowed\");"
+    ],
+    "PugMod.Loader:609": [
+      "UnityEngine.Debug.Log($\"Trying to patch type {type} from unknown assembly\");"
     ],
     "PugMod.Platform:70": [
       "bool flag2 = ModVersion.IsCompatible(Application.version, subscribedMod.modProfile.tags);"
@@ -3160,11 +3645,11 @@
     "PugMod.SDK.Runtime:706": [
       "DisableBurstForSystemInternal(typeof(T), burstEnabled, addCompleteDependencyPatch: false);"
     ],
-    "PugMod.SDK.Runtime:707": [
-      "}"
-    ],
     "PugMod.SDK.Runtime:709": [
       "public static void DisableBurstForSystemAndJobs<T>(bool burstEnabled = false)"
+    ],
+    "PugMod.SDK.Runtime:711": [
+      "DisableBurstForSystemInternal(typeof(T), burstEnabled, addCompleteDependencyPatch: true);"
     ],
     "PugMod.SDK.Runtime:724": [
       "internal static void DisableBurstForSystemInternal(Type systemType, bool burstEnabled, bool addCompleteDependencyPatch)"
@@ -3199,8 +3684,8 @@
     "PugMod.SDK.Runtime:795": [
       "_patchedMethods[systemType] = list;"
     ],
-    "PugMod.SDK.Runtime:797": [
-      ""
+    "PugMod.SDK.Runtime:798": [
+      "internal static void PatchManagedSystem(Type systemType, Harmony harmony, bool addCompleteDependencyPatch)"
     ],
     "PugMod.SDK.Runtime:850": [
       "private static void CreateCompleteDependencyPatch(Type systemType, Harmony harmony, List<MethodInfo> patchedMethods, bool isManaged)"
@@ -3216,10 +3701,12 @@
       "}",
       "}"
     ],
-    "PugRP:1266": [
-      "public enum OutputMode"
-    ],
-    "PugRP:1271": [
+    "PugRP:1266-1271": [
+      "public enum OutputMode",
+      "{",
+      "Native,",
+      "MatchAspect,",
+      "Fixed",
       "}"
     ],
     "PugRP:1432": [
@@ -3240,23 +3727,99 @@
     "ScriptableData.Addressables:237": [
       "ScriptableData.AddDataBlocksLoader(\"addressables\", new ScriptableDataAddressablesLoader(\"ScriptableDataBlock\"));"
     ],
+    "ScriptableData:1180-1186": [
+      "private static void Reset()",
+      "{",
+      "s_dataBlockSets.Clear();",
+      "s_dataBlockLookup.Clear();",
+      "s_runtimeLists.Clear();",
+      "s_runtimeListsT.Clear();",
+      "s_runtimeLookups.Clear();"
+    ],
     "ScriptableData:1238": [
       "list.Sort();"
     ],
-    "ScriptableData:1341": [
-      "value3 = ProcessOverload(value3, ResolveOverloadRecursive(item3, startingDataBlockAddress, resolvedDataBlocks, dictionary));"
+    "ScriptableData:1264": [
+      "list.Sort();"
+    ],
+    "ScriptableData:1284": [
+      "foreach (var s_dataBlockLoader in s_dataBlockLoaders)"
+    ],
+    "ScriptableData:1327-1330": [
+      "if (!dictionary.TryGetValue(dataBlock.address, out var value4))",
+      "{",
+      "resolvedDataBlocks.Add(dataBlock.address, dataBlock);",
+      "return dataBlock;"
+    ],
+    "ScriptableData:1341-1345": [
+      "value3 = ProcessOverload(value3, ResolveOverloadRecursive(item3, startingDataBlockAddress, resolvedDataBlocks, dictionary));",
+      "}",
+      "}",
+      "UnityEngine.Debug.Log(\"data block \" + dataBlock.name + \" resolved to \" + value3.name);",
+      "resolvedDataBlocks.Add(dataBlock.address, value3);"
+    ],
+    "ScriptableData:1350": [
+      "private static void AddDataBlocksToRuntimeLists(IEnumerable<ScriptableDataBlock> dataBlocks)"
+    ],
+    "ScriptableData:1361-1363": [
+      "if (s_dataBlockLookup.TryGetValue(dataBlock.address, out var value) && (object)value != dataBlock)",
+      "{",
+      "continue;"
+    ],
+    "ScriptableData:1375": [
+      "value3 = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(type));"
+    ],
+    "ScriptableData:1383-1384": [
+      "value4.Add(dataBlock, value2.Count);",
+      "value2.Add(dataBlock);"
+    ],
+    "ScriptableData:1417-1421": [
+      "public static bool TryGetDataBlocks(Type type, out IReadOnlyList<ScriptableDataBlock> dataBlocks)",
+      "{",
+      "List<ScriptableDataBlock> value;",
+      "bool result = s_runtimeLists.TryGetValue(type, out value);",
+      "dataBlocks = value;"
     ],
     "ScriptableData:1430": [
       "bool result = s_runtimeListsT.TryGetValue(typeFromHandle, out value);"
     ],
+    "ScriptableData:1446": [
+      "if (s_runtimeLookups.TryGetValue(type, out var value2))"
+    ],
+    "ScriptableData:1490": [
+      "if (!TryGetDataBlocks(type, out var dataBlocks) || num < 0 || num >= dataBlocks.Count)"
+    ],
+    "ScriptableData:1495": [
+      "dataBlock = dataBlocks[num];"
+    ],
+    "ScriptableData:1526": [
+      "bool result = s_dataBlockLookup.TryGetValue(address, out value);"
+    ],
     "ScriptableData:1648": [
       "public abstract class ScriptableDataBlock : ScriptableObject, IComparable<ScriptableDataBlock>"
     ],
-    "ScriptableData:1703": [
-      "[SerializeField]"
+    "ScriptableData:1703-1706": [
+      "[SerializeField]",
+      "[HideInInspector]",
+      "[FormerlySerializedAs(\"m_guid\")]",
+      "private DataBlockAddress m_address;"
     ],
-    "ScriptableData:34": [
-      "[FieldOffset(0)]"
+    "ScriptableData:1808": [
+      "return m_address.CompareTo(other.m_address);"
+    ],
+    "ScriptableData:34-45": [
+      "[FieldOffset(0)]",
+      "private Guid m_guid;",
+      "",
+      "[FieldOffset(0)]",
+      "[SerializeField]",
+      "[HideInInspector]",
+      "private long m_low;",
+      "",
+      "[FieldOffset(8)]",
+      "[SerializeField]",
+      "[HideInInspector]",
+      "private long m_high;"
     ],
     "ScriptableData:71": [
       "return Guid.NewGuid();"
