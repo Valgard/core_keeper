@@ -197,13 +197,13 @@ A hand-placed marker stores its icon as `MapMarkerCustomDataCD` — an
 entry per colour or form: `largeMapSprite`, `miniMapSprite` and `colorIcon`. An
 index out of range is clamped to the first or last variant rather than failing
 (`Pug.Base:15163`), but an empty or null `variants` list returns a default
-`Variant` (`15159`–`15161`) whose sprites are all null, so a marker using such a
+`Variant` (`Pug.Base:15159-15161`) whose sprites are all null, so a marker using such a
 block is drawn with no sprite at all.
 
 **A mod adds icons by shipping such blocks.** The marker dialog,
 `MapMarkerCustomizationPanel`, builds its icon row from
 `ScriptableData.TryGetDataBlocks<MapMarkerIconDataBlock>` (`Pug.Other:345044`),
-once per panel instance (`344966`), in the order of that list — which is not
+once per panel instance (`Pug.Other:344966`), in the order of that list — which is not
 the order you might expect: see [database and baking](database-and-baking.md#scriptabledata-blocks-addresses-and-order).
 Verified on 1.3.0.2 with five mod-shipped icon assets: they appear in the
 dialog, place, save and survive a restart like vanilla's. A saved marker refers
@@ -217,7 +217,7 @@ last variant (`Pug.Base:15163`).
 **The server stores an icon address without resolving it.** Placing a marker
 sends `CreateCustomMapMarker`; the server's `MapMarkerRpc` handler
 (`Pug.Other:414855`) copies the address and variant into the new entity, created
-with amount 1 (`414865`), and never looks the block up. So a dedicated server
+with amount 1 (`Pug.Other:414865`), and never looks the block up. So a dedicated server
 does not need the mod whose icons its players use. A hosting player is a
 different case: that process is also a client that draws the markers, so the
 host needs the mod to see the icons like any other player. Measured on 1.3.0.2:
@@ -228,11 +228,11 @@ server restarted, and the marker still showed its icon.
 had, and logs an error every frame it is drawn.**
 `MapMarkerUIElement.LateUpdate` calls `TryApplyCustomMarkerSprite` for every
 user marker (`Pug.Other:345757`), which logs `Failed to resolve
-MapMarkerIconDataBlock at address …` and returns (`345815`) without assigning a
+MapMarkerIconDataBlock at address …` and returns (`Pug.Other:345815`) without assigning a
 sprite. The map draws markers through pooled elements: `MarkerPool.GetMarker`
-reuses a returned element before it instantiates a new one (`346082`–`346084`),
+reuses a returned element before it instantiates a new one (`Pug.Other:346082-346084`),
 and `ReturnToPool` clears the element's entity and player but not its sprite
-(`347537`–`347540`). So a freshly instantiated element shows the prefab's
+(`Pug.Other:347537-347540`). So a freshly instantiated element shows the prefab's
 default sprite — `userPlacedMapMarker.prefab` references `map_markers_1`, the
 second tile of the marker sheet `map_markers.png` that 1.2 drew user markers
 from — 1.2's first user marker, a blue diamond on a dark framed square; observed
@@ -240,8 +240,8 @@ on 1.3.0.2 right after launch (map-markers-enhanced, `docs/manual-tests.md`,
 "Without the mod on the client") and on 1.3.0.4 for a mod icon whose mod was
 uninstalled — while a reused one can go on showing the icon of another user
 marker it displayed before. `UpdateColor()` still runs first and tints the
-element's colour renderer in the local player's colour (`345754`), which only
-the resolved path resets to white (`345823`–`345827`) — but in the 1.3.0.2
+element's colour renderer in the local player's colour (`Pug.Other:345754`), which only
+the resolved path resets to white (`Pug.Other:345823-345827`) — but in the 1.3.0.2
 `userPlacedMapMarker.prefab`, read from the extracted resources, both colour
 renderers carry no sprite and no code assigns them one, so the tint has nothing
 visible to colour. That is what players without an icon mod see for markers
@@ -250,18 +250,18 @@ it to look like any one particular icon.
 
 **1.3.0.2 cannot edit a placed marker.** The pieces exist:
 `MapUI.ApplyEditToExistingMarker` (`Pug.Other:346589`) sends
-`EditCustomMapMarker`, and the server handler's `targetEntity` branch (`414875`)
+`EditCustomMapMarker`, and the server handler's `targetEntity` branch (`Pug.Other:414875`)
 updates icon, variant and name of an existing marker. That branch checks only
 that the target carries `MapMarkerCustomDataCD`: it never looks at who sent the
-request, and unlike the command path it has no guest-mode check either (`415585`
+request, and unlike the command path it has no guest-mode check either (`Pug.Other:415585`
 runs it unconditionally), so any client could edit any player's marker it has as
 a ghost. The target travels as a ghost id; one the server cannot map arrives as
-`Entity.Null` (`454422`–`454429`), and the handler then takes its create branch
-(`414862`) and places a new marker at the request's position, which
-`EditCustomMapMarker` never sets (`414572`–`414581`), so at the origin. The edit
-branch also writes the request's name unconditionally (`414878`–`414881`), so an
+`Entity.Null` (`Pug.Other:454422-454429`), and the handler then takes its create branch
+(`Pug.Other:414862`) and places a new marker at the request's position, which
+`EditCustomMapMarker` never sets (`Pug.Other:414572-414581`), so at the origin. The edit
+branch also writes the request's name unconditionally (`Pug.Other:414878-414881`), so an
 edit with an empty name clears the marker's name, where creation sets a name
-only when one is given (`414867`). But nothing calls
+only when one is given (`Pug.Other:414867`). But nothing calls
 `ApplyEditToExistingMarker`, in the client or the dedicated-server build, and
 the game offers no way to reach it — changing a marker means deleting it and
 placing a new one. A mod that wants editing has to open the dialog on an
@@ -294,7 +294,7 @@ green, light cyan, teal, brown, pink, slate blue, yellow.
 Measured on 1.3.0.4 by logging every block that
 `ScriptableData.TryGetDataBlocks<MapMarkerIconDataBlock>` returns, with its
 name, address and each variant's sprite names. The address and the variants are
-serialized fields (`m_address`, `ScriptableData:1703`–`1706`; `variants`,
+serialized fields (`m_address`, `ScriptableData:1703-1706`; `variants`,
 `Pug.Base:15155`), but the extracted block assets carry only the header, because
 the extraction drops the data-block fields — so they cannot supply this. Two
 serialized sources in the extracted resources do record addresses.
@@ -302,11 +302,11 @@ serialized sources in the extracted resources do record addresses.
 icon/variant pairs as `m_low`/`m_high` halves: Dot 2, Question 9, Skull 0, Flag
 3 and Pickaxe 1. And the game's code hard-codes four of them for the markers of
 1.2: in `ConvertOldMapMarkersSystem` of 1.3.0.4 (client), `Pug.Other:175131`
-assigns, `175151` picks the block and `175163` the variant — Dot variant 2,
-Question 9 (yellow question mark), Skull 0 (white skull) and Flag 3 (green
-flag). Cross, Home and Star rest on the probe alone. The Dot-2 pair is 1.3's
-redraw of the first user marker of 1.2, a blue diamond; it is not the fallback
-sprite described above, which is the 1.2 original of the same motif.
+assigns, `Pug.Other:175151` picks the block and `Pug.Other:175163` the variant —
+Dot variant 2, Question 9 (yellow question mark), Skull 0 (white skull) and Flag
+3 (green flag). Cross, Home and Star rest on the probe alone. The Dot-2 pair is
+1.3's redraw of the first user marker of 1.2, a blue diamond; it is not the
+fallback sprite described above, which is the 1.2 original of the same motif.
 
 ## Tile layers: what may sit on what
 

@@ -128,7 +128,7 @@ the type enums were the entire vocabulary. The 1.2.1.5 decompile agrees: the
 server's `CreateMapUI` handler creates the marker from a position and a
 variation and sets no name (1.2.1.5 `Pug.Other:397380`–`397389`). The 1.3
 migration adds an empty name only where none exists
-(`Pug.Other:175136`–`175139`), which leaves room for markers that already had
+(`Pug.Other:175136-175139`), which leaves room for markers that already had
 one.
 
 **Since 1.3 a player's marker carries two more serialized components**, because
@@ -160,19 +160,19 @@ it. A marker the 1.3 client places is prespawned with variation 0
 (`Pug.Other:414865`). That covers markers the vanilla client creates, not every
 1.3 marker: the pre-1.3 path is still in the game, a `CreateMapUI` command
 (`Pug.Other:414191`) whose server handler creates a marker at the variation the
-caller asks for, minus 2 (`415255`–`415262`). Vanilla no longer calls it, but a
+caller asks for, minus 2 (`Pug.Other:415255-415262`). Vanilla no longer calls it, but a
 mod can, and its markers can carry a non-zero variation — except in a
 guest-mode world, where the server drops the command from a player who is not
-an admin (`415196`–`415202`).
+an admin (`Pug.Other:415196-415202`).
 
 **World version 13 converts the old slots once.** `ConvertOldMapMarkersSystem`
 runs while a world is below version 13 (`Pug.Other:175113`) and touches only
-markers with variation 0–3 (`175127`): each gets a
+markers with variation 0–3 (`Pug.Other:175127`): each gets a
 `MapMarkerCustomDataSerializedCD` holding the vanilla icon its slot used to show
-(`GetDefaultIconForVariation`, `175151`; variation 1 becomes the yellow question
+(`GetDefaultIconForVariation`, `Pug.Other:175151`; variation 1 becomes the yellow question
 mark, icon `7e09f30c-8838-5604-2b46-8c13b0ef771e` with variant 9), its variation
-is set to 0 (`175135`), and an empty `NameSerializedCD` is added where none
-exists (`175138`). **`Amount` is not touched** — which is what the next
+is set to 0 (`Pug.Other:175135`), and an empty `NameSerializedCD` is added where none
+exists (`Pug.Other:175138`). **`Amount` is not touched** — which is what the next
 paragraph turns on.
 
 An earlier version of the table above also listed an `Amount` of 0 alongside a
@@ -212,7 +212,7 @@ its releases — read it rather than hardcoding it.
 **A changed `Amount` on an existing marker is saved.** `SerializeObjectJob`
 rewrites `ObjectDataSerializedCD` from the live `ObjectDataCD` in every chunk
 whose `ObjectDataCD` changed since the last save (`Pug.Other:182314`, the
-`Amount` copy at `182324`). Measured on 1.3.0.2: a mod set `Amount` from
+`Amount` copy at `Pug.Other:182324`). Measured on 1.3.0.2: a mod set `Amount` from
 `6016`–`6028` to 1 on those 62 markers on a copy of the world, and a scan of the
 next save found none left at or above 6000.
 

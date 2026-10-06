@@ -373,11 +373,11 @@ foreach (var mod in API.ModLoader.LoadedMods)
 **What `LoadedMod.Assets` holds depends on the bundle's `.manifest`.** When a
 bundle ships with its `.manifest` beside it, as the SDK's build output does, the
 loader reads the asset names from it and calls `LoadAsset(name)` once per entry
-(`PugMod.Loader:1570`–`1581`), and that list is what `Assets` exposes (`1724`).
+(`PugMod.Loader:1570-1581`), and that list is what `Assets` exposes (`PugMod.Loader:1724`).
 `LoadAsset` returns the named asset's main object only, so a sliced sprite sheet
 contributes its `Texture2D` and none of its sprites — measured with a probe mod
 on 1.3.0.2: one asset, no sprite. A bundle without a manifest goes through
-`LoadAllAssets()` instead (`1587`), which includes sub-assets such as those
+`LoadAllAssets()` instead (`PugMod.Loader:1587`), which includes sub-assets such as those
 sprites, and that case is not hypothetical: six installed third-party mods ship
 their bundles without one. Either way the sprites are in the bundle: reach them
 through the bundle handle above, or reference them from an asset that ships in
