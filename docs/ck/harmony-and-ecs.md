@@ -309,15 +309,16 @@ settles the question.
 
 **That table is a measurement, and no derivation has replaced it — one was tried
 and was wrong.** The tempting mechanism is: `StartEcs` is reached from
-`SceneHandler.Awake` (`Pug.Other:383067`, calls at
-`Pug.Other:383104`/`DedicatedServer/Pug.Other:378867` in the server build) while
-`IMod.Init()` comes from `Loader.Update` (`PugMod.Loader:1214`,
-`PugMod.Loader:1216`), so Unity's rule that every `Awake` precedes every
-`Update` fixes the order. **It does not.** `Loader.Update` is reached from two
-places, not one. Both go through `Integration.Instance.Update()` — an
-`IIntegration` interface call that lands on `Loader` only because `Loader :
-IIntegration` — and one of them sits in `Manager.EarlyInit` (`Pug.Other:272276`,
-client build; server `DedicatedServer/Pug.Other:272213`), which is a
+`SceneHandler.Awake` (client `Pug.Other:383067`, calling it at
+`Pug.Other:383104`; server build `DedicatedServer/Pug.Other:378828`, calling it
+at `DedicatedServer/Pug.Other:378867`) while `IMod.Init()` comes from
+`Loader.Update` (`PugMod.Loader:1214`, `PugMod.Loader:1216`), so Unity's rule
+that every `Awake` precedes every `Update` fixes the order. **It does not.**
+`Loader.Update` is reached from two places, not one. Both go through
+`Integration.Instance.Update()` — an `IIntegration` interface call that lands on
+`Loader` only because `Loader : IIntegration` — and one of them sits in
+`Manager.EarlyInit` (`Pug.Other:272276`, client build; server
+`DedicatedServer/Pug.Other:272213`), which is a
 `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]`
 (`Pug.Other:272188` client, `DedicatedServer/Pug.Other:272131` server) and
 therefore runs *before* any scene `Awake`. The other, the MonoBehaviour
