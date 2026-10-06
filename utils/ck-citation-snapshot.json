@@ -57,6 +57,9 @@
     "DedicatedServer/Pug.Other:2777": [
       "BurstDisabler.AddWorld(allWorld);"
     ],
+    "DedicatedServer/Pug.Other:2785": [
+      "Integration.Instance.Update();"
+    ],
     "DedicatedServer/Pug.Other:279188": [
       "Integration.Instance.Update();"
     ],
@@ -90,6 +93,9 @@
     ],
     "DedicatedServer/Pug.Other:378867": [
       "Manager.ecs.StartEcs(startClient: false, serverWorld, frameWorkloadTimer, null);"
+    ],
+    "DedicatedServer/Pug.Other:378872": [
+      "Manager.ecs.StartEcs(startClient: false, 0, frameWorkloadTimer, null);"
     ],
     "DedicatedServer/Pug.Other:450832-450848": [
       "public StandaloneFilesystem(string partition, PlatformInterface platformInterface)",
@@ -499,6 +505,12 @@
     ],
     "Pug.Other:131364": [
       "if (req.ghostCollectionHash != ghostCollectionHash)"
+    ],
+    "Pug.Other:132630": [
+      "[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation, WorldSystemFilterFlags.Default)]"
+    ],
+    "Pug.Other:133037": [
+      "CharacterData characterDataFromSerialized = SaveManager.GetCharacterDataFromSerialized(characterDataEntry.data);"
     ],
     "Pug.Other:135457": [
       "Manager.input.touchpadInUse = inputModule.WasButtonPressedDownThisFrame(PlayerInput.InputType.TOUCHPAD);"
@@ -1444,6 +1456,9 @@
     "Pug.Other:280688": [
       "glyphPool = new PoolSystem(glyphPrefab.gameObject, typeof(SpriteRenderer), base.transform, autoEnable: true, 2048, 10240, 2048, \"TextGlyph\");"
     ],
+    "Pug.Other:2807": [
+      "StartCoroutine(ConvertAuthoringDataRoutine(worldId, frameWorkloadTimer, callback));"
+    ],
     "Pug.Other:280826-280829": [
       "if (!localize)",
       "{",
@@ -1538,6 +1553,9 @@
       "foreach (LanguageDataBlock item in list)",
       "{",
       "i2LanguageData.AddLanguage(item.name, item.ISO6391);"
+    ],
+    "Pug.Other:2859": [
+      "callback?.Invoke();"
     ],
     "Pug.Other:288994": [
       "string s = JsonUtility.ToJson(modConfigFile, prettyPrint: true);"
@@ -3006,12 +3024,30 @@
     "Pug.Other:380299": [
       "public void UpgradeIfOutdated()"
     ],
+    "Pug.Other:380397-380401": [
+      "nonSerialized.discoveredObjects.Clear();",
+      "foreach (DiscoveredObjectData item in discoveredObjects2)",
+      "{",
+      "nonSerialized.discoveredObjects.Add(item);",
+      "}"
+    ],
     "Pug.Other:380713-380717": [
       "private static bool DecodeJson<T>(byte[] data, T characterData) where T : class",
       "{",
       "try",
       "{",
       "JsonUtility.FromJsonOverwrite(Encoding.UTF8.GetString(data), characterData);"
+    ],
+    "Pug.Other:380732-380740": [
+      "public static CharacterData GetCharacterDataFromSerialized(byte[] data)",
+      "{",
+      "CharacterData characterData = new CharacterData();",
+      "if (!DecodeJson(data, characterData))",
+      "{",
+      "return null;",
+      "}",
+      "characterData.UpgradeIfOutdated();",
+      "return characterData;"
     ],
     "Pug.Other:380739": [
       "characterData.UpgradeIfOutdated();"
@@ -3047,6 +3083,10 @@
     ],
     "Pug.Other:383067": [
       "private void Awake()"
+    ],
+    "Pug.Other:383098-383099": [
+      "Manager.saves.SetCharacterId(60);",
+      "Manager.saves.UseCustomCharacterDataProvider(() => File.ReadAllBytes(Application.streamingAssetsPath + \"/BenchmarkData/character.json\"));"
     ],
     "Pug.Other:383104": [
       "Manager.ecs.StartEcs(startClient: true, Manager.saves.GetWorldId(), frameWorkloadTimer, delegate(bool result)"
