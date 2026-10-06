@@ -611,10 +611,14 @@ without firing is the failure this chapter opens with.
 **Trap when picking the overload:** `PlaceObjectSlot` (`Pug.Other:322908-323258`)
 declares exactly *one* `PlaceItem`, the three-argument `(in EquipmentUpdateAspect,
 EquipmentUpdateSharedData, LookupEquipmentUpdateData)` at `Pug.Other:322944`.
-`BucketSlot` (`Pug.Other:321754`) declares one of the same shape at
-`Pug.Other:321778`, and `PaintToolSlot` (`Pug.Other:322702`) one that takes a
-leading `ref NativeList<…>` as well, at `Pug.Other:322724` — so patching by shape
-rather than by owning type can bind the wrong method.
+Five other slot classes declare a `PlaceItem` of their own. `BucketSlot`'s
+(`Pug.Other:321778`) has the very same parameter list, and `FishingRodSlot`'s
+(`Pug.Other:322332`) differs only in taking the last two by `in` as well;
+`PaintToolSlot`, `SeederSlot` and `WaterCanSlot` add a leading `ref
+NativeList<PlacementHandler.EntityAndInfoFromPlacement>` (`Pug.Other:322724`,
+`Pug.Other:323802`, `Pug.Other:324308`). A patch that picks its target by method
+name rather than by owning type can therefore bind any of the six, and one that
+picks by parameter shape can still bind `BucketSlot`'s.
 
 **Those are subclasses, and that costs you coverage rather than merely risking a
 mis-bind.** `BucketSlot`, `PaintToolSlot` and `WaterCanSlot`
@@ -625,10 +629,10 @@ own: `UpdateEquipment` as `public new static`, shadowing the base's
 `private static`, as the base's own is (`Pug.Other:321778`, `Pug.Other:322724`,
 `Pug.Other:324308`). Because these are statics there is no virtual dispatch to
 carry a patch across — the caller names the class outright, one branch per slot
-type (`Pug.Other:438887-438893`) — so the "sole caller" relation above holds for
-each class separately. A patch on `PlaceObjectSlot.PlaceItem` therefore covers
-neither bucket, paint-tool nor watering-can placement. Patch each class you
-actually mean to cover.
+type (`Pug.Other:438896`, `Pug.Other:438908`, `Pug.Other:438917`) — so the "sole
+caller" relation above holds for each class separately. A patch on
+`PlaceObjectSlot.PlaceItem` therefore covers neither bucket, paint-tool nor
+watering-can placement. Patch each class you actually mean to cover.
 
 **The audit question is what you patch, not what Burst touches.** `[BurstCompile]`
 on the systems that *write* the components you read is irrelevant. `BurstDisabler`
