@@ -349,7 +349,14 @@ For per-character mod data, do not invent your own save moment. Harmony-postfix
 through `Manager.saves` are merely *observed* to fail verification, which a
 Harmony patch attribute never goes through in the first place (see [the load-time sandbox](sandbox.md#what-is-banned)).
 
-The symmetric load point is `CharacterData.OnAfterDeserialize`.
+The symmetric load point is `CharacterData.OnAfterDeserialize` — with two limits
+since 1.3. Each existing character file is decoded once when `SaveManager`
+initialises at startup, not when the character is chosen; outside the benchmark
+scene, the decode that follows the choice is the server world's decode of a
+joining player's data, so it happens only in a process that hosts the world. And
+the callback runs **before** `CharacterData.UpgradeIfOutdated()`, so it sees the
+record as stored, not the upgraded one. [Correlating private state across two methods](harmony-and-ecs.md#correlating-private-state-across-two-methods)
+has the call sites.
 
 **Trap: do not gate your save on a return-to-menu signal.** Hooking
 `SetCharacterId(-1)` and saving there looks equivalent and is not — a normal

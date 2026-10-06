@@ -364,13 +364,14 @@ public `__instance.characterGuid` field and clears it. No banned API is
 touched; you read a public field and a value-type argument.
 
 **"Strictly sequential" is the caller's doing, not `SetCharacterId`'s.**
-`SetCharacterId` itself triggers no file read — the read and
-`OnAfterDeserialize` only follow when the specific caller that invoked it goes
-on to load a character, which not every one of its call sites does. Arming
-the "awaiting" flag on every call, as above, leaks it across a call with no
-load and pollutes whichever deserialize comes next. See [correlating private state across two methods](harmony-and-ecs.md#correlating-private-state-across-two-methods)
-for which call sites load and which don't, and for gating the flag on the
-right one instead of on `SetCharacterId` alone.
+`SetCharacterId` itself triggers no deserialize — `OnAfterDeserialize` only
+follows when the specific caller that invoked it goes on to start the game,
+which not every one of its call sites does, and since 1.3 only in a process that
+also hosts the world. Arming the "awaiting" flag on every call, as above, leaks
+it across a call with no such decode and pollutes whichever deserialize comes
+next. See [correlating private state across two methods](harmony-and-ecs.md#correlating-private-state-across-two-methods) for which call sites load
+and which don't, and for gating the flag on the right one instead of on
+`SetCharacterId` alone.
 
 ## Finding the banned identifier
 

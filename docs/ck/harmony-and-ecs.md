@@ -273,26 +273,41 @@ a `[RuntimeInitializeOnLoadMethod(SubsystemRegistration)]`, so once per process
 start rather than per world — additionally unpatches Harmony, clears
 `_patchedMethods`, and clears the **type** registry itself.
 
-Note what this does *not* mean: the call is present and runs on both builds, at
-the end of `ECSManager.StartEcs` once the worlds have been created. The server
-does not skip it. So "`AddWorld` never runs server-side" is the wrong diagnosis —
-it runs, it is simply reached before your `Init()` had a chance to register
-anything.
+Note what this does *not* mean: the call is present and runs on both builds, in
+the callback `ECSManager.StartEcs` hands to authoring-data conversion, once the
+worlds have been created and converted. The server does not skip it. So
+"`AddWorld` never runs server-side" is the wrong diagnosis — it runs, it is
+simply reached before your `Init()` had a chance to register anything.
 
-The two builds differ twice inside that one method, and only one of the two
-differences is about the call. The client's `StartEcs` opens with a
-client-world creation block (`Pug.Other:2775-2781`) that the server build does not have
-at all — so the worlds `AddWorld` is handed are not the same set on the two
-sides. Beside the call itself, the client kicks off authoring-data conversion as
-a coroutine and falls straight through to `AddWorld`, so the conversion has not
-run yet; the server drains the same enumerator synchronously first. Neither
-difference affects the snapshot problem, but together they mean the surrounding
-state is not the same on the two sides.
+The two builds differ three times inside that one method. The client's
+`StartEcs` opens with a client-world creation block (`Pug.Other:2775-2781`) that
+the server build does not have at all — so the worlds `AddWorld` is handed are
+not the same set on the two sides. Both builds call `AddWorld` from the
+conversion's completion callback (`Pug.Other:2797-2799`, invoked at
+`Pug.Other:2859`), but the client runs that conversion as a coroutine
+(`Pug.Other:2807`), so `StartEcs` returns first and the snapshot is taken frames
+later, while the server drains the same enumerator synchronously and takes it
+before `StartEcs` returns. Through 1.2 the client called `AddWorld` straight
+after starting the coroutine, before any conversion had run. The third
+difference bears on the snapshot most directly: since 1.3 the server build calls
+`Integration.Instance.Update()` — the loader's `Update`, the path from which
+`IMod.Init()` is called — inside `StartEcs` itself (`DedicatedServer/Pug.Other:2785`),
+after the ServerWorld exists and immediately before the drain whose callback
+runs `AddWorld`. 1.2.1.5's server `StartEcs` has no such call, and the client
+build has none in 1.3 either.
 
-| Process | Order (measured in the logs) | Result |
+| Process | Order (measured in the logs, before 1.3) | Result |
 |---|---|---|
 | Client | `Init()` first, worlds built afterwards | registration precedes the snapshot → works |
 | Dedicated server | worlds built first (`adding worlds to the update loop`), `Init()` afterwards | snapshot empty → patch dead |
+
+Whether the dedicated-server row still holds on 1.3 is **unverified**. The
+table was measured on 1.2, before the call at `DedicatedServer/Pug.Other:2785`
+existed. If that call is the one from which `Init()` runs on a fresh server, the
+registration now precedes the snapshot and the trap no longer arises there;
+the decompile does not show whether it is, for the same reason the next
+paragraph gives. The `AddWorld` pass in [the fix](#the-fix) costs nothing in
+either ordering, so keep it until the 1.3 server log has been read.
 
 **The decisive file is not in the decompile at all, which is why measurement is
 the only route.** The server build's own guard names its real entry point and
@@ -311,14 +326,16 @@ settles the question.
 and was wrong.** The tempting mechanism is: `StartEcs` is reached from
 `SceneHandler.Awake` (client `Pug.Other:383067`, calling it at
 `Pug.Other:383104`; server build `DedicatedServer/Pug.Other:378828`, calling it
-at `DedicatedServer/Pug.Other:378867`) while `IMod.Init()` comes from
+at `DedicatedServer/Pug.Other:378867` or `DedicatedServer/Pug.Other:378872`
+depending on the configured world) while `IMod.Init()` comes from
 `Loader.Update` (`PugMod.Loader:1214`, `PugMod.Loader:1216`), so Unity's rule
 that every `Awake` precedes every `Update` fixes the order. **It does not.**
-`Loader.Update` is reached from two places, not one. Both go through
-`Integration.Instance.Update()` — an `IIntegration` interface call that lands on
-`Loader` only because `Loader : IIntegration` — and one of them sits in
-`Manager.EarlyInit` (`Pug.Other:272276`, client build; server
-`DedicatedServer/Pug.Other:272213`), which is a
+`Loader.Update` is reached from two places in the client build, not one, and
+from three in the 1.3 server build — the third being the call inside `StartEcs`
+described above. All go through `Integration.Instance.Update()` — an
+`IIntegration` interface call that lands on `Loader` only because `Loader :
+IIntegration` — and one of them sits in `Manager.EarlyInit` (`Pug.Other:272276`,
+client build; server `DedicatedServer/Pug.Other:272213`), which is a
 `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]`
 (`Pug.Other:272188` client, `DedicatedServer/Pug.Other:272131` server) and
 therefore runs *before* any scene `Awake`. The other, the MonoBehaviour
@@ -621,11 +638,11 @@ NativeList<PlacementHandler.EntityAndInfoFromPlacement>` (`Pug.Other:322724`,
 name rather than by owning type can therefore bind any of the six, and one that
 picks by parameter shape can still bind `BucketSlot`'s.
 
-**Those are subclasses, and that costs you coverage rather than merely risking a
-mis-bind.** `BucketSlot`, `PaintToolSlot` and `WaterCanSlot`
-(`Pug.Other:321754`, `Pug.Other:322702`, `Pug.Other:324278`) all derive from
-`PlaceObjectSlot` and declare both `UpdateEquipment` and `PlaceItem` of their
-own: `UpdateEquipment` as `public new static`, shadowing the base's
+**Three of them are subclasses of `PlaceObjectSlot`, and that costs you coverage
+rather than merely risking a mis-bind.** `BucketSlot`, `PaintToolSlot` and
+`WaterCanSlot` (`Pug.Other:321754`, `Pug.Other:322702`, `Pug.Other:324278`) all
+derive from `PlaceObjectSlot` and declare both `UpdateEquipment` and `PlaceItem`
+of their own: `UpdateEquipment` as `public new static`, shadowing the base's
 (`Pug.Other:321762`, `Pug.Other:322706`, `Pug.Other:324286`), and `PlaceItem` as
 `private static`, as the base's own is (`Pug.Other:321778`, `Pug.Other:322724`,
 `Pug.Other:324308`). Because these are statics there is no virtual dispatch to
@@ -915,29 +932,47 @@ triggers no deserialize, and nothing in either tree links it to
 `CharacterData` implements (`Pug.Other:380189`). Since 1.3 nothing in the game
 calls it explicitly: every invocation comes from Unity itself, through
 `SaveManager.DecodeJson<T>` (`Pug.Other:380713-380717`), which runs
-`JsonUtility.FromJsonOverwrite` over the bytes read for a character. Its body is
-empty (`Pug.Other:380275-380277`). Through 1.2 it carried the save-version
-upgrade and had one explicit caller as well — `_ClearCharacter(int i)`, the
-routine that resets a character slot — so a postfix on it also fired on every
-slot reset. 1.3 moved that work into `CharacterData.UpgradeIfOutdated()`
-(`Pug.Other:380299`), which the game calls explicitly after each character read
-(`Pug.Other:380739`, `Pug.Other:380762`, `Pug.Other:381686`) and at the end of
-`_ClearCharacter` (`Pug.Other:381589`); a postfix on `OnAfterDeserialize` now
-sees the deserialize callbacks and nothing else.
+`JsonUtility.FromJsonOverwrite` over a character's JSON. Its body is empty
+(`Pug.Other:380275-380277`). Through 1.2 it carried the save-version upgrade and
+had one explicit caller as well — `_ClearCharacter(int i)`, the routine that
+resets a character slot — so a postfix on it also fired on every slot reset. 1.3
+moved that work into `CharacterData.UpgradeIfOutdated()` (`Pug.Other:380299`),
+which the game calls explicitly after each character decode (`Pug.Other:380739`,
+`Pug.Other:380762`, `Pug.Other:381686`) and at the end of `_ClearCharacter`
+(`Pug.Other:381589`); a postfix on `OnAfterDeserialize` now sees the deserialize
+callbacks and nothing else. It also sees them **before** the upgrade: the record
+is as stored, and state the upgrade derives — `nonSerialized.discoveredObjects`
+is rebuilt at its end (`Pug.Other:380397-380401`) — is not there yet. The
+example reads only `characterGuid`, a serialized field, so it is unaffected.
+
+Which decode follows the producer matters more. Of the three, the one at
+`Pug.Other:381686` is `SaveManager.Init` reading every existing character file
+once at startup, and the one at `Pug.Other:380762` serves a benchmark data
+provider — the benchmark scene sets character 60 and decodes it straight away
+(`Pug.Other:383098-383099`), a case of its own that also hosts its world.
+Outside it, the only decode that comes *after* a character is chosen is the
+network one —
+`GetCharacterDataFromSerialized` (`Pug.Other:380732-380740`), whose sole caller
+is `StartGameRPCSystem` (`Pug.Other:133037`), a `ServerSimulation` system
+(`Pug.Other:132630`) decoding the character data a joining player sent.
 `SetCharacterId` has four call sites in the client tree. The one the worked
 example is about, `StartGame(int characterID)` (`Pug.Other:360558-360570`), sets
 the id and then immediately triggers the scene load —
-`Manager.load.LoadIntroScene()` or `LoadMainScene()` — and it is the character
-read that happens during that load which fires the callback.
-`GoToCharacterTypeSelection` (`Pug.Other:360572-360576`) makes the same point by
-contrast: it sets the id and pushes a menu, with no load and so no deserialize.
+`Manager.load.LoadIntroScene()` or `LoadMainScene()`. When that process also
+hosts the world, its server world later decodes the player's character data,
+and that decode fires the callback. When it joins someone else's server or a
+dedicated one, the decode happens in the other process, nothing in this one
+clears the flag, and the example leaks it — the third precondition failing
+exactly as described above. `GoToCharacterTypeSelection`
+(`Pug.Other:360572-360576`) is the plain contrast: it sets the id and pushes a
+menu, with no load and so no deserialize.
 
 So the two methods are coupled by nothing except the order the caller puts
-them in — the deserialize comes from Unity's serialization callback on the
-character read that the load performs. The pattern is sound; the pairing now
-rests on a named mechanism rather than an unknown, but treat it as the part
-you still verify for your own two methods rather than as one demonstrated
-here.
+them in, and the deserialize that pairs with `StartGame` is a server-world
+decode, not a file read. The pattern is sound; the pairing now rests on a named
+mechanism rather than an unknown, but that mechanism holds only for a hosting
+process — treat it as the part you still verify for your own two methods
+rather than as one demonstrated here.
 
 ## Scaling a value that flows from a Burst producer into a Burst consumer
 
