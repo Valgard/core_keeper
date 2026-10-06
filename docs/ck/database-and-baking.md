@@ -408,8 +408,10 @@ belongs to before using its number.
 
 **Biome variants split one logical object over several ObjectIDs.** Digging
 spots occupy `5532`–`5536` for five biome variants beside the generic `5530`,
-while CK's own checks (`objectID == ObjectID.DiggingSpot`, at
-`Pug.Other:306900` and `Pug.Other:322507`) test only the generic one. Filtering on a single
+while CK's own checks (`objectID == ObjectID.DiggingSpot`, all three of them:
+`Pug.Other:306900`, `Pug.Other:307310` and `Pug.Other:322507`, and in the server
+build `DedicatedServer/Pug.Other:302717`, `DedicatedServer/Pug.Other:303127` and
+`DedicatedServer/Pug.Other:318313`) test only the generic one. Filtering on a single
 `ObjectID` then produces a mod that works in one biome and not in another —
 which reads like a bug everywhere except at the filter. Biome variants are
 common but not universal, so the rule is: **check the enum neighbourhood before
