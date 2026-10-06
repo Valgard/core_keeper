@@ -224,26 +224,29 @@ host needs the mod to see the icons like any other player. Measured on 1.3.0.2:
 a client with an icon mod placed a marker on a dedicated server without it, the
 server restarted, and the marker still showed its icon.
 
-**A marker whose block is missing keeps whatever sprite its display element
-last had, and logs an error every frame it is drawn.**
+**A marker whose block is missing keeps whatever sprite its display element last
+had, and logs an error every frame it is drawn.**
 `MapMarkerUIElement.LateUpdate` calls `TryApplyCustomMarkerSprite` for every
 user marker (`Pug.Other:344786`), which logs `Failed to resolve
 MapMarkerIconDataBlock at address …` and returns (`344844`) without assigning a
 sprite. The map draws markers through pooled elements: `MarkerPool.GetMarker`
-reuses a returned element before it instantiates a new one
-(`345111`–`345113`), and `ReturnToPool` clears the element's entity and player
-but not its sprite (`346543`–`346546`). So a freshly instantiated element shows
-the prefab's default sprite — observed on 1.3.0.2 right after launch as a blue
-diamond (map-markers-enhanced, `docs/manual-tests.md`, "Without the mod on the
-client") — while a reused one can go on showing the icon of another user marker
-it displayed before. `UpdateColor()` still runs first and tints the element's
-colour renderer in the local player's colour (`344783`), which only the resolved
-path resets to white (`344852`–`344856`) — but in the 1.3.0.2
+reuses a returned element before it instantiates a new one (`345111`–`345113`),
+and `ReturnToPool` clears the element's entity and player but not its sprite
+(`346543`–`346546`). So a freshly instantiated element shows the prefab's
+default sprite — `userPlacedMapMarker.prefab` references `map_markers_1`, the
+second tile of the marker sheet `map_markers.png` that 1.2 drew user markers
+from — 1.2's first user marker, a blue diamond on a dark framed square; observed
+on 1.3.0.2 right after launch (map-markers-enhanced, `docs/manual-tests.md`,
+"Without the mod on the client") and on 1.3.0.4 for a mod icon whose mod was
+uninstalled — while a reused one can go on showing the icon of another user
+marker it displayed before. `UpdateColor()` still runs first and tints the
+element's colour renderer in the local player's colour (`344783`), which only
+the resolved path resets to white (`344852`–`344856`) — but in the 1.3.0.2
 `userPlacedMapMarker.prefab`, read from the extracted resources, both colour
 renderers carry no sprite and no code assigns them one, so the tint has nothing
-visible to colour. That is what players without an icon mod see
-for markers placed with it, and what everyone sees after uninstalling it — so do
-not expect it to look like any one particular icon.
+visible to colour. That is what players without an icon mod see for markers
+placed with it, and what everyone sees after uninstalling it — so do not expect
+it to look like any one particular icon.
 
 **1.3.0.2 cannot edit a placed marker.** The pieces exist:
 `MapUI.ApplyEditToExistingMarker` (`Pug.Other:345602`) sends
@@ -267,6 +270,43 @@ existing marker itself; whether the dead path works as it stands is untested.
 **The 1.3 world migration turned old markers into these** — by their old slot
 alone, which cost one widely used marker mod every marker it had drawn with its
 own art. What it did and what survived it is in [savegame formats](savegame-formats.md#worked-example-reading-map-markers-out-of-the-file).
+
+### Vanilla marker icons
+
+As of 1.3.0.4 vanilla ships eight icon blocks with ten variants each. Variant
+*v* of the block in row *r* uses `map_marker_large_<10·r + v>`,
+`map_marker_small_<10·r + v>` and `map_marker_color_<v>`, so *v* is a colour
+column of `map_marker_large.png` (variant 1 sits at x=10, variant 9 at x=90) and
+means the same colour in every block, roughly: pale grey-white, red, blue,
+green, light cyan, teal, brown, pink, slate blue, yellow.
+
+| Row | Block asset | Address | Large sprites |
+|---|---|---|---|
+| 0 | `UserMarker1_Cross` | `adbecb0c-1236-bf84-d9ea-0516e188e2d0` | `map_marker_large_0`–`9` |
+| 1 | `UserMarker2_Dot` | `f9203606-618b-6384-7a99-a790e5c6de35` | `_10`–`19` |
+| 2 | `UserMarker3_Flag` | `3005a608-1b77-8604-8abe-d189ae05a0d8` | `_20`–`29` |
+| 3 | `UserMarker4_Home` | `64007694-5b2f-5474-b8ad-9f972e822421` | `_30`–`39` |
+| 4 | `UserMarker5_Pickaxe` | `a707985f-1e22-c2f4-e837-0cc32288f9c5` | `_40`–`49` |
+| 5 | `UserMarker6_Question` | `7e09f30c-8838-5604-2b46-8c13b0ef771e` | `_50`–`59` |
+| 6 | `UserMarker7_Skuill` (sic, the asset's own spelling) | `169f71d7-f86d-7234-abf0-0120b015262b` | `_60`–`69` |
+| 7 | `UserMarker8_Star` | `0eafefb1-8776-40d4-3af9-98637e55183e` | `_70`–`79` |
+
+Measured on 1.3.0.4 by logging every block that
+`ScriptableData.TryGetDataBlocks<MapMarkerIconDataBlock>` returns, with its
+name, address and each variant's sprite names. The address and the variants are
+serialized fields (`m_address`, `ScriptableData:1703`–`1706`; `variants`,
+`Pug.Base:15155`), but the extracted block assets carry only the header, because
+the extraction drops the data-block fields — so they cannot supply this. Two
+serialized sources in the extracted resources do record addresses.
+`MapUI.defaultPresets`, in `Global Objects (Main Manager).prefab`, stores five
+icon/variant pairs as `m_low`/`m_high` halves: Dot 2, Question 9, Skull 0, Flag
+3 and Pickaxe 1. And the game's code hard-codes four of them for the markers of
+1.2: in `ConvertOldMapMarkersSystem` of 1.3.0.4 (client), `Pug.Other:175131`
+assigns, `175151` picks the block and `175163` the variant — Dot variant 2,
+Question 9 (yellow question mark), Skull 0 (white skull) and Flag 3 (green
+flag). Cross, Home and Star rest on the probe alone. The Dot-2 pair is 1.3's
+redraw of the first user marker of 1.2, a blue diamond; it is not the fallback
+sprite described above, which is the 1.2 original of the same motif.
 
 ## Tile layers: what may sit on what
 
