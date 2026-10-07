@@ -39,13 +39,22 @@ prefab or a new `IRpcCommand` type moves them. A tool would therefore survive
 this workspace's own builds and break on a Core Keeper update or on installing
 a mod that registers replicated types.
 
-The commands worth sending are public on `NetworkingManager` and are thin —
-each creates one entity carrying `NetworkCommandRpc` + `SendRpcCommandRequest`:
+The commands worth sending are public on `NetworkingManager` and are thin — each
+creates one entity carrying `NetworkCommandRpc` + `SendRpcCommandRequest`:
 `RemoveAdmin(PlayerController, World)`, `AddAdmin(…)`, `SetGuestMode(bool,
-World)` (`Pug.Other:294403-294436`). **The server does not check the sender**
-for `SetGuestMode` or `RemoveAdmin` — only `AddOrUpdateAdmin` refuses a caller
-whose privileges are 0 — so a client holding no rights can still send the first
-two. Note that this is a property of the game, not of this workspace.
+World)` (`Pug.Other:294403-294436`). **The server admits them only from a sender
+holding admin privileges above zero** — one gate in front of the whole command
+switch, with `ChangePvPTeam` answered before it as the sole exception
+(`DedicatedServer/Pug.Other:137119`, gate at
+`DedicatedServer/Pug.Other:137132`). So the tool needs an identity that the
+server's `Admins.json` lists, and a connection holding no rights can send
+nothing but a PvP-team change.
+
+An earlier version of this point claimed the opposite — that `SetGuestMode` and
+`RemoveAdmin` go unchecked — from having found `AddOrUpdateAdmin`'s own,
+additional check and reading it as the only one. Corrected 2026-10-07 after the
+running server refused a `SetGuestMode` with `Ignoring admin command from
+non-admin player`. The gate is a property of the game, not of this workspace.
 
 A server-side mod is not an alternative: the same operations are `internal`
 there (`DedicatedServer/Pug.Other:290929`), and the Roslyn sandbox forbids the
@@ -60,15 +69,21 @@ shipped assemblies, or capturing them once from a running client and feeding
 them to the tool as data.
 
 Whether a bare connection suffices to have an RPC accepted, or whether the tool
-must complete a full player join first, is unknown. `SetGuestMode`'s handler
-only requires the world singleton, which suggests the former, but the path a
-command takes before reaching that handler has not been traced.
+must complete a full player join first, is unknown — and the gate above sharpens
+that question rather than answering it. `GetAdminPrivileges` is asked about the
+RPC's own `SourceConnection`, so the tool needs both a connection the server
+recognises and an `Admins.json` entry its identity matches. Whether a connection
+that never spawned a character carries an identity that list can match has not
+been traced.
 
 Scope is open: admin level and guest mode are what MSM-10 needs, and
 `NetworkCommand` carries more.
 
-**Why it was not built when it came up.** MSM-10 needed two checks walked, and
-a twenty-line trigger inside that mod's own `TestFixtures` block reached the
-same observation the same day. This point exists for the case where server
-state has to be driven repeatedly, across mods, without a mod of its own in the
-way.
+**Why it was not built when it came up.** MSM-10 needed two checks walked, and a
+twenty-line trigger inside that mod's own `TestFixtures` block reached the first
+of them the same day. Then it hit the gate above: a self-revocation is the last
+command a player can send, so the reversal the second check wanted stayed out of
+reach, and that half was parked rather than walked. The case for this point is
+therefore sharper than when it was written, not weaker — server state that has
+to be driven repeatedly, across mods, without a mod of its own in the way, and
+from an identity that keeps its rights while doing it.

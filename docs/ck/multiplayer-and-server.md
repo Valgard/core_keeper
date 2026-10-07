@@ -309,6 +309,29 @@ poll. There is no change event for either: `adminPrivileges` is a property over 
 component and `guestMode` a field in a singleton, and nothing announces a write
 to them.
 
+**That check is one gate in front of the whole command switch, which makes a
+self-revocation a one-way door.** `NetworkCommandServerSystem` answers
+`ChangePvPTeam` first (`DedicatedServer/Pug.Other:137119`), then refuses every
+remaining command whose sender does not hold privileges above zero
+(`DedicatedServer/Pug.Other:137132`) — so the switch below is reachable for an
+admin and for nobody else. Removing one's own stage 1 therefore works exactly
+once, and is the last command that player can send: every later one is answered
+with `Ignoring admin command from non-admin player` in the server log and
+nothing else. Measured 2026-10-07 against a running 1.3.0.5 server —
+`RemoveAdmin` went through, the `SetGuestMode` sent after it did not. Reading
+`AddOrUpdateAdmin`'s own, additional sender check as the only one is the
+available mistake here, and it costs a walked test: the gate sits ~150 lines
+above the branch.
+
+**So a player can never put themselves into a guest mode they can feel.**
+Sending `SetGuestMode` requires `adminPrivileges >= 1`, and
+`PlayerController.guestMode` returns true only below that — the two conditions
+are disjoint. Enabling guest mode as an admin and dropping to stage 0
+afterwards should satisfy both, since the world flag outlives the privilege
+change, but it moves both values in the same instant and so cannot show them
+acting independently (**unverified** — that order has not been walked). A check
+that needs them to move separately needs a second, admin-holding player.
+
 **There are no chat commands for this.** A search for a command dispatcher —
 `ChatCommand`, `StartsWith("/")` — comes up empty across client and server
 assemblies; admin rights are granted through the UI and travel as the RPC above.
