@@ -231,14 +231,14 @@ quick look leaves it subscribed.
 
 The loader has **three** platforms: a side-loader that scans
 `StreamingAssets/Mods` for any directory holding a `ModManifest.json`, the
-mod.io loader, and the Steam Workshop loader. `-safemode` disables only the
-first two — the Steam Workshop loader is registered unconditionally, even in
-safe mode, though it is usually inert there too, since `SteamClient.IsValid`
-fails without a live Steam session. Two of the three — the mod.io loader and
-the Steam Workshop loader — load from a subscription list; the side-loader is
-the one that reads a directory instead — which is why a not-yet-published mod
-can be made loadable in more than one way, and why the dedicated server loads
-its mods from a directory rather than an account.
+mod.io loader, and the Steam Workshop loader. `-safemode` disables all three
+(`Pug.Other:272241-272255`). It did not always: through 1.3.0.4 the Steam
+Workshop loader was registered unconditionally, even in safe mode, and 1.3.0.5
+moved it under the same `-safemode` check as the other two. Two of the three —
+the mod.io loader and the Steam Workshop loader — load from a subscription list;
+the side-loader is the one that reads a directory instead — which is why a
+not-yet-published mod can be made loadable in more than one way, and why the
+dedicated server loads its mods from a directory rather than an account.
 
 Reading that directory is all the side-loader does — it does not require the
 mod it finds to have come from a Unity build. [What it actually accepts](mod-anatomy.md#the-side-loader-accepts-a-hand-written-manifest)
