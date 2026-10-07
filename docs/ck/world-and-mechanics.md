@@ -248,6 +248,17 @@ visible to colour. That is what players without an icon mod see for markers
 placed with it, and what everyone sees after uninstalling it — so do not expect
 it to look like any one particular icon.
 
+**The error repeats for every visible unresolved marker, and it is costly.** The
+log line carries a full native stack trace, and it comes once per marker per
+frame. Measured on 1.3.0.4 under CrossOver, with about 70 old mod markers
+unresolved because the dedicated server ran without the mod that migrates them:
+about 12 errors per second with the big map open, 6 per second with it closed,
+and the big map's framerate collapsed; the same world on a server with the mod
+had none of it, and vanilla markers were unaffected. So a mod that retires or
+renames icon addresses leaves players a stuttering map, not only a wrong icon,
+until the markers are rewritten or the blocks come back. The stack-trace cost is
+inferred from the logging per frame; its share of the stutter was not isolated.
+
 **1.3.0.2 cannot edit a placed marker.** The pieces exist:
 `MapUI.ApplyEditToExistingMarker` (`Pug.Other:346589`) sends
 `EditCustomMapMarker`, and the server handler's `targetEntity` branch (`Pug.Other:414875`)
@@ -307,6 +318,25 @@ Dot variant 2, Question 9 (yellow question mark), Skull 0 (white skull) and Flag
 3 (green flag). Cross, Home and Star rest on the probe alone. The Dot-2 pair is
 1.3's redraw of the first user marker of 1.2, a blue diamond; it is not the
 fallback sprite described above, which is the 1.2 original of the same motif.
+
+### Marker sprites are fixed even boxes, and an odd size jitters
+
+Every vanilla marker sprite is the same size: the 80 sprites cut from
+`map_marker_large.png` (100×90) are all 10×10, the 80 from `map_marker_small.png`
+(60×54) all 6×6, at 16 pixels per unit with the pivot at the centre. Measured on
+1.3.0.4 on every sprite asset. The game hands a variant's `miniMapSprite` and
+`largeMapSprite` to a `SpriteRenderer` without scaling
+(`MapMarkerUIElement.TryApplyCustomMarkerSprite`, `Pug.Other:345802`), so the
+sprite's own size and pivot are what is drawn.
+
+A mod's sprite should therefore be an even box too. One cut to its drawn pixels
+has odd sizes such as 5×5 or 5×7, which puts the centre pivot on half a pixel:
+measured on 1.3.0.4 under CrossOver, the small icons jittered against the map
+while the player moved, and the larger even ones (8×8) were stable. Cutting every
+sprite as a 10×10 cell, or for the small sheet a 6×6 box (8×8 for a drawing
+taller than 6), removed it. The cause is read from the sprite sizes and the
+unscaled assignment; the half-pixel pivot was not isolated from the rest.
+
 
 ## Tile layers: what may sit on what
 
