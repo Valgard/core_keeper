@@ -157,7 +157,7 @@ layer(type=cel).clips[].itemIdentifier  ──→  cels[].identifier  ──→ 
 
 `utils/pixaki_to_sheet.py` cuts a master into a sheet from a sprite definition,
 by default the `<name>.json` beside the `<name>.pixaki`. Two options let one
-master feed several sheets:
+master feed several sheets, and a third sets how each sprite is sized:
 
 - **`--config <defn.json>`** names the definition explicitly, replacing the
   sibling lookup. Each sheet gets its own definition, `--guid` and

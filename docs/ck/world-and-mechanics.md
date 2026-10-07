@@ -332,11 +332,11 @@ sprite's own size and pivot are what is drawn.
 A mod's sprite should therefore be an even box too. One cut to its drawn pixels
 has odd sizes such as 5×5 or 5×7, which puts the centre pivot on half a pixel:
 measured on 1.3.0.4 under CrossOver, the small icons jittered against the map
-while the player moved, and the larger even ones (8×8) were stable. Cutting every
-sprite as a 10×10 cell, or for the small sheet a 6×6 box (8×8 for a drawing
-taller than 6), removed it. The cause is read from the sprite sizes and the
-unscaled assignment; the half-pixel pivot was not isolated from the rest.
-
+while the player moved, and the larger even ones (8×8) were stable. Cutting
+every sprite as a 10×10 cell, or for the small sheet a 6×6 box (8×8 for a
+drawing that does not fit 6×6, such as the 7×5 arrows), removed it. The cause is
+read from the sprite sizes and the unscaled assignment; the half-pixel pivot was
+not isolated from the rest.
 
 ## Tile layers: what may sit on what
 
