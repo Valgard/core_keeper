@@ -1,12 +1,13 @@
 # Multiplayer and the dedicated server
 
 Everything a mod does in singleplayer it does alone. The moment a second machine
-is involved, two independent gates decide whether the two sides may talk at all:
-Unity NetCode's own protocol validation, and Core Keeper's mod check on top of
-it. Neither knows about the other, and both fail in ways that name neither your
-mod nor the real cause. This chapter covers what those gates check, what a
-mismatch looks like from the player's seat, and what is different about a mod
-running inside a dedicated server process.
+is involved, three independent gates decide whether the two sides may talk at
+all: Unity NetCode's own protocol validation, Core Keeper's mod check on top of
+it, and Core Keeper's own connect handshake after that. None knows about the
+others. The mod check names the mod it is missing; the other two fail in ways
+that name neither your mod nor the real cause. This chapter covers what those
+gates check, what a mismatch looks like from the player's seat, and what is
+different about a mod running inside a dedicated server process.
 
 ## The netcode stack
 
@@ -39,23 +40,28 @@ protocol above is identical either way.
 On connect the two sides exchange `NetworkProtocolVersion` — NetCode version,
 game version, RPC collection, component collection — plus the ghost collection
 hash. NetCode generates its ghost serializers at **build time** from the ECS
-component types, so those hashes are a fingerprint of the component landscape,
-not of anything the loader can negotiate at runtime.
+component types, so those hashes are a fingerprint of the *replicated* component
+landscape — the serializers and RPCs present at connect time, a mod's own
+included — and not of anything the loader can negotiate at runtime. A component
+with no ghost serializer does not enter them.
 
 For a mod this splits cleanly:
 
 | Kind of change | Hashes |
 |---|---|
 | Harmony patches on managed systems | unchanged |
-| Bake-time property edits, changed values, recipe/database tweaks | unchanged |
-| **New ECS components, or new ghost prefabs** | **changed** |
+| Bake-time property edits, changed values, recipe/database tweaks | unchanged — unless the edit changes which components a ghost prefab carries |
+| **New replicated components, or new ghost prefabs** | **changed** |
 | **A new `IRpcCommand` type** | **changed** — see below |
 
-The first two are the overwhelming majority of mods, and they pass NetCode's
-check untouched — their compatibility problem is entirely the mod-set layer
-below. Registering a new replicated component is the case to think twice about:
-it alters the component/ghost collection, so the NetCode check fires **on top of**
-whatever `requiredOn` says, and `requiredOn` cannot excuse it.
+Every mod in this workspace falls into the first two rows, and those pass
+NetCode's check untouched — their compatibility problem is entirely the mod-set
+layer below. Among the third-party mods installed here, counted on 2026-10-07, a
+third (12 of 36) declare an `IRpcCommand` and so sit in the last row; the first
+two rows are common, not universal. Registering a new replicated component is
+the case to think twice about: it alters the component/ghost collection, so the
+NetCode check fires **on top of** whatever `requiredOn` says, and `requiredOn`
+cannot excuse it.
 
 ### Declaring one RPC moves the protocol hash for everyone
 
@@ -322,6 +328,18 @@ nothing else. Measured 2026-10-07 against a running 1.3.0.5 server —
 `AddOrUpdateAdmin`'s own, additional sender check as the only one is the
 available mistake here, and it costs a walked test: the gate sits ~150 lines
 above the branch.
+
+**The per-command bodies are what make that mistake easy, and there is a second
+one shaped like it.** `RemoveAdmin` (`DedicatedServer/Pug.Other:137211`) and
+`SetGuestMode` (`DedicatedServer/Pug.Other:137235`) really do look only at their
+target and at the world singleton, so reading either one in isolation says
+"unchecked" quite convincingly. And the gate opens with `SourceConnection !=
+Entity.Null &&`, which means a command issued locally on a client-**host** skips
+it — the same code, the same build, the opposite answer depending on where the
+command came from. So a claim about this gate has to name which process issued
+the command; a reading taken on a host does not transfer to the dedicated server
+and *(derived from the condition, not measured — the host path has not been
+walked)* the reverse does not either.
 
 **So a player can never put themselves into a guest mode they can feel.**
 Sending `SetGuestMode` requires `adminPrivileges >= 1`, and
