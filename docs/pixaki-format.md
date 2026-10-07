@@ -101,7 +101,8 @@ Keys: `layers[]`, `cels[]`, `duration`, `size [w,h]`, `identifier`, `referenceIm
 
 ### Layers — two types
 
-`sprite.layers[]` is the **layer tree** (top→bottom). Each layer is either:
+`sprite.layers[]` is the **layer tree**, stored bottom→top (the first entry is the
+bottom layer; Pixaki's layer list shows the reverse). Each layer is either:
 
 **`type: "cel"`** — a drawable layer:
 ```json
@@ -151,6 +152,26 @@ layer(type=cel).clips[].itemIdentifier  ──→  cels[].identifier  ──→ 
 
 - `images/preview.png` — flattened thumbnail of the whole document.
 - `cache/keyframes/<hash>.png` — rendered frame cache; regenerable, not authoritative.
+
+## Cutting sprite sheets
+
+`utils/pixaki_to_sheet.py` cuts a master into a sheet from a sprite definition,
+by default the `<name>.json` beside the `<name>.pixaki`. Two options let one
+master feed several sheets:
+
+- **`--config <defn.json>`** names the definition explicitly, replacing the
+  sibling lookup. Each sheet gets its own definition, `--guid` and
+  `--meta-template`.
+- **`"excludeNested": [...]`** in a definition drops layers by name at any depth.
+  A name that matches a group drops its whole subtree, a name that matches a
+  layer drops that layer. `"exclude"` only sees top-level names, so it cannot
+  reach into a group; the two compose, and omitting `excludeNested` changes
+  nothing.
+
+~~~bash
+python3 utils/pixaki_to_sheet.py master.pixaki large.png --config large.json \
+  --meta-template large.png.meta --guid <hex>
+~~~
 
 ## Generating a `.pixaki` (if ever needed)
 
