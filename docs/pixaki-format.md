@@ -167,6 +167,19 @@ master feed several sheets:
   layer drops that layer. `"exclude"` only sees top-level names, so it cannot
   reach into a group; the two compose, and omitting `excludeNested` changes
   nothing.
+- **`"cells": {"grid": 10, "boxes": [[6, 2], [8, 1]]}`** cuts every layer as a
+  fixed-size box of the author's grid instead of its trimmed drawing. Pixaki
+  stores a layer trimmed to its drawn pixels plus a canvas position, and the
+  default cut keeps only the pixels, so the author's placement inside his grid
+  is lost and an odd size (5x5) puts a centre pivot on a half pixel. With
+  `cells`, the layer's grid cell is its canvas position floored to `grid`; each
+  box `[size, offset]` is the `size` x `size` square at `offset` inside that
+  cell, and the first box that fully contains the layer wins. The sprite is
+  that box with the layer's pixels at their canvas position, so placement is
+  kept pixel for pixel and the even size gives a centre pivot on a whole pixel.
+  A layer that fits no box fails the cut naming the layer, its frame and the
+  boxes tried. It replaces `pad` as the sizing rule, so a definition with both
+  is refused; without `cells` the output is unchanged.
 
 ~~~bash
 python3 utils/pixaki_to_sheet.py master.pixaki large.png --config large.json \

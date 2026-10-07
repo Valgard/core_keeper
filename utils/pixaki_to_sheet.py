@@ -7,7 +7,8 @@ borders, border overrides, pinned internalIDs, sheet width/gutter/GUID — live 
 a sibling <name>.json beside the <name>.pixaki (see load_config); a missing .json
 is a hard error. --config names another definition instead, so one master can be
 cut into several sheets; "excludeNested" then drops layers and groups by name at
-any depth, which "exclude" (top level only) cannot.
+any depth, which "exclude" (top level only) cannot. "cells" cuts each layer as a
+fixed-size box of the author's grid instead of its trimmed drawing.
 
 Usage:
     python3 pixaki_to_sheet.py <file.pixaki> <out.png> [--meta-template <tpl.png.meta>]
@@ -35,6 +36,7 @@ _CONFIG_DEFAULTS = {
     "borderOverride": [],
     "rename": {},
     "pad": {},
+    "cells": None,
     "internalIds": {},
     "sheetWidth": 128,
     "gutter": 2,
@@ -79,7 +81,24 @@ def load_config(pixaki_path, config_path=None):
         )
         for k, v in c["pad"].items()
     }
+    c["cells"] = _parse_cells(c["cells"])
+    if c["cells"] is not None and c["pad"]:
+        raise ValueError(
+            "sprite definition sets both 'cells' and 'pad': each fixes the sprite's "
+            "size, so they conflict -- drop one"
+        )
     return c
+
+
+def _parse_cells(cells):
+    """Normalise the "cells" option to (grid, ((size, offset), ...)), or None when absent."""
+    if cells is None:
+        return None
+    grid = int(cells["grid"])
+    boxes = tuple((int(size), int(offset)) for size, offset in cells["boxes"])
+    if grid <= 0 or not boxes:
+        raise ValueError(f"'cells' needs a positive grid and at least one box, got {cells!r}")
+    return grid, boxes
 
 
 @dataclass
@@ -90,6 +109,8 @@ class Layer:
     drawing_id: str
     w: int
     h: int
+    x: int = 0
+    y: int = 0
 
 
 def collect_layers(doc, exclude_top, exclude_nested=frozenset()):
@@ -100,7 +121,11 @@ def collect_layers(doc, exclude_top, exclude_nested=frozenset()):
     at any depth.
     """
     sp = doc["sprites"][0]
-    cel_size = {c["identifier"]: tuple(c["frame"][1]) for c in sp.get("cels", []) if c.get("frame")}
+    cel_frame = {
+        c["identifier"]: (*c["frame"][0], *c["frame"][1])
+        for c in sp.get("cels", [])
+        if c.get("frame")
+    }
     out = []
 
     def walk(node, top_excluded):
@@ -112,9 +137,9 @@ def collect_layers(doc, exclude_top, exclude_nested=frozenset()):
             if clips and not excl and node.get("isVisible", True):
                 for cl in clips:
                     it = cl.get("itemIdentifier")
-                    if it in cel_size:
-                        w, h = cel_size[it]
-                        out.append(Layer(node.get("name"), it, w, h))
+                    if it in cel_frame:
+                        x, y, w, h = cel_frame[it]
+                        out.append(Layer(node.get("name"), it, w, h, x, y))
             for k, v in node.items():
                 if isinstance(v, (list, dict)) and k != "name":
                     walk(v, excl)
@@ -165,14 +190,42 @@ def load_pixaki(path):
     return doc, drawings
 
 
-def normalize(layer, drawings):
+def _box_for(layer, cells):
+    """Return (box_x, box_y, size) of the first box of `cells` containing the layer's frame."""
+    grid, boxes = cells
+    cell_x, cell_y = layer.x // grid * grid, layer.y // grid * grid
+    for size, offset in boxes:
+        bx, by = cell_x + offset, cell_y + offset
+        if (
+            bx <= layer.x
+            and by <= layer.y
+            and layer.x + layer.w <= bx + size
+            and layer.y + layer.h <= by + size
+        ):
+            return bx, by, size
+    raise ValueError(
+        f"layer {layer.name!r} (frame x={layer.x} y={layer.y} w={layer.w} h={layer.h}) "
+        f"fits none of the cells boxes tried in order: {[list(b) for b in boxes]} (grid {grid})"
+    )
+
+
+def normalize(layer, drawings, cells=None):
     """Return an RGBA image of exactly (layer.w, layer.h), top-left anchored.
+
+    With `cells` (see _parse_cells) the image is instead the fixed-size box of
+    the author's grid that contains the layer, with the drawing at its canvas
+    position inside it.
 
     Public because `pixaki_inspect` reports on the same images this packs, and
     a second implementation of the anchoring is exactly the kind of duplicate
     that drifts without anyone noticing.
     """
     src = drawings[layer.drawing_id]
+    if cells is not None:
+        bx, by, size = _box_for(layer, cells)
+        box = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        box.alpha_composite(src, (layer.x - bx, layer.y - by))
+        return box
     if src.size == (layer.w, layer.h):
         return src
     canvas = Image.new("RGBA", (layer.w, layer.h), (0, 0, 0, 0))
@@ -192,14 +245,14 @@ def pixel_key(img):
     return hashlib.sha1(img.tobytes()).hexdigest() + f"_{img.width}x{img.height}"
 
 
-def dedup(layers, drawings):
+def dedup(layers, drawings, cells=None):
     """Return (distinct: list[(key, img, w, h)], name_to_key: dict)."""
     distinct = {}
     name_to_key = {}
     for layer in layers:
-        img = normalize(layer, drawings)
+        img = normalize(layer, drawings, cells)
         key = pixel_key(img)
-        distinct.setdefault(key, (key, img, layer.w, layer.h))
+        distinct.setdefault(key, (key, img, img.width, img.height))
         name_to_key[layer.name] = key
     return list(distinct.values()), name_to_key
 
@@ -389,13 +442,13 @@ def build_sheet(pixaki_path, out_png, template_meta=None, guid=None, config_path
     template_meta = template_meta or (out_png + ".meta")
     doc, drawings = load_pixaki(pixaki_path)
     layers = collect_layers(doc, cfg["exclude"], frozenset(cfg["excludeNested"]))
-    distinct, _name_to_key = dedup(layers, drawings)
+    distinct, _name_to_key = dedup(layers, drawings, cfg["cells"])
     # base name per key = first layer that produced it (recompute the key per
     # layer; name_to_key is lossy when one name maps to several distinct keys,
     # e.g. the 8x8/6x6 sort-icon size pairs)
     key_base = {}
     for layer in layers:
-        key = pixel_key(normalize(layer, drawings))
+        key = pixel_key(normalize(layer, drawings, cfg["cells"]))
         key_base.setdefault(key, layer.name)
     items = [(k, img, w, h, key_base[k]) for (k, img, w, h) in distinct]
     names = assign_names(items)  # {key: disambiguated name}

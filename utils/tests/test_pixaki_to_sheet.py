@@ -576,3 +576,74 @@ def test_validate_pins_rejects_unused_pin(tmp_path):
     pixaki = _write_sprite_pixaki(tmp_path, '{"internalIds":{"Iconnn":5}}')
     with pytest.raises(ValueError, match="match no produced sprite"):
         p.build_sheet(str(pixaki), str(tmp_path / "s.png"))
+
+
+def _cells_layer(name, x, y, w, h, colour=(255, 0, 0, 255)):
+    """A one-layer document with a w x h drawing placed at canvas (x, y), plus its drawings."""
+    doc = {
+        "sprites": [
+            {
+                "cels": [{"identifier": "C1", "frame": [[x, y], [w, h]]}],
+                "layers": [{"name": name, "clips": [{"itemIdentifier": "C1"}], "isVisible": True}],
+            }
+        ]
+    }
+    return doc, {"C1": Image.new("RGBA", (w, h), colour)}
+
+
+def _boxed(name, x, y, w, h, cells):
+    doc, drawings = _cells_layer(name, x, y, w, h)
+    cfg_cells = p._parse_cells(cells)
+    (layer,) = p.collect_layers(doc, set())
+    return p.normalize(layer, drawings, cfg_cells)
+
+
+def _opaque_bbox(img):
+    return img.getchannel("A").getbbox()
+
+
+def test_cells_boxes_a_layer_at_its_grid_position():
+    """A 5x5 layer at (12, 12) sits at offset 2 of its cell: a [6, 2] box keeps that."""
+    img = _boxed("Dot", 12, 12, 5, 5, {"grid": 10, "boxes": [[6, 2]]})
+    assert img.size == (6, 6)
+    assert _opaque_bbox(img) == (0, 0, 5, 5)  # PIL bbox end is exclusive: pixels (0,0)-(4,4)
+
+
+def test_cells_falls_through_to_the_next_box():
+    """A 5x7 layer at (12, 11) overflows the [6, 2] box (row 11 < 12), so [8, 1] takes it."""
+    img = _boxed("Tall", 12, 11, 5, 7, {"grid": 10, "boxes": [[6, 2], [8, 1]]})
+    assert img.size == (8, 8)
+    assert _opaque_bbox(img) == (1, 0, 6, 7)  # pixels (1,0)-(5,6)
+
+
+def test_cells_without_a_fitting_box_raises():
+    """No box contains the layer: the error names the layer, its frame and the boxes tried."""
+    import pytest
+
+    with pytest.raises(ValueError, match=r"Stray.*19.*\[6, 2\]"):
+        _boxed("Stray", 19, 19, 5, 5, {"grid": 10, "boxes": [[6, 2]]})
+
+
+def test_cells_and_pad_conflict_raises(tmp_path):
+    """Both cells and pad size the sprite: a definition with both is refused before any write."""
+    import pytest
+
+    cfg = (
+        '{"cells": {"grid": 10, "boxes": [[6, 2]]},'
+        ' "pad": {"Icon": {"w": 8, "h": 8, "anchor": "bottom"}}}'
+    )
+    pixaki = _write_sprite_pixaki(tmp_path, cfg)
+    out = tmp_path / "o.png"
+    (tmp_path / "tpl.meta").write_text(_TEMPLATE_META)
+    with pytest.raises(ValueError, match=r"cells.*pad"):
+        p.build_sheet(str(pixaki), str(out), str(tmp_path / "tpl.meta"), guid="c" * 32)
+    assert not out.exists()
+
+
+def test_cells_absent_keeps_trimmed_sprites():
+    """Without cells a layer stays its own trimmed size, wherever it sits on the canvas."""
+    doc, drawings = _cells_layer("Dot", 12, 12, 5, 5)
+    (layer,) = p.collect_layers(doc, set())
+    img = p.normalize(layer, drawings)
+    assert img.size == (5, 5)
+    assert _opaque_bbox(img) == (0, 0, 5, 5)
