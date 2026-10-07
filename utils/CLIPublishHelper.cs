@@ -175,12 +175,15 @@ namespace CoreKeeperModUtils
                         }
                         // Before anything leaves the machine: a modfile cannot be taken back.
                         var assembly = Path.Combine(Application.dataPath, "..", "Library", "ScriptAssemblies", _modName + ".dll");
-                        if (!DotsCodegen.Check(assembly, _buildDir, out var codegen))
+                        if (!DotsCodegen.Check(assembly, _buildDir, out var codegen, out var skipped))
                         {
                             Fail(codegen);
                             return;
                         }
-                        Debug.Log($"[CLIPublishHelper] {codegen}");
+                        if (skipped)
+                            Debug.LogWarning($"[CLIPublishHelper] {codegen}");
+                        else
+                            Debug.Log($"[CLIPublishHelper] {codegen}");
                         OnBuilt();
                     },
                     installInSubDirectory: false
@@ -1399,25 +1402,42 @@ namespace CoreKeeperModUtils
     // one Unity session, where the shell check that guards build.sh never runs.
     internal static class DotsCodegen
     {
-        private static readonly byte[] Marker = System.Text.Encoding.ASCII.GetBytes("DOTSCompilerGenerated");
+        // Pinned against check_dots_codegen.py's MARKER and GENERATED_PATTERN by
+        // utils/tests/test_check_dots_codegen.py.
+        private const string MarkerText = "DOTSCompilerGenerated";
+        private const string GeneratedPattern = "*.g.cs";
+        private static readonly byte[] Marker = System.Text.Encoding.ASCII.GetBytes(MarkerText);
 
-        // False only for the failure itself: the compiled assembly carries
-        // generated code and the build has no Scripts/Generated/*.g.cs. A missing
-        // assembly passes with a warning, as in the Python version.
-        public static bool Check(string assemblyPath, string contentDir, out string message)
+        // False when the build must not ship: the compiled assembly carries
+        // generated code and the build has no Scripts/Generated/*.g.cs, or the
+        // assembly exists and cannot be read. A missing assembly passes, and
+        // `skipped` tells the caller to log it as a warning.
+        public static bool Check(string assemblyPath, string contentDir, out string message, out bool skipped)
         {
+            skipped = false;
             if (!File.Exists(assemblyPath))
             {
+                skipped = true;
                 message = $"codegen check skipped: compiled assembly not found at {assemblyPath}";
                 return true;
             }
-            if (File.ReadAllBytes(assemblyPath).AsSpan().IndexOf(Marker) < 0)
+            byte[] data;
+            try
+            {
+                data = File.ReadAllBytes(assemblyPath);
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                message = $"codegen check failed: cannot read {assemblyPath}: {e.Message}. Nothing was uploaded.";
+                return false;
+            }
+            if (data.AsSpan().IndexOf(Marker) < 0)
             {
                 message = "DOTS codegen: none needed";
                 return true;
             }
             var generatedDir = Path.Combine(contentDir, "Scripts", "Generated");
-            var count = Directory.Exists(generatedDir) ? Directory.GetFiles(generatedDir, "*.g.cs").Length : 0;
+            var count = Directory.Exists(generatedDir) ? Directory.GetFiles(generatedDir, GeneratedPattern).Length : 0;
             if (count > 0)
             {
                 message = $"DOTS codegen: {count} generated file{(count == 1 ? "" : "s")} shipped";

@@ -17,11 +17,18 @@ while the built mod has none. That is exactly the failure, detected without
 guessing from source text which constructs trigger generation.
 
 Only `*.g.cs` counts as codegen. A mod may keep its own `Generated/` files
-(`DevFlags.generated.cs`), which ship beside the codegen and are not it.
+(`DevFlags.generated.cs`), which ship beside the codegen and are not it. A mod
+file of its own named `*.g.cs` and shipped into `Scripts/Generated/` would be
+mistaken for codegen; none does today.
 
-A missing assembly does not fail the build: it means the assembly is not named
+A missing assembly does not fail the build: usually the assembly is not named
 after MOD_NAME, which is worth a warning and not worth blocking every build of
-that mod.
+that mod. An assembly that exists but cannot be read does fail it -- the check
+cannot vouch for a build it could not look at.
+
+The same rule is implemented in `DotsCodegen` in CLIPublishHelper.cs for the
+publish path; test_check_dots_codegen.py pins the two to the same marker and
+file pattern.
 
 Usage:
     check_dots_codegen.py <compiled-assembly.dll> <built-mod-content-folder>
@@ -32,19 +39,22 @@ import sys
 from pathlib import Path
 
 MARKER = b"DOTSCompilerGenerated"
+GENERATED_PATTERN = "*.g.cs"
 
 
 def generated_files(content_dir: Path) -> list[Path]:
     """The codegen files the built mod ships, `Scripts/Generated/*.g.cs`."""
-    return sorted((content_dir / "Scripts" / "Generated").glob("*.g.cs"))
+    return sorted((content_dir / "Scripts" / "Generated").glob(GENERATED_PATTERN))
 
 
 def check(assembly: Path, content_dir: Path) -> tuple[int, str]:
     """Return (exit code, message) for one built mod."""
+    if not assembly.exists():
+        return 0, f"  ! codegen check skipped: compiled assembly not found at {assembly}"
     try:
         data = assembly.read_bytes()
-    except OSError:
-        return 0, f"  ! codegen check skipped: compiled assembly not found at {assembly}"
+    except OSError as exc:
+        return 1, f"✗ codegen check failed: cannot read {assembly}: {exc}"
 
     if MARKER not in data:
         return 0, "  DOTS codegen: none needed"

@@ -306,7 +306,8 @@ if [ "$STEAM_ONLY" != "1" ]; then
     # DOTS systems without their generated bodies -- the same reason and the same
     # remedy as in build.sh, which this publish does not go through.
     # CLIPublishHelper checks the result before anything is uploaded.
-    if [ -d "$REPO_ROOT/unity/$MOD_NAME" ]; then
+    # --profile-only and --changelog-only build nothing, so they skip it.
+    if [ "$PROFILE_ONLY" != "1" ] && [ "$CHANGELOG_ONLY" != "1" ] && [ -d "$REPO_ROOT/unity/$MOD_NAME" ]; then
         find "$REPO_ROOT/unity/$MOD_NAME" -name '*.cs' -exec touch {} +
     fi
 
@@ -462,6 +463,18 @@ else
         CK_STEAM_CONTENT="$(cat "$BUILD_DIR_FILE")"
         export CK_STEAM_CONTENT
         echo "  Content: the build mod.io was published from"
+    else
+        # That last local build was never checked by CLIPublishHelper, and it may
+        # be one build.sh rejected for missing DOTS codegen -- the rejection does
+        # not remove it. A Workshop entry cannot be taken back, so check it here,
+        # before the first Steam call. Exit 1, not build.sh's 4: codes 2-6 belong
+        # to ck-workshop in this script.
+        if ! python3 "$UTILS_DIR/check_dots_codegen.py" \
+                "$SDK_PATH/Library/ScriptAssemblies/$MOD_NAME.dll" \
+                "${MOD_INSTALL_PATH:?must be set for --steam-only}/$MOD_NAME"; then
+            echo "ERROR: the local build is not publishable — rebuild with utils/build.sh first." >&2
+            exit 1
+        fi
     fi
 
     # Everything a publish needs is derivable from files already in the repo

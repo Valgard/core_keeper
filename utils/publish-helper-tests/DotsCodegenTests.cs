@@ -43,33 +43,50 @@ public class DotsCodegenTests : IDisposable
     [Fact]
     public void MissingAssemblyPassesWithAWarning()
     {
-        Assert.True(DotsCodegen.Check(Path.Combine(_root, "Nope.dll"), Build(), out var message));
+        Assert.True(DotsCodegen.Check(Path.Combine(_root, "Nope.dll"), Build(), out var message, out var skipped));
+        Assert.True(skipped);
         Assert.Contains("not found", message);
     }
 
     [Fact]
     public void AssemblyWithoutCodegenPasses()
     {
-        Assert.True(DotsCodegen.Check(Dll("HarmonyPatch"), Build(), out _));
+        Assert.True(DotsCodegen.Check(Dll("HarmonyPatch"), Build(), out _, out _));
     }
 
     [Fact]
     public void CodegenWithGeneratedFilePasses()
     {
-        Assert.True(DotsCodegen.Check(Dll("DOTSCompilerGeneratedAttribute"), Build("SomeSystem__System_1.g.cs"), out var message));
+        Assert.True(DotsCodegen.Check(Dll("DOTSCompilerGeneratedAttribute"), Build("SomeSystem__System_1.g.cs"), out var message, out _));
         Assert.Contains("1 generated file", message);
     }
 
     [Fact]
     public void CodegenWithoutGeneratedFileFails()
     {
-        Assert.False(DotsCodegen.Check(Dll("DOTSCompilerGeneratedAttribute"), Build(), out var message));
+        Assert.False(DotsCodegen.Check(Dll("DOTSCompilerGeneratedAttribute"), Build(), out var message, out _));
         Assert.Contains("replaced by codegen", message);
     }
 
     [Fact]
     public void DevFlagsFileIsNotCodegen()
     {
-        Assert.False(DotsCodegen.Check(Dll("DOTSCompilerGeneratedAttribute"), Build("DevFlags.generated.cs"), out _));
+        Assert.False(DotsCodegen.Check(Dll("DOTSCompilerGeneratedAttribute"), Build("DevFlags.generated.cs"), out _, out _));
+    }
+
+    [Fact]
+    public void UnreadableAssemblyFails()
+    {
+        var dll = Dll("DOTSCompilerGeneratedAttribute");
+        File.SetUnixFileMode(dll, UnixFileMode.None);
+        try
+        {
+            Assert.False(DotsCodegen.Check(dll, Build("SomeSystem__System_1.g.cs"), out var message, out _));
+            Assert.Contains("cannot read", message);
+        }
+        finally
+        {
+            File.SetUnixFileMode(dll, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
     }
 }

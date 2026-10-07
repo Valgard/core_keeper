@@ -1148,9 +1148,10 @@ not prevent it: it was set on the mod this was measured on (2026-10-06, Unity
 no `.g.cs`. Bumping a source file's timestamp before the build makes Unity
 recompile and the file returns. Two tells, both cheap: the build log names every
 file it collects as `Adding generated file …`, and the compiled assembly under
-`Library/ScriptAssemblies/` contains the string `DOTSCompilerGenerated` exactly
-when the mod has such code — it stays in the last compile's output, so it is
-present precisely when the build lacks the file. This repository's guard for
+`Library/ScriptAssemblies/` contains the string `DOTSCompilerGenerated`
+whenever the mod has such code. That assembly is the last compile's output, so
+it still carries the string after a build that did not recompile — the string
+together with a build that has no `.g.cs` is the failure. This repository's guard for
 both build paths is described in [the build environment](../build-environment.md#a-mod-with-dots-systems-must-recompile-on-every-build).
 
 That file is also the better place to measure from: it is a `partial class` and

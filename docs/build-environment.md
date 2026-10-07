@@ -102,7 +102,8 @@ have been replaced by codegen` at the first system update. The mechanism is in [
 The dangerous case is a publish: a second attempt after a failed one, or a
 release after a documentation-only commit, would upload exactly such a build.
 
-Both build paths therefore do the same two things:
+Both build paths therefore do the same two things, and a Steam-only publish
+does the second:
 
 - **Before Unity starts**, `utils/build.sh` and `utils/upload.sh` touch every
   `.cs` under the mod's `unity/<Mod>/`, which makes Unity recompile the mod and
@@ -113,13 +114,21 @@ Both build paths therefore do the same two things:
   through `utils/check_dots_codegen.py` and exits **4**; a publish does it inside
   `CLIPublishHelper`, between the build and the first mod.io call, because
   `upload.sh` builds in its own Unity session and never goes through
-  `build.sh`. A mod's own `Generated/DevFlags.generated.cs` does not count —
-  only `*.g.cs` is codegen.
+  `build.sh`. `upload.sh --steam-only` publishes the last local build, which
+  nothing else checked — possibly one `build.sh` just rejected, since the
+  rejection leaves it in place — so it runs the same script before the first
+  Steam call. A mod's own `Generated/DevFlags.generated.cs` does not count — only
+  `*.g.cs` is codegen. A compiled assembly that cannot be found (not named after
+  `MOD_NAME`) skips the check with a warning; one that cannot be read fails it.
 
 The touch is the remedy and the check the net under it: both failure runs it was
 tested with (a build and a publish dry run, each with the touch disabled) were
-stopped, and the same runs with it passed. If the check ever fires, the touch
-did not trigger a recompile — touch a source file by hand and build again.
+stopped, and the same runs with it passed. The check catches the failure it was
+built for, not every way a build can go stale: it trusts the last compile's
+assembly, so a mod whose sources gained their first DOTS system without Unity
+recompiling would pass — which cannot happen through an edit, because the edit
+itself triggers the recompile. When the check fires, touch a source file by hand
+and build again.
 
 ## `Access token is unavailable` is noise, not a diagnosis
 
