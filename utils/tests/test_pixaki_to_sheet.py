@@ -5,6 +5,7 @@ import os
 import re
 
 import pixaki_to_sheet as p
+import pytest
 from conftest import PIXAKI_DIRECTORIES
 from conftest import write_pixaki
 from PIL import Image
@@ -647,3 +648,53 @@ def test_cells_absent_keeps_trimmed_sprites():
     img = p.normalize(layer, drawings)
     assert img.size == (5, 5)
     assert _opaque_bbox(img) == (0, 0, 5, 5)
+
+
+def test_build_sheet_with_cells_writes_the_box_size_into_the_meta(tmp_path):
+    """The packed rect is the box (6x6), not the 4x4 drawing (dedup sizes from the boxed image)."""
+    cfg = '{"cells": {"grid": 10, "boxes": [[6, 0]]}}'
+    pixaki = _write_sprite_pixaki(tmp_path, cfg)
+    (tmp_path / "tpl.meta").write_text(_TEMPLATE_META)
+    out = tmp_path / "o.png"
+    p.build_sheet(str(pixaki), str(out), str(tmp_path / "tpl.meta"), guid="d" * 32)
+    meta = (tmp_path / "o.png.meta").read_text()
+    assert re.findall(r"^        width: (\d+)$", meta, re.M) == ["6", "6"]
+    assert re.findall(r"^        height: (\d+)$", meta, re.M) == ["6", "6"]
+
+
+def test_unknown_definition_key_is_rejected(tmp_path):
+    """A typo such as 'excludeNestd' must not silently cut with defaults."""
+    import pytest
+
+    pixaki = _write_sprite_pixaki(tmp_path, '{"excludeNestd": ["Icon"]}')
+    with pytest.raises(ValueError, match="excludeNestd"):
+        p.load_config(str(pixaki))
+
+
+def test_exclude_nested_name_matching_nothing_is_rejected(tmp_path):
+    """An excludeNested entry that names no group or layer is a typo, not a no-op."""
+    import pytest
+
+    pixaki = _write_sprite_pixaki(tmp_path, '{"excludeNested": ["Iconn"]}')
+    (tmp_path / "tpl.meta").write_text(_TEMPLATE_META)
+    with pytest.raises(ValueError, match="Iconn"):
+        p.build_sheet(str(pixaki), str(tmp_path / "o.png"), str(tmp_path / "tpl.meta"))
+    assert not (tmp_path / "o.png").exists()
+
+
+@pytest.mark.parametrize(
+    "cells",
+    [
+        {"boxes": [[6, 2]]},
+        {"grid": 10},
+        {"grid": 0, "boxes": [[6, 2]]},
+        {"grid": 10, "boxes": [[0, 2]]},
+        {"grid": 10, "boxes": [[6, -1]]},
+        {"grid": 10, "boxes": [[6]]},
+        {"grid": 10, "boxes": []},
+    ],
+)
+def test_malformed_cells_raise_value_error(cells):
+    """Every malformed 'cells' is one ValueError, never a KeyError or a silent default."""
+    with pytest.raises(ValueError, match="cells"):
+        p._parse_cells(cells)

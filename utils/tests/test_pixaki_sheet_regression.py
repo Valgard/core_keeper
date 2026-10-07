@@ -29,31 +29,52 @@ def _workspace():
 
 ROOT = _workspace()
 
-# (mod repo, master under sources/, sheet under unity/)
+# (mod repo, master under sources/, sheet under unity/, sprite definition under the
+# repo or None for the sibling <master>.json)
 SHEETS = [
     (
         "item-checklist",
         "sources/Item checklist sprites.pixaki",
         "unity/ItemChecklist/Art/UI/ui_checklist.png",
+        None,
     ),
     (
         "player-coordinates-hud",
         "sources/player_position.pixaki",
         "unity/PlayerCoordinatesHud/Art/UI/player_position.png",
+        None,
+    ),
+    (
+        "map-markers-enhanced",
+        "sources/mme_markers.pixaki",
+        "unity/MapMarkersEnhanced/Art/markers_large.png",
+        "sources/mme_markers.large.json",
+    ),
+    (
+        "map-markers-enhanced",
+        "sources/mme_markers.pixaki",
+        "unity/MapMarkersEnhanced/Art/markers_small.png",
+        "sources/mme_markers.small.json",
     ),
 ]
 
 
-@pytest.mark.parametrize(("repo", "master", "sheet"), SHEETS, ids=[s[0] for s in SHEETS])
-def test_committed_sheet_is_reproduced_byte_for_byte(repo, master, sheet, tmp_path):
+@pytest.mark.parametrize(
+    ("repo", "master", "sheet", "config"), SHEETS, ids=[Path(s[2]).stem for s in SHEETS]
+)
+def test_committed_sheet_is_reproduced_byte_for_byte(repo, master, sheet, config, tmp_path):
     """Cutting the committed master with the committed meta and GUID returns the committed sheet."""
     pixaki = ROOT / repo / master
     committed = ROOT / repo / sheet
     committed_meta = Path(str(committed) + ".meta")
     if not (pixaki.exists() and committed.exists() and committed_meta.exists()):
-        pytest.skip(f"sibling repo {repo} is not checked out beside this one")
+        pytest.skip(
+            f"{repo}'s main checkout does not hold {sheet} yet (for map-markers-enhanced: "
+            "the icon-rework branch is not merged) or the repo is not checked out beside this one"
+        )
     guid = re.search(r"^guid: ([0-9a-f]{32})", committed_meta.read_text(), re.M).group(1)
     out = tmp_path / committed.name
-    p.build_sheet(str(pixaki), str(out), str(committed_meta), guid=guid)
+    config_path = str(ROOT / repo / config) if config else None
+    p.build_sheet(str(pixaki), str(out), str(committed_meta), guid=guid, config_path=config_path)
     assert out.read_bytes() == committed.read_bytes()
     assert Path(str(out) + ".meta").read_text() == committed_meta.read_text()

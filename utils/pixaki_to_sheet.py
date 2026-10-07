@@ -65,6 +65,12 @@ def load_config(pixaki_path, config_path=None):
             raise FileNotFoundError(f"sprite-def config not found next to the .pixaki: {cfg_path}")
     with open(cfg_path) as f:
         data = json.load(f)
+    unknown = sorted(set(data) - set(_CONFIG_DEFAULTS))
+    if unknown:
+        raise ValueError(
+            f"sprite definition {cfg_path} has unknown key(s) {unknown}: "
+            f"known keys are {sorted(_CONFIG_DEFAULTS)}"
+        )
     c = copy.deepcopy(_CONFIG_DEFAULTS)
     c.update(data)
     c["exclude"] = set(c["exclude"])
@@ -94,10 +100,18 @@ def _parse_cells(cells):
     """Normalise the "cells" option to (grid, ((size, offset), ...)), or None when absent."""
     if cells is None:
         return None
-    grid = int(cells["grid"])
-    boxes = tuple((int(size), int(offset)) for size, offset in cells["boxes"])
-    if grid <= 0 or not boxes:
-        raise ValueError(f"'cells' needs a positive grid and at least one box, got {cells!r}")
+    try:
+        grid = int(cells["grid"])
+        boxes = tuple((int(size), int(offset)) for size, offset in cells["boxes"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(
+            f'\'cells\' must be {{"grid": N, "boxes": [[size, offset], ...]}}, got {cells!r}'
+        ) from exc
+    if grid <= 0 or not boxes or any(size <= 0 or offset < 0 for size, offset in boxes):
+        raise ValueError(
+            "'cells' needs a positive grid and at least one box, each with a positive size "
+            f"and a non-negative offset, got {cells!r}"
+        )
     return grid, boxes
 
 
@@ -152,6 +166,25 @@ def collect_layers(doc, exclude_top, exclude_nested=frozenset()):
         nm = top.get("name") if isinstance(top, dict) else None
         walk(top, bool(nm and nm in exclude_top))
     return out
+
+
+def _all_names(doc):
+    """Every group and layer name in the first sprite's layer tree, at any depth."""
+    names = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            if isinstance(node.get("name"), str):
+                names.add(node["name"])
+            for k, v in node.items():
+                if k != "name" and isinstance(v, (list, dict)):
+                    walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(doc["sprites"][0].get("layers", []))
+    return names
 
 
 def load_pixaki(path):
@@ -218,7 +251,9 @@ def normalize(layer, drawings, cells=None):
 
     Public because `pixaki_inspect` reports on the same images this packs, and
     a second implementation of the anchoring is exactly the kind of duplicate
-    that drifts without anyone noticing.
+    that drifts without anyone noticing. Without `cells` those are exactly the
+    packed images; `pixaki_inspect` does not take a definition, so it always
+    shows the trimmed form, and a sheet cut with `cells` packs the boxed one.
     """
     src = drawings[layer.drawing_id]
     if cells is not None:
@@ -441,6 +476,11 @@ def build_sheet(pixaki_path, out_png, template_meta=None, guid=None, config_path
     cfg = load_config(pixaki_path, config_path)
     template_meta = template_meta or (out_png + ".meta")
     doc, drawings = load_pixaki(pixaki_path)
+    missing = sorted(cfg["excludeNested"] - _all_names(doc))
+    if missing:
+        raise ValueError(
+            f"'excludeNested' names match no group or layer in {pixaki_path}: {missing}"
+        )
     layers = collect_layers(doc, cfg["exclude"], frozenset(cfg["excludeNested"]))
     distinct, _name_to_key = dedup(layers, drawings, cfg["cells"])
     # base name per key = first layer that produced it (recompute the key per
