@@ -26,6 +26,15 @@ Run the gates once before dispatching too, not only at commit time:
     uv run utils/check_docs_links.py .
     uv run utils/check_docs_wrapping.py .
     uv run utils/check_citation_drift.py
+    uv run utils/check_citation_style.py .
+
+The last one is a commit gate like the first two, and it rejects a citation form
+rather than a wrong target: an assembly inherited from an earlier sentence (``
+`:419767` ``) and a number outside the backticks (`` `Pug.Other` ~355773 ``) are
+both refused. Write every citation in full (`` `Pug.Other:419767` ``) and the
+gate never fires. It matters more than it looks: the short forms are invisible
+to `check_citation_drift.py` too, so a chapter full of them passes a drift check
+that never examined them.
 
 Thirty seconds, and what it buys is the chapter's starting state — a gate
 failure found later is either something this pass introduced or something
@@ -65,6 +74,12 @@ Fill this template and send it unchanged to all three lanes:
       The `cd` is required, not a convenience: without it, a lane starting
       from a worktree or a mod repository gets nothing back, silently.
     CORPUS — installed third-party mods: …/CrossOver/Bottles/Core Keeper/drive_c/users/Public/mod.io/5289/mods/<id>/Scripts/
+    CORPUS — a named foreign mod: resolve the path yourself with
+      `uv run utils/mod_source.py <name>` and put the result in the dispatch.
+      Never leave a lane to find a mod by name: without a path it searches the
+      filesystem, which on this machine reaches the SMB shares and the Time
+      Machine volume under /Volumes, and it does not stop early even when the
+      mod is sitting in the local cache.
     SEARCH CAVEAT: this directory's .gitignore is /*, and the in-session grep
       honours it — a root-relative search across the mod repositories returns
       nothing at all, silently. Use `command grep`. The handbook is also
@@ -413,10 +428,10 @@ commit without it makes the chapter's state unreadable a year later.
 Write it in the exact-version-string shape the handbook itself already asks
 for, and for the same reason — not the bare four-part game version
 (`docs/ck/reverse-engineering.md:85-89`, "record the build the checkout came
-from"): `1.2.1.5-8be0`, for example, is the current `game_version` in
-`utils/ck-citation-snapshot.json`. Read the current value from there, or from
-the decompile checkout itself — the example is a shape to match, not a value
-to copy forward.
+from"). The shape is a four-part build plus a short hash, as in
+`1.2.1.5-8be0` — deliberately an old one here, so it cannot be mistaken for
+the value to use. Read the live value from `game_version` in
+`utils/ck-citation-snapshot.json`, or from the decompile checkout itself.
 
 **Any citation inserted during this pass needs that same snapshot updated, in
 the same run:**
@@ -427,6 +442,20 @@ Skip it after adding new citations and the next chapter's drift check reports
 them as "not in the snapshot" — a false positive with no relation to that
 later pass. Use the same version string as the commit line above, so the
 snapshot and the commit history agree on what was checked against what.
+
+**A game update is the other case, and `--capture` is the wrong tool for it.**
+When the decompile has been regenerated, the recorded text has not changed but
+its line has moved, often by thousands — `utils/relocate_citations.py` finds
+each recorded snippet again in the new tree and rewrites the number.
+**Capture only once nothing is left open:** a `--capture` run while cases are
+unresolved writes their wrong state in as the new truth, and the drift check
+then agrees with itself about something nobody checked.
+
+That also bounds what a verification commit's version string promises. It says
+which build the chapter's *claims* were weighed against — relocating its
+citations to a later build moves the numbers, not the verdict, so a chapter
+whose citations are current can still rest on behaviour measured two updates
+ago.
 
 ## Red flags
 
