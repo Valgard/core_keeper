@@ -244,6 +244,106 @@ def test_load_config_normalizes_and_defaults(tmp_path):
         p.load_config(str(tmp_path / "missing.pixaki"))
 
 
+def test_load_config_reads_an_explicit_config_path(tmp_path):
+    """An explicit config path replaces the sibling lookup (one master, several definitions)."""
+    (tmp_path / "s.pixaki").write_bytes(b"x")
+    (tmp_path / "other.json").write_text('{"exclude": ["A"]}')
+    c = p.load_config(str(tmp_path / "s.pixaki"), str(tmp_path / "other.json"))
+    assert c["exclude"] == {"A"}
+    assert c["excludeNested"] == set()
+
+
+def _leaf(name, ident):
+    return {"name": name, "clips": [{"itemIdentifier": ident}], "isVisible": True}
+
+
+def test_exclude_nested_drops_groups_and_layers_at_any_depth():
+    """The nested exclude set drops a group (whole subtree) or a layer, at any depth."""
+    doc = {
+        "sprites": [
+            {
+                "cels": [
+                    {"identifier": i, "frame": [[0, 0], [4, 4]]} for i in ("L1", "L2", "S1", "S2")
+                ],
+                "layers": [
+                    {
+                        "name": "Root",
+                        "children": [
+                            {
+                                "name": "Icons",
+                                "children": [
+                                    {
+                                        "name": "Large",
+                                        "children": [_leaf("a", "L1"), _leaf("b", "L2")],
+                                    },
+                                    {
+                                        "name": "Small",
+                                        "children": [_leaf("a", "S1"), _leaf("b", "S2")],
+                                    },
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    layers = p.collect_layers(doc, set(), frozenset({"Small", "b"}))
+    assert [(layer.name, layer.drawing_id) for layer in layers] == [("a", "L1")]
+    # opt-in: without it nothing changes
+    assert len(p.collect_layers(doc, set())) == 4
+
+
+def test_build_sheet_with_two_configs_cuts_two_sheets(tmp_path):
+    """One master, two --config definitions: two sheets whose sprite names agree."""
+    import json
+
+    doc = {
+        "sprites": [
+            {
+                "cels": [
+                    {"identifier": i, "frame": [[0, 0], [4, 4]]} for i in ("L1", "L2", "S1", "S2")
+                ],
+                "layers": [
+                    {
+                        "name": "Large",
+                        "children": [_leaf("a", "L1"), _leaf("b", "L2")],
+                    },
+                    {
+                        "name": "Small",
+                        "children": [_leaf("a", "S1"), _leaf("b", "S2")],
+                    },
+                ],
+            }
+        ]
+    }
+    import io
+
+    members = {"document.json": json.dumps(doc).encode()}
+    for i, ident in enumerate(("L1", "L2", "S1", "S2")):
+        bio = io.BytesIO()
+        Image.new("RGBA", (4, 4), _SPRITE_COLOURS[i]).save(bio, "PNG")
+        members[f"images/drawings/{ident}.png"] = bio.getvalue()
+    pixaki = write_pixaki(tmp_path / "m.pixaki", members, "zip", directories=PIXAKI_DIRECTORIES)
+    (tmp_path / "large.json").write_text('{"excludeNested": ["Small"]}')
+    (tmp_path / "small.json").write_text('{"excludeNested": ["Large"]}')
+    (tmp_path / "tpl.meta").write_text(_TEMPLATE_META)
+    names = []
+    for kind in ("large", "small"):
+        out = tmp_path / f"{kind}.png"
+        p.build_sheet(
+            str(pixaki),
+            str(out),
+            str(tmp_path / "tpl.meta"),
+            guid="b" * 32,
+            config_path=str(tmp_path / f"{kind}.json"),
+        )
+        meta = (tmp_path / f"{kind}.png.meta").read_text()
+        names.append(re.findall(r"^      name: (.+)$", meta, re.M))
+    assert names[0] == names[1] == ["a", "b"]
+    assert (tmp_path / "large.png").read_bytes() != (tmp_path / "small.png").read_bytes()
+
+
 def test_build_sheet_in_place_template_not_truncated(tmp_path):
     """An in-place regen must read the template before opening the same path for write.
 

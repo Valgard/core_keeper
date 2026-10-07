@@ -5,10 +5,13 @@ them into one sheet, and emits a Unity sprite-sheet .png.meta with deterministic
 internalIDs. Per-mod sprite definitions — excludes, renames, padding, sliced
 borders, border overrides, pinned internalIDs, sheet width/gutter/GUID — live in
 a sibling <name>.json beside the <name>.pixaki (see load_config); a missing .json
-is a hard error.
+is a hard error. --config names another definition instead, so one master can be
+cut into several sheets; "excludeNested" then drops layers and groups by name at
+any depth, which "exclude" (top level only) cannot.
 
 Usage:
     python3 pixaki_to_sheet.py <file.pixaki> <out.png> [--meta-template <tpl.png.meta>]
+                               [--config <defn.json>] [--guid <hex>]
 
 --meta-template defaults to <out.png>.meta, so an in-place regen reuses the
 existing meta as its own header/tail template.
@@ -27,6 +30,7 @@ from pixaki_container import open_pixaki
 
 _CONFIG_DEFAULTS = {
     "exclude": [],
+    "excludeNested": [],
     "sliced": [],
     "borderOverride": [],
     "rename": {},
@@ -38,24 +42,31 @@ _CONFIG_DEFAULTS = {
 }
 
 
-def load_config(pixaki_path):
-    """Load the sibling <name>.json sprite-def config for a .pixaki file.
+def load_config(pixaki_path, config_path=None):
+    """Load the sprite-def config for a .pixaki file.
 
-    Missing keys fall back to _CONFIG_DEFAULTS; a missing .json raises
+    Normally the sibling <name>.json; config_path, when given, replaces that
+    lookup. Missing keys fall back to _CONFIG_DEFAULTS; a missing .json raises
     FileNotFoundError.
     """
     # normpath first: a directory package is likely typed with the trailing
     # slash shell completion appends, and splitext sees no extension on
     # '<name>.pixaki/' -- which sent this lookup INSIDE the package while the
     # error below said "next to the .pixaki".
-    cfg_path = os.path.splitext(os.path.normpath(pixaki_path))[0] + ".json"
-    if not os.path.exists(cfg_path):
-        raise FileNotFoundError(f"sprite-def config not found next to the .pixaki: {cfg_path}")
+    if config_path is not None:
+        cfg_path = config_path
+        if not os.path.exists(cfg_path):
+            raise FileNotFoundError(f"sprite-def config not found: {cfg_path}")
+    else:
+        cfg_path = os.path.splitext(os.path.normpath(pixaki_path))[0] + ".json"
+        if not os.path.exists(cfg_path):
+            raise FileNotFoundError(f"sprite-def config not found next to the .pixaki: {cfg_path}")
     with open(cfg_path) as f:
         data = json.load(f)
     c = copy.deepcopy(_CONFIG_DEFAULTS)
     c.update(data)
     c["exclude"] = set(c["exclude"])
+    c["excludeNested"] = set(c["excludeNested"])
     c["sliced"] = set(c["sliced"])
     c["borderOverride"] = {
         (b["name"], b["w"], b["h"]): tuple(b["border"]) for b in c["borderOverride"]
@@ -81,10 +92,12 @@ class Layer:
     h: int
 
 
-def collect_layers(doc, exclude_top):
+def collect_layers(doc, exclude_top, exclude_nested=frozenset()):
     """Return the visible, named, drawing-bearing layers.
 
-    Skips the excluded top-level groups and any hidden layer.
+    Skips the excluded top-level groups, any hidden layer, and every node --
+    group (with its whole subtree) or layer -- whose name is in exclude_nested,
+    at any depth.
     """
     sp = doc["sprites"][0]
     cel_size = {c["identifier"]: tuple(c["frame"][1]) for c in sp.get("cels", []) if c.get("frame")}
@@ -92,6 +105,8 @@ def collect_layers(doc, exclude_top):
 
     def walk(node, top_excluded):
         if isinstance(node, dict):
+            if node.get("name") in exclude_nested:
+                return
             excl = top_excluded
             clips = node.get("clips")
             if clips and not excl and node.get("isVisible", True):
@@ -363,16 +378,17 @@ def render_meta(template_meta_path, new_guid, placements_named):
     return head + sheet + tail
 
 
-def build_sheet(pixaki_path, out_png, template_meta=None, guid=None):
+def build_sheet(pixaki_path, out_png, template_meta=None, guid=None, config_path=None):
     """Build the sheet PNG + .meta. Returns (mapping name->internalID, guid).
 
     guid: force the sheet GUID (so prefab refs stay valid); else derive from path.
     template_meta: defaults to out_png + '.meta'.
+    config_path: the sprite definition to use instead of the sibling <name>.json.
     """
-    cfg = load_config(pixaki_path)
+    cfg = load_config(pixaki_path, config_path)
     template_meta = template_meta or (out_png + ".meta")
     doc, drawings = load_pixaki(pixaki_path)
-    layers = collect_layers(doc, cfg["exclude"])
+    layers = collect_layers(doc, cfg["exclude"], frozenset(cfg["excludeNested"]))
     distinct, _name_to_key = dedup(layers, drawings)
     # base name per key = first layer that produced it (recompute the key per
     # layer; name_to_key is lossy when one name maps to several distinct keys,
@@ -443,8 +459,13 @@ def main():
     ap.add_argument("--meta-template", default=None)
     ap.add_argument("--mapping-out", default=None)
     ap.add_argument("--guid", default=None, help="force sheet GUID (else derived from out path)")
+    ap.add_argument(
+        "--config", default=None, help="sprite definition to use instead of the sibling <name>.json"
+    )
     a = ap.parse_args()
-    mapping, guid = build_sheet(a.pixaki, a.out_png, a.meta_template, guid=a.guid)
+    mapping, guid = build_sheet(
+        a.pixaki, a.out_png, a.meta_template, guid=a.guid, config_path=a.config
+    )
     if a.mapping_out:
         with open(a.mapping_out, "w") as f:
             json.dump({"guid": guid, "name_to_internal_id": mapping}, f, indent=1)
