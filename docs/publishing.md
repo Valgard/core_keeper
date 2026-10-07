@@ -70,6 +70,10 @@ changelog; use a real release for anything that changes what the mod does.
   `--profile-only` escaped it because it does not build, so its calls finished
   before the tick. `CLIPublishHelper.Publish` now removes the queued call first
   thing; the same run then went through.
+- **A build without its DOTS codegen is refused before the upload.** A publish
+  builds in its own Unity session, so `upload.sh` touches the mod's sources
+  first and `CLIPublishHelper` checks the build for its `*.g.cs` before the
+  first mod.io call — see [the build environment](build-environment.md#a-mod-with-dots-systems-must-recompile-on-every-build).
 - **An identical build uploads without creating a modfile.** Publishing a build
   byte-identical to the live modfile reports `Uploaded` and leaves the file list
   unchanged. So a repeat publish of an unchanged version does not duplicate the

@@ -1135,6 +1135,24 @@ Replacing method <Ns>.<System>/OnUpdate_T0 with __OnUpdate_<hash>
 Diagnostic code added to the source file therefore never runs. It has to go into
 the `.g.cs`.
 
+**A build can ship without that file, and say nothing.** `ModBuilder` collects
+the generated code from `Temp/GeneratedCode/<ModName>/` (and
+`Temp/NetCodeGenerated/<ModName>/`), but `Temp` starts empty in every batchmode
+session, and Unity runs the source generators only when it recompiles the mod's
+assembly — which it does not when no source changed since the last compile. The
+build then succeeds with the original `OnUpdate` stub alone, Player.log has no
+`Replacing method` line for the system, and its first update throws `This method
+should have been replaced by codegen`. The settings asset's `forceReimport` does
+not prevent it: it was set on the mod this was measured on (2026-10-06, Unity
+6000.0.59f2), and the second of two builds with unchanged sources still shipped
+no `.g.cs`. Bumping a source file's timestamp before the build makes Unity
+recompile and the file returns. Two tells, both cheap: the build log names every
+file it collects as `Adding generated file …`, and the compiled assembly under
+`Library/ScriptAssemblies/` contains the string `DOTSCompilerGenerated` exactly
+when the mod has such code — it stays in the last compile's output, so it is
+present precisely when the build lacks the file. This repository's guard for
+both build paths is described in [the build environment](../build-environment.md#a-mod-with-dots-systems-must-recompile-on-every-build).
+
 That file is also the better place to measure from: it is a `partial class` and
 contains the system's **real** queries (`__query_<id>_0`, … with every filter and
 `EntityQueryOptions` applied), so a measurement taken through them observes

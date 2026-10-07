@@ -94,6 +94,33 @@ appears three times harmlessly before the run dies — so the log reads as if
 something went wrong repeatedly, when it went wrong once, in one place that had
 no catch.
 
+## A mod with DOTS systems must recompile on every build
+
+A build with unchanged sources ships a mod's DOTS systems without their
+generated bodies — the build succeeds, and the game throws `This method should
+have been replaced by codegen` at the first system update. The mechanism is in [the handbook](ck/harmony-and-ecs.md#instrumenting-generated-dots-code).
+The dangerous case is a publish: a second attempt after a failed one, or a
+release after a documentation-only commit, would upload exactly such a build.
+
+Both build paths therefore do the same two things:
+
+- **Before Unity starts**, `utils/build.sh` and `utils/upload.sh` touch every
+  `.cs` under the mod's `unity/<Mod>/`, which makes Unity recompile the mod and
+  run its generators. It costs a recompile per build, which is seconds.
+- **After the build**, the result is checked: when the compiled
+  `Library/ScriptAssemblies/<Mod>.dll` contains `DOTSCompilerGenerated` and the
+  built mod has no `Scripts/Generated/*.g.cs`, the run stops. `build.sh` does it
+  through `utils/check_dots_codegen.py` and exits **4**; a publish does it inside
+  `CLIPublishHelper`, between the build and the first mod.io call, because
+  `upload.sh` builds in its own Unity session and never goes through
+  `build.sh`. A mod's own `Generated/DevFlags.generated.cs` does not count —
+  only `*.g.cs` is codegen.
+
+The touch is the remedy and the check the net under it: both failure runs it was
+tested with (a build and a publish dry run, each with the touch disabled) were
+stopped, and the same runs with it passed. If the check ever fires, the touch
+did not trigger a recompile — touch a source file by hand and build again.
+
 ## `Access token is unavailable` is noise, not a diagnosis
 
 ```
