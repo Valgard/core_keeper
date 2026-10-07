@@ -8,7 +8,7 @@ are reading, and a fix that works whenever a player hosts and is inert on a
 dedicated server. This chapter covers how to make a patch bind, how to make it
 fire, and how to read and write the live ECS world once it does.
 
-Line numbers quoted below (`Pug.Other:306197`) are offsets into the decompiled
+Line numbers quoted below (`Pug.Other:306184`) are offsets into the decompiled
 game assemblies — see [reverse-engineering](reverse-engineering.md) for how to produce that decompile.
 **Every citation names its assembly, and the two builds are different
 assemblies.** The same code sits at different offsets in each —
@@ -130,10 +130,10 @@ armed, and only then.
 ### Nested jobs need the `AndJobs` variant
 
 `DisableBurstForSystem<T>` is not enough when the system's real work lives in a
-nested job. `EquipmentUpdateSystem` (`Pug.Other:438756`) does everything in
-`UpdateJob`, which carries its own `[BurstCompile]` (`Pug.Other:438758`) and calls
-`PlaceObjectSlot.UpdateEquipment` (`Pug.Other:438890`). Note the blast radius before
-reaching for it: that call sits in a `switch` on `slotType` (`Pug.Other:438884`) covering
+nested job. `EquipmentUpdateSystem` (`Pug.Other:438831`) does everything in
+`UpdateJob`, which carries its own `[BurstCompile]` (`Pug.Other:438833`) and calls
+`PlaceObjectSlot.UpdateEquipment` (`Pug.Other:438965`). Note the blast radius before
+reaching for it: that call sits in a `switch` on `slotType` (`Pug.Other:438959`) covering
 `ShovelSlot`, `EatableSlot`, `WaterCanSlot` and the rest, so un-Bursting this
 one system takes the equipment path off Burst for **every** slot type, not only
 the one you meant to patch. With the plain variant, **no** patch on that path
@@ -162,7 +162,7 @@ the postfix itself installed — patched behaviour the SDK no longer knows it
 applied.
 
 It is also why `EquipmentUpdateSystem` needs it. Its `OnUpdate`
-(`Pug.Other:439560`) ends `state.Dependency =
+(`Pug.Other:439635`) ends `state.Dependency =
 __ScheduleViaJobChunkExtension_0(new UpdateJob { … })`, and that extension
 returns a `.Schedule(...)` call — not `.Run(...)`. The job is *queued*, not
 executed, before `OnUpdate` returns, so `UpdateJob` runs after the bypass
@@ -215,9 +215,9 @@ judged by eye with no profiler. It does not establish that Burst-disabling is
 cheap in general — and the recorded note names two properties of *this* system
 that keep it cheap, both of which have to be re-checked before assuming the same
 anywhere else: the query iterates player entities only (`EquipmentUpdateAspect`
-requires `ClientInput`, `PlayerStateCD`, `PlayerGhost` — `Pug.Other:438120`),
+requires `ClientInput`, `PlayerStateCD`, `PlayerGhost` — `Pug.Other:438195`),
 and the job is scheduled with `Schedule()`, not `ScheduleParallel()`
-(`Pug.Other:439668`), so it was single-threaded anyway and `Complete()` costs only the
+(`Pug.Other:439743`), so it was single-threaded anyway and `Complete()` costs only the
 frame overlap.
 
 It also came with an attribution problem worth repeating: the one place that
@@ -313,7 +313,7 @@ either ordering, so keep it until the 1.3 server log has been read.
 the only route.** The server build's own guard names its real entry point and
 then acts on it — `UnityEngine.Debug.LogError("Server should start from
 ServerMain!")` followed immediately by `Application.Quit()`
-(`DedicatedServer/Pug.Other:378856-378857`, server build), so a server build reaching
+(`DedicatedServer/Pug.Other:378879-378880`, server build), so a server build reaching
 `SceneHandler.Awake` with a ServerWorld already created terminates rather than
 continuing. That is what rules the `SceneHandler.Awake` → `StartEcs` route out
 as the server's ordinary path. And `ServerMain` exists nowhere as a type:
@@ -324,9 +324,9 @@ settles the question.
 
 **That table is a measurement, and no derivation has replaced it — one was tried
 and was wrong.** The tempting mechanism is: `StartEcs` is reached from
-`SceneHandler.Awake` (client `Pug.Other:383067`, calling it at
-`Pug.Other:383104`; server build `DedicatedServer/Pug.Other:378828`, calling it
-at `DedicatedServer/Pug.Other:378867` or `DedicatedServer/Pug.Other:378872`
+`SceneHandler.Awake` (client `Pug.Other:383093`, calling it at
+`Pug.Other:383130`; server build `DedicatedServer/Pug.Other:378851`, calling it
+at `DedicatedServer/Pug.Other:378890` or `DedicatedServer/Pug.Other:378895`
 depending on the configured world) while `IMod.Init()` comes from
 `Loader.Update` (`PugMod.Loader:1214`, `PugMod.Loader:1216`), so Unity's rule
 that every `Awake` precedes every `Update` fixes the order. **It does not.**
@@ -334,17 +334,17 @@ that every `Awake` precedes every `Update` fixes the order. **It does not.**
 from three in the 1.3 server build — the third being the call inside `StartEcs`
 described above. All go through `Integration.Instance.Update()` — an
 `IIntegration` interface call that lands on `Loader` only because `Loader :
-IIntegration` — and one of them sits in `Manager.EarlyInit` (`Pug.Other:272276`,
-client build; server `DedicatedServer/Pug.Other:272213`), which is a
+IIntegration` — and one of them sits in `Manager.EarlyInit` (`Pug.Other:272263`,
+client build; server `DedicatedServer/Pug.Other:272197`), which is a
 `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]`
-(`Pug.Other:272188` client, `DedicatedServer/Pug.Other:272131` server) and
+(`Pug.Other:272172` client, `DedicatedServer/Pug.Other:272115` server) and
 therefore runs *before* any scene `Awake`. The other, the MonoBehaviour
-`Update()` the derivation actually means, is at `Pug.Other:279343` (server
-`DedicatedServer/Pug.Other:279188`). The lifecycle rule never applies to the
+`Update()` the derivation actually means, is at `Pug.Other:279330` (server
+`DedicatedServer/Pug.Other:279172`). The lifecycle rule never applies to the
 first path, so it cannot settle the ordering. Nor is the hosting side
 "menu-triggered" as a contrast: the client's own world-creating `StartEcs`
-(`Pug.Other:383104`) sits in `SceneHandler` too, and the menu path
-(`RadicalJoinGameMenu.Join`, `Pug.Other:351546`) passes `worldId: -1` and
+(`Pug.Other:383130`) sits in `SceneHandler` too, and the menu path
+(`RadicalJoinGameMenu.Join`, `Pug.Other:351545`) passes `worldId: -1` and
 creates no ServerWorld at all.
 
 Written down because the wrong derivation was published into a pull request
@@ -473,7 +473,7 @@ classes that host both kinds of member, and the two this chapter builds its XP
 recipe around are the Burst-reached kind: `PlayerController.AddSkill` is the
 case [scaling a value](#scaling-a-value-that-flows-from-a-burst-producer-into-a-burst-consumer) opens with ("do not patch the producer"), and
 `PetExtensions.GetExperienceFromDamage` is called from
-`AttemptToDealDamageToEnemy` (`Pug.Other:314790`), inside that same Burst sim
+`AttemptToDealDamageToEnemy` (`Pug.Other:314789`), inside that same Burst sim
 path. What survives the trap is a method managed code actually calls, which is
 not something the declaring type can tell you.
 
@@ -532,7 +532,7 @@ or combine onto. `Mods.OnModManagementEvent` is one: it is declared `public
 static ModManagementEventDelegate` in `modio.UI` (`ModIOBrowser.Mods`,
 `DedicatedServer/Pug.Other:3038`), and the game's own
 `RadicalMainMenuOption_OpenMods.Awake` combines its handler onto it via
-`Delegate.Combine` at `Pug.Other:352266`.
+`Delegate.Combine` at `Pug.Other:352265`.
 
 **Correction: the field-versus-event distinction does not gate your access.**
 This paragraph used to justify itself with "an `event` would only let you `+=`
@@ -569,7 +569,7 @@ decompiled C# and rendered `A&` in Harmony's own error text and anywhere else
 reflection names the type — fails at load with `ArgumentException: Undefined
 target method for patch method …`. Searching the `.cs` files for `A&` finds
 nothing; the parameter reads `in EquipmentUpdateAspect equipmentUpdateAspect`
-(`Pug.Other:322944`). The mod itself loads and sandbox-compiles fine
+(`Pug.Other:322943`). The mod itself loads and sandbox-compiles fine
 (`safetyCheck=True`); only the bind fails. That distinguishes it cleanly from
 the Burst case, which binds and stays silent.
 
@@ -626,28 +626,28 @@ the prefix binds and never fires: you need
 `DisableBurstForSystemAndJobs<EquipmentUpdateSystem>()`. A patch that binds
 without firing is the failure this chapter opens with.
 
-**Trap when picking the overload:** `PlaceObjectSlot` (`Pug.Other:322908-323258`)
+**Trap when picking the overload:** `PlaceObjectSlot` (`Pug.Other:322907-323257`)
 declares exactly *one* `PlaceItem`, the three-argument `(in EquipmentUpdateAspect,
-EquipmentUpdateSharedData, LookupEquipmentUpdateData)` at `Pug.Other:322944`.
+EquipmentUpdateSharedData, LookupEquipmentUpdateData)` at `Pug.Other:322943`.
 Five other slot classes declare a `PlaceItem` of their own. `BucketSlot`'s
-(`Pug.Other:321778`) has the very same parameter list, and `FishingRodSlot`'s
-(`Pug.Other:322332`) differs only in taking the last two by `in` as well;
+(`Pug.Other:321777`) has the very same parameter list, and `FishingRodSlot`'s
+(`Pug.Other:322331`) differs only in taking the last two by `in` as well;
 `PaintToolSlot`, `SeederSlot` and `WaterCanSlot` add a leading `ref
-NativeList<PlacementHandler.EntityAndInfoFromPlacement>` (`Pug.Other:322724`,
-`Pug.Other:323802`, `Pug.Other:324308`). A patch that picks its target by method
+NativeList<PlacementHandler.EntityAndInfoFromPlacement>` (`Pug.Other:322723`,
+`Pug.Other:323801`, `Pug.Other:324307`). A patch that picks its target by method
 name rather than by owning type can therefore bind any of the six, and one that
 picks by parameter shape can still bind `BucketSlot`'s.
 
 **Three of them are subclasses of `PlaceObjectSlot`, and that costs you coverage
 rather than merely risking a mis-bind.** `BucketSlot`, `PaintToolSlot` and
-`WaterCanSlot` (`Pug.Other:321754`, `Pug.Other:322702`, `Pug.Other:324278`) all
+`WaterCanSlot` (`Pug.Other:321753`, `Pug.Other:322701`, `Pug.Other:324277`) all
 derive from `PlaceObjectSlot` and declare both `UpdateEquipment` and `PlaceItem`
 of their own: `UpdateEquipment` as `public new static`, shadowing the base's
-(`Pug.Other:321762`, `Pug.Other:322706`, `Pug.Other:324286`), and `PlaceItem` as
-`private static`, as the base's own is (`Pug.Other:321778`, `Pug.Other:322724`,
-`Pug.Other:324308`). Because these are statics there is no virtual dispatch to
+(`Pug.Other:321761`, `Pug.Other:322705`, `Pug.Other:324285`), and `PlaceItem` as
+`private static`, as the base's own is (`Pug.Other:321777`, `Pug.Other:322723`,
+`Pug.Other:324307`). Because these are statics there is no virtual dispatch to
 carry a patch across — the caller names the class outright, one branch per slot
-type (`Pug.Other:438896`, `Pug.Other:438908`, `Pug.Other:438917`) — so the "sole
+type (`Pug.Other:438971`, `Pug.Other:438983`, `Pug.Other:438992`) — so the "sole
 caller" relation above holds for each class separately. A patch on
 `PlaceObjectSlot.PlaceItem` therefore covers neither bucket, paint-tool nor
 watering-can placement. Patch each class you actually mean to cover.
@@ -657,7 +657,7 @@ on the systems that *write* the components you read is irrelevant. `BurstDisable
 is needed only when the **patch target itself** is executed by Burst. Read-only
 access needs it not at all: an `EntityQuery.ToEntityArray` plus `GetComponentData`
 out of a managed coroutine or `Update` requires nothing, even though Burst jobs —
-`DropSelfJob` (`Pug.Other:90690`), for instance — match the very same components.
+`DropSelfJob` (`Pug.Other:90696`), for instance — match the very same components.
 `BurstDisabler` is not a precondition for touching ECS from a mod, and a
 needless `DisableBurstForSystemAndJobs` is not free.
 
@@ -668,7 +668,7 @@ valid placement spot, cooldown, and so on. While the player **holds the place
 button down** on a placeable item, that is roughly one call per input tick.
 
 **Correction: it is not called while the item is merely equipped.** The call
-site guards it twice before entering (`Pug.Other:322932`, `Pug.Other:322936`):
+site guards it twice before entering (`Pug.Other:322931`, `Pug.Other:322935`):
 
 ```csharp
 if (!secondInteractHeld) return false;
@@ -682,21 +682,21 @@ prefix runs ahead of all five.
 
 | Guard | Location |
 |---|---|
-| `if (!valueRW.canPlaceObject) return;` | `Pug.Other:322947` |
-| `CanPlaceItem` → `tilePlacementTimer` (0.65 s in this build) — **not a pure guard**: it stops the timer for a non-tile prefab (`Pug.Other:323164`) and starts it on the success path (`Pug.Other:323179`), so a prefix returning `false` suppresses those writes too | call `Pug.Other:322957`, declaration `Pug.Other:323159`, timer logic `Pug.Other:323164-323181` |
-| `timeSincePlaced.isRunning && … < 1f && pos == positionLastPlacedAt` | `Pug.Other:322962` |
-| `PlayerController.CanConsumeEntityInSlot` | `Pug.Other:322974` |
-| Creative / `ObjectType.PlaceablePrefab` check | `Pug.Other:322978` |
+| `if (!valueRW.canPlaceObject) return;` | `Pug.Other:322946` |
+| `CanPlaceItem` → `tilePlacementTimer` (0.65 s in this build) — **not a pure guard**: it stops the timer for a non-tile prefab (`Pug.Other:323163`) and starts it on the success path (`Pug.Other:323178`), so a prefix returning `false` suppresses those writes too | call `Pug.Other:322956`, declaration `Pug.Other:323158`, timer logic `Pug.Other:323163-323180` |
+| `timeSincePlaced.isRunning && … < 1f && pos == positionLastPlacedAt` | `Pug.Other:322961` |
+| `PlayerController.CanConsumeEntityInSlot` | `Pug.Other:322973` |
+| Creative / `ObjectType.PlaceablePrefab` check | `Pug.Other:322977` |
 
 The first point past all five that commits the placement **as player state** is
-`playerStateCD.ValueRW.PushState(PlayerStateEnum.PlaceObject)` (`Pug.Other:322993`),
-immediately followed by `StartCooldownForItem` (`Pug.Other:322995`). That is a semantic
-choice rather than the literally first unconditional statement: `Pug.Other:322992`
+`playerStateCD.ValueRW.PushState(PlayerStateEnum.PlaceObject)` (`Pug.Other:322992`),
+immediately followed by `StartCooldownForItem` (`Pug.Other:322994`). That is a semantic
+choice rather than the literally first unconditional statement: `Pug.Other:322991`
 already writes `placeObjectStateCD.positionToPlaceAt` unconditionally. It is the
 better signal because it is what the rest of the game reads as "a placement is
 happening".
 
-`EntityUtility.AddTile` (`Pug.Other:323004`) comes later and is **not universal**: it
+`EntityUtility.AddTile` (`Pug.Other:323003`) comes later and is **not universal**: it
 sits inside `if (…tileLookup.HasComponent(equipmentPrefab))`, so it is reached
 only for *tile* placements. Its `else` branch handles everything else — a chest,
 a cattle box, a critter. Gating a mod on "AddTile was reached" silently misses
@@ -709,7 +709,7 @@ specifically mean tiles, or the consume branch being taken. The postfix firing
 is not that signal — and neither is entering `AddTile`, which returns without
 queuing anything for a `tileSet` outside `0..74` and skips the
 `tileUpdateBuffer.Add` outside creative mode for tileset 2 at the four
-positions around the core (`Pug.Other:265219-265235`).
+positions around the core (`Pug.Other:265203-265219`).
 
 This generalises to every equipment/input path in CK: assume the method is
 polled, and find the commit point.
@@ -762,7 +762,7 @@ The robust target is the point where all routes converge. Queuing a tile means
 writing into the `TileUpdateBuffer`, and `EntityUtility.AddTile` is the
 convergence point of **equipment-driven** placement; the foreign mod calls it
 too. One call is not one buffer entry, though: placing a wall appends a second,
-a `Command.Remove` for `roofHole` at the same position (`Pug.Other:265234-265245`), so a
+a `Command.Remove` for `roofHole` at the same position (`Pug.Other:265218-265229`), so a
 prefix that counts or rewrites entries one-for-one is wrong for every wall. Many
 other things write the buffer directly, without passing through it at all —
 world generation, plant growth and the `SpawnTileOnDeathCD` handler among them,
@@ -922,41 +922,41 @@ If any of these is uncertain, the flag will race or leak, and the bug will be
 intermittent.
 
 **The example above does not satisfy the third precondition from the source
-alone.** `SaveManager.SetCharacterId(int)` (`Pug.Other:380743-380751`) warns on
+alone.** `SaveManager.SetCharacterId(int)` (`Pug.Other:380769-380777`) warns on
 an incompatible version and sets `_characterDead` and `_characterId` — it
 triggers no deserialize, and nothing in either tree links it to
 `CharacterData.OnAfterDeserialize`.
 
 **Nothing couples them at the producer — the pairing is the caller's ordering.**
 `OnAfterDeserialize` is Unity's `ISerializationCallbackReceiver` hook, which
-`CharacterData` implements (`Pug.Other:380189`). Since 1.3 nothing in the game
+`CharacterData` implements (`Pug.Other:380215`). Since 1.3 nothing in the game
 calls it explicitly: every invocation comes from Unity itself, through
-`SaveManager.DecodeJson<T>` (`Pug.Other:380713-380717`), which runs
+`SaveManager.DecodeJson<T>` (`Pug.Other:380739-380743`), which runs
 `JsonUtility.FromJsonOverwrite` over a character's JSON. Its body is empty
-(`Pug.Other:380275-380277`). Through 1.2 it carried the save-version upgrade and
+(`Pug.Other:380301-380303`). Through 1.2 it carried the save-version upgrade and
 had one explicit caller as well — `_ClearCharacter(int i)`, the routine that
 resets a character slot — so a postfix on it also fired on every slot reset. 1.3
-moved that work into `CharacterData.UpgradeIfOutdated()` (`Pug.Other:380299`),
-which the game calls explicitly after each character decode (`Pug.Other:380739`,
-`Pug.Other:380762`, `Pug.Other:381686`) and at the end of `_ClearCharacter`
-(`Pug.Other:381589`); a postfix on `OnAfterDeserialize` now sees the deserialize
+moved that work into `CharacterData.UpgradeIfOutdated()` (`Pug.Other:380325`),
+which the game calls explicitly after each character decode (`Pug.Other:380765`,
+`Pug.Other:380788`, `Pug.Other:381712`) and at the end of `_ClearCharacter`
+(`Pug.Other:381615`); a postfix on `OnAfterDeserialize` now sees the deserialize
 callbacks and nothing else. It also sees them **before** the upgrade: the record
 is as stored, and state the upgrade derives — `nonSerialized.discoveredObjects`
-is rebuilt at its end (`Pug.Other:380397-380401`) — is not there yet. The
+is rebuilt at its end (`Pug.Other:380423-380427`) — is not there yet. The
 example reads only `characterGuid`, a serialized field, so it is unaffected.
 
 Which decode follows the producer matters more. Of the three, the one at
-`Pug.Other:381686` is `SaveManager.Init` reading every existing character file
-once at startup, and the one at `Pug.Other:380762` serves a benchmark data
+`Pug.Other:381712` is `SaveManager.Init` reading every existing character file
+once at startup, and the one at `Pug.Other:380788` serves a benchmark data
 provider — the benchmark scene sets character 60 and decodes it straight away
-(`Pug.Other:383098-383099`), a case of its own that also hosts its world.
+(`Pug.Other:383124-383125`), a case of its own that also hosts its world.
 Outside it, the only decode that comes *after* a character is chosen is the
 network one —
-`GetCharacterDataFromSerialized` (`Pug.Other:380732-380740`), whose sole caller
-is `StartGameRPCSystem` (`Pug.Other:133037`), a `ServerSimulation` system
-(`Pug.Other:132630`) decoding the character data a joining player sent.
+`GetCharacterDataFromSerialized` (`Pug.Other:380758-380766`), whose sole caller
+is `StartGameRPCSystem` (`Pug.Other:133051`), a `ServerSimulation` system
+(`Pug.Other:132644`) decoding the character data a joining player sent.
 `SetCharacterId` has four call sites in the client tree. The one the worked
-example is about, `StartGame(int characterID)` (`Pug.Other:360558-360570`), sets
+example is about, `StartGame(int characterID)` (`Pug.Other:360562-360574`), sets
 the id and then immediately triggers the scene load —
 `Manager.load.LoadIntroScene()` or `LoadMainScene()`. When that process also
 hosts the world, its server world later decodes the player's character data,
@@ -964,7 +964,7 @@ and that decode fires the callback. When it joins someone else's server or a
 dedicated one, the decode happens in the other process, nothing in this one
 clears the flag, and the example leaks it — the third precondition failing
 exactly as described above. `GoToCharacterTypeSelection`
-(`Pug.Other:360572-360576`) is the plain contrast: it sets the id and pushes a
+(`Pug.Other:360576-360580`) is the plain contrast: it sets the id and pushes a
 menu, with no load and so no deserialize.
 
 So the two methods are coupled by nothing except the order the caller puts
@@ -1004,13 +1004,13 @@ Two XP choke points fit this shape:
 
 | Track | Producer | Component | Burst consumer |
 |---|---|---|---|
-| Player skill XP | `PlayerController.AddSkill(Entity, SkillID, float amount, EntityCommandBuffer, bool isServer)` (`Pug.Other:312997`) — the sole creator of the component, only `if (isServer)` | `AddSkillValueCD : IComponentData` (`float amount`; `int` until 1.2) | `AddSkillValueSystem` (adds `amount` to `SkillProgressBuffer.progressValue`, moves the whole part into `SkillBuffer.Value`, keeps the remainder; only that transfer is guarded `levelFromSkill < maxSkillLevel`) |
-| Pet XP, when the **pet** lands the hit | `PetExtensions.GetExperienceFromDamage(dmg) = clamp(dmg / 20, 1, 250)`, appended by `AttackSystem.CheckForHit` (`Pug.Other:12805`) | `AddPetExperienceBuffer : IBufferElementData` | `PetHandlerSystem` (`pet.objectData.amount += amount`, guarded `!IsAtMaxLevel`) |
+| Player skill XP | `PlayerController.AddSkill(Entity, SkillID, float amount, EntityCommandBuffer, bool isServer)` (`Pug.Other:312996`) — the sole creator of the component, only `if (isServer)` | `AddSkillValueCD : IComponentData` (`float amount`; `int` until 1.2) | `AddSkillValueSystem` (adds `amount` to `SkillProgressBuffer.progressValue`, moves the whole part into `SkillBuffer.Value`, keeps the remainder; only that transfer is guarded `levelFromSkill < maxSkillLevel`) |
+| Pet XP, when the **pet** lands the hit | `PetExtensions.GetExperienceFromDamage(dmg) = clamp(dmg / 20, 1, 250)`, appended by `AttackSystem.CheckForHit` (`Pug.Other:12807`) | `AddPetExperienceBuffer : IBufferElementData` | `PetHandlerSystem` (`pet.objectData.amount += amount`, guarded `!IsAtMaxLevel`) |
 
 **Skill XP is fractional since 1.3, so scale it as a float.** Until 1.2 the
 amount was an `int`; 1.3 made it a `float` and added the `SkillProgressBuffer`
 accumulator. Combat grants `weaponCooldown * 2.5` per hit, and a projectile with
-no weapon cooldown — ranged or magic — grants `0.25` (`Pug.Other:312963`), so
+no weapon cooldown — ranged or magic — grants `0.25` (`Pug.Other:312962`), so
 many grants are below one point. A prefix that computes an `int` and writes it
 back still compiles — the assignment to the `float` field is implicit — and
 silently rounds each grant: `faster-talents` 1.3.1 rounded to the nearest
@@ -1029,14 +1029,14 @@ picks the one matching the field it finds.
 is wrong.** This section said there were exactly two choke points and that pets
 gain XP from damage alone; both statements survived into `faster-pet-talents`,
 which scales the buffer above and therefore reaches only the row in that table.
-`PlayerController.IncreasePetXp` (`Pug.Other:313011`) raises the pet's `amount` by
+`PlayerController.IncreasePetXp` (`Pug.Other:313010`) raises the pet's `amount` by
 writing an `InventoryChangeBuffer` entry directly (`Create.AddAmount`),
 bypassing `AddPetExperienceBuffer` and `PetHandlerSystem` entirely. It has two
 callers, and neither is covered by a prefix on `PetHandlerSystem`:
 
-- `PlayerController.AttemptToDealDamageToEnemy` (`Pug.Other:314791`) — XP for damage the
+- `PlayerController.AttemptToDealDamageToEnemy` (`Pug.Other:314790`) — XP for damage the
   **player** deals, using the same `GetExperienceFromDamage` formula.
-- `Pug.Other:94938` — **pet candy**, `xpIncrease = petCandyGivesMuchXp ? 100000 :
+- `Pug.Other:94944` — **pet candy**, `xpIncrease = petCandyGivesMuchXp ? 100000 :
   componentData.xp`, which is XP with no damage anywhere in it.
 
 Whether a mod wants that second route depends on what it is scaling; the point
@@ -1062,9 +1062,9 @@ therefore what the numbers support, on the amount rather than on a log line that
 named the caller.
 
 **Neither of those two callers is reachable by a prefix either, and for the
-same reason as `PetHandlerSystem`.** `AttemptToDealDamageToEnemy` (`Pug.Other:314659`)
+same reason as `PetHandlerSystem`.** `AttemptToDealDamageToEnemy` (`Pug.Other:314658`)
 is a `private static bool` taking `in` aspects and `NativeArray`s, and the
-pet-candy path (`Pug.Other:94938`) sits inside a Bursted `IJobEntity`. When a value is
+pet-candy path (`Pug.Other:94944`) sits inside a Bursted `IJobEntity`. When a value is
 written by several paths and some of them are Burst, a prefix on the managed
 ones sees only those, and its silence looks like absence.
 
@@ -1085,7 +1085,7 @@ purpose: it is the technique that would separate the two callers above, were
 it applied, not something this pass demonstrates end to end.
 
 Every skill funnels through `AddSkill` — Mining (a fixed `1f` per hit since
-1.3), Melee, Range and Magic via `AddCombatSkillByCooldown` (`Pug.Other:312953`;
+1.3), Melee, Range and Magic via `AddCombatSkillByCooldown` (`Pug.Other:312952`;
 until 1.2 combat passed the attack's `skillMultiplier` instead), Fishing,
 Crafting, Cooking, Gardening, Running, Vitality, Summoning, Explosives. Its
 callers include `PlayerAttackAspect` and the inventory handlers, all
@@ -1290,8 +1290,8 @@ public struct DiggableCD : IComponentData, IQueryTypeParameter { }
 It sits on everything a shovel can turn over — floor tiles, plants, dig spots —
 which makes it worthless as an identity test and valuable in the query, where it
 excludes non-matching archetypes cheaply. The game disambiguates the same way,
-with `objectID ==` checks (`Pug.Other:306900`, `Pug.Other:307310`,
-`Pug.Other:322507`). The pattern generalises — tag narrows, `objectID` decides —
+with `objectID ==` checks (`Pug.Other:306891`, `Pug.Other:307309`,
+`Pug.Other:322506`). The pattern generalises — tag narrows, `objectID` decides —
 while `DiggableCD`'s particular breadth is just one data point.
 
 ### The performance rule
@@ -1325,8 +1325,8 @@ To persist mod state in lockstep with CK's own save, Harmony-postfix
 patch attribute never goes through `Manager.saves` at all.
 
 **Name the overload — `nameof` alone is ambiguous here.** `SaveManager` declares
-both `WriteCharacter()` (`Pug.Other:381612`) and `WriteCharacter(int)`
-(`Pug.Other:381617`), so the attribute needs the argument-type array; the parameterless
+both `WriteCharacter()` (`Pug.Other:381638`) and `WriteCharacter(int)`
+(`Pug.Other:381643`), so the attribute needs the argument-type array; the parameterless
 one delegates to the `int` overload, which is why patching that one covers both
 call paths:
 

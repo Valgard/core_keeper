@@ -208,12 +208,12 @@ itself. Three things differ on this route and are worth knowing before relying
 on it:
 
 - **It fires per call, not once before `PatchAll`.** `ModAPIReflection` holds its
-  own `InvokeChecker` (`Pug.Other:410288`), separate from the loader's, and
+  own `InvokeChecker` (`Pug.Other:410347`), separate from the loader's, and
   `Invoke` / `GetValue` / `SetValue` each run `CheckType` on entry
   (`PugMod.Loader:571`). So the patch path's all-or-nothing rejection has no
   counterpart here: one refused type costs you that one call.
 - **A refusal throws rather than returning `false`** —
-  `InvalidOperationException` at your call site (`Pug.Other:410351` for
+  `InvalidOperationException` at your call site (`Pug.Other:410410` for
   `GetValue`). A `catch` cannot identify it as a refusal, because those three
   methods throw the same type for shape mistakes too: `Invoke` on a non-method,
   `GetValue`/`SetValue` on a member that is neither field nor property,
@@ -302,7 +302,7 @@ Verified by passing live loads:
 - **`UnityEngine.JsonUtility`** — the deny lists never touch `JsonUtility`:
   among Members they name only `UnityEngine.Application.Quit` and
   `System.Type.InvokeMember`. The loader itself serialises with it:
-  `JsonUtility.ToJson` in `ModAPIConfig.Set` (`Pug.Other:288994`).
+  `JsonUtility.ToJson` in `ModAPIConfig.Set` (`Pug.Other:288981`).
 - **`Object.FindFirstObjectByType<T>()`** and the `GetComponentsInChildren`
   overloads — plain `UnityEngine.CoreModule` API, on none of the four lists.
   Worth stating because the name suggests otherwise: the method resolves types

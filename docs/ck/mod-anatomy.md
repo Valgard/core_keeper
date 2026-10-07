@@ -427,7 +427,7 @@ message points at nothing.
 
 The anchor that works is a Harmony postfix on the player's spawn method that starts a
 coroutine on the player instance. **Since 1.3 that method is `OnSpawn`**, a `protected
-override` on `PlayerController` (`Pug.Other:309491`), which is why it is named by
+override` on `PlayerController` (`Pug.Other:309490`), which is why it is named by
 string. Through 1.2 it was `OnOccupied` (1.2.1.5: `PlayerController.OnOccupied` in
 `Pug.Other`); 1.3 moved the spawn logic out of it, and `PlayerController` no longer
 declares `OnOccupied` at all:
@@ -461,7 +461,7 @@ sporadically.
 
 **Filter on `__instance.isLocal`.** The postfix fires for every player that spawns, remote
 ones included, and `Manager.main.player` is assigned only inside `if (isLocal)`
-(`Pug.Other:309567`).
+(`Pug.Other:309566`).
 
 **What this anchor does *not* guarantee is a populated ECS world.** It fires early
 enough that a one-shot probe taken here can pin an empty or wrong world for the rest of
@@ -744,14 +744,14 @@ symptom-first index: [troubleshooting](troubleshooting.md).
 
 | Check site | Test | Effect |
 |---|---|---|
-| `NetworkClientStartSystem` (`Pug.Other:130089`) | `localMod.required = (requiredOn & ModExistsOn.Server) != 0` | The **Server** flag makes the **client** demand the mod on the server |
-| `ModInfoRpcSystem` (`Pug.Other:131090`) | `required = (requiredOn & ModExistsOn.Client) != 0` | The **Client** flag makes the **server** demand it on the client |
+| `NetworkClientStartSystem` (`Pug.Other:130103`) | `localMod.required = (requiredOn & ModExistsOn.Server) != 0` | The **Server** flag makes the **client** demand the mod on the server |
+| `ModInfoRpcSystem` (`Pug.Other:131104`) | `required = (requiredOn & ModExistsOn.Client) != 0` | The **Client** flag makes the **server** demand it on the client |
 
 A mod without the relevant flag is removed from the check list, but by two different
 mechanisms depending on direction: in the `Server` direction, `localMods.RemoveAt`
-(`Pug.Other:130105-130107`) drops it outright; in the `Client` direction, the server reports
+(`Pug.Other:130119-130121`) drops it outright; in the `Client` direction, the server reports
 `required = false` for it and the client never adds it to `modsToCheck` in the first
-place (`Pug.Other:129737-129739`). Either way it never interferes with a connection.
+place (`Pug.Other:129751-129753`). Either way it never interferes with a connection.
 
 ### Choosing a value
 
@@ -773,14 +773,14 @@ mod.io catalogue tag, which is described in [publishing](publishing.md).
 ## The in-game mod menu, and when mod.io is contacted
 
 In the 1.3 builds the Mods entry in the main menu opens a screen of Pugstorm's own,
-`ModListMenu` (`Pug.Other:352757`): the installed mods from all sources in load order —
+`ModListMenu` (`Pug.Other:352756`): the installed mods from all sources in load order —
 plus pending, failed and mod.io-disabled ones — with reorder controls and one button per
 source. In 1.2.1.5 the same entry, `RadicalMainMenuOption_OpenMods`, went from its
 confirmation popup straight to `Browser.Open()`, with no list in between; older notes
 that say "the Mods menu" mean the mod.io browser. The source buttons are **Mod.io** and
-**Local**, plus **Steam** on Steam builds only (`Pug.Other:353601`). Their `OnActivated`
-switch (`Pug.Other:354903`) sends **Mod.io** to
-`RadicalMainMenuOption_OpenMods.OpenModUI` (`Pug.Other:352415`), which calls
+**Local**, plus **Steam** on Steam builds only (`Pug.Other:353600`). Their `OnActivated`
+switch (`Pug.Other:354902`) sends **Mod.io** to
+`RadicalMainMenuOption_OpenMods.OpenModUI` (`Pug.Other:352414`), which calls
 `Browser.Open()` on mod.io's embedded drop-in UI package — `modio.UI.dll`, namespace
 `ModIOBrowser`. **Steam** opens the Workshop page (in the Steam overlay when it is
 enabled), **Local** the local mods folder. Pugstorm embedded mod.io's browser rather
@@ -793,7 +793,7 @@ that is the list screen itself:
 
 | Caller | When |
 |---|---|
-| `ModListMenu.Activate()` (`Pug.Other:352937`) | **Every time the Mods screen opens**, before any button is pressed — and only when the session is already authenticated |
+| `ModListMenu.Activate()` (`Pug.Other:352936`) | **Every time the Mods screen opens**, before any button is pressed — and only when the session is already authenticated |
 | `Browser.IsInitialized()` | Pressing **Mod.io** (`Browser.Open()` runs into it) — and only when the session is already authenticated |
 | `Authentication.CodeSubmitted(Result)` | After an email-code login succeeds |
 | `Authentication.ThirdPartyAuthenticationSubmitted(…)` | After a Steam/portal login succeeds |

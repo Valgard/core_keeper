@@ -34,7 +34,7 @@ wrong one for the authoring values that get copied into the blob.
 > and `ObjectInfo.prefabInfos`, so it no longer compiles: the loader reports
 > `CompileFailed` with `CS0103: The name 'DatabaseConversionUtility' does not
 > exist`. `PostConvert` itself now reads the prefabs from
-> `ScriptableData.GetDataBlocks<EntityAuthoringDataBlock>()` (`Pug.Other:3716`),
+> `ScriptableData.GetDataBlocks<EntityAuthoringDataBlock>()` (`Pug.Other:3718`),
 > so that is the list a 1.3 prefix would walk; `rebalance-key-crafting` and
 > `auto-rail-bridges` carry such prefixes, unreleased, and neither has been
 > seen running — **unverified**. The runtime station lookup further down has both forms.
@@ -152,10 +152,10 @@ The lifecycle itself is in [Mod anatomy](mod-anatomy.md).
 The obvious alternative — patching the runtime craft — is closed to a plain
 Harmony patch. The path is `InventoryUpdateSystem` → `ProcessCraftingJob` →
 `InventoryUtility.Craft`, and it is **Burst-compiled twice over**:
-`InventoryUpdateSystem` is a `[BurstCompile] ISystem` (`Pug.Other:427388`), and
+`InventoryUpdateSystem` is a `[BurstCompile] ISystem` (`Pug.Other:427463`), and
 the work sits in the separately `[BurstCompile]`d `IJob` it schedules
-(`ProcessCraftingJob`, `Pug.Other:427755`; scheduled at `Pug.Other:428112`, calling
-`InventoryUtility.Craft` at `Pug.Other:427808`).
+(`ProcessCraftingJob`, `Pug.Other:427830`; scheduled at `Pug.Other:428187`, calling
+`InventoryUtility.Craft` at `Pug.Other:427883`).
 
 **The distinction that matters is which `BurstDisabler` call.**
 `DisableBurstForSystem<InventoryUpdateSystem>()` does not reach it — that takes
@@ -182,7 +182,7 @@ not for the item.
 **Since 1.3 the prefab also needs an `EntityAuthoringDataBlock`, or the item
 is missing from the database.** `PugDatabasePostConverter` builds the database
 bank from `ScriptableData.GetDataBlocks<EntityAuthoringDataBlock>()` and nothing
-else (`Pug.Other:3716`); through 1.2 the prefab list also took in the loader's
+else (`Pug.Other:3718`); through 1.2 the prefab list also took in the loader's
 `Manager.mod.ExtraAuthoring`, which is why a 1.2 mod needed no block.
 
 What a missing block looks like was measured in `caveling-divining-rod` on
@@ -190,9 +190,9 @@ What a missing block looks like was measured in `caveling-divining-rod` on
 `ObjectID` — which path assigned it is not traced — so its Iron Workbench recipe
 resolved (`moddedObjectID` goes through `API.Authoring.GetObjectID`,
 `Pug.ECS.Conversion:1765`) and an extra crafting window opened, because that
-test only asks for a non-`None` ID (`Pug.Other:339028`, the check at `Pug.Other:339062`).
+test only asks for a non-`None` ID (`Pug.Other:339027`, the check at `Pug.Other:339061`).
 The slot inside it stayed empty, because drawing one asks the bank
-(`PugDatabase.HasObject`, `Pug.Other:430751`), and nothing could be crafted. No
+(`PugDatabase.HasObject`, `Pug.Other:430826`), and nothing could be crafted. No
 error was logged.
 
 **Most 1.3 item mods ship the block as an asset.** StoragePlus, ChestsGalore,
@@ -409,9 +409,9 @@ belongs to before using its number.
 **Biome variants split one logical object over several ObjectIDs.** Digging
 spots occupy `5532`–`5536` for five biome variants beside the generic `5530`,
 while CK's own checks (`objectID == ObjectID.DiggingSpot`, all three of them:
-`Pug.Other:306900`, `Pug.Other:307310` and `Pug.Other:322507`, and in the server
-build `DedicatedServer/Pug.Other:302717`, `DedicatedServer/Pug.Other:303127` and
-`DedicatedServer/Pug.Other:318313`) test only the generic one. Filtering on a single
+`Pug.Other:306891`, `Pug.Other:307309` and `Pug.Other:322506`, and in the server
+build `DedicatedServer/Pug.Other:302705`, `DedicatedServer/Pug.Other:303123` and
+`DedicatedServer/Pug.Other:318309`) test only the generic one. Filtering on a single
 `ObjectID` then produces a mod that works in one biome and not in another —
 which reads like a bug everywhere except at the filter. Biome variants are
 common but not universal, so the rule is: **check the enum neighbourhood before
@@ -465,18 +465,18 @@ applies to the objects you enumerate before reading the field.
 **On an object that shows a world label, `amount` is the label's visibility
 state** — and still the drop count, which is where the two meanings collide.
 `WorldLabel` hides the label at `0`, shows it at `1` only while the object is
-the player's current interactable, and always otherwise (`Pug.Other:321350`,
-`Pug.Other:321354`); the Hover check compares against the object's first
+the player's current interactable, and always otherwise (`Pug.Other:321349`,
+`Pug.Other:321353`); the Hover check compares against the object's first
 `InteractableObject` found with `GetComponentInChildren`, so one on a child
 counts. The sign window's toggle writes it through the `SetWorldLabelVisibility`
 RPC, whose server handler sets `amount` on whatever entity it is handed, with no
-type check (`Pug.Other:415473`) — and drops it, like the text RPC, from a player
-without admin rights on a guest-mode world (`Pug.Other:415199`; see [multiplayer and server](multiplayer-and-server.md#who-is-allowed-to-change-things-admin-level-and-guest-mode)).
+type check (`Pug.Other:415532`) — and drops it, like the text RPC, from a player
+without admin rights on a guest-mode world (`Pug.Other:415258`; see [multiplayer and server](multiplayer-and-server.md#who-is-allowed-to-change-things-admin-level-and-guest-mode)).
 A freshly placed sign was observed to start at `1`, which is why Hover is what a
 new sign shows; vanilla offers no other default.
 
 An object that drops itself when mined drops `max(1, amount)` unless the entity
-has `AlwaysDropOneCD` (`Pug.Other:90854`, in `DropLootSystem.DropSelfJob`). A
+has `AlwaysDropOneCD` (`Pug.Other:90860`, in `DropLootSystem.DropSelfJob`). A
 label set to "always" sits at `2`, so without that component it would drop two.
 Vanilla pairs the two: in the 1.3.0.4 assets the entity prefabs carrying
 `DescriptionAuthoring` (the label text) and those carrying

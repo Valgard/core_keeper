@@ -133,45 +133,45 @@ server answers with one `ModInfoRPC` per loaded mod
 | `required` | `bool` |
 | `lastMod` | `bool` |
 
-Identity is matched on `modId` **or** `modGuid` (`Pug.Other:129731`) — the name
+Identity is matched on `modId` **or** `modGuid` (`Pug.Other:129745`) — the name
 is never compared. `modName` travels only so the missing-mod dialogue has
 something to print; it ends up in `ModCheck.modName`.
 
 **Trap: that name is truncated to 14 characters.** The server fills the field
 with `name.Substring(0, min(UTF8MaxLengthInBytes / 2, len))`
-(`Pug.Other:131089`), and `FixedString32Bytes` holds 29 UTF-8 bytes — so 14
+(`Pug.Other:131103`), and `FixedString32Bytes` holds 29 UTF-8 bytes — so 14
 characters are all that survive. Matching is unaffected, and for a **published**
 mod neither is the display: when the server demands a mod the client lacks, the
 client resolves `modId` through `ModIOUnity.GetMod` and prints the mod.io
-profile name instead (`Pug.Other:130237`), or `"Unknown"` if that lookup fails
-(`Pug.Other:130230`, `Pug.Other:130233`) — `GetMod` is only ever called for a **positive**
-`modId` (`Pug.Other:130225-130244`). For a **negative** one — a mod
+profile name instead (`Pug.Other:130251`), or `"Unknown"` if that lookup fails
+(`Pug.Other:130244`, `Pug.Other:130247`) — `GetMod` is only ever called for a **positive**
+`modId` (`Pug.Other:130239-130258`). For a **negative** one — a mod
 side-loaded from `StreamingAssets/Mods` — `GetMod` is skipped entirely, and
 the truncated field is exactly what reaches the player. In the other
 direction — your `Server`-flagged mod missing on the server — the dialogue
 prints the client's own local `metadata.name` (`localMod.name =
-loadedMod.Metadata.name`, `Pug.Other:130088`), untruncated, and never touches
+loadedMod.Metadata.name`, `Pug.Other:130102`), untruncated, and never touches
 this field at all.
 
 **If you patch this layer:** `ModInfoRpcSystem.OnCreate` builds its mod list
 exactly **once**, not per request, and — unlike `OnUpdate` and `OnDestroy` in the
 same struct — carries **no `[BurstCompile]` attribute** of its own. The struct
-itself does (`Pug.Other:130659`), so a grep for the attribute on the type still
+itself does (`Pug.Other:130673`), so a grep for the attribute on the type still
 turns it up — only `OnCreate` is exempt. On the client,
-`NetworkClientStartSystem.OnUpdate` (`Pug.Other:130066`) is a plain
+`NetworkClientStartSystem.OnUpdate` (`Pug.Other:130080`) is a plain
 `protected override void OnUpdate()` and already holds the client's copy of the
 list; the job that actually receives the RPCs,
-`NetworkClientStartSystem_33002849_LambdaJob_0_Job` (`Pug.Other:129708`),
+`NetworkClientStartSystem_33002849_LambdaJob_0_Job` (`Pug.Other:129722`),
 carries no `[BurstCompile]` attribute either, holds a managed
-`NetworkClientStartSystem __this` field (`Pug.Other:125248`), and is dispatched through
-`RunWithoutJobsInternal` (`Pug.Other:129803`) — it cannot be Bursted, so a Harmony patch
+`NetworkClientStartSystem __this` field (`Pug.Other:125262`), and is dispatched through
+`RunWithoutJobsInternal` (`Pug.Other:129817`) — it cannot be Bursted, so a Harmony patch
 on it is viable. Whether a Harmony patch on `OnCreate` binds early enough on a
 **dedicated server** — where `IMod.Init()` runs after the worlds are built, see
 below — is **unverified**.
 
 ### What a mismatch looks like to the player
 
-It is a hard block, not a warning (`Pug.Other:130101-130139`). Joining a server that lacks a
+It is a hard block, not a warning (`Pug.Other:130115-130153`). Joining a server that lacks a
 `Server`-flagged mod raises `Menu/ModMissingServerDialogue`, and the dialogue
 offers exactly two ways out:
 
@@ -213,24 +213,24 @@ ghost**, and its entity carries `GhostInstance.ghostId == 0`. (It also carries a
 `PredictedGhostSpawnSystem` removes that through a command buffer at the next
 simulation step, so the component is no marker to wait on.) An RPC that names an
 entity sends its ghost id — CK's player-command serializer writes
-`ghostInstance.ghostId` for `entity0` (`Pug.Other:453607`) — and the receiving
+`ghostInstance.ghostId` for `entity0` (`Pug.Other:453667`) — and the receiving
 side resolves `0` to nothing: it sets `entity0` to `Entity.Null` and looks the
-id up only when it is non-zero (`Pug.Other:453648-453649`). For
+id up only when it is non-zero (`Pug.Other:453708-453709`). For
 `SetWorldLabelVisibility` the handler then reads `ObjectDataCD` from
-`Entity.Null` (`Pug.Other:415472`), which `EntityUtility.GetComponentData`
+`Entity.Null` (`Pug.Other:415531`), which `EntityUtility.GetComponentData`
 catches and logs as *"GetComponentData<…> called on invalid entity"*
-(`Pug.Other:262831`), and writes the result back to `Entity.Null`
-(`Pug.Other:415474`). Observed on 1.3.0.4 with the RPC sent the moment a placed
+(`Pug.Other:262815`), and writes the result back to `Entity.Null`
+(`Pug.Other:415533`). Observed on 1.3.0.4 with the RPC sent the moment a placed
 sign spawned: a second later the sign's state was unchanged. The server-side log
 line is derived from the source; that run did not capture the server's log. The
 same command is also dropped outright on a guest-mode world when the sender has
-no admin rights (`Pug.Other:415199`, see below), whatever it names.
+no admin rights (`Pug.Other:415258`, see below), whatever it names.
 
 When the server's ghost arrives, CK's own `PugSpawnClassificationSystem` looks for a
 predicted spawn of the same ghost type, takes the nearest one less than three tiles
-away on the XZ plane (`Pug.Other:459631`) — or, for a ghost without a position in its
+away on the XZ plane (`Pug.Other:459691`) — or, for a ghost without a position in its
 snapshot, the oldest one by spawn tick — and hands the incoming ghost that spawn's
-entity (`Pug.Other:459655`), so NetCode promotes the **same** entity to the real
+entity (`Pug.Other:459715`), so NetCode promotes the **same** entity to the real
 ghost. An `Entity` or a `MonoBehaviour` captured at the predicted spawn then stays
 valid, and no second spawn was observed. That holds only when a match is found: a
 predicted spawn destroyed meanwhile, or a server ghost more than three tiles off,
@@ -251,7 +251,7 @@ rule — the game ships one, and CoreLib's config scopes already delegate to it.
 
 **`adminPrivileges` is an `int` on the player, and its levels are not
 interchangeable.** `PlayerController.adminPrivileges` reads it off the
-`PlayerGhost` component and returns `0` when there is none (`Pug.Other:308966`):
+`PlayerGhost` component and returns `0` when there is none (`Pug.Other:308965`):
 
 | Value | Meaning |
 |---|---|
@@ -268,7 +268,7 @@ singleplayer** — it needs a live session and a player holding no rights.
 **It does not need a second account, though.** Stage 2 is handed out by a
 bootstrap rule keyed on the *list*, not on the person: `OnPlayerConnect` calls
 `AddAdminInternal(…, 2, …)` when `adminList.Count == 0 || isLocalPlayer`
-(`DedicatedServer/Pug.Other:291009`), and a dedicated server has no local
+(`DedicatedServer/Pug.Other:290993`), and a dedicated server has no local
 player. Any entry at all therefore ends the bootstrap and every later connection
 lands on stage 0, so a placeholder entry carrying a foreign `steamId` in
 `Admins.json` is enough to join one's own server without rights. That file
@@ -280,19 +280,19 @@ the bootstrap check, so a stale name there means nothing.
 possible.** `RemoveAdminInternal` only matches entries with `privileges <= 1`,
 so stage 2 cannot be taken away — stage 1 can, and nothing stops a player from
 removing *themselves*: the `UNASSIGN_ADMIN` list iterates the admin list without
-filtering the local player (`ListConnectedPlayers`, `Pug.Other:344335`), and
+filtering the local player (`ListConnectedPlayers`, `Pug.Other:344334`), and
 the server-side handler has no self-check either. Writing stage 1 into
 `Admins.json` rather than 2 therefore buys a role change **inside one running
 session**, which the next paragraph explains the need for.
 
 **`guestMode` is not a world flag alone.** `WorldInfoCD.guestMode` is the world's
-setting, but `PlayerController.guestMode` (`Pug.Other:309027`) answers the useful
+setting, but `PlayerController.guestMode` (`Pug.Other:309026`) answers the useful
 question — it returns true only when the world flag is set **and**
 `adminPrivileges < 1`. An admin in a guest-mode world is not a guest.
 
 **And it does not survive a server restart.** The only write to `guestMode` in
 the whole server assembly is the RPC handler (`NetworkCommand.SetGuestMode`,
-`DedicatedServer/Pug.Other:137224`); nothing loads it from a save, and
+`DedicatedServer/Pug.Other:137238`); nothing loads it from a save, and
 `ServerConfig.json` has no such field. It lives in the running server's
 `WorldInfoCD` singleton and is gone the moment that process ends. So a check
 that enables guest mode as an admin and then restarts the server to come back
@@ -326,8 +326,8 @@ worked example below.
 
 **The world you wrote it in decides the direction, and there is only one
 direction.** Snapshots are produced in the server world — `GhostSendSystem`,
-which `NetworkingManager.InitWorld` (`Pug.Other:294692`, the class itself at
-`Pug.Other:293821`) configures only in the world that has one, called from
+which `NetworkingManager.InitWorld` (`Pug.Other:294679`, the class itself at
+`Pug.Other:293808`) configures only in the world that has one, called from
 `ECSManager.InitWorld` (`Pug.Other:3133`) for both worlds — and applied in the
 client world, `GhostUpdateSystem`, which CK fetches from
 `Manager.ecs.ClientWorld`. So a `[GhostField]` write in the server world
@@ -351,7 +351,7 @@ refreshes on its own.
 
 For those flags the consequence runs the other way — writing them on one side
 changes nothing on the other. The surrounding code is present on both:
-`EquipmentSystemGroup` (`Pug.Other:437851`) runs in the server **and** the client
+`EquipmentSystemGroup` (`Pug.Other:437926`) runs in the server **and** the client
 simulation world, and `EquipmentUpdateSystem.UpdateJob` is a scheduled job.
 Whether a Harmony prefix in that area therefore behaves identically across
 singleplayer, a hosted session and a dedicated server is **unverified** — treat
@@ -437,7 +437,7 @@ property (`Pug.Other:2516`) assigned only where the process creates a server
 world (`Pug.Other:2968`) and nulled on teardown (`Pug.Other:3067`); vanilla
 itself branches on it in at least eight places (`Pug.Other:2221`,
 `Pug.Other:2647`, `Pug.Other:2738`, …), and the SDK exposes the same object as
-`API.Server.World` (`ModAPIServer.World`, `Pug.Other:410009`). So a mod that
+`API.Server.World` (`ModAPIServer.World`, `Pug.Other:410068`). So a mod that
 needs to know whether it *is* the authority asks one question:
 
 ```csharp
@@ -458,7 +458,7 @@ The distinction that matters is not "am I in multiplayer" but "does someone else
 decide".
 
 Two neighbouring signals on `Manager.networking` (a `NetworkingManager`,
-`Pug.Other:272141`) answer narrower questions and are not substitutes for the
+`Pug.Other:272125`) answer narrower questions and are not substitutes for the
 one above: `isConnected` is a plain settable `bool` property, and
 `currentSessionIsDedicatedServer` asks the platform layer
 (`impl.ConnectedToDedicatedServer`) and returns `false` whenever there is no
@@ -477,7 +477,7 @@ hashes the two sides compare. Nothing in the message mentions mods.
 
 **No mod name appears anywhere in the connect handshake**, which is why the
 split in the table above decides who can hit this. CK's own connect handshake rejects on two
-values (`Pug.Other:131348`, `Pug.Other:131364`): `localVersionHash`, which is
+values (`Pug.Other:131362`, `Pug.Other:131378`): `localVersionHash`, which is
 `PlayerConnectRequestRPC.GetVersionHash(Manager.version)` — the game version and
 nothing else (`Pug.ECS.Components:3815`) — and `ghostCollectionHash`, the XOR of every
 `GhostCollectionPrefab.Hash` in the default world
@@ -523,8 +523,8 @@ directory scan does not — `SideLoader` passes `supportsCurrentVersion: true`
 **hardcoded** (`PugMod.Loader:2412`), so the gate the list feeds —
 `!supportsCurrentVersion && !contains(guid)` — can never fire for a side-loaded
 mod. And a dedicated server's `Manager` registers **only `SideLoader`** — neither
-`ModIOLoader` nor `SteamWorkshopLoader` (`Pug.Other:272259-272268`, all three,
-against `DedicatedServer/Pug.Other:272203-272206`, one), while
+`ModIOLoader` nor `SteamWorkshopLoader` (`Pug.Other:272243-272254`, all three,
+against `DedicatedServer/Pug.Other:272187-272190`, one), while
 `StreamingAssets/Mods` is how a server is normally given its mods. The rule that
 predicts both cases is therefore about the *source* of a mod, not about the
 build: a mod side-loaded into the **client's** own `StreamingAssets/Mods` skips
