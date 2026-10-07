@@ -173,6 +173,14 @@ namespace CoreKeeperModUtils
                             Fail("Build failed");
                             return;
                         }
+                        // Before anything leaves the machine: a modfile cannot be taken back.
+                        var assembly = Path.Combine(Application.dataPath, "..", "Library", "ScriptAssemblies", _modName + ".dll");
+                        if (!DotsCodegen.Check(assembly, _buildDir, out var codegen))
+                        {
+                            Fail(codegen);
+                            return;
+                        }
+                        Debug.Log($"[CLIPublishHelper] {codegen}");
                         OnBuilt();
                     },
                     installInSubDirectory: false
@@ -1383,6 +1391,45 @@ namespace CoreKeeperModUtils
 {
     using System;
     using System.Collections.Generic;
+    using System.IO;
+
+    // Whether a build is about to ship without the DOTS codegen its systems need.
+    // The same rule as utils/check_dots_codegen.py, whose docstring has the
+    // mechanism; it lives here twice because a publish builds and uploads inside
+    // one Unity session, where the shell check that guards build.sh never runs.
+    internal static class DotsCodegen
+    {
+        private static readonly byte[] Marker = System.Text.Encoding.ASCII.GetBytes("DOTSCompilerGenerated");
+
+        // False only for the failure itself: the compiled assembly carries
+        // generated code and the build has no Scripts/Generated/*.g.cs. A missing
+        // assembly passes with a warning, as in the Python version.
+        public static bool Check(string assemblyPath, string contentDir, out string message)
+        {
+            if (!File.Exists(assemblyPath))
+            {
+                message = $"codegen check skipped: compiled assembly not found at {assemblyPath}";
+                return true;
+            }
+            if (File.ReadAllBytes(assemblyPath).AsSpan().IndexOf(Marker) < 0)
+            {
+                message = "DOTS codegen: none needed";
+                return true;
+            }
+            var generatedDir = Path.Combine(contentDir, "Scripts", "Generated");
+            var count = Directory.Exists(generatedDir) ? Directory.GetFiles(generatedDir, "*.g.cs").Length : 0;
+            if (count > 0)
+            {
+                message = $"DOTS codegen: {count} generated file{(count == 1 ? "" : "s")} shipped";
+                return true;
+            }
+            message =
+                $"{Path.GetFileName(assemblyPath)} contains DOTS codegen, but the build ships no Scripts/Generated/*.g.cs. "
+                + "Unity did not recompile the mod this session, so the game would throw 'This method should have been "
+                + "replaced by codegen'. Nothing was uploaded. Touch one of the mod's .cs files and publish again.";
+            return false;
+        }
+    }
 
     internal static class GameVersionTags
     {

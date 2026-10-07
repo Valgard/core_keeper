@@ -302,6 +302,14 @@ if [ "$STEAM_ONLY" != "1" ]; then
     # Refresh SDK symlinks (idempotent; self-heals after worktree moves).
     "$UTILS_DIR/link.sh" "$REPO_ROOT" >/dev/null
 
+    # Make Unity recompile the mod, or a publish with unchanged sources ships its
+    # DOTS systems without their generated bodies -- the same reason and the same
+    # remedy as in build.sh, which this publish does not go through.
+    # CLIPublishHelper checks the result before anything is uploaded.
+    if [ -d "$REPO_ROOT/unity/$MOD_NAME" ]; then
+        find "$REPO_ROOT/unity/$MOD_NAME" -name '*.cs' -exec touch {} +
+    fi
+
     # The shipped-build list, so CLIPublishHelper can tell a typo from a build
     # mod.io has no tag for without asking mod.io. That distinction is
     # otherwise only available on the tag-taxonomy path, which degrades to
