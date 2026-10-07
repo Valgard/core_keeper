@@ -24,6 +24,7 @@
 #   1  Env var missing or invalid path
 #   2  Unity returned non-zero (build failure or Unity crash)
 #   3  macOS install step failed
+#   4  The mod's DOTS codegen is missing from the build (see check_dots_codegen.py)
 
 set -euo pipefail
 
@@ -53,6 +54,15 @@ mkdir -p "$MOD_INSTALL_PATH"
 # after worktree switches or repo moves where existing symlinks would dangle.
 "$UTILS_DIR/link.sh" "$REPO_ROOT" >/dev/null
 
+# 3b. Make Unity recompile the mod. Its DOTS source generators only run on a
+# recompile, and ModBuilder copies their output from a Temp folder that starts
+# empty in every batchmode session -- so a build with unchanged sources would
+# ship the systems without their generated bodies. Bumping the timestamps is
+# enough to trigger the recompile; check_dots_codegen.py below verifies it did.
+if [ -d "$REPO_ROOT/unity/$MOD_NAME" ]; then
+    find "$REPO_ROOT/unity/$MOD_NAME" -name '*.cs' -exec touch {} +
+fi
+
 # 4. Invoke Unity.
 # The anchor for every relative path that reaches the Editor helpers — a variable
 # survives the jump into Unity, the working directory does not, and Unity's own is
@@ -71,6 +81,14 @@ if "$UNITY_BIN" \
         -executeMethod CoreKeeperModUtils.CLIBuildHelper.Build \
         -logFile - \
         -quit; then
+    # A build that did not recompile the mod ships its DOTS systems without the
+    # generated method bodies, and nothing in Unity's output says so -- the game
+    # throws at the first system update. See check_dots_codegen.py.
+    if ! python3 "$UTILS_DIR/check_dots_codegen.py" \
+            "$SDK_PATH/Library/ScriptAssemblies/$MOD_NAME.dll" \
+            "$MOD_INSTALL_PATH/$MOD_NAME"; then
+        exit 4
+    fi
     echo "✓ Build complete."
     # Tell the SDK window about this build. Its Steam Workshop tab finds the folder
     # it uploads only through ModPaths.asset, which otherwise just CreateMod.cs
