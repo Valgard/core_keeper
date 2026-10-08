@@ -4,10 +4,11 @@ Core Keeper's object catalog — every item, placeable, creature and recipe — 
 authored in the Unity project as `ObjectInfo` data and *baked* into immutable
 ECS blobs at world-conversion time. This chapter covers how to read that catalog
 at runtime (`PugDatabase`), how to change a vanilla object's baked values before
-they freeze, how a new item becomes craftable at a vanilla station, and the data
-conventions around it: naming objects in the enums, variations and paint, item
-level and sell value, display names for foreign-mod items, and the fileIDs that
-let a mod's prefab YAML reference game components and sprites.
+they freeze, how a new item becomes craftable at a vanilla station or drops from
+a vanilla loot table, and the data conventions around it: naming objects in the
+enums, variations and paint, item level and sell value, display names for
+foreign-mod items, and the fileIDs that let a mod's prefab YAML reference game
+components and sprites.
 
 ## Changing a vanilla object's baked data
 
@@ -263,10 +264,12 @@ string field carries `[ShowIf("objectID", ObjectID.None)]`, so a modded recipe
 entry must leave `objectID` unset. A `[ShowIf]`-gated field looks optional; for
 a modded item it *is* the mechanism.
 
-**Reuse an `ObjectID.None` slot rather than appending.** Vanilla
-`canCraftObjects` lists carry `ObjectID.None` placeholders, and the established
-idiom overwrites the first of those instead of adding an entry. Why the
-convention exists is not verified — treat it as the idiom other mods follow.
+**A `None` slot is a layout gap, not a free slot.** Vanilla `canCraftObjects`
+lists carry `ObjectID.None` placeholders, and the idiom other mods follow
+overwrites the first of them instead of appending. What a placeholder actually
+does follows from how the station window is drawn, below: it pads a group out to
+the six-slot boundary, so the next group begins in a window of its own. An item
+written into one appears in the group that gap pads.
 
 **Trap: `CraftingAuthoring.OnValidate` silently discards `moddedObjectID`.** Any
 entry with `amount <= 0` is rewritten to a fresh `CraftableObject` that keeps
@@ -304,6 +307,111 @@ the whole prefab list per world, rebuilding the blob from the authoring data
 on each pass — so a `canCraftObjects` list mutated from `Init` is read by the
 next per-world conversion, not lost to it. Whether it also needs the same
 re-entrancy guard a `PostConvert` prefix needs remains open.
+
+### How a station window lays out the list: six slots, three windows
+
+A station drawn by `SimpleCraftingUIContainer` (`Pug.Other:338979`) cuts its
+recipes into windows of six slots — `MAX_RECIPES_PER_UI = 6`
+(`Pug.Other:338981`). `ShowCraftingUI` walks the list in six-slot ranges and
+opens a window only for a range holding at least one non-`None` entry
+(`Pug.Other:339027`); an empty range is skipped and the windows after it close
+up. So the list index decides which range an entry falls into, not which
+on-screen position it ends up in.
+
+**The metal workbenches show their own list as one category among several.**
+From Copper to Solarite, each workbench names every lower-tier workbench in
+`CraftingAuthoring.includeCraftedObjectsFromBuildings` — Copper names Wood,
+Solarite names Wood through Galaxite. The conversion appends those lists to the
+station's own (`Pug.ECS.Conversion:1690`) and records one
+`IncludedCraftingBuildingsBuffer` entry per list, the station's own first
+(`Pug.ECS.Conversion:1707`). `CraftingBuilding.OnSpawn` turns those into
+category ranges (`Pug.Other:318136`), and `ShowCraftingUI` then walks only the
+active category, counting its six-slot ranges from the category's own start.
+The Wood workbench and the Relucite Smithing Table include nothing and show one
+list. Two consequences:
+
+- An entry added to a lower workbench's list also appears in that workbench's
+  category on every higher one — the authoring list is shared, and each
+  category's length is read from it at conversion.
+- The six-slot arithmetic below applies per category, so for a metal workbench
+  "slot 18" means the 19th entry of its *own* list, not of the merged buffer.
+
+**Vanilla has three windows per view.** The container's window list is
+serialized with three entries (`simpleCraftingUIs` in `Global Objects (Main
+Manager).prefab`). A fourth range with at least one recipe in it logs `Not
+enough SimpleCraftingUIs in SimpleCraftingUIContainer to show all recipes`
+(`Pug.Other:339031`) and its entries never render — the recipe exists, it just
+has nowhere to appear. On 1.3.0.5 the own list of every metal workbench from
+Copper to Solarite already holds 18 entries, so on those an appended recipe
+needs a fourth window.
+
+**The vanilla lists use the windows as groups.** On those workbenches the first
+window holds tools and gear and the second further stations, up to Galaxite
+including the next tier's workbench; the third is mostly walls, floors and other
+building pieces, though Copper's and Tin's also hold decoration and stations.
+The Galaxite and Solarite benches leave the unused tail of their first and
+second windows as `None`. So an appended entry lands in whatever range its
+index falls into, and overwriting a gap moves an item into the group the gap
+belongs to.
+
+**Window titles are a separate per-station list, and a missing one warns every
+frame.** `CraftingBuilding.buildingSpecificUISettings` names each window per
+station (`CraftingUISettings.titles`), falling back to `defaultUISettings` for a
+station it does not list. For a window index past the end of the titles, the
+window shows the default title and logs `Missing title for crafting UI window
+index …` (`Pug.Other:370859`) — from `Update` (`Pug.Other:370826`), so once per
+frame while the station is open. A mod that adds a window should add its title
+too.
+
+A fourth window needs more `SimpleCraftingUI` instances in the container. This
+workspace's `simple-crafting-pool-extender` adds them: a postfix on
+`SimpleCraftingUIContainer.Awake` clones the last entry up to a fixed ceiling of
+five windows, and a second postfix on `CraftingCategoryNavigationUI.LateUpdate`
+positions the navigation widget, whose offset vanilla hardcodes for one to three
+windows only. DoubleChest carries a window patch of its own. A mod whose recipe
+needs a fourth window depends on one of them.
+
+The idiom of overwriting the first `None` — Extra Pouches and DoubleChest both
+use it — falls back to appending once no `None` is left, and both test only
+`objectID == ObjectID.None`, so either would also overwrite another mod's entry
+that names its item through `moddedObjectID`.
+
+## Adding an item to a vanilla loot table
+
+Loot tables are baked like recipes. `LootTableConverter.Convert` builds the
+loot blob from `Manager.mod.LootTable` in play mode
+(`Pug.ECS.Conversion:2551`), so a mod edits that list before the conversion
+runs. CoreLib's `LootDropModule` does exactly this, applied once per process by
+a prefix on `LootTableConverter.Convert`. `AddNewDrop(LootTableID,
+DropTableInfo)` and `EditDrop` take the item by name and resolve it through
+`API.Authoring.GetObjectID` at that point, which suits a modded item whose
+`ObjectID` is assigned at load; `RemoveDrop` takes an `ObjectID`.
+
+**The two lists in a table are rolled differently, and only one of them
+tolerates an appended entry.**
+
+| List | Rolled by | An appended entry |
+|---|---|---|
+| `lootInfos` (random drops) | `weight`, summed over the list at roll time (`Pug.Other:326339`) | is weighed in correctly |
+| `guaranteedLootInfos` | `accumulatedDropChance`, precomputed (`Pug.Other:326289`) | is not reached |
+
+`accumulatedDropChance` is computed by `LootTableBank.InitLoot`
+(`Pug.Base:17334`) from `OnAfterDeserialize` (`Pug.Base:17292`), which the
+game calls when it loads the table (`Pug.Mods:714`, from `Pug.Other:279189`) —
+before CoreLib's edit, which runs at conversion. So a `LootInfo` appended
+afterwards keeps its default of 0, while the existing entries' accumulated
+values already run up to 1 over a roll drawn from `[0, 1)`: the appended entry
+is never reached, whatever value it is given. CoreLib's `AddDrops` appends every
+added drop to both lists, skipping one already present, and computes no
+`accumulatedDropChance`. For an ordinary random drop the guaranteed copy is
+therefore inert and the random copy works; a drop meant to be guaranteed would,
+by the same reading, never arrive. This is source reading only and
+**unverified** in game.
+
+**A weight is not a percentage.** The `editorVisualDropChance` shown beside
+each entry in the asset is derived from the weight, the list's total weight
+and the table's average unique-drop count, so the weight that yields a target
+chance depends on the table it is added to.
 
 ## ScriptableData blocks: addresses and order
 
