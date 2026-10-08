@@ -79,12 +79,17 @@ for (int k = 0; k < m_RpcData.Length; k++)
 Every registered RPC type's `StableTypeHash` is folded into one value, which
 becomes `NetworkProtocolVersion.RpcCollectionVersion`. `RpcSystem` compares all
 four values — NetCode version, game version, RPC collection, component
-collection — and rejects the connection if **any** of them differs.
+collection — and rejects the connection if **any** of them differs. An RPC whose
+hash the receiver does not know at all ends the connection too, as `InvalidRpc`,
+and CK maps that to the same `Error/BadProtocolVersion` (`Pug.Other:130630`).
 
-**The one escape is not taken.** `CalculateVersionHash` returns `0` instead of
-the fold when `DynamicAssemblyList` is set, which would make the RPC set
-negotiable. That flag is set **nowhere** in the 122 decompiled assemblies, so
-the fold always applies.
+**The one escape is not taken by vanilla.** `CalculateVersionHash` returns `0`
+instead of the fold when `DynamicAssemblyList` is set, which would make the RPC
+set negotiable — and, in the NetCode 1.2.4 package source, the component set
+too. No vanilla code sets that flag: it appears nowhere in the 132 curated
+assemblies of the 1.3.0.5 decompile. `Unity.NetCode.dll` itself is not among
+them, so the NetCode code quoted here is read from that package source, not
+from the game's own copy.
 
 Two consequences worth knowing before declaring an RPC:
 
@@ -93,21 +98,25 @@ Two consequences worth knowing before declaring an RPC:
   mismatch". The dialogue that names a mod and offers to disable it belongs to
   the layer that never runs.
 - **A dependency can have moved the hash already.** CoreLib's Command submodule
-  declares two `IRpcCommand` structs and registers them through a generated
-  `ISystem` whose `OnCreate` runs unconditionally — no `[WorldSystemFilter]`, no
-  submodule gate. Whether those systems reach the worlds is the same open
-  question as any mod system's registration path, so treat this as **plausible,
-  not established**: one attempt with a CoreLib client against an unmodded
-  server settles it.
+  declares two `IRpcCommand` structs and registers them through two generated
+  `ISystem`s, one per struct, whose `OnCreate` runs unconditionally — no
+  `[WorldSystemFilter]`, no submodule gate. Whether those systems reach the
+  worlds is the same open question as any mod system's registration path, so
+  whether CoreLib alone moves the hash is **unverified**: one attempt with a
+  CoreLib client against an unmodded server settles it. It matters more than it
+  looks — `item-checklist`, `player-coordinates-hud` and `refill-ore-boulders`
+  in this workspace are `Client`-only and require CoreLib, so any of them is the
+  test case.
 
 ### Why there is no third-party server
 
 The obvious-looking blocker — SDR — is not the blocker. The blocker is the
 build-time-generated ghost serialization: a reimplementation would have to
 reproduce the whole component landscape bit-exactly, which is the whole game,
-including the world generation that needs OpenGL/Mesa on the server side. The
-pragmatic path for anything server-authoritative is always the official server
-binary plus a server-side mod.
+including the world generation, which needs a graphics device on the server side
+(Mesa, on a bare Linux host). The pragmatic path for anything
+server-authoritative is always the official server binary plus a server-side
+mod.
 
 **There is no macOS build** — see [platforms](platforms.md#there-is-no-macos-build).
 On Apple Silicon that leaves Wine/CrossOver or a Linux container for running
@@ -121,6 +130,13 @@ and `NetworkClientStartSystem`, entirely independent of NetCode's hash
 validation. What it compares, why the two checks are crossed, and how to
 choose a `requiredOn` value are in [mod anatomy](mod-anatomy.md#requiredon-and-its-crossed-checks).
 
+It also comes **before** Core Keeper's own connect handshake. The client does
+not send its `PlayerConnectRequestRPC` — the request carrying the version and
+ghost-collection hashes — until every `ModInfoRPC` has arrived and every
+missing-mod dialogue has been answered (`Pug.Other:130108-130168`). So a mod
+difference the mod check catches is reported by name, and only a difference it
+lets through can reach the hash comparison below.
+
 The consequence for the network layer: a client-only HUD mod that carries
 `Server` does not "declare itself client-side" — it declares that every
 server you join must also run it.
@@ -129,7 +145,8 @@ server you join must also run it.
 
 Once the connection is up the client sends an empty `ModInfoRequestRPC`, and the
 server answers with one `ModInfoRPC` per loaded mod
-(`Pug.ECS.Components:3856`):
+(`Pug.ECS.Components:3856`) — or, with no mods loaded, a single one carrying
+only `lastMod = true` (`Pug.Other:130794`):
 
 | Field | Type |
 |---|---|
@@ -141,39 +158,50 @@ server answers with one `ModInfoRPC` per loaded mod
 
 Identity is matched on `modId` **or** `modGuid` (`Pug.Other:129745`) — the name
 is never compared. `modName` travels only so the missing-mod dialogue has
-something to print; it ends up in `ModCheck.modName`.
+something to print; it ends up in `ModCheck.modName`. The id only counts when it
+is non-zero and the same on both sides, and against a dedicated server it never
+is: the server side-loads every mod (below), so its ids are the negative
+side-loader ones, while the client's copy carries a mod.io or Workshop id. In
+that topology the guid alone decides.
 
 **Trap: that name is truncated to 14 characters.** The server fills the field
 with `name.Substring(0, min(UTF8MaxLengthInBytes / 2, len))`
 (`Pug.Other:131103`), and `FixedString32Bytes` holds 29 UTF-8 bytes — so 14
-characters are all that survive. Matching is unaffected, and for a **published**
-mod neither is the display: when the server demands a mod the client lacks, the
-client resolves `modId` through `ModIOUnity.GetMod` and prints the mod.io
-profile name instead (`Pug.Other:130251`), or `"Unknown"` if that lookup fails
-(`Pug.Other:130244`, `Pug.Other:130247`) — `GetMod` is only ever called for a **positive**
-`modId` (`Pug.Other:130239-130258`). For a **negative** one — a mod
-side-loaded from `StreamingAssets/Mods` — `GetMod` is skipped entirely, and
-the truncated field is exactly what reaches the player. In the other
-direction — your `Server`-flagged mod missing on the server — the dialogue
-prints the client's own local `metadata.name` (`localMod.name =
-loadedMod.Metadata.name`, `Pug.Other:130102`), untruncated, and never touches
-this field at all.
+characters are all that survive. Matching is unaffected. What decides the
+display is the `modId` the **server** reports, not whether the mod is published:
+when the server demands a mod the client lacks, the client resolves a
+**positive** `modId` through `ModIOUnity.GetMod` and prints the mod.io profile
+name instead (`Pug.Other:130251`), or `"Unknown"` if that lookup fails
+(`Pug.Other:130244`, `Pug.Other:130247`) — `GetMod` is only ever called for a
+positive one (`Pug.Other:130239-130258`). For a **negative** one — a mod
+side-loaded from `StreamingAssets/Mods`, which on a dedicated server is every
+mod — `GetMod` is skipped entirely, and the truncated field is exactly what
+reaches the player. So against a dedicated server the 14-character name is the
+normal case, published mod or not. A mod a host loaded from the Steam Workshop
+reports its Steam file id (`PugMod.Loader:180`), which the client looks up on
+mod.io all the same. In the other direction — your `Server`-flagged mod missing
+on the server — the dialogue prints the client's own local `metadata.name`
+(`localMod.name = loadedMod.Metadata.name`, `Pug.Other:130102`), untruncated,
+and never touches this field at all.
 
 **If you patch this layer:** `ModInfoRpcSystem.OnCreate` builds its mod list
-exactly **once**, not per request, and — unlike `OnUpdate` and `OnDestroy` in the
-same struct — carries **no `[BurstCompile]` attribute** of its own. The struct
-itself does (`Pug.Other:130673`), so a grep for the attribute on the type still
-turns it up — only `OnCreate` is exempt. On the client,
-`NetworkClientStartSystem.OnUpdate` (`Pug.Other:130080`) is a plain
-`protected override void OnUpdate()` and already holds the client's copy of the
-list; the job that actually receives the RPCs,
+**once per world it is created in**, not per request — once on a dedicated
+server, once per server world a hosting client starts — and the per-request
+responder `ModInfoRequestResponseJob` is itself `[BurstCompile]`
+(`Pug.Other:130679`), so the list build is the patchable side. `OnCreate` —
+unlike `OnUpdate` and `OnDestroy` in the same struct — carries **no
+`[BurstCompile]` attribute** of its own. The struct itself does
+(`Pug.Other:130673`), so a grep for the attribute on the type still turns it up
+— only `OnCreate` is exempt. On the client, `NetworkClientStartSystem.OnUpdate`
+(`Pug.Other:130080`) is a plain `protected override void OnUpdate()` and already
+holds the client's copy of the list; the job that actually receives the RPCs,
 `NetworkClientStartSystem_33002849_LambdaJob_0_Job` (`Pug.Other:129722`),
 carries no `[BurstCompile]` attribute either, holds a managed
-`NetworkClientStartSystem __this` field (`Pug.Other:125262`), and is dispatched through
-`RunWithoutJobsInternal` (`Pug.Other:129817`) — it cannot be Bursted, so a Harmony patch
-on it is viable. Whether a Harmony patch on `OnCreate` binds early enough on a
-**dedicated server** — where `IMod.Init()` runs after the worlds are built, see
-below — is **unverified**.
+`NetworkClientStartSystem __this` field (`Pug.Other:129724`), and is dispatched
+through `RunWithoutJobsInternal` (`Pug.Other:129817`) — it cannot be Bursted, so
+a Harmony patch on it is viable. Whether a Harmony patch on `OnCreate` binds
+early enough on a **dedicated server** — where `IMod.Init()` runs after the
+worlds are built, see below — is **unverified**.
 
 ### What a mismatch looks like to the player
 
@@ -184,6 +212,12 @@ offers exactly two ways out:
 - **disable the mod** — `ModIOUnity.DisableMod` plus a restart of the game, or
 - **cancel the connection** — `cancel = true` → `Disconnect`.
 
+Two details of that pair. "Disable" goes through mod.io whatever the mod's
+source: for a Workshop copy the call is handed the Steam file id, and what that
+does is **unverified**. And the answers are not independent when several mods
+are missing — once one dialogue was answered with "disable", a later "cancel" is
+routed into the same restart instead of cancelling (`Pug.Other:130134-130141`).
+
 There is no "join anyway". And for **a mod side-loaded from
 `StreamingAssets/Mods`** (`modId <= 0`) it is worse: the dialogue key itself
 changes, to `Menu/LocalModMissingServerDialogue` ("Required mod {0} is missing
@@ -192,8 +226,9 @@ no mod.io subscription to disable — the dialogue reduces to `cancelDialogue`,
 so the player cannot get onto that server by any route the game provides.
 
 This is why an over-broad `requiredOn` costs real usability: it turns "my HUD
-mod does nothing on unmodded servers" into "my HUD mod cannot be installed by
-anyone who plays on public servers".
+mod does nothing on unmodded servers" into "my HUD mod has to be switched off,
+with a restart, before every join to a server that lacks it" — and, for a
+side-loaded copy, into "cannot join that server at all".
 
 ## Writing patches that behave in multiplayer
 
@@ -344,11 +379,25 @@ walked)* the reverse does not either.
 **So a player can never put themselves into a guest mode they can feel.**
 Sending `SetGuestMode` requires `adminPrivileges >= 1`, and
 `PlayerController.guestMode` returns true only below that — the two conditions
-are disjoint. Enabling guest mode as an admin and dropping to stage 0
-afterwards should satisfy both, since the world flag outlives the privilege
-change, but it moves both values in the same instant and so cannot show them
-acting independently (**unverified** — that order has not been walked). A check
-that needs them to move separately needs a second, admin-holding player.
+are disjoint. One order does satisfy both, and it has now been walked: enable
+guest mode while still holding stage 1, then drop to stage 0. The world flag
+outlives the privilege change, so the moment the rights go, `guestMode` becomes
+true for that player. Measured 2026-10-08 against a 1.3.0.5 dedicated server, in
+a single transition —
+
+~~~text
+permissions changed under the open screen: player=True guestMode=True adminPrivileges=0
+~~~
+
+— and a second `RemoveAdmin` afterwards changed nothing, so the one-way property
+is observed rather than inferred. Two conditions make it work and are easy to
+miss: the account must be at `privileges: 1`, because `RemoveAdminInternal`
+matches `<= 1` and silently ignores stage 2, and `Admins.json` is read only at
+server start.
+
+What this order cannot do is show the two values acting **independently**, since
+it moves both in the same instant. A check that needs them separated still needs
+a second, admin-holding player.
 
 **There are no chat commands for this.** A search for a command dispatcher —
 `ChatCommand`, `StartsWith("/")` — comes up empty across client and server
