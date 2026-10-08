@@ -15,41 +15,54 @@ will be overturned by the next finding rather than extended by it.
 
 ## A chapter that already carries a verification commit
 
-`git log --grep='^docs(ck): verify <chapter>'` may well find one. It does not
-mean the work is done, and the version string in it is the weaker of the two
-things to look at. Measure the growth instead:
+`git log --grep='^docs(ck): verify <chapter>'` may well find one. A
+verification commit vouches for two things together, and expires when either
+one moves: **the text as it stood in that commit**, weighed against **the build
+named in its subject line**. Check both before calling a chapter verified.
 
-    git diff --shortstat <that commit> HEAD -- docs/ck/<chapter>.md
+**The text: verified up to that commit, and not one line further.** Every line
+changed since was written after the pass and seen by nobody in it — that holds
+for ten changed lines as much as for three hundred, so the size of the diff
+decides how much work is left, never whether the chapter still counts as
+verified. List exactly what is unverified:
 
-**A verification commit dates a state, and nothing expires when the chapter
-moves away from it.** A chapter can double in size and keep the same tick, so
-the real question is how much of today's text that pass actually saw. Judge it
-on the diff, not on the date: a few dozen changed lines is a chapter still
-largely covered, several hundred is a different chapter wearing an old tick.
-In the second case treat it as unverified and run the full procedure — most of
-it was never checked, and calling that a re-check invites sampling where a pass
-is needed.
+    git diff <that commit> HEAD -- docs/ck/<chapter>.md
 
-**The version string ranks lower not because an update changes little.** Two
-chapters were verified against 1.3.0.5 on 2026-10-08, after the update had
-moved roughly 127,000 lines of decompile, and they came out opposite ways.
-`multiplayer-and-server.md` yielded exactly one finding the update had caused,
-out of many, and it sat in a *different* chapter that nobody had verified.
-`harmony-and-ecs.md` yielded the reverse: 1.3 had removed the dedicated-server
-Burst trap, that chapter's most central claim, corrected once already for
-scope and carrying a `CLAUDE.md` bullet built on top of it. So an update's
-findings do not collect where nobody has looked — they land on whatever the
-update happened to touch, and a well-worked claim is no better protected than
-a neglected one.
+A chapter can move on the very day it was verified: `multiplayer-and-server.md`
+changed by 25 lines within hours of its 1.3.0.5 pass, through the cross-chapter
+sweep of another chapter's pass. When the diff is small, verify those hunks —
+each with the context its statements depend on, not the changed lines alone. When
+most of the chapter has changed, run the full procedure: calling that a re-check
+invites sampling where a pass is needed.
 
-What that licenses is narrower than redoing the pass: re-read the chapter's
-*behavioural* claims, the ones about what runs when, in which order, and on
-which platform, because those are what a build can move while leaving the text
-untouched. Whether the chapter counts as verified at all is still the
-shortstat's question, not the version's.
+**The build: a major or minor update voids the verdict, a hotfix voids what it
+touched.** The version string is read as `major.minor.patch.hotfix`:
 
-Say which it was in the commit body, so the next session is not left to work it
-out from a shortstat.
+- **The first three parts differ** from the build the current game ships (e.g.
+  `1.2.1.5` against `1.3.0.5`): the chapter is unverified, even with not one
+  line changed. Run the full procedure against the current build.
+- **Only the fourth part differs:** the verdict stands, except for the claims
+  whose cited code the hotfix changed. `utils/relocate_citations.py` names them
+  — every citation whose recorded line text it cannot find again in the new
+  decompile. Re-verify those claims, and say plainly in the commit body what was
+  not re-checked: a claim with no citation, and one whose cited line survived
+  while the code around it changed, are both invisible to that report.
+
+The reason for this boundary, and against treating an update as a mere prompt to
+re-read: two chapters were verified against 1.3.0.5 on 2026-10-08, after the 1.3
+update had moved roughly 127,000 lines of decompile, and they came out opposite
+ways. `multiplayer-and-server.md` yielded exactly one finding the update had
+caused, out of many, and it sat in a *different* chapter that nobody had
+verified. `harmony-and-ecs.md` yielded the reverse: 1.3 had removed the
+dedicated-server Burst trap, that chapter's most central claim, corrected once
+already for scope and carrying a `CLAUDE.md` bullet built on top of it — while
+its text, and therefore any diff of it, stood unchanged. So an update's findings
+do not collect where nobody has looked; they land on whatever the update happened
+to touch, and no measure taken on the chapter's own text can see them.
+
+Say in the commit body which case it was — full pass, changed hunks since
+`<commit>`, or hotfix claims — so the next session can read the chapter's state
+off the log instead of reconstructing it.
 
 ## Dispatch
 
@@ -512,3 +525,4 @@ Thoughts that mean stop, in the shape `ck-docs-review` uses:
 | "`unverified` feels like giving up" | It is the correct answer when nothing settles the question; rounding it up is the failure being prevented |
 | "I'll phrase the open question more elegantly" | If a search cannot find it, it is lost — there is no pool file |
 | "Fixed the chapter, done" | The claim may live in `CLAUDE.md` or a mod repo too |
+| "It already has a verify commit and barely changed since" | Every changed line is unverified, and a minor update voids the rest without touching the text |
