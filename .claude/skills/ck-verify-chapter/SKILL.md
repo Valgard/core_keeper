@@ -30,14 +30,23 @@ In the second case treat it as unverified and run the full procedure — most of
 it was never checked, and calling that a re-check invites sampling where a pass
 is needed.
 
-The game version matters less than it looks. Measured on 2026-10-08, after the
-1.3 update moved roughly 127,000 lines of decompile: of a freshly verified
-chapter's findings exactly one was caused by the update, and it sat in a
-*different* chapter that had never been verified at all. Version drift
-accumulates where nobody has looked, which is the same rule this handbook
-already applies to everything else. So an old version string is a reason to
-re-read the behavioural claims, not a reason to redo a pass whose text has not
-moved.
+**The version string ranks lower not because an update changes little.** Two
+chapters were verified against 1.3.0.5 on 2026-10-08, after the update had
+moved roughly 127,000 lines of decompile, and they came out opposite ways.
+`multiplayer-and-server.md` yielded exactly one finding the update had caused,
+out of many, and it sat in a *different* chapter that nobody had verified.
+`harmony-and-ecs.md` yielded the reverse: 1.3 had removed the dedicated-server
+Burst trap, that chapter's most central claim, corrected once already for
+scope and carrying a `CLAUDE.md` bullet built on top of it. So an update's
+findings do not collect where nobody has looked — they land on whatever the
+update happened to touch, and a well-worked claim is no better protected than
+a neglected one.
+
+What that licenses is narrower than redoing the pass: re-read the chapter's
+*behavioural* claims, the ones about what runs when, in which order, and on
+which platform, because those are what a build can move while leaving the text
+untouched. Whether the chapter counts as verified at all is still the
+shortstat's question, not the version's.
 
 Say which it was in the commit body, so the next session is not left to work it
 out from a shortstat.
