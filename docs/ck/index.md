@@ -45,7 +45,7 @@ machinery those arrangements sit on.
 | [Mod anatomy](mod-anatomy.md) | The `IMod` lifecycle, assembly definitions, the ModBuilderSettings `.asset` versus the generated manifest, the two kinds of GUID, dependencies, chat commands, and `requiredOn` with its crossed checks |
 | [The load-time sandbox](sandbox.md) | What the verification rejects and what it does not, why an Editor build proves nothing, why Harmony attributes are exempt, and how to find the identifier that failed |
 | [Storing configuration and state](persistence.md) | The three routes a sandboxed mod has to a file, what the rest of the catalogue actually uses, and writing state in lockstep with the game's own save |
-| [Harmony and ECS](harmony-and-ecs.md) | Why Burst-compiled systems swallow patches, `BurstDisabler` and its silent failure on dedicated servers, patch binding, instrumenting generated DOTS code, live ECS access |
+| [Harmony and ECS](harmony-and-ecs.md) | Why Burst-compiled systems swallow patches, `BurstDisabler` and its silent failure on 1.2 dedicated servers, patch binding, instrumenting generated DOTS code, live ECS access |
 | [Database and baking](database-and-baking.md) | Editing baked object data through the converter hook, the `(objectID, variation)` key, variations and paint, item level and sell value, adding a craftable item, data-block addresses and their order, fileIDs |
 | [UI framework](ui-framework.md) | Sprite UI instead of uGUI, mounting windows, options-menu entries, rebindable keybinds, the hint bar, text input, redirecting menu input, scrolling, and disabled-but-visible options |
 | [Prefabs and rendering](prefabs-and-rendering.md) | When a prefab may be edited by script, nested prefabs and variants, editing a vanilla object's graphical prefab at bake time, sprite import, masking, Z-sorting, PugText and the font system, HUD versus world space |
@@ -106,7 +106,7 @@ symptom, not the topic.
 | What you are seeing | Go to |
 |---|---|
 | Patch loads cleanly, prefix never fires | [Harmony and ECS](harmony-and-ecs.md) — the target is Burst-compiled |
-| Works in single-player and when you host, does nothing on a dedicated server | [Harmony and ECS](harmony-and-ecs.md) — the dedicated-server trap |
+| Works in single-player and when you host, does nothing on a dedicated server | [Harmony and ECS](harmony-and-ecs.md) — the dedicated-server trap (measured through 1.2; gone on a fresh 1.3.0.5 server) |
 | `Undefined target method for patch method …` | [Harmony and ECS](harmony-and-ecs.md) — `in`/`ref` parameter binding; [mod anatomy](mod-anatomy.md#harmony-patches-are-auto-discovered) — a target the type only inherits |
 | Every source mod fails to compile, on a non-English machine | [Platforms and hosts](platforms.md) — the Roslyn satellite lookup |
 | A mod that loaded yesterday does not load today | [Troubleshooting](troubleshooting.md) — a stale game-version tag, the commonest cause; [Multiplayer and server](multiplayer-and-server.md) if it is a join that broke; [Platforms and hosts](platforms.md) on a Wine host |

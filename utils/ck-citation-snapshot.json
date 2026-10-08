@@ -75,6 +75,9 @@
       "UnloadWorldsInternal();",
       "}"
     ],
+    "DedicatedServer/Pug.Other:2774": [
+      "BurstDisabler.ResetWorlds();"
+    ],
     "DedicatedServer/Pug.Other:2777": [
       "BurstDisabler.AddWorld(allWorld);"
     ],
@@ -110,9 +113,6 @@
     ],
     "DedicatedServer/Pug.Other:303123": [
       "bool flag4 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
-    ],
-    "DedicatedServer/Pug.Other:3038": [
-      "if (ServerWorld != null)"
     ],
     "DedicatedServer/Pug.Other:3046": [
       "BurstDisabler.ResetWorlds();"
@@ -429,6 +429,9 @@
     ],
     "Pug.Other:12807": [
       "ecb.AppendToBuffer(entity6, new AddPetExperienceBuffer"
+    ],
+    "Pug.Other:12809": [
+      "amount = PetExtensions.GetExperienceFromDamage(num2)"
     ],
     "Pug.Other:129722": [
       "private struct NetworkClientStartSystem_33002849_LambdaJob_0_Job : IJobChunk"
@@ -1367,26 +1370,10 @@
     "Pug.Other:265203": [
       "public static void AddTile(int tileSet, PugTilemap.TileType tileType, int2 position, bool isWorldModeCreative, DynamicBuffer<TileUpdateBuffer> tileUpdateBuffer)"
     ],
-    "Pug.Other:265203-265219": [
-      "public static void AddTile(int tileSet, PugTilemap.TileType tileType, int2 position, bool isWorldModeCreative, DynamicBuffer<TileUpdateBuffer> tileUpdateBuffer)",
-      "{",
-      "TileCD tile = new TileCD",
-      "{",
-      "tileset = tileSet,",
-      "tileType = tileType",
-      "};",
-      "if (isWorldModeCreative || (tile.tileset != 2 && ((!math.all(position == new int2(0, 0)) && !math.all(position == new int2(0, 1)) && !math.all(position == new int2(-1, 1)) && !math.all(position == new int2(1, 1))) || tile.tileType == PugTilemap.TileType.roofHole)))",
-      "{",
-      "tileUpdateBuffer.Add(new TileUpdateBuffer",
-      "{",
-      "command = TileUpdateBuffer.Command.Add,",
-      "position = position,",
-      "tile = tile",
-      "});",
-      "if (tile.tileType == PugTilemap.TileType.wall)",
-      "{"
+    "Pug.Other:265210": [
+      "if (isWorldModeCreative || (tile.tileset != 2 && ((!math.all(position == new int2(0, 0)) && !math.all(position == new int2(0, 1)) && !math.all(position == new int2(-1, 1)) && !math.all(position == new int2(1, 1))) || tile.tileType == PugTilemap.TileType.roofHole)))"
     ],
-    "Pug.Other:265218-265229": [
+    "Pug.Other:265218-265228": [
       "if (tile.tileType == PugTilemap.TileType.wall)",
       "{",
       "tileUpdateBuffer.Add(new TileUpdateBuffer",
@@ -1397,8 +1384,29 @@
       "{",
       "tileType = PugTilemap.TileType.roofHole",
       "}",
+      "});"
+    ],
+    "Pug.Other:265230-265249": [
+      "else if (tile.tileType == PugTilemap.TileType.ground)",
+      "{",
+      "tileUpdateBuffer.Add(new TileUpdateBuffer",
+      "{",
+      "command = TileUpdateBuffer.Command.Remove,",
+      "position = position,",
+      "tile = new TileCD",
+      "{",
+      "tileType = PugTilemap.TileType.pit",
+      "}",
       "});",
-      "}"
+      "tileUpdateBuffer.Add(new TileUpdateBuffer",
+      "{",
+      "command = TileUpdateBuffer.Command.Remove,",
+      "position = position,",
+      "tile = new TileCD",
+      "{",
+      "tileType = PugTilemap.TileType.water",
+      "}",
+      "});"
     ],
     "Pug.Other:272125": [
       "public static NetworkingManager networking => main._networkingManager;"
@@ -1648,6 +1656,9 @@
     "Pug.Other:279330": [
       "Integration.Instance.Update();"
     ],
+    "Pug.Other:2796": [
+      "BurstDisabler.ResetWorlds();"
+    ],
     "Pug.Other:2797-2799": [
       "foreach (World allWorld in _allWorlds)",
       "{",
@@ -1893,6 +1904,9 @@
     ],
     "Pug.Other:312962": [
       "amount = ((!(componentData.weaponCooldown > 0f)) ? 0.25f : (componentData.weaponCooldown * 2.5f));"
+    ],
+    "Pug.Other:312966": [
+      "amount = componentData2.weaponCooldown * componentData2.inheritedSkillFraction * 2.5f;"
     ],
     "Pug.Other:312996": [
       "public static void AddSkill(Entity entity, SkillID skillID, float amount, EntityCommandBuffer ecb, bool isServer)"
@@ -2393,8 +2407,8 @@
       "}",
       "valueRW.tilePlacementTimer.Start(equipmentUpdateSharedData.currentTick, 0.65f, equipmentUpdateSharedData.tickRate);"
     ],
-    "Pug.Other:323178": [
-      "num = 1;"
+    "Pug.Other:323180": [
+      "valueRW.tilePlacementTimer.Start(equipmentUpdateSharedData.currentTick, 0.65f, equipmentUpdateSharedData.tickRate);"
     ],
     "Pug.Other:323186-323193": [
       "private static PugTilemap.TileType GetTileTypeToPlace(int3 pos, ref PugDatabase.EntityObjectInfo objectToPlaceInfo, in TileAccessor tileAccessor, in TileWithTilesetToObjectDataMapCD tileWithTilesetToObjectDataMapCD)",
@@ -3382,6 +3396,9 @@
       "};",
       "EntityUtility.CreateEntity(ecb, component.position0, objectDataCD.objectID, 1, databaseLocal, out var _, objectDataCD.variation);"
     ],
+    "Pug.Other:415496": [
+      "PlayerController.AddSkill(component.entity0, (SkillID)component.int0, component.int1, ecb, isServer: true);"
+    ],
     "Pug.Other:415531": [
       "ObjectDataCD componentData5 = EntityUtility.GetComponentData<ObjectDataCD>(component.entity0, base.World);"
     ],
@@ -3824,6 +3841,9 @@
     "PugMod.Loader:1724": [
       "Assets = mod.LoadedAssets,"
     ],
+    "PugMod.Loader:1752": [
+      "loadedMod3.ModObjectLoaded(loadedAsset);"
+    ],
     "PugMod.Loader:179": [
       "if (!Integration.Instance.AddMod(metadata, entry.Directory, (long)entry.Id.Value, flag2))"
     ],
@@ -3832,6 +3852,11 @@
     ],
     "PugMod.Loader:1803": [
       "text = Path.Combine(Application.temporaryCachePath, \"ModLoader\", mod.Metadata.name);"
+    ],
+    "PugMod.Loader:1804-1806": [
+      "if (Directory.Exists(text))",
+      "{",
+      "Directory.Delete(text, recursive: true);"
     ],
     "PugMod.Loader:2207": [
       "ScriptableData.AddDataBlocksLoader(runtimeLoader.name, runtimeLoader);"
@@ -3922,6 +3947,9 @@
     ],
     "PugMod.Loader:2417": [
       "UnityEngine.Debug.Log(\"loaded mod \" + metadata.name + \" at \" + text2);"
+    ],
+    "PugMod.Loader:2532": [
+      "PropertyDeclarationSyntax newNode2 = propertyDeclarationSyntax2.WithAccessorList(propertyDeclarationSyntax.AccessorList).WithInitializer(propertyDeclarationSyntax.Initializer);"
     ],
     "PugMod.Loader:481": [
       "value.PatchAll(assembly);"
@@ -4040,8 +4068,14 @@
     "PugMod.SDK.Runtime:811": [
       "CreateCompleteDependencyPatch(systemType, harmony, patchedMethods, isManaged: true);"
     ],
+    "PugMod.SDK.Runtime:817": [
+      "MethodInfo method = systemType.GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);"
+    ],
     "PugMod.SDK.Runtime:850": [
       "private static void CreateCompleteDependencyPatch(Type systemType, Harmony harmony, List<MethodInfo> patchedMethods, bool isManaged)"
+    ],
+    "PugMod.SDK.Runtime:876": [
+      "internal static class CompleteDependencyAfterUpdateManagedPatch"
     ],
     "PugMod.SDK.Runtime:889-897": [
       "public static void Prefix(SystemHandle sh, out bool? __state)",
@@ -4177,7 +4211,33 @@
     "ScriptableData:71": [
       "return Guid.NewGuid();"
     ],
-    "Unity.Entities:58169-58188": [
+    "Unity.Entities:10166-10186": [
+      "protected virtual void OnCreate()",
+      "{",
+      "}",
+      "",
+      "[RequiredMember]",
+      "protected virtual void OnStartRunning()",
+      "{",
+      "}",
+      "",
+      "[RequiredMember]",
+      "protected virtual void OnStopRunning()",
+      "{",
+      "}",
+      "",
+      "internal virtual void OnStopRunningInternal()",
+      "{",
+      "OnStopRunning();",
+      "}",
+      "",
+      "[RequiredMember]",
+      "protected virtual void OnDestroy()"
+    ],
+    "Unity.Entities:11024": [
+      "SystemBaseRegistry.CallOnStopRunning(ptr);"
+    ],
+    "Unity.Entities:58169-58189": [
       "private static void SelectBurstFn(out ulong result, out ulong defeatGc, ulong burstFn, ForwardingFunc managedFn)",
       "{",
       "if (burstFn != 0L)",
@@ -4197,16 +4257,23 @@
       "Debug.LogException(exception);",
       "}",
       "};",
-      "defeatGc = (ulong)(long)GCHandle.ToIntPtr(GCHandle.Alloc(forwardingFunc));"
+      "defeatGc = (ulong)(long)GCHandle.ToIntPtr(GCHandle.Alloc(forwardingFunc));",
+      "result = (ulong)(long)Marshal.GetFunctionPointerForDelegate(forwardingFunc);"
     ],
     "Unity.Entities:67217": [
       "public unsafe static void Invoke(void* pSystemState)"
+    ],
+    "Unity.Entities:67551": [
+      "SystemBaseRegistry.CallOnCreate(statePtr);"
     ],
     "WorldGen.EnvironmentalObjects:257-260": [
       "[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation, WorldSystemFilterFlags.Default)]",
       "[UpdateInGroup(typeof(RunSimulationSystemGroup))]",
       "[CompilerGenerated]",
       "public struct SpawnEnvironmentObjectsInNewAreaSystem : ISystem, ISystemStartStop, ISystemCompilerGenerated"
+    ],
+    "modio.UI:2906": [
+      "public static ModManagementEventDelegate OnModManagementEvent;"
     ],
     "modio.UnityPlugin:29014": [
       "public enum SubscribedModStatus"

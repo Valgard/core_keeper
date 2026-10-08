@@ -818,18 +818,25 @@ though: `not loading incompatible mod <name>` (`PugMod.Loader:1232`), `skipping
 mod <name> because of missing dependency` (`PugMod.Loader:1013`) and `failed to load mod
 <name> …` (`PugMod.Loader:2414`) each name one too, for their own failure case.
 
-### Warning: the lifecycle order is inverted
+### Warning: the lifecycle order was inverted through 1.2
 
-`IMod.Init()` runs at a different point relative to ECS startup on the two
-processes — **before** the worlds are built on the client, **after** them on the
-dedicated server. The ordering is **measured** in the logs of both builds; no
-derivation replaces it, and one that was tried turned out wrong ([Harmony and ECS](harmony-and-ecs.md) carries
-the evidence and the failed derivation). Anything that registers itself during
-`Init()` and is consumed by a snapshot taken at ECS startup therefore works
+On 1.2 `IMod.Init()` ran at a different point relative to ECS startup on the
+two processes — **before** the worlds are built on the client, **after** them on
+the dedicated server. That ordering is **measured** in the logs of both builds;
+no derivation replaces it, and one that was tried turned out wrong ([Harmony and ECS](harmony-and-ecs.md) carries
+the evidence and the failed derivation). Anything that registered itself during
+`Init()` and was consumed by a snapshot taken at ECS startup therefore worked
 **whenever a player hosts** — singleplayer and host-based multiplayer alike,
-since that process builds its own ServerWorld after `Init()` — and is a silent
+since that process builds its own ServerWorld after `Init()` — and was a silent
 no-op on a dedicated server, with no error and no log line. `BurstDisabler` is
 the case this bites in practice; the mechanism and the fix belong to [Harmony and ECS](harmony-and-ecs.md).
+
+**A freshly started 1.3.0.5 server no longer inverts it.** Its own log, read
+2026-10-08, shows `Init()` after the ServerWorld exists and before the
+conversion that arms the worlds, because 1.3's `StartEcs` calls the loader's
+`Update` itself (`DedicatedServer/Pug.Other:2785`). One server start is the
+evidence, and the SDK promises no ordering, so a mod still tagged for 1.2 keeps
+the fix.
 
 If your mod is server-authoritative and works when you host but not against a
 dedicated server, start there. "Works for me in multiplayer" from someone

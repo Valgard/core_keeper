@@ -234,39 +234,43 @@ to move the system off Burst *before* the patch needs to bind — or
 `DisableBurstForSystemAndJobs<TSystem>()` when the actual patch target sits
 inside a job the system schedules rather than in `OnUpdate` itself, since the
 plain variant leaves that job Bursted (`docs/ck/harmony-and-ecs.md` has the
-mechanism and a documented false shortcut for telling the two apart). Every system this
-repo's mods disable Burst for is an **`ISystem` struct** (`OnUpdate(ref
-SystemState)` — the prefix binds with no "Undefined target method"; verified in
-`faster-talents`/`faster-pet-talents`). A managed `SystemBase` takes a
-**completely different path** inside the SDK — `DisableBurstForSystemInternal`
-returns early into `PatchManagedSystem`, which toggles Burst around the system's
-own lifecycle methods and never touches the per-world registry — so none of the
-AddWorld/dedicated-server reasoning below applies to it. There is no
-`SystemBase` precedent here; an earlier version of this bullet claimed one, and
-the mod it named patches an `ISystem` struct. Details in
-`docs/ck/harmony-and-ecs.md`. To scale an ECS value that flows from a (possibly
-Burst) producer into a Burst-consumed component/buffer, don't patch the managed
-producer — Burst callers bypass the IL patch — but Burst-disable the
+mechanism and a documented false shortcut for telling the two apart). Every
+system this repo's mods disable Burst for is an **`ISystem` struct**
+(`OnUpdate(ref SystemState)` — the prefix binds with no "Undefined target
+method"; verified in `faster-talents`/`faster-pet-talents`). A managed
+`SystemBase` takes a **completely different path** inside the SDK —
+`DisableBurstForSystemInternal` returns early into `PatchManagedSystem`, which
+toggles Burst around its lifecycle methods (the inherited `ComponentSystemBase`
+ones included, which then get patched for every `SystemBase`) and never touches
+the per-world registry — so none of the AddWorld/dedicated-server reasoning
+below applies to it. There is no `SystemBase` precedent here; an earlier version
+of this bullet claimed one, and the mod it named patches an `ISystem` struct.
+Details in `docs/ck/harmony-and-ecs.md`. To scale an ECS value that flows from a
+(possibly Burst) producer into a Burst-consumed component/buffer, don't patch
+the managed producer — Burst callers bypass the IL patch — but Burst-disable the
 **consumer** system and pre-inflate the pending component data in its `OnUpdate`
 prefix (see the `reference_ck_xp_grant_architecture` memory).
 
-**On a dedicated server that call alone is a silent no-op** — no error, no log
-line, the prefix simply never fires, so the mod works whenever a player hosts —
-singleplayer *and* host-based multiplayer, since that process creates its own
-ServerWorld after `Init()` — and does nothing on a dedicated server. ("Not in
-multiplayer" is the wrong scope and stood here until 2026-08-24;
-`docs/ck/harmony-and-ecs.md` has the evidence.) `DisableBurstForSystem` only
-*registers* the type; the bypass is armed per world by `BurstDisabler.AddWorld`,
-whose sole caller is `ECSManager.StartEcs` and which **snapshots** the types
-registered so far. **That registration is one registry shared by every mod in
-the process, not scoped to yours** — `AddWorld` resolves each registered type to
-a `SystemHandle` in one `HashSet<SystemHandle>`, and the flag
-`DisableBurstForSystemPatch` flips while a registered system updates is the
-process-wide Burst compiler switch, so a foreign mod's registration un-Bursts
-your patch target too, and a measurement taken while it is installed proves
-nothing about your own registration ([mechanism + corpus case](docs/ck/harmony-and-ecs.md#patch-the-convergence-point-to-survive-other-mods)). A dedicated
-server runs `IMod.Init()` *after* `StartEcs` (the client runs it before), so the
-snapshot is taken while the registration is still missing. Follow every
+**On a 1.2 dedicated server that call alone was a silent no-op** — no error, no
+log line, the prefix simply never fired, so the mod worked whenever a player
+hosted — singleplayer *and* host-based multiplayer, since that process creates
+its own ServerWorld after `Init()` — and did nothing on a dedicated server.
+("Not in multiplayer" is the wrong scope and stood here until 2026-08-24, and
+"on a dedicated server" without a build until 2026-10-08, when a fresh 1.3.0.5
+server log showed `Init()` ahead of the snapshot; `docs/ck/harmony-and-ecs.md`
+has the evidence for both.) `DisableBurstForSystem` only *registers* the type;
+the bypass is armed per world by `BurstDisabler.AddWorld`, whose sole caller is
+`ECSManager.StartEcs` and which **snapshots** the types registered so far.
+**That registration is one registry shared by every mod in the process, not
+scoped to yours** — `AddWorld` resolves each registered type to a `SystemHandle`
+in one `HashSet<SystemHandle>`, and the flag `DisableBurstForSystemPatch` flips
+while a registered system updates is the process-wide Burst compiler switch, so
+a foreign mod's registration un-Bursts your patch target too, and a measurement
+taken while it is installed proves nothing about your own registration
+([mechanism + corpus case](docs/ck/harmony-and-ecs.md#patch-the-convergence-point-to-survive-other-mods)). A 1.2 dedicated server ran `IMod.Init()` *after*
+`StartEcs` (the client runs it before), so the snapshot was taken while the
+registration was still missing; 1.3 moved the server's `Init()` ahead of it, but
+the SDK promises neither order and mods here stay tagged for 1.2. Follow every
 `DisableBurstForSystem*` call with:
 
 ```csharp
@@ -274,14 +278,15 @@ foreach (var world in World.All)   // using Unity.Entities;
     BurstDisabler.AddWorld(world);
 ```
 
-`World.All` passes the Roslyn sandbox, and the registry is a `HashSet`, so the
-pass is a no-op in the client ordering. Moving the call to `EarlyInit()` instead
-does **not** work — `TypeManager` is not initialised that early and
-`DisableBurstForSystem` throws `NullReferenceException`. To prove the patch is
-live server-side, log from the **static constructor** of the `[HarmonyPatch]`
-class and read the server log *after* a session with a player connected — an
-idle dedicated server sits at `timescale = 0` and never simulates. Background:
-the `reference_ck_burstdisabler_dedicated_server` memory.
+`World.All` passes the Roslyn sandbox, and the pass is harmless where it is not
+needed: `AddWorld` arms only worlds that contain the system, and since 1.3 the
+startup callback resets and re-arms the set after it anyway. Moving the call to
+`EarlyInit()` instead does **not** work — `TypeManager` is not initialised that
+early and `DisableBurstForSystem` throws `NullReferenceException`. To prove the
+patch is live server-side, log from the **static constructor** of the
+`[HarmonyPatch]` class and read the server log *after* a session with a player
+connected — an idle dedicated server sits at `timescale = 0` and never
+simulates. Background: the `reference_ck_burstdisabler_dedicated_server` memory.
 
 ### IMod lifecycle
 `IMod` (namespace `PugMod`) has five methods: `EarlyInit`, `Init`,
