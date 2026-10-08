@@ -44,7 +44,12 @@ which.
 Work happens in a scratch directory outside any tracked path, made once per
 chapter and reused for the rest of this run:
 
-    WORK=$(mktemp -d -t ck-verify-chapter)
+    WORK=$(mktemp -d "${TMPDIR:-/tmp}/ck-verify-chapter.XXXXXX")
+
+Spell the template out like this rather than with `-t`: BSD `mktemp -t` takes a
+bare prefix, GNU `mktemp` — which Homebrew puts first in `PATH` — refuses one
+without `XXX`, leaves `WORK` empty, and every later `"$WORK/…"` then points at
+the filesystem root.
 
 Render the chapter as a diff — a whole chapter *is* the diff against the empty
 file, which is the shape the lanes' contracts already accept — and write both
@@ -327,13 +332,13 @@ round in a matching state takes it along.
 - **The probe is throwaway.** It lives in a mod repository, is never published,
   and is removed afterwards.
 - **A dedicated server needs a connected player.** An idle one sits at
-  `timescale = 0` and never simulates (`docs/ck/harmony-and-ecs.md:483`; the
+  `timescale = 0` and never simulates (`docs/ck/harmony-and-ecs.md:516`; the
   mechanism — `ECSManager` pausing on no connection rather than a heuristic —
-  is `docs/ck/multiplayer-and-server.md:560-561`), so a probe there logs
+  is `docs/ck/multiplayer-and-server.md:865-866`), so a probe there logs
   nothing.
   To prove a patch is live server-side, log from the `[HarmonyPatch]` class's
-  static constructor (`docs/ck/harmony-and-ecs.md:472`,
-  `docs/ck/multiplayer-and-server.md:501`) and read the log after a session
+  static constructor (`docs/ck/harmony-and-ecs.md:503`,
+  `docs/ck/multiplayer-and-server.md:799`) and read the log after a session
   with a player connected.
 
 ### Requesting the round
