@@ -506,8 +506,10 @@ first use — which is the first `Prefix()` call **as long as nothing touches th
 class earlier**. A `[HarmonyPatch]` class that also holds a static field another
 patch reads, the shape [correlating private state](#correlating-private-state-across-two-methods) uses, runs its
 initialiser at that access instead, and the line then proves the class loaded
-rather than that the patch fired. Keep the probe class free of shared statics
-and the line appearing in the *server* log is the proof you want.
+rather than that the patch fired. Harmony's own `Prepare`, `TargetMethod(s)` and
+`Cleanup` hooks touch the class the same way, while the patch is being applied.
+Keep the probe class free of shared statics and of those hooks, and the line
+appearing in the *server* log is the proof you want.
 
 Two caveats make an absent line meaningless:
 

@@ -4,8 +4,29 @@
       "_helpButtonList: 0600000005000000000000000100000002000000",
       "_helpButtonListNoJoystick: 05000000000000000100000002000000"
     ],
+    "DedicatedServer/Pug.Other:137119": [
+      "if (rpc.command == NetworkCommand.ChangePvPTeam)"
+    ],
+    "DedicatedServer/Pug.Other:137132": [
+      "if (receiveRpcCommandRequest.SourceConnection != Entity.Null && Manager.networking.GetAdminPrivileges(receiveRpcCommandRequest.SourceConnection, __this.World, 0uL) <= 0)"
+    ],
+    "DedicatedServer/Pug.Other:137191": [
+      "if (Manager.networking.GetAdminPrivileges(connection3, __this.World, playerGhost.onlineId) == 0)"
+    ],
+    "DedicatedServer/Pug.Other:137198": [
+      "Entity e3 = ecb.CreateEntity(__this._responseRpcArchetype);"
+    ],
+    "DedicatedServer/Pug.Other:137211": [
+      "case NetworkCommand.RemoveAdmin:"
+    ],
+    "DedicatedServer/Pug.Other:137235": [
+      "case NetworkCommand.SetGuestMode:"
+    ],
     "DedicatedServer/Pug.Other:137238": [
       "worldInfoLookup.GetRefRW(worldInfoEntity).ValueRW.guestMode = rpc.int0 != 0;"
+    ],
+    "DedicatedServer/Pug.Other:171774": [
+      "if (CommandLineArgs.Has(\"-disableautosave\"))"
     ],
     "DedicatedServer/Pug.Other:2531": [
       "TargetWorld = World.DefaultGameObjectInjectionWorld,"
@@ -63,8 +84,23 @@
     "DedicatedServer/Pug.Other:279172": [
       "Integration.Instance.Update();"
     ],
+    "DedicatedServer/Pug.Other:287335": [
+      "public class AchievementsManager : ManagerBase"
+    ],
+    "DedicatedServer/Pug.Other:287429": [
+      "public void TriggerAchievement(AchievementID id)"
+    ],
+    "DedicatedServer/Pug.Other:290156": [
+      "if (crossPlatformId != 0L && other.crossPlatformId != 0L)"
+    ],
+    "DedicatedServer/Pug.Other:290509": [
+      "List<PlayerAdminEntry> list = (from admin in adminList.adminList"
+    ],
     "DedicatedServer/Pug.Other:290993": [
       "if (adminList.adminList.Count == 0 || isLocalPlayer)"
+    ],
+    "DedicatedServer/Pug.Other:293651": [
+      "public class RGBManager : ManagerBase"
     ],
     "DedicatedServer/Pug.Other:3022": [
       "private void UnloadWorldsInternal()"
@@ -118,6 +154,9 @@
     ],
     "DedicatedServer/Pug.Other:450907": [
       "public StandaloneFilesystem(string partition, string subFolder, PlatformInterface platformInterface)"
+    ],
+    "DedicatedServer/Pug.Other:4709": [
+      "public static void TriggerAchievementForEveryone(EntityCommandBuffer ecb, EntityArchetype rpcArchetype, AchievementID achievementID)"
     ],
     "Interaction.Converters:104": [
       "UnityEngine.Debug.LogError(\"No local interaction events registered on entity. \" + authoring.gameObject.name, authoring.gameObject);"
@@ -336,6 +375,9 @@
     "Pug.ECS.Components:6525": [
       "public struct MapMarkerCD : IComponentData, IQueryTypeParameter"
     ],
+    "Pug.ECS.Components:8160": [
+      "[GhostField]"
+    ],
     "Pug.ECS.Components:8903": [
       "public struct MapMarkerCustomDataSerializedCD : IComponentData, IQueryTypeParameter"
     ],
@@ -385,14 +427,14 @@
     "Pug.Objects:3092": [
       "public override void UpdateGraphicsFromObjectInfo(ObjectInfo info)"
     ],
-    "Pug.Other:125262": [
-      "[BurstCompile]"
-    ],
     "Pug.Other:12807": [
       "ecb.AppendToBuffer(entity6, new AddPetExperienceBuffer"
     ],
     "Pug.Other:129722": [
       "private struct NetworkClientStartSystem_33002849_LambdaJob_0_Job : IJobChunk"
+    ],
+    "Pug.Other:129724": [
+      "public NetworkClientStartSystem __this;"
     ],
     "Pug.Other:129745": [
       "if ((__this.localMods[num].modId != 0L && __this.localMods[num].modId == modInfo.modId) || (__this.localMods[num].modGuid.IsValid && __this.localMods[num].modGuid == modInfo.modGuid))"
@@ -405,6 +447,9 @@
     "Pug.Other:129817": [
       "InternalCompilerInterface.JobChunkInterface.RunWithoutJobsInternal(ref InternalCompilerInterface.UnsafeAsRef<NetworkClientStartSystem_33002849_LambdaJob_0_Job>(jobPtr), ref query);"
     ],
+    "Pug.Other:129839": [
+      "UnityEngine.Debug.Log(\"Server rejected connection with reason \" + answer.reason.Value);"
+    ],
     "Pug.Other:130080": [
       "protected override void OnUpdate()"
     ],
@@ -413,6 +458,69 @@
     ],
     "Pug.Other:130103": [
       "localMod.required = (loadedMod.Metadata.requiredOn & ModMetadata.ModExistsOn.Server) != 0;"
+    ],
+    "Pug.Other:130108-130168": [
+      "}",
+      "NetworkClientStartSystem_33002849_LambdaJob_0_Execute(ref commandBuffer);",
+      "if (!allModsReceived || modsToCheck.Count > 0)",
+      "{",
+      "base.OnUpdate();",
+      "return;",
+      "}",
+      "if (localMods.Count > 0)",
+      "{",
+      "for (int num = localMods.Count - 1; num >= 0; num--)",
+      "{",
+      "if (!localMods[num].required)",
+      "{",
+      "localMods.RemoveAt(num);",
+      "}",
+      "else",
+      "{",
+      "if (!localMods[num].handledByUserPrompt)",
+      "{",
+      "LocalMod mod = localMods[num];",
+      "bool num2 = mod.modId > 0;",
+      "string message = (num2 ? \"Menu/ModMissingServerDialogue\" : \"Menu/LocalModMissingServerDialogue\");",
+      "List<string> options = (num2 ? new List<string> { \"cancelDialogue\", \"yes\" } : new List<string> { \"cancelDialogue\" });",
+      "DisplayMismatchedModsMessage(message, options, mod.name, delegate(bool unsubscribe)",
+      "{",
+      "mod.handledByUserPrompt = true;",
+      "if (restartNeeded || unsubscribe)",
+      "{",
+      "restartNeeded = true;",
+      "}",
+      "else",
+      "{",
+      "cancel = true;",
+      "}",
+      "if (unsubscribe)",
+      "{",
+      "ModIOUnity.DisableMod(new ModId(mod.modId));",
+      "}",
+      "});",
+      "break;",
+      "}",
+      "localMods.RemoveAt(num);",
+      "}",
+      "}",
+      "base.OnUpdate();",
+      "return;",
+      "}",
+      "if (restartNeeded)",
+      "{",
+      "Manager.mod.CheckForModChanges(restartIfNeeded: true, forceRestart: true);",
+      "base.Enabled = false;",
+      "base.OnUpdate();",
+      "return;",
+      "}",
+      "if (!hasSentConnectRequest)",
+      "{",
+      "if (!Manager.ecs.TryCalculateGhostCollectionHash(out (ulong, ulong) result))",
+      "{",
+      "base.OnUpdate();",
+      "return;",
+      "}"
     ],
     "Pug.Other:130115-130153": [
       "if (localMods.Count > 0)",
@@ -460,6 +568,19 @@
       "{",
       "localMods.RemoveAt(num);"
     ],
+    "Pug.Other:130134-130141": [
+      "if (restartNeeded || unsubscribe)",
+      "{",
+      "restartNeeded = true;",
+      "}",
+      "else",
+      "{",
+      "cancel = true;",
+      "}"
+    ],
+    "Pug.Other:130172": [
+      "UnityEngine.Debug.Log($\"send connect with hash {num3} for {item} ghosts\");"
+    ],
     "Pug.Other:130239-130258": [
       "if (mod.modId > 0)",
       "{",
@@ -491,8 +612,37 @@
     "Pug.Other:130251": [
       "modName = result.value.name;"
     ],
+    "Pug.Other:130283-130300": [
+      "mod.status = ModCheck.ModCheckStatus.WaitingForUser;",
+      "bool num2 = mod.modId > 0;",
+      "string message = (num2 ? \"Menu/ModMissingClientDialogue\" : \"Menu/LocalModMissingClientDialogue\");",
+      "List<string> options = (num2 ? new List<string> { \"cancelDialogue\", \"yes\" } : new List<string> { \"cancelDialogue\" });",
+      "if (!DisplayMismatchedModsMessage(message, options, modName, delegate(bool subscribe)",
+      "{",
+      "mod.status = ModCheck.ModCheckStatus.Done;",
+      "if (subscribe)",
+      "{",
+      "ModIOUnity.SubscribeToMod(new ModId(modId), delegate(ModIO.Result subscribeResult)",
+      "{",
+      "if (!subscribeResult.Succeeded())",
+      "{",
+      "UnityEngine.Debug.LogError($\"Failed to subscribe to mod {modId}\");",
+      "}",
+      "else",
+      "{",
+      "UnityEngine.Debug.Log($\"Subscribed to mod {modId}\");"
+    ],
+    "Pug.Other:130630": [
+      "case NetworkStreamDisconnectReason.InvalidRpc:"
+    ],
     "Pug.Other:130673": [
       "[BurstCompile]"
+    ],
+    "Pug.Other:130679": [
+      "[BurstCompile]"
+    ],
+    "Pug.Other:130800": [
+      "lastMod = true"
     ],
     "Pug.Other:131103": [
       "modName = loadedMod.Metadata.name.Substring(0, math.min(FixedString32Bytes.UTF8MaxLengthInBytes / 2, loadedMod.Metadata.name.Length)),"
@@ -503,8 +653,36 @@
     "Pug.Other:131362": [
       "if (localVersionHash != 0 && req.serverVersion != 0 && localVersionHash != req.serverVersion)"
     ],
+    "Pug.Other:131372-131391": [
+      "component.rejected = !req.isOwner;",
+      "if (component.rejected)",
+      "{",
+      "component.reason = \"HostNotReady\";",
+      "}",
+      "}",
+      "if (req.ghostCollectionHash != ghostCollectionHash)",
+      "{",
+      "component.rejected = true;",
+      "component.reason = \"BadProtocolVersion\";",
+      "}",
+      "if (!req.allowCrossPlay && (crossplayAllowed || (Platform)req.platform != AllowedPlatform))",
+      "{",
+      "component.rejected = true;",
+      "component.reason = \"Consoles/MissingPrivilegeReason\";",
+      "}",
+      "else if (!crossplayAllowed && (Platform)req.platform != AllowedPlatform)",
+      "{",
+      "component.rejected = true;",
+      "component.reason = \"Error/HostDoesNotAllowCrossplay\";"
+    ],
     "Pug.Other:131378": [
       "if (req.ghostCollectionHash != ghostCollectionHash)"
+    ],
+    "Pug.Other:131840": [
+      "ghostCollectionHash ^= singletonBuffer[i].Hash;"
+    ],
+    "Pug.Other:131842": [
+      "UnityEngine.Debug.Log($\"server has ghost collection hash {ghostCollectionHash} for {singletonBuffer.Length} ghosts\");"
     ],
     "Pug.Other:132644": [
       "[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation, WorldSystemFilterFlags.Default)]"
@@ -514,6 +692,9 @@
     ],
     "Pug.Other:135471": [
       "Manager.input.touchpadInUse = inputModule.WasButtonPressedDownThisFrame(PlayerInput.InputType.TOUCHPAD);"
+    ],
+    "Pug.Other:137752": [
+      "case NetworkCommand.RemoveAdmin:"
     ],
     "Pug.Other:175127": [
       "if (__query_927245375_1.TryGetSingleton<WorldVersionSerializedCD>(out var value) && value.Version >= 13)"
@@ -1150,6 +1331,9 @@
     "Pug.Other:2516": [
       "public World ServerWorld { get; private set; }"
     ],
+    "Pug.Other:2535": [
+      "ServerWorld = serverWorld;"
+    ],
     "Pug.Other:2542-2554": [
       "TargetWorld = World.DefaultGameObjectInjectionWorld,",
       "BlobAssetStore = Manager.ecs.BlobAssetStore,",
@@ -1458,6 +1642,9 @@
     "Pug.Other:278979": [
       "InputReceiver.OnAlternate();"
     ],
+    "Pug.Other:279098": [
+      "UnityEngine.Debug.Log($\"Loading mod with ID {loadedMod.ModId}\");"
+    ],
     "Pug.Other:279330": [
       "Integration.Instance.Update();"
     ],
@@ -1581,6 +1768,12 @@
     ],
     "Pug.Other:293808": [
       "public class NetworkingManager : ManagerBase, INetworkStreamDriverConstructor"
+    ],
+    "Pug.Other:294271": [
+      "Entity entity2 = entityManager2.CreateEntity(typeof(NetworkCommandRpc));"
+    ],
+    "Pug.Other:294426": [
+      "Entity entity = entityManager.CreateEntity(typeof(NetworkCommandRpc), typeof(SendRpcCommandRequest));"
     ],
     "Pug.Other:294679": [
       "public void InitWorld(World world)"
@@ -2403,6 +2596,9 @@
     ],
     "Pug.Other:350322": [
       "public override bool SelectPrevIndex()"
+    ],
+    "Pug.Other:351417": [
+      "Manager.networking.SetGuestMode(currentGuestModeSetting, Manager.ecs.ClientWorld);"
     ],
     "Pug.Other:351545": [
       "Manager.ecs.StartEcs(startClient: true, -1, frameWorkloadTimer, delegate(bool result)"
@@ -3473,6 +3669,32 @@
       "}",
       "if (tokenSource != null && tokenSource.IsCancellationRequested)"
     ],
+    "PugMod.Loader:1001-1024": [
+      "bool flag = true;",
+      "while (flag)",
+      "{",
+      "flag = false;",
+      "for (int num = mods.Count - 1; num >= 0; num--)",
+      "{",
+      "bool flag2 = false;",
+      "Mod mod = mods[num];",
+      "foreach (ModMetadata.Dependency dependency in mod.Metadata.dependencies)",
+      "{",
+      "if (!dictionary.ContainsKey(dependency.modName) && dependency.required)",
+      "{",
+      "UnityEngine.Debug.LogWarning(\"skipping mod \" + mod.Metadata.name + \" because of missing dependency: \" + dependency.modName);",
+      "flag2 = true;",
+      "}",
+      "}",
+      "if (flag2)",
+      "{",
+      "dictionary.Remove(mod.Metadata.name);",
+      "mods.RemoveAt(num);",
+      "flag = true;",
+      "}",
+      "}",
+      "}"
+    ],
     "PugMod.Loader:1013": [
       "UnityEngine.Debug.LogWarning(\"skipping mod \" + mod.Metadata.name + \" because of missing dependency: \" + dependency.modName);"
     ],
@@ -3579,8 +3801,31 @@
     "PugMod.Loader:1587": [
       "mod.LoadedAssets.AddRange(assetBundle.LoadAllAssets());"
     ],
+    "PugMod.Loader:1665-1682": [
+      "_triedToLoadSet.Clear();",
+      "bool flag = false;",
+      "foreach (Mod mod5 in _mods)",
+      "{",
+      "_triedToLoadSet.Add(mod5.Metadata.guid);",
+      "}",
+      "for (int num = _config.unsupportedModsToLoad.Count - 1; num >= 0; num--)",
+      "{",
+      "string item = _config.unsupportedModsToLoad[num];",
+      "if (!_triedToLoadSet.Contains(item))",
+      "{",
+      "_config.unsupportedModsToLoad.RemoveAt(num);",
+      "flag = true;",
+      "}",
+      "}",
+      "if (flag)",
+      "{",
+      "WriteConfig();"
+    ],
     "PugMod.Loader:1724": [
       "Assets = mod.LoadedAssets,"
+    ],
+    "PugMod.Loader:179": [
+      "if (!Integration.Instance.AddMod(metadata, entry.Directory, (long)entry.Id.Value, flag2))"
     ],
     "PugMod.Loader:1798": [
       "List<ModFile> list2 = mod.Metadata.files.FindAll((ModFile x) => x.path.EndsWith(\".cs\"));"
@@ -3665,6 +3910,9 @@
       "UnityEngine.Debug.LogException(exception2);",
       "}",
       "}"
+    ],
+    "PugMod.Loader:2409": [
+      "ModId = -Mathf.Abs(metadata.name.GetHashCode()),"
     ],
     "PugMod.Loader:2412": [
       "if (!Integration.Instance.AddMod(metadata, text2, value.ModId, supportsCurrentVersion: true))"

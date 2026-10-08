@@ -28,16 +28,17 @@ belong to mod.io and OpenBLive. `Admins.json`, `ServerConfig.json` and
 `PlayerBans.json` are read at startup and not re-read, so editing a file
 changes nothing in a running session.
 
-The protocol is stock **Unity NetCode for Entities** over Unity Transport. On
-connect both sides exchange `NetworkProtocolVersion` — NetCode version, game
-version, RPC collection and component collection — plus the ghost collection
-hash. NetCode generates those at build time from the ECS component landscape.
+The protocol is **Unity NetCode for Entities** over Unity Transport, in a copy
+Pugstorm has modified. On connect both sides exchange `NetworkProtocolVersion` —
+NetCode version, game version, RPC collection and a component collection value
+that the modified copy pins to `0` — and CK's handshake then compares the ghost
+collection hash, which NetCode's build-time serializers determine.
 
 Those hashes are **stable against the kind of mod built here**: Harmony patches
-and bake-time edits leave them untouched; only a new ECS component, a new ghost
-prefab or a new `IRpcCommand` type moves them. A tool would therefore survive
-this workspace's own builds and break on a Core Keeper update or on installing
-a mod that registers replicated types.
+and bake-time edits leave them untouched; only a new ghost prefab, a new
+replicated component on one, or a new `IRpcCommand` type moves them. A tool
+would therefore survive this workspace's own builds and break on a Core Keeper
+update or on installing a mod that registers replicated types.
 
 The commands worth sending are public on `NetworkingManager` and are thin — each
 creates one entity carrying `NetworkCommandRpc` + `SendRpcCommandRequest`:

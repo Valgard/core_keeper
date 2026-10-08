@@ -131,7 +131,7 @@ symptom, not the topic.
 | Typing inserts at the wrong position in a text field | [UI framework](ui-framework.md#glyph-positions-are-not-string-positions) — glyph positions are not string positions |
 | A held key repeats for the game and fires once for your patch | [UI framework](ui-framework.md#the-typing-path-repeats-keys-on-a-timer-of-its-own) — the typing path has a repeat timer of its own |
 | Players are blocked from joining your server | [Multiplayer and server](multiplayer-and-server.md), [Mod anatomy](mod-anatomy.md) — `requiredOn` |
-| "Game version mismatch" between client and server | [Multiplayer and server](multiplayer-and-server.md) — a mod-set mismatch, or a protocol hash moved by a new ECS component or `IRpcCommand`; neither names a mod |
+| "Game version mismatch" between client and server | [Multiplayer and server](multiplayer-and-server.md) — a mod-set mismatch, or a hash moved by a new ghost prefab or `IRpcCommand`; neither names a mod |
 | Dedicated server fails to generate a world | [Multiplayer and server](multiplayer-and-server.md) — the server renders, so `-nographics` breaks it |
 | A call works in single-player but not on a server | [Multiplayer and server](multiplayer-and-server.md) — some subsystems are compiled out server-side |
 | `Failed to resolve MapMarkerIconDataBlock` repeats in the log, and a map marker shows a blue diamond or another marker's icon | [World and mechanics](world-and-mechanics.md#since-13-a-user-markers-icon-is-a-data-block) — the marker's icon block is not loaded |

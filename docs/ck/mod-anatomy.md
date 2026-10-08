@@ -703,9 +703,10 @@ CoreLib, so CoreLib's assembly was not yet among the metadata references.
 The loader's `DependencySorter.SortMods` does the work:
 
 1. It indexes every mod by `metadata.name`.
-2. It scans the mod list backwards; a mod with a **required** dependency whose name is
-   not in the index is dropped, logging `skipping mod <name> because of missing
-   dependency: <dep>`.
+2. It scans the mod list backwards; every mod with a **required** dependency whose name
+   is not in the index is dropped, logging `skipping mod <name> because of missing
+   dependency: <dep>`, and the scan repeats until a pass drops nothing, so a mod whose
+   dependency was itself just dropped goes too.
 3. It builds a dependency graph from the surviving `dependencies` entries and
    depth-first-visits it, producing the load and compile order. A cycle logs
    `<name> has circular dependency` and is broken rather than resolved.
@@ -715,10 +716,12 @@ warning line is the only signal — there is no dialogue and no error toast. To 
 the mod simply is not there: no UI, no hotkey, nothing to click. If you ship a hard
 dependency, document that symptom.
 
-**Trap: at most one mod is dropped per pass.** The removal loop `break`s as soon as it
-removes a mod, so a second mod with a missing required dependency is neither warned about
-nor removed in that pass — it stays in the load list and fails later at the compile step
-instead.
+**Through 1.2.1.5, at most one mod was dropped per pass.** The removal loop left with
+`break` as soon as it removed a mod and did not repeat, so a second mod with a missing required
+dependency was neither warned about nor removed — it stayed in the load list and failed
+later at the compile step instead. Since 1.3 the loop runs to the end and repeats
+(`PugMod.Loader:1001-1024`); this section described the old loop as current until
+2026-10-08.
 
 To read the *actual* compile order at runtime, look for the loader's `Creating modified
 script files at …ModLoader\<Mod>` lines. They are ordered by compile, unlike the `loaded
@@ -726,7 +729,7 @@ mod …` lines. A correctly declared dependent shows its dependency's line first
 
 For which mods are auto-installed alongside yours, see [publishing](publishing.md).
 
-A mod that silently is not there — the symptom both traps above produce — has its own
+A mod that silently is not there — the symptom the trap above produces — has its own
 symptom-first index: [troubleshooting](troubleshooting.md).
 
 ## `requiredOn` and its crossed checks
