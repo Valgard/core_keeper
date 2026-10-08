@@ -423,6 +423,15 @@ Neither mode is wired into `pre-commit`: capturing is a deliberate act after
 verifying a citation, not something a routine commit should trigger. Run the
 comparison after a game update and before trusting `docs/ck/` again.
 
+## Chapter verification status
+
+`uv run utils/verify_status.py` lists every `docs/ck/` chapter as verified,
+partial, hotfix-pending or unverified. It reads each chapter's newest
+`docs(ck): verify <chapter> against <build>` commit, counts the lines changed
+since (uncommitted ones too), and compares that build with the decompile
+checkout's. The rule it applies, and why a minor update voids a verdict while a
+hotfix does not, is the `ck-verify-chapter` skill's.
+
 ## Mod source lookup
 
 `uv run utils/mod_source.py <name>` resolves a mod's internal name, mod.io

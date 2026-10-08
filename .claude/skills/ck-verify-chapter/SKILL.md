@@ -18,7 +18,9 @@ will be overturned by the next finding rather than extended by it.
 `git log --grep='^docs(ck): verify <chapter>'` may well find one. A
 verification commit vouches for two things together, and expires when either
 one moves: **the text as it stood in that commit**, weighed against **the build
-named in its subject line**. Check both before calling a chapter verified.
+named in its subject line**. Check both before calling a chapter verified —
+`uv run utils/verify_status.py` applies the rule below to every chapter at once,
+uncommitted edits included, and is the quickest way to pick the next one.
 
 **The text: verified up to that commit, and not one line further.** Every line
 changed since was written after the pass and seen by nobody in it — that holds
