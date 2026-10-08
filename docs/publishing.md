@@ -477,10 +477,10 @@ deleted. Tags outside these four groups are never touched.
 
 - **A build without a tag of its own can be published under a stand-in.** The
   1.3 update got a single tag, `1.3.0`, while the builds that shipped are
-  `1.3.0.1`, `1.3.0.2`, `1.3.0.3` and `1.3.0.4`. A shorter tag stands in for a
+  four-part ones from `1.3.0.1` on. A shorter tag stands in for a
   build when it is a whole-segment prefix of it and the build *it* spells,
   padded to four segments, never shipped: `1.3.0.0` never did, so `1.3.0` can
-  only mean the update, and all four 1.3 builds are published under it. `1.1.2`
+  only mean the update, and every 1.3.0.x build is published under it. `1.1.2`
   is the opposite case — it sits beside `1.1.2.1` … `1.1.2.10` and names build
   `1.1.2.0`, so a later untagged 1.1.2 hotfix fails validation rather than being
   listed under a build it was never tested on. Only builds in

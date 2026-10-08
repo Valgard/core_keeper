@@ -15,9 +15,9 @@ Neither feed is complete on its own, in different ways:
   * mod.io's Game Version tags miss the builds named in
     CK_MODIO_VERSION_UNLISTED — the parent `.envrc.example` is where that list
     is kept, and the only place the numbers are written down — and start at
-    0.6.3.0, the build the Mod SDK shipped with. They also miss 1.3.0.1,
-    1.3.0.2, 1.3.0.3 and 1.3.0.4, for a third reason: the update got one tag,
-    1.3.0, which names no build and stands in for all four. Such a tag is
+    0.6.3.0, the build the Mod SDK shipped with. They also miss every 1.3.0.x
+    build, for a third reason: the update got one tag, 1.3.0, which names no
+    build and stands in for all of them. Such a tag is
     listed separately, not as a missing build 1.3.0.0.
 
 Usage:
@@ -74,7 +74,7 @@ class Report:
     missing: list = field(default_factory=list)
     suspects: list = field(default_factory=list)
     # mod.io tags that name no build but stand in for builds that have none of
-    # their own -- 1.3.0 for 1.3.0.1, 1.3.0.2, 1.3.0.3 and 1.3.0.4. Reported,
+    # their own -- 1.3.0 for every 1.3.0.x build. Reported,
     # never missing.
     stand_ins: list = field(default_factory=list)
     # Keyed by the canonical spelling, because `missing` is: Steam writes

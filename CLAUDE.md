@@ -179,7 +179,7 @@ Checklist" can differ from the internal identity "ItemChecklist"; summary ←
 every build the mod runs on and the second the ones mod.io has no tag for, so
 what remains is published one compatibility tag each — or, where mod.io has no
 tag for a build, under a shorter tag standing in for it, as 1.3.0 does for
-1.3.0.1, 1.3.0.2, 1.3.0.3 and 1.3.0.4 (all in `utils/CLIPublishHelper.cs`; see
+every 1.3.0.x build (all in `utils/CLIPublishHelper.cs`; see
 @docs/publishing.md for why the subtraction exists and when it aborts the
 publish).
 
