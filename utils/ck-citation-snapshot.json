@@ -187,6 +187,12 @@
     "Pug.Base:15620": [
       "public int SimulationTickRate { get; private set; } = 20;"
     ],
+    "Pug.Base:17292": [
+      "public void OnAfterDeserialize()"
+    ],
+    "Pug.Base:17334": [
+      "private void InitLoot(List<LootInfo> lootInfos, int minUniqueDrops, int maxUniqueDrops, List<LootInfo> guaranteedLootInfos)"
+    ],
     "Pug.Base:19631": [
       "public static bool IsWalkableTile(this TileType t)"
     ],
@@ -397,8 +403,17 @@
       "}",
       "}"
     ],
+    "Pug.ECS.Conversion:1690": [
+      "if (craftingAuthoring.includeCraftedObjectsFromBuildings != null)"
+    ],
+    "Pug.ECS.Conversion:1707": [
+      "AddToBuffer(new IncludedCraftingBuildingsBuffer"
+    ],
     "Pug.ECS.Conversion:1765": [
       "ObjectID objectID = API.Authoring.GetObjectID(recipe.moddedObjectID);"
+    ],
+    "Pug.ECS.Conversion:2551": [
+      "List<LootTable> list = ((!Application.isPlaying) ? LootTableBank.GetTable().GetLootTables() : Manager.mod.LootTable);"
     ],
     "Pug.ECS.Conversion:2910": [
       "int maxSkins = PetInfosTable.GetTable().GetPetSkinInfo((ObjectID)base.ObjectIndex)?.skins.Count ?? 0;"
@@ -414,6 +429,9 @@
     ],
     "Pug.ECS.Conversion:5838": [
       "AddComponentData(new ObjectCategoryTagsCD"
+    ],
+    "Pug.Mods:714": [
+      "lootTableBank.OnAfterDeserialize();"
     ],
     "Pug.Objects:3050": [
       "protected override void OnDeath()"
@@ -1653,6 +1671,9 @@
     "Pug.Other:279098": [
       "UnityEngine.Debug.Log($\"Loading mod with ID {loadedMod.ModId}\");"
     ],
+    "Pug.Other:279189": [
+      "PugMods.LootTable.Init(lootTableBank);"
+    ],
     "Pug.Other:279330": [
       "Integration.Instance.Update();"
     ],
@@ -1925,6 +1946,9 @@
     ],
     "Pug.Other:314790": [
       "IncreasePetXp(playerAttackAspect.entity, experienceFromDamage, in playerAttackAspect.petOwnerCD.ValueRO, in playerAttackAspect.playerGhost.ValueRO, playerAttackLookups.containedObjectsBufferLookup[playerAttackAspect.entity], playerAttackLookups.inventoryChangeBufferLookup, playerAttackShared.inventoryChangeBufferEntity);"
+    ],
+    "Pug.Other:318136": [
+      "if (EntityUtility.HasComponentData<IncludedCraftingBuildingsBuffer>(base.entity, base.world))"
     ],
     "Pug.Other:321349": [
       "if (_visibilityState == 0)"
@@ -2445,6 +2469,12 @@
     "Pug.Other:324307": [
       "private static void PlaceItem(ref NativeList<PlacementHandler.EntityAndInfoFromPlacement> entitiesToRemoveByWater, in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)"
     ],
+    "Pug.Other:326289": [
+      "if (!(num2 <= lootTableBank.Value.lootTables[i].guaranteedDropsLootTable[j].accumulatedDropChance))"
+    ],
+    "Pug.Other:326339": [
+      "num4 += lootTableBank.Value.lootTables[i].lootTable[m].weight;"
+    ],
     "Pug.Other:330521-330529": [
       "private void LateUpdate()",
       "{",
@@ -2515,8 +2545,17 @@
     "Pug.Other:338891": [
       "player.playerCommandSystem.SetWorldLabelVisibility(player.activeWorldLabel.entity, signStateToggle.stateIndex);"
     ],
+    "Pug.Other:338979": [
+      "public class SimpleCraftingUIContainer : CraftingUIBase"
+    ],
+    "Pug.Other:338981": [
+      "public const int MAX_RECIPES_PER_UI = 6;"
+    ],
     "Pug.Other:339027": [
       "if (AnyAvailableRecipeInRange(recipes, num3, num3 + 6))"
+    ],
+    "Pug.Other:339031": [
+      "UnityEngine.Debug.LogError($\"Not enough SimpleCraftingUIs in SimpleCraftingUIContainer to show all recipes. Needed at least {amountOfWindowsShowing + 1}, but only have {simpleCraftingUIs.Count}.\", this);"
     ],
     "Pug.Other:339061": [
       "if (canCraftBuffer[i].objectID != ObjectID.None)"
@@ -3146,6 +3185,12 @@
     ],
     "Pug.Other:370233": [
       "public void SetState(int index)"
+    ],
+    "Pug.Other:370826": [
+      "private void Update()"
+    ],
+    "Pug.Other:370859": [
+      "UnityEngine.Debug.LogWarning($\"Missing title for crafting UI window index {windowIndex} in building {component}. Using default title.\", this);"
     ],
     "Pug.Other:3709": [
       "public override void PostConvert(GameObject authoring)"
