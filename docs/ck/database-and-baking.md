@@ -188,13 +188,15 @@ else (`Pug.Other:3718`); through 1.2 the prefab list also took in the loader's
 
 What a missing block looks like was measured in `caveling-divining-rod` on
 1.3.0.2, with CoreLib's `EntityModule` loaded: the rod still resolved to an
-`ObjectID` — which path assigned it is not traced — so its Iron Workbench recipe
-resolved (`moddedObjectID` goes through `API.Authoring.GetObjectID`,
+`ObjectID` — which path assigned it is not traced; any converted
+`ObjectAuthoring` prefab gets one, whether a block or another prefab pulled it
+into the conversion ([below](#where-a-modded-items-objectid-comes-from)) — so its Iron Workbench recipe resolved
+(`moddedObjectID` goes through `API.Authoring.GetObjectID`,
 `Pug.ECS.Conversion:1765`) and an extra crafting window opened, because that
-test only asks for a non-`None` ID (`Pug.Other:339027`, the check at `Pug.Other:339061`).
-The slot inside it stayed empty, because drawing one asks the bank
-(`PugDatabase.HasObject`, `Pug.Other:430819`), and nothing could be crafted. No
-error was logged.
+test only asks for a non-`None` ID (`Pug.Other:339027`, the check at
+`Pug.Other:339061`). The slot inside it stayed empty, because drawing one asks
+the bank (`PugDatabase.HasObject`, `Pug.Other:430819`), and nothing could be
+crafted. No error was logged.
 
 **Most 1.3 item mods ship the block as an asset.** StoragePlus, ChestsGalore,
 DoubleChest, Extra Pouches and MoreScenes all carry `EntityAuthoringDataBlock`
@@ -242,6 +244,86 @@ declaration nested inside `InventoryItemAuthoring`: the string-keyed
 that `ObjectInfo.requiredObjectsToCraft` uses. Because it is a struct, mutating
 the `var` copy and assigning it back through the list indexer is not optional
 here.
+
+### Where a modded item's `ObjectID` comes from
+
+**During play, a modded item's `ObjectID` is a counter value handed out by the
+first entity conversion of the process, in the order the conversion queue
+reaches the prefab.** Nothing derives it from the name, and no ID table is
+exchanged or reconciled between processes — the IDs themselves cross the
+network all the time, in ghost snapshots and in the craft request below. Traced
+on build `1.3.0.5-cb48`, client and dedicated server alike:
+
+1. `API.Authoring.GetObjectID(name)` is a dictionary lookup and nothing else
+   (`Pug.Other:410222`); a name that is not in it returns `ObjectID.None`.
+2. The lookup is written during conversion, first value wins: by
+   `ObjectConverter` for every converted `ObjectAuthoring` prefab
+   (`Pug.ECS.Conversion:3572`), and by `EntityMonoBehaviourDataConverter` with
+   the vanilla prefab's own enum value (`Pug.ECS.Conversion:5818`).
+3. The index a prefab converts under is its *preferred* index if it has one,
+   otherwise the next value of a counter (`PugConversion:1044`,
+   `PugConversion:1046`). Every converted object without a preferred index takes
+   a value, item or not. An `ObjectAuthoring` prefers the ID its `objectName`
+   already resolves to (`Pug.ECS.Authoring:2992`, `Pug.ECS.Authoring:2983`) — so
+   on the first conversion a modded item has none and takes the counter, and
+   every later conversion reuses that value. The counter starts above the
+   highest vanilla `ObjectID`, at no less than 32768 (`PugConversion:712`,
+   `Pug.Other:2607`).
+4. The first conversion is `ECSManager.Init`, which converts the server
+   authoring prefab once at startup (`Pug.Other:2553`). Its
+   `PugDatabaseConverter` enqueues the prefab of every `EntityAuthoringDataBlock`,
+   **sorted by the block's address** (`Pug.Other:3640`, `Pug.Other:3643`; the
+   comparison is the address GUID, `ScriptableData:1808`). A prefab can also
+   enter the queue because a converted prefab references it — a
+   `PugPrefabBufferAuthoring` list does that (`Pug.ECS.Conversion:3507`) — and
+   then it gets an ID with no block of its own. The loader's
+   `RegisterAuthoringGameObject` (`Pug.Other:279067`) only lists a prefab in
+   `ExtraAuthoring`. Startup enqueues only the server authoring prefab
+   (`Pug.Other:2553`) and hands that list, after the conversion, to
+   `PugDatabase.UpdateEntityMonos` (`Pug.Other:2555`), which reads the
+   prefabs' `ObjectInfo` rather than converting them; no other use of the list
+   in the decompile enqueues it. That is the likeliest reading
+   of the blockless rod above, which resolved to an ID all the same; which
+   reference pulled it in is not traced.
+5. `API.DataBlocks.CreateRuntimeInstance<T>(modId)` — the call this chapter's
+   example uses, and CoreLib uses for its generated workbenches — gives the
+   block a fresh `Guid.NewGuid()` (`PugMod.Loader:2236`, `ScriptableData:71`),
+   on every launch, the same machine included.
+
+So a runtime block created that way lands at a random place in the sort, in each
+process separately, and the counter values it and every other modded prefab
+receive follow from that place. A host's client and server worlds share one
+process and one lookup, so a host always agrees with itself. **A second process
+— a dedicated server, or a player joining someone else's game — may give the
+same item a different `ObjectID`**, and several items registered this way may
+come out in a different order on each side. The dedicated-server decompile runs
+the identical path (`DedicatedServer/Pug.Other:2542`,
+`DedicatedServer/Pug.Other:3617`, `DedicatedServer/PugMod.Loader:2236`). Nothing
+at connect time would notice: the connect request carries a hash over the ghost
+collection (`Pug.Other:2599`), not the ID table. This is read from the code; the
+mismatch has not been observed in game.
+
+**Saves are the exception, and the strongest sign that the game treats these
+IDs as unstable.** Both save paths translate modded IDs back by name on load. A
+world save keeps the name of every ID, and `DefaultConvertSystem` renumbers
+every ID from 32767 up through that name (`Pug.Other:176409`,
+`Pug.Other:176415`, `Pug.Other:176425`). A character save stores
+`inventoryObjectNames` beside the IDs (`Pug.Other:381160`), and loading
+re-resolves each modded slot with `API.Authoring.GetObjectID`
+(`Pug.Other:133539`, `Pug.Other:133541`). Neither runs during play: crafting,
+synced entities and the UI all use the raw ID.
+
+**A stable address is not a stable `ObjectID`.** Two ways to the first, neither
+measured: ship the block as an asset, whose address is serialised with it, or
+call the overload that takes an address, `CreateRuntimeInstance<T>(modId,
+address)` — the loader then derives the block's address from a SHA-256 of the
+mod's manifest GUID and the given address (`PugMod.Loader:2262`,
+`PugMod.Loader:2295`), the same on every machine for one build of the mod. What
+the overload's `m_overload` side effect does is [below](#scriptabledata-blocks-addresses-and-order). Either way, the IDs are
+only as stable as everything else that consumes the counter: another mod's
+random-address block still sorts among yours — CoreLib creates one for every
+workbench it generates — and a mod installed on only one side shifts every value
+after its own.
 
 ### The recipe entry: `CraftingAuthoring.CraftableObject`
 
@@ -307,6 +389,25 @@ the whole prefab list per world, rebuilding the blob from the authoring data
 on each pass — so a `canCraftObjects` list mutated from `Init` is read by the
 next per-world conversion, not lost to it. Whether it also needs the same
 re-entrancy guard a `PostConvert` prefix needs remains open.
+
+### A craft carries the `ObjectID`; the server checks materials
+
+Clicking a recipe sends the item's `ObjectID`, not a slot or a name: the station
+window calls `CraftItem(player, objectID, …)` (`Pug.Other:334113`), which queues
+a craft action built from that ID (`Pug.Other:305187`). The crafting job runs on
+the server, and on the client as predicted crafting (`Pug.Other:427908`). It
+drops a craft from a non-admin on a read-only (guest-mode) world
+(`Pug.Other:427851`), then hands the ID to `InventoryUtility.Craft`
+(`Pug.Other:427876`; dedicated server `DedicatedServer/Pug.Other:423184`), whose
+gate is `InventoryUtility.CanCraft` (`Pug.Other:430203`): for a cooking pot its
+two ingredients, for a station that consumes its own stack
+(`craftingConsumesEntityAmount`) only that stack's amount, and otherwise the
+output slot, the material tag and the materials the requested ID's recipe lists.
+**None of these asks whether the station offers the item.** Read from the code,
+not tried in game: a recipe the station's list does not carry would still be
+crafted when the ID arrives, and an ID that means a different item on the server
+would craft that item, at that item's cost. Which is why [where the ID comes from](#where-a-modded-items-objectid-comes-from)
+matters in multiplayer.
 
 ### How a station window lays out the list: six slots, three windows
 
@@ -435,19 +536,21 @@ address and nothing else.
 saved reference can name such a block by its address: in a probe mod on 1.3.0.2,
 markers placed with a runtime icon lost it at the next restart — observed,
 without a recorded test. That concerns references by address only. An item built
-on a runtime block saves fine through its `ObjectID`, which is how CoreLib's and
-caveling-divining-rod's runtime blocks persist. The overload taking an address
-is stable — the block's address is a SHA-256 over the mod's GUID and the given
-address (`PugMod.Loader:2295`) — but it also records the given address as the
-block's `m_overload` (`PugMod.Loader:2263`), declaring it an overload of the
-block at that address. What that does depends on whether such a block exists. If
-one does, `ScriptableData.Initialize` resolves the given address to the runtime
-block (`ScriptableData:1341-1345`) and leaves the original out of every runtime
-list (`ScriptableData:1361-1363`): the call replaces it. If none does, the
-runtime block registers under its own hashed address only
-(`ScriptableData:1327-1330`). Both cases are read from the code and untried in
-game. A shipped asset avoids the question: it registers under the `m_address` it
-carries.
+on a runtime block survives a restart in a save because the save does not trust
+its `ObjectID`: world and character saves carry each modded item's name and are
+renumbered by name on load ([how a modded item gets its ID](#where-a-modded-items-objectid-comes-from)), which is how
+CoreLib's and caveling-divining-rod's runtime blocks persist. The overload
+taking an address is stable — the block's address is a SHA-256 over the mod's
+GUID and the given address (`PugMod.Loader:2295`) — but it also records the
+given address as the block's `m_overload` (`PugMod.Loader:2263`), declaring it
+an overload of the block at that address. What that does depends on whether such
+a block exists. If one does, `ScriptableData.Initialize` resolves the given
+address to the runtime block (`ScriptableData:1341-1345`) and leaves the
+original out of every runtime list (`ScriptableData:1361-1363`): the call
+replaces it. If none does, the runtime block registers under its own hashed
+address only (`ScriptableData:1327-1330`). Both cases are read from the code and
+untried in game. A shipped asset avoids the question: it registers under the
+`m_address` it carries.
 
 **Within one loader, blocks are sorted by address.** Every loader's set is
 sorted as it loads (`ScriptableData:1238` async, `ScriptableData:1264` sync),

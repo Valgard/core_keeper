@@ -31,6 +31,9 @@
     "DedicatedServer/Pug.Other:2531": [
       "TargetWorld = World.DefaultGameObjectInjectionWorld,"
     ],
+    "DedicatedServer/Pug.Other:2542": [
+      "conversionManager.EnqueueGameObjectHierarchy(Manager.ecs.serverAuthoringPrefab);"
+    ],
     "DedicatedServer/Pug.Other:2690-2712": [
       "private void PauseWorld(World world)",
       "{",
@@ -120,6 +123,9 @@
     "DedicatedServer/Pug.Other:318309": [
       "if (diggableEntityAndInfo2.objectID == ObjectID.DiggingSpot && top.tileset == 0)"
     ],
+    "DedicatedServer/Pug.Other:3617": [
+      "list.Sort();"
+    ],
     "DedicatedServer/Pug.Other:378844": [
       "private void Awake()"
     ],
@@ -132,6 +138,9 @@
     ],
     "DedicatedServer/Pug.Other:378888": [
       "Manager.ecs.StartEcs(startClient: false, 0, frameWorkloadTimer, null);"
+    ],
+    "DedicatedServer/Pug.Other:423184": [
+      "InventoryUtility.Craft(in inventoryHandlerShared, inventories[0], componentData2, inventories, new CanCraftObjectsBuffer"
     ],
     "DedicatedServer/Pug.Other:450882-450898": [
       "public StandaloneFilesystem(string partition, PlatformInterface platformInterface)",
@@ -157,6 +166,9 @@
     ],
     "DedicatedServer/Pug.Other:4709": [
       "public static void TriggerAchievementForEveryone(EntityCommandBuffer ecb, EntityArchetype rpcArchetype, AchievementID achievementID)"
+    ],
+    "DedicatedServer/PugMod.Loader:2236": [
+      "return CreateRuntimeInstance(type, modId, DataBlockAddress.NewAddress(), overloadExisting: false);"
     ],
     "Interaction.Converters:104": [
       "UnityEngine.Debug.LogError(\"No local interaction events registered on entity. \" + authoring.gameObject.name, authoring.gameObject);"
@@ -311,6 +323,12 @@
     "Pug.ECS.Authoring:2896": [
       "public struct CraftingObject"
     ],
+    "Pug.ECS.Authoring:2983": [
+      "objectIndex = (int)objectInfo.objectID;"
+    ],
+    "Pug.ECS.Authoring:2992": [
+      "objectID = API.Authoring.GetObjectID(objectAuthoring.objectName);"
+    ],
     "Pug.ECS.Authoring:3031": [
       "foreach (InventoryItemAuthoring.CraftingObject item in component2.requiredObjectsToCraft)"
     ],
@@ -424,8 +442,17 @@
     "Pug.ECS.Conversion:3043": [
       "SetPropertyList(\"PlaceableObject/canBePlacedOnObjects\", authoring.canBePlacedOnObjects);"
     ],
+    "Pug.ECS.Conversion:3507": [
+      "Value = GetPrefabDependency(prefab)"
+    ],
+    "Pug.ECS.Conversion:3572": [
+      "Manager.mod.Authoring.ObjectIDLookup.TryAdd(authoring.objectName, (ObjectID)base.ObjectIndex);"
+    ],
     "Pug.ECS.Conversion:5813": [
       "protected override void Convert(EntityMonoBehaviourData authoring)"
+    ],
+    "Pug.ECS.Conversion:5818": [
+      "Manager.mod.Authoring.ObjectIDLookup.TryAdd(text, authoring.objectInfo.objectID);"
     ],
     "Pug.ECS.Conversion:5838": [
       "AddComponentData(new ObjectCategoryTagsCD"
@@ -711,6 +738,12 @@
     "Pug.Other:133051": [
       "CharacterData characterDataFromSerialized = SaveManager.GetCharacterDataFromSerialized(characterDataEntry.data);"
     ],
+    "Pug.Other:133539": [
+      "if (characterData.inventoryObjectNames.Count > i && characterData.inventory.Count > i && characterData.inventory[i].objectID >= (ObjectID)32767 && !string.IsNullOrEmpty(characterData.inventoryObjectNames[i]))"
+    ],
+    "Pug.Other:133541": [
+      "ObjectID objectID = API.Authoring.GetObjectID(characterData.inventoryObjectNames[i]);"
+    ],
     "Pug.Other:135471": [
       "Manager.input.touchpadInUse = inputModule.WasButtonPressedDownThisFrame(PlayerInput.InputType.TOUCHPAD);"
     ],
@@ -743,6 +776,15 @@
     ],
     "Pug.Other:175177": [
       "private static int GetDefaultVariantForOldVariation(int variation)"
+    ],
+    "Pug.Other:176409": [
+      "if (oldObjectId > ObjectID.None && oldObjectId < (ObjectID)32767)"
+    ],
+    "Pug.Other:176415": [
+      "if (oldObjectId >= ObjectID.None && !previous.TryGetPropertyString((int)oldObjectId, NamePropertyId, out value2))"
+    ],
+    "Pug.Other:176425": [
+      "nameToObjectID.TryGetValue(value2, out value);"
     ],
     "Pug.Other:182328": [
       "if (batchInChunk.DidChange(ObjectData, serializedChunk.ChangeVersion))"
@@ -1370,6 +1412,12 @@
       "conversionManager.EnqueueGameObjectHierarchy(Manager.ecs.serverAuthoringPrefab);",
       "conversionManager.ConvertEnqueuedObjectsImmediately();"
     ],
+    "Pug.Other:2553": [
+      "conversionManager.EnqueueGameObjectHierarchy(Manager.ecs.serverAuthoringPrefab);"
+    ],
+    "Pug.Other:2555": [
+      "PugDatabase.UpdateEntityMonos(Manager.mod.ExtraAuthoring);"
+    ],
     "Pug.Other:2560": [
       "Manager.mod.Authoring.ObjectProperties = entityQuery.GetSingleton<DatabaseCD>().ObjectPropertyLookup.AsEnum<ObjectID>();"
     ],
@@ -1378,6 +1426,12 @@
     ],
     "Pug.Other:2580": [
       "public bool TryCalculateGhostCollectionHash(out (ulong GhostCollectionHash, ulong GhostCollectionCount) result)"
+    ],
+    "Pug.Other:2599": [
+      "num ^= buffer[i].Hash;"
+    ],
+    "Pug.Other:2607": [
+      "int num = (int)ObjectIDExtensions.GetHighestObjectID();"
     ],
     "Pug.Other:262815": [
       "UnityEngine.Debug.LogError($\"GetComponentData<{typeof(T)}> called on invalid entity {world.EntityManager.GetName(entity)} ({entity})\");"
@@ -1668,6 +1722,9 @@
     "Pug.Other:278979": [
       "InputReceiver.OnAlternate();"
     ],
+    "Pug.Other:279067": [
+      "API.Authoring.RegisterAuthoringGameObject(gameObject);"
+    ],
     "Pug.Other:279098": [
       "UnityEngine.Debug.Log($\"Loading mod with ID {loadedMod.ModId}\");"
     ],
@@ -1820,6 +1877,9 @@
     ],
     "Pug.Other:297405": [
       "public bool GetControllerTextInput(string description, int maxChars, string currentText, PlatformInterface.GotControllerTextInput callback, bool hidden = false)"
+    ],
+    "Pug.Other:305187": [
+      "craftActionData = Create.Craft(objectID, amount, additionalFreeAmount, playerController.entity, craftingEntity)"
     ],
     "Pug.Other:305800": [
       "public static void UpdatePlaceablePosition(Entity placementPrefab, ref NativeList<EntityAndInfoFromPlacement> diggableEntityAndInfos, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData)"
@@ -2489,6 +2549,9 @@
     "Pug.Other:331602": [
       "int state = activeWorldLabel.GetState();"
     ],
+    "Pug.Other:334113": [
+      "mouseInventoryHandler.CraftItem(player, objectID, amount, num3);"
+    ],
     "Pug.Other:336148-336149": [
       "float num = (float)EntityUtility.GetConditionEffectValue(ConditionEffect.ChanceToGainExtraCookedFood, player.entity, player.world) / 1000f;",
       "float num2 = (float)EntityUtility.GetConditionValue(ConditionID.ChanceForExtraCookedFoodToBeRare, player.entity, player.world) / 100f;"
@@ -2887,6 +2950,12 @@
       "Manager.saves.SetCharacterId(saveFileId);",
       "Manager.menu.PushMenu(RadicalMenu.MenuType.CHARACTER_TYPE_SELECTION);",
       "}"
+    ],
+    "Pug.Other:3640": [
+      "list.Sort();"
+    ],
+    "Pug.Other:3643": [
+      "GetPrefabDependency(item.prefab);"
     ],
     "Pug.Other:3647": [
       "public class PugDatabasePostConverter : PostConverter"
@@ -3346,6 +3415,9 @@
     "Pug.Other:380909": [
       "public bool SetObjectAsDiscovered(ObjectDataCD objectData)"
     ],
+    "Pug.Other:381160": [
+      "characterData[characterId].inventoryObjectNames.Add(value);"
+    ],
     "Pug.Other:381608": [
       "characterData[i].UpgradeIfOutdated();"
     ],
@@ -3376,6 +3448,9 @@
     ],
     "Pug.Other:410061": [
       "public World World => Manager.ecs.ServerWorld;"
+    ],
+    "Pug.Other:410222": [
+      "if (ObjectIDLookup.TryGetValue(name, out var value))"
     ],
     "Pug.Other:410340": [
       "private InvokeChecker _checker = new InvokeChecker();"
@@ -3480,8 +3555,14 @@
     "Pug.Other:427823": [
       "private struct ProcessCraftingJob : IJob"
     ],
+    "Pug.Other:427851": [
+      "if (worldIsReadOnly && inventoryHandlerShared.playerGhostLookup.TryGetComponent(craftActionData.playerEntity, out var componentData) && componentData.adminPrivileges <= 0)"
+    ],
     "Pug.Other:427876": [
       "InventoryUtility.Craft(in inventoryHandlerShared, inventories[0], componentData2, inventories, new CanCraftObjectsBuffer"
+    ],
+    "Pug.Other:427908": [
+      "if (!inventoryHandlerShared.isServer)"
     ],
     "Pug.Other:428180": [
       "state.Dependency = IJobExtensions.Schedule(new ProcessCraftingJob"
@@ -3491,6 +3572,9 @@
     ],
     "Pug.Other:428862": [
       "public static bool ConsumeEntityAt(in InventoryHandlerShared inventoryHandlerShared, Entity inventory, int index, int amount, bool destroy, float3 position, int variationToInstatiate = -1, float3 direction = default(float3), ObjectID optionalTargetObjectID = ObjectID.None)"
+    ],
+    "Pug.Other:430203": [
+      "public static bool CanCraft(in CraftingCD crafting, BufferLookup<ContainedObjectsBuffer> containedObjectsBufferLookup, ComponentLookup<CookingIngredientCD> ingredientLookup, ComponentLookup<ObjectCategoryTagsCD> objectCategoryTagsLookup, PugDatabase.DatabaseBankCD databaseBankCD, Entity mainEntity, ObjectDataCD mainEntityObjectData, NativeList<Entity> inventoryEntities, CanCraftObjectsBuffer objectToCraft, float costMultiplier = 1f)"
     ],
     "Pug.Other:430819": [
       "if (PugDatabase.HasObject(objectId, databaseBankCD.databaseBankBlob))"
@@ -3641,6 +3725,12 @@
     "Pug.UnityExtensions:7932": [
       "lifespan = newLifespan;"
     ],
+    "PugConversion:1044": [
+      "if (component == null || !component.TryGetPreferredObjectIndex(out var objectIndex))"
+    ],
+    "PugConversion:1046": [
+      "objectIndex = _nextUnusedObjectIndex++;"
+    ],
     "PugConversion:1080-1091": [
       "private void RunConverters(List<int> converterIndices, GameObject gameObject, int objectIndex, int uniqueObjectIndex, Entity entity)",
       "{",
@@ -3667,6 +3757,9 @@
       "}",
       "",
       "protected abstract void Convert(T authoring);"
+    ],
+    "PugConversion:712": [
+      "_nextUnusedObjectIndex = parameters.ReservedObjectIndices;"
     ],
     "PugConversion:724-742": [
       "public static List<Type> FindAllConvertersInCurrentAssembly()",
@@ -3926,6 +4019,9 @@
     ],
     "PugMod.Loader:2236": [
       "return CreateRuntimeInstance(type, modId, DataBlockAddress.NewAddress(), overloadExisting: false);"
+    ],
+    "PugMod.Loader:2262": [
+      "_addressField.SetValue(scriptableDataBlock, GetInstanceAddress(runtimeLoader.modGuid, address));"
     ],
     "PugMod.Loader:2263": [
       "_overloadField.SetValue(scriptableDataBlock, new DataBlockRef<ScriptableDataBlock>(address));"
