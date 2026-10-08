@@ -359,10 +359,15 @@ admin and for nobody else. Removing one's own stage 1 therefore works exactly
 once, and is the last command that player can send: every later one is answered
 with `Ignoring admin command from non-admin player` in the server log and
 nothing else. Measured 2026-10-07 against a running 1.3.0.5 server —
-`RemoveAdmin` went through, the `SetGuestMode` sent after it did not. Reading
-`AddOrUpdateAdmin`'s own, additional sender check as the only one is the
-available mistake here, and it costs a walked test: the gate sits ~150 lines
-above the branch.
+`RemoveAdmin` went through, the `SetGuestMode` sent after it did not.
+
+The available mistake is to find `AddOrUpdateAdmin`'s own extra check and read it
+as the permission one, which costs a walked test — and it is wrong twice over.
+That check asks the privileges of the command's **target**
+(`DedicatedServer/Pug.Other:137191`, reached through `rpc.entity0`'s own
+connection), so all it does is decline to re-add somebody who is an admin
+already: an idempotence guard, not a permission one. The check that asks about
+the *sender* is the gate, ~150 lines above the branch.
 
 **The per-command bodies are what make that mistake easy, and there is a second
 one shaped like it.** `RemoveAdmin` (`DedicatedServer/Pug.Other:137211`) and
