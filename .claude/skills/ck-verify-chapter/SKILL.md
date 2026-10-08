@@ -491,15 +491,22 @@ from"). The shape is a four-part build plus a short hash, as in
 the value to use. Read the live value from `game_version` in
 `utils/ck-citation-snapshot.json`, or from the decompile checkout itself.
 
-**Any citation inserted during this pass needs that same snapshot updated, in
-the same run:**
+**Any citation inserted into `docs/ck/` needs that same snapshot updated, in
+the same commit** — a verification pass is not the only thing that adds one,
+and a plain `docs(ck):` commit owes the capture just as much:
 
     uv run utils/check_citation_drift.py --capture --game-version <version>
 
-Skip it after adding new citations and the next chapter's drift check reports
-them as "not in the snapshot" — a false positive with no relation to that
-later pass. Use the same version string as the commit line above, so the
-snapshot and the commit history agree on what was checked against what.
+Skip it and the next chapter's drift check reports those citations as "not in
+the snapshot" — false positives with no relation to that later pass, which is
+how one content commit left fifteen of them for the pass after it (2026-10-08).
+Use the same version string as the commit line above, so the snapshot and the
+commit history agree on what was checked against what.
+
+**Resolve each new citation against the decompile before capturing it.** The
+snapshot records the cited line's *text*, not its number, so capturing a
+citation sitting two lines off its claim writes the wrong line in as the truth,
+and the drift check then confirms it on every later run.
 
 **A game update is the other case, and `--capture` is the wrong tool for it.**
 When the decompile has been regenerated, the recorded text has not changed but
