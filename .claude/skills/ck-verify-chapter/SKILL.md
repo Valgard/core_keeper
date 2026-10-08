@@ -13,6 +13,35 @@ claims more than its evidence supports, which is why a true sentence gets
 touched too: one that happens to be right without saying how far it reaches
 will be overturned by the next finding rather than extended by it.
 
+## A chapter that already carries a verification commit
+
+`git log --grep='^docs(ck): verify <chapter>'` may well find one. It does not
+mean the work is done, and the version string in it is the weaker of the two
+things to look at. Measure the growth instead:
+
+    git diff --shortstat <that commit> HEAD -- docs/ck/<chapter>.md
+
+**A verification commit dates a state, and nothing expires when the chapter
+moves away from it.** A chapter can double in size and keep the same tick, so
+the real question is how much of today's text that pass actually saw. Judge it
+on the diff, not on the date: a few dozen changed lines is a chapter still
+largely covered, several hundred is a different chapter wearing an old tick.
+In the second case treat it as unverified and run the full procedure — most of
+it was never checked, and calling that a re-check invites sampling where a pass
+is needed.
+
+The game version matters less than it looks. Measured on 2026-10-08, after the
+1.3 update moved roughly 127,000 lines of decompile: of a freshly verified
+chapter's findings exactly one was caused by the update, and it sat in a
+*different* chapter that had never been verified at all. Version drift
+accumulates where nobody has looked, which is the same rule this handbook
+already applies to everything else. So an old version string is a reason to
+re-read the behavioural claims, not a reason to redo a pass whose text has not
+moved.
+
+Say which it was in the commit body, so the next session is not left to work it
+out from a shortstat.
+
 ## Dispatch
 
 Read the chapter yourself before dispatching. The three lanes verify
