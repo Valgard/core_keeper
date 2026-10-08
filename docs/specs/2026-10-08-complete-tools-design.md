@@ -183,7 +183,21 @@ parts; indices count within the station's own list (the metal workbenches show
 each lower workbench's list as a category of its own,
 `Pug.ECS.Conversion:1690`).
 
-| Workbench | Own list | New entries (index: item) | Window |
+Two kinds of entry, placed differently:
+
+- **Gap entries** (Galaxite, Solarite) overwrite a vanilla `None` at a fixed
+  index. Each is written only if that slot is still a placeholder — `None` with
+  no `moddedObjectID`; if another mod took it, that one entry is skipped and
+  logged.
+- **Window entries** (all other stations) form a window of their own, appended
+  after the list's **current** end: placeholders pad the list up to the next
+  six-slot boundary, then our entries follow. The table shows the result on a
+  vanilla list; another mod that appended first — `caveling-divining-rod` puts
+  its rod at the end of the Iron Workbench — shifts our window back, never into
+  its group. If that would need a sixth window, beyond the pool extender's
+  ceiling of five, the station is skipped and logged.
+
+| Workbench | Vanilla list | New entries on a vanilla list (index: item) | Window |
 |---|---|---|---|
 | Wood | 17 | 17: `None` (padding) · 18: Wood Sledge Hammer `[S]` | 4 |
 | Copper | 18 | 18: Copper Fishing Rod · 19: Copper Sledge Hammer `[S]` | 4 |
@@ -255,11 +269,12 @@ rather than a prefab edit because they live on the graphical prefab
 
 **Errors are loud, never silent:**
 
-- **Slot guard.** `WorkbenchInjector` writes only when a station's list has the
-  expected length and the expected gaps are still `None`. Otherwise — a game
-  update or another mod changed it — that station is skipped and an error names
-  station, expected and found state. Writing anyway would overwrite another
-  mod's entry or tear a window group apart.
+- **Slot guard.** `WorkbenchInjector` never overwrites anything but a
+  placeholder, and never writes inside an existing window group. A gap entry
+  whose slot is taken is skipped with an error naming station, index and what
+  occupies it; a station whose window entries would need a sixth window is
+  skipped whole. A list *longer* than vanilla — another mod appended — is not an
+  error: the window goes after it.
 - A missing prefab or unresolved item logs its name and skips that tool only.
 - Lifecycle calls catch and log: the loader reports only the first exception any
   mod throws.
@@ -297,17 +312,20 @@ a modded item's id is assigned is not traced in the handbook — open question 2
   "+". Judged at ~200 px; no rotationally symmetric silhouette with hooks.
 - **Descriptions** name the vanilla changes, the setting and its restart, that
   it is per player and a dedicated server cannot enforce it, and compatibility:
-  Tool Resizer and PlacementPlus override the tool sizes (harmless); a mod
-  occupying expected slots makes the guard skip a station, with a log line.
+  Tool Resizer and PlacementPlus override the tool sizes (harmless); mods that
+  append to the same workbenches coexist; a mod that fills a Galaxite or
+  Solarite gap first costs that one entry, with a log line.
 
 ## Tests
 
 **Harness** (`dotnet run --project tests/catalog-harness`, the `sign-labels`
-pattern, not a gate): `SlotPlanner` — writes at the expected state, padding
-included; setting off yields the same indices with `None`; any deviation skips
-with a reason. `ToolCatalog` — twelve tools, unique names, no duplicate index
-per station, index < 24, `[S]` only on hammers, drills and the trowel, Relucite
-hammer multiplier below the pickaxe's, every tool above 1×1 marked resizable.
+pattern, not a gate): `SlotPlanner` — writes at the vanilla state, padding
+included; setting off yields the same indices with `None`; a longer list moves
+the window behind it to the next six-slot boundary; an occupied gap skips that
+entry only; a sixth window skips the station. `ToolCatalog` — twelve tools,
+unique names, no duplicate index per station, index < 24 on a vanilla list,
+`[S]` only on hammers, drills and the trowel, Relucite hammer multiplier below
+the pickaxe's, every tool above 1×1 marked resizable.
 
 **In game** (`docs/manual-tests.md`). Preconditions: only Complete Tools and
 its dependencies; Tool Resizer off for size checks.
@@ -332,8 +350,8 @@ its dependencies; Tool Resizer off for size checks.
     client arrives as that tool — client and server agree on the ids. With the
     server's setting off and the client's on, a hammer craft succeeds, as
     documented.
-13. Slot guard: a test fixture that lengthens one station's list makes the
-    guard skip that station with its error line, and only that station.
+13. Coexistence: with `caveling-divining-rod` installed, the Iron Workbench
+    shows the rod in its own place and our window after it, both craftable.
 14. Whole log after a session with the setting on and off: no warning or error
     from Complete Tools.
 
