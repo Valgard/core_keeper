@@ -208,12 +208,12 @@ itself. Three things differ on this route and are worth knowing before relying
 on it:
 
 - **It fires per call, not once before `PatchAll`.** `ModAPIReflection` holds its
-  own `InvokeChecker` (`Pug.Other:410347`), separate from the loader's, and
+  own `InvokeChecker` (`Pug.Other:410340`), separate from the loader's, and
   `Invoke` / `GetValue` / `SetValue` each run `CheckType` on entry
   (`PugMod.Loader:571`). So the patch path's all-or-nothing rejection has no
   counterpart here: one refused type costs you that one call.
 - **A refusal throws rather than returning `false`** —
-  `InvalidOperationException` at your call site (`Pug.Other:410410` for
+  `InvalidOperationException` at your call site (`Pug.Other:410403` for
   `GetValue`). A `catch` cannot identify it as a refusal, because those three
   methods throw the same type for shape mistakes too: `Invoke` on a non-method,
   `GetValue`/`SetValue` on a member that is neither field nor property,

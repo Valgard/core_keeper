@@ -305,27 +305,27 @@ ghost**, and its entity carries `GhostInstance.ghostId == 0`. (It also carries a
 `PredictedGhostSpawnSystem` removes that through a command buffer at the next
 simulation step, so the component is no marker to wait on.) An RPC that names an
 entity sends its ghost id — CK's player-command serializer writes
-`ghostInstance.ghostId` for `entity0` (`Pug.Other:453667`) — and the receiving
+`ghostInstance.ghostId` for `entity0` (`Pug.Other:453660`) — and the receiving
 side resolves `0` to nothing: it sets `entity0` to `Entity.Null` and looks the
-id up only when it is non-zero (`Pug.Other:453708-453709`). For
+id up only when it is non-zero (`Pug.Other:453701-453702`). For
 `SetWorldLabelVisibility` the handler then reads `ObjectDataCD` from
-`Entity.Null` (`Pug.Other:415531`), which `EntityUtility.GetComponentData`
+`Entity.Null` (`Pug.Other:415524`), which `EntityUtility.GetComponentData`
 catches and logs as *"GetComponentData<…> called on invalid entity"*
 (`Pug.Other:262815`), and records a command-buffer write of the result against
-`Entity.Null` (`Pug.Other:415533`). Whether that log line appears depends on the
+`Entity.Null` (`Pug.Other:415526`). Whether that log line appears depends on the
 read actually throwing, which needs the Entities safety checks compiled into the
 shipped build; what playing back the recorded write does to the rest of that
 buffer is **unverified**. Observed on 1.3.0.4 with the RPC sent the moment a placed
 sign spawned: a second later the sign's state was unchanged. The server-side log
 line is derived from the source; that run did not capture the server's log. The
 same command is also dropped outright on a guest-mode world when the sender has
-no admin rights (`Pug.Other:415258`, see below), whatever it names.
+no admin rights (`Pug.Other:415251`, see below), whatever it names.
 
 When the server's ghost arrives, CK's own `PugSpawnClassificationSystem` looks for a
 predicted spawn of the same ghost type, takes the nearest one less than three tiles
-away on the XZ plane (`Pug.Other:459691`) — or, for a ghost without a position in its
+away on the XZ plane (`Pug.Other:459684`) — or, for a ghost without a position in its
 snapshot, the oldest one by spawn tick — and hands the incoming ghost that spawn's
-entity (`Pug.Other:459715`), so NetCode promotes the **same** entity to the real
+entity (`Pug.Other:459708`), so NetCode promotes the **same** entity to the real
 ghost. An `Entity` or a `MonoBehaviour` captured at the predicted spawn then stays
 valid, and no second spawn was observed. That holds only when a match is found: a
 predicted spawn destroyed meanwhile, or a server ghost more than three tiles off,
@@ -524,7 +524,7 @@ refreshes on its own.
 
 For those flags the consequence runs the other way — writing them on one side
 changes nothing on the other. The surrounding code is present on both:
-`EquipmentSystemGroup` (`Pug.Other:437926`) runs in the server **and** the client
+`EquipmentSystemGroup` (`Pug.Other:437919`) runs in the server **and** the client
 simulation world, and `EquipmentUpdateSystem.UpdateJob` is a scheduled job. A
 Harmony patch in that job runs on every side, and **not** identically: measured
 for `reusable-cattle-box` on 1.2.1.5 (2026-08-22), its hook inside that job fired
@@ -628,7 +628,7 @@ server world (`Pug.Other:2968`), and otherwise null — set so in
 teardown (`Pug.Other:3067`); vanilla itself branches on it in at least eight
 places (`Pug.Other:2221`, `Pug.Other:2647`, `Pug.Other:2738`, …), and the SDK
 exposes the same object as `API.Server.World` (`ModAPIServer.World`,
-`Pug.Other:410068`). So a mod that needs to know whether it *is* the authority
+`Pug.Other:410061`). So a mod that needs to know whether it *is* the authority
 asks one question:
 
 ```csharp

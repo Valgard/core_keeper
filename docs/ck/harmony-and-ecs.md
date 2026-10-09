@@ -146,10 +146,10 @@ paths above, where half 1 alone un-Bursts it.
 ### Nested jobs need the `AndJobs` variant
 
 `DisableBurstForSystem<T>` is not enough when the system's real work lives in a
-nested job. `EquipmentUpdateSystem` (`Pug.Other:438831`) does everything in
-`UpdateJob`, which carries its own `[BurstCompile]` (`Pug.Other:438833`) and calls
-`PlaceObjectSlot.UpdateEquipment` (`Pug.Other:438965`). Note the blast radius before
-reaching for it: that call sits in a `switch` on `slotType` (`Pug.Other:438959`) covering
+nested job. `EquipmentUpdateSystem` (`Pug.Other:438824`) does everything in
+`UpdateJob`, which carries its own `[BurstCompile]` (`Pug.Other:438826`) and calls
+`PlaceObjectSlot.UpdateEquipment` (`Pug.Other:438958`). Note the blast radius before
+reaching for it: that call sits in a `switch` on `slotType` (`Pug.Other:438952`) covering
 `ShovelSlot`, `EatableSlot`, `WaterCanSlot` and the rest, so un-Bursting this
 one system takes the equipment path off Burst for **every** slot type, not only
 the one you meant to patch. With the plain variant, **no** patch on that path
@@ -180,7 +180,7 @@ the postfix itself installed — patched behaviour the SDK no longer knows it
 applied.
 
 It is also why `EquipmentUpdateSystem` needs it. Its `OnUpdate`
-(`Pug.Other:439635`) ends `state.Dependency =
+(`Pug.Other:439628`) ends `state.Dependency =
 __ScheduleViaJobChunkExtension_0(new UpdateJob { … })`, and that extension
 returns a `.Schedule(...)` call — not `.Run(...)`. The job is *queued*, not
 executed, before `OnUpdate` returns. What is measured is the outcome: with the
@@ -237,9 +237,9 @@ judged by eye with no profiler. It does not establish that Burst-disabling is
 cheap in general — and the recorded note names two properties of *this* system
 that keep it cheap, both of which have to be re-checked before assuming the same
 anywhere else: the query iterates player entities only (`EquipmentUpdateAspect`
-requires `ClientInput`, `PlayerStateCD`, `PlayerGhost` — `Pug.Other:438195`),
+requires `ClientInput`, `PlayerStateCD`, `PlayerGhost` — `Pug.Other:438188`),
 and the job is scheduled with `Schedule()`, not `ScheduleParallel()`
-(`Pug.Other:439743`), so it was single-threaded anyway: `Complete()` makes the
+(`Pug.Other:439736`), so it was single-threaded anyway: `Complete()` makes the
 main thread wait for it, and what that loses is the overlap with other
 main-thread work — how much, nobody measured.
 
@@ -353,10 +353,10 @@ counter [below](#the-pass-was-load-bearing-through-12--measured-not-assumed) rea
 
 **The server guard does not settle the boot route, and this file said it did.**
 `UnityEngine.Debug.LogError("Server should start from ServerMain!")` followed by
-`Application.Quit()` (`DedicatedServer/Pug.Other:378879-378880`) fires only when
+`Application.Quit()` (`DedicatedServer/Pug.Other:378872-378873`) fires only when
 a ServerWorld **already** exists; otherwise the same `SceneHandler.Awake` calls
-`StartEcs` itself (`DedicatedServer/Pug.Other:378890`,
-`DedicatedServer/Pug.Other:378895`), and those two are the only callers of
+`StartEcs` itself (`DedicatedServer/Pug.Other:378883`,
+`DedicatedServer/Pug.Other:378888`), and those two are the only callers of
 `StartEcs` in the server tree. So the guard rules out a *second* start through
 `Awake`, not that route as such. `ServerMain` occurs nowhere else in either
 checkout and names no type there — whether it is code that was never decompiled
@@ -366,9 +366,9 @@ which is why the ordering is measured.
 
 **That table is a measurement, and no derivation has replaced it — one was tried
 and was wrong.** The tempting mechanism is: `StartEcs` is reached from
-`SceneHandler.Awake` (client `Pug.Other:383093`, calling it at
-`Pug.Other:383130`; server build `DedicatedServer/Pug.Other:378851`, calling it
-at `DedicatedServer/Pug.Other:378890` or `DedicatedServer/Pug.Other:378895`
+`SceneHandler.Awake` (client `Pug.Other:383086`, calling it at
+`Pug.Other:383123`; server build `DedicatedServer/Pug.Other:378844`, calling it
+at `DedicatedServer/Pug.Other:378883` or `DedicatedServer/Pug.Other:378888`
 depending on the configured world) while `IMod.Init()` comes from
 `Loader.Update` (`PugMod.Loader:1214`, `PugMod.Loader:1216`), so Unity's rule
 that every `Awake` precedes every `Update` fixes the order. **It does not.**
@@ -385,7 +385,7 @@ therefore runs *before* any scene `Awake`. The other, the MonoBehaviour
 `DedicatedServer/Pug.Other:279172`). The lifecycle rule never applies to the
 first path, so it cannot settle the ordering. Nor is the hosting side
 "menu-triggered" as a contrast: the client's own world-creating `StartEcs`
-(`Pug.Other:383130`) sits in `SceneHandler` too, and the menu path
+(`Pug.Other:383123`) sits in `SceneHandler` too, and the menu path
 (`RadicalJoinGameMenu.Join`, `Pug.Other:351545`) passes `worldId: -1` and
 creates no ServerWorld at all.
 
@@ -711,7 +711,7 @@ of their own: `UpdateEquipment` as `public new static`, shadowing the base's
 `private static`, as the base's own is (`Pug.Other:321777`, `Pug.Other:322723`,
 `Pug.Other:324307`). Because these are statics there is no virtual dispatch to
 carry a patch across — the caller names the class outright, one branch per slot
-type (`Pug.Other:438971`, `Pug.Other:438983`, `Pug.Other:438992`) — so the "sole
+type (`Pug.Other:438964`, `Pug.Other:438976`, `Pug.Other:438985`) — so the "sole
 caller" relation above holds for each class separately. A patch on
 `PlaceObjectSlot.PlaceItem` therefore covers neither bucket, paint-tool nor
 watering-can placement. Patch each class you actually mean to cover.
@@ -999,37 +999,37 @@ If any of these is uncertain, the flag will race or leak, and the bug will be
 intermittent.
 
 **The example above does not satisfy the third precondition from the source
-alone.** `SaveManager.SetCharacterId(int)` (`Pug.Other:380769-380777`) warns on
+alone.** `SaveManager.SetCharacterId(int)` (`Pug.Other:380762-380770`) warns on
 an incompatible version and sets `_characterDead` and `_characterId` — it
 triggers no deserialize, and nothing in either tree links it to
 `CharacterData.OnAfterDeserialize`.
 
 **Nothing couples them at the producer — the pairing is the caller's ordering.**
 `OnAfterDeserialize` is Unity's `ISerializationCallbackReceiver` hook, which
-`CharacterData` implements (`Pug.Other:380215`). Since 1.3 nothing in the game
+`CharacterData` implements (`Pug.Other:380208`). Since 1.3 nothing in the game
 calls it explicitly: every invocation comes from Unity itself, through
-`SaveManager.DecodeJson<T>` (`Pug.Other:380739-380743`), which runs
+`SaveManager.DecodeJson<T>` (`Pug.Other:380732-380736`), which runs
 `JsonUtility.FromJsonOverwrite` over a character's JSON. Its body is empty
-(`Pug.Other:380301-380303`). Through 1.2 it carried the save-version upgrade and
+(`Pug.Other:380294-380296`). Through 1.2 it carried the save-version upgrade and
 had one explicit caller as well — `_ClearCharacter(int i)`, the routine that
 resets a character slot — so a postfix on it also fired on every slot reset. 1.3
-moved that work into `CharacterData.UpgradeIfOutdated()` (`Pug.Other:380325`),
-which the game calls explicitly after each character decode (`Pug.Other:380765`,
-`Pug.Other:380788`, `Pug.Other:381712`) and at the end of `_ClearCharacter`
-(`Pug.Other:381615`); a postfix on `OnAfterDeserialize` now sees the deserialize
+moved that work into `CharacterData.UpgradeIfOutdated()` (`Pug.Other:380318`),
+which the game calls explicitly after each character decode (`Pug.Other:380758`,
+`Pug.Other:380781`, `Pug.Other:381705`) and at the end of `_ClearCharacter`
+(`Pug.Other:381608`); a postfix on `OnAfterDeserialize` now sees the deserialize
 callbacks and nothing else. It also sees them **before** the upgrade: the record
 is as stored, and state the upgrade derives — `nonSerialized.discoveredObjects`
-is rebuilt at its end (`Pug.Other:380423-380427`) — is not there yet. The
+is rebuilt at its end (`Pug.Other:380416-380420`) — is not there yet. The
 example reads only `characterGuid`, a serialized field, so it is unaffected.
 
 Which decode follows the producer matters more. Of the three, the one at
-`Pug.Other:381712` is `SaveManager.Init` reading every existing character file
-once at startup, and the one at `Pug.Other:380788` serves a benchmark data
+`Pug.Other:381705` is `SaveManager.Init` reading every existing character file
+once at startup, and the one at `Pug.Other:380781` serves a benchmark data
 provider — the benchmark scene sets character 60 and decodes it straight away
-(`Pug.Other:383124-383125`), a case of its own that also hosts its world.
+(`Pug.Other:383117-383118`), a case of its own that also hosts its world.
 Outside it, the only decode that comes *after* a character is chosen is the
 network one —
-`GetCharacterDataFromSerialized` (`Pug.Other:380758-380766`), whose sole caller
+`GetCharacterDataFromSerialized` (`Pug.Other:380751-380759`), whose sole caller
 is `StartGameRPCSystem` (`Pug.Other:133051`), a `ServerSimulation` system
 (`Pug.Other:132644`) decoding the character data a joining player sent.
 `SetCharacterId` has four call sites in the client tree. The one the worked
@@ -1175,7 +1175,7 @@ Crafting, Cooking, Gardening, Running, Vitality, Summoning, Explosives. Its
 callers include `PlayerAttackAspect` and the inventory handlers, which are
 Burst-compiled, and that is precisely why patching `AddSkill` itself does not
 work. Not every caller is: a managed `ServerSystem` command path calls it too
-(`Pug.Other:415496`), so a prefix there fires for that path alone.
+(`Pug.Other:415489`), so a prefix there fires for that path alone.
 
 Both component types are declared in `Pug.ECS.Components` but sit in the
 **global namespace**; the systems live in `Pug.Other`. Neither needs a `using`
@@ -1419,8 +1419,8 @@ To persist mod state in lockstep with CK's own save, Harmony-postfix
 patch attribute never goes through `Manager.saves` at all.
 
 **Name the overload — `nameof` alone is ambiguous here.** `SaveManager` declares
-both `WriteCharacter()` (`Pug.Other:381638`) and `WriteCharacter(int)`
-(`Pug.Other:381643`), so the attribute needs the argument-type array; the parameterless
+both `WriteCharacter()` (`Pug.Other:381631`) and `WriteCharacter(int)`
+(`Pug.Other:381636`), so the attribute needs the argument-type array; the parameterless
 one delegates to the `int` overload, which is why patching that one covers both
 call paths:
 

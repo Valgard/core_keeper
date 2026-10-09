@@ -67,13 +67,13 @@ Inheriting from `UIelement`, reading `Manager.input` and touching
 
 ### How `UIMouse` picks and selects an element
 
-`UIMouse.UpdateMouseUIInput()` (`Pug.Other:373369`) casts a UI-layer ray
-through `Manager.physics.RaycastNonAlloc` (`Pug.Other:373469`) on every frame it runs —
+`UIMouse.UpdateMouseUIInput()` (`Pug.Other:373362`) casts a UI-layer ray
+through `Manager.physics.RaycastNonAlloc` (`Pug.Other:373462`) on every frame it runs —
 and it runs at most once per frame: `hasDoneMouseUpdateThisFrame`
-(`Pug.Other:373373`) makes a second call return early without re-running the body, and
+(`Pug.Other:373366`) makes a second call return early without re-running the body, and
 several conditions below it return before the ray is cast at all.
-`isMouseShowing` (`Pug.Other:373385`) is not one of them — it wraps the body, and its
-`else` releases a grabbed item (`Pug.Other:373657`). Whether it then calls
+`isMouseShowing` (`Pug.Other:373378`) is not one of them — it wraps the body, and its
+`else` releases a grabbed item (`Pug.Other:373650`). Whether it then calls
 `TrySelectNewElement` is a separate question, answered by the gate below.
 `Manager.ui.currentSelectedUIElement` is nonetheless owned by that raycast: a
 selection you assign from code is clobbered as soon as the gate next opens, and
@@ -89,8 +89,8 @@ same pass, immediately before the dispatch. The two come apart only where that
 re-derive did not happen — `flag2` set that frame, or a prefix of your own — and
 that is what a selection assigned from code is betting on. Which handler
 receives the click then depends on what is selected: an `InventorySlotUI` goes
-through the repair / trash / lock / move branch (`Pug.Other:373527`), everything else
-through `Manager.ui.currentSelectedUIElement?.LeftClick(…)` (`Pug.Other:373621`).
+through the repair / trash / lock / move branch (`Pug.Other:373520`), everything else
+through `Manager.ui.currentSelectedUIElement?.LeftClick(…)` (`Pug.Other:373614`).
 
 That selection is assigned **unconditionally** (`UIManager.OnUIElementSelected`,
 `Pug.Other:282416`), after a deselect branch that runs *before* it and only for
@@ -115,11 +115,11 @@ whether the parent menu's selected option is this one
 element needs in order to be selectable *by the pointer* is listed below.
 
 **The selection is not always re-derived.** `TrySelectNewElement` sits behind
-`!flag2 && (six disjuncts)` (`Pug.Other:373516`): a gamepad system, an interact
+`!flag2 && (six disjuncts)` (`Pug.Other:373509`): a gamepad system, an interact
 button down this frame, the pointer *moved*, nothing currently selected, the
 current selection no longer visible, or no visible `UIelement` under the ray.
 The first is not a property of the machine but of the moment: it reads
-`!SystemPrefersKeyboardAndMouse()` (`Pug.Other:373391`, inside the
+`!SystemPrefersKeyboardAndMouse()` (`Pug.Other:373384`, inside the
 `isMouseShowing` branch). That predicate (`Pug.Other:276318`) asks Rewired for
 the last active *device*, and a keyboard answers it as affirmatively as a mouse
 — so the disjunct is off for a keyboard player just as for a mouse one, and off
@@ -130,12 +130,12 @@ much as a session in which nothing has been pressed yet. What makes a device
 fallback, `touchpadInUse`, is reached by whatever is *neither* a keyboard nor a
 mouse (`Pug.Other:276323`) — a gamepad, but equally any other controller type
 Rewired reports. `UpdateMouseUIInput` writes that field itself
-(`Pug.Other:373389`, `Pug.Other:373498`), as does one site outside it
+(`Pug.Other:373382`, `Pug.Other:373491`), as does one site outside it
 (`Pug.Other:135471`). The gate is shut when `flag2` is set, and otherwise only
 when **all six** fail at once: mouse input, no press this frame, a pointer that
 has not moved since the last re-derivation, something selected, that something
 still visible, and a visible `UIelement` under the ray. (`flag2` is the gamepad
-path's own "already selected this frame" latch, set at `Pug.Other:373447`, and
+path's own "already selected this frame" latch, set at `Pug.Other:373440`, and
 is reachable only while the system prefers a controller.)
 
 The last three catch people out. A collider that shrinks out from under a
@@ -148,7 +148,7 @@ and the new element is picked up at once; with some other element still selected
 and visible, the gate stays shut, nothing is re-derived, and that older highlight
 stays where it is.
 
-A second call site skips the gate entirely (`Pug.Other:373446`): the gamepad's own "jump
+A second call site skips the gate entirely (`Pug.Other:373439`): the gamepad's own "jump
 the pointer to this element" path, which warps `pointer.position` and selects in
 the same breath — and sets `flag2`, which disables the gate for the rest of that
 pass. The two sites are therefore alternatives rather than a sequence: a mod
@@ -157,12 +157,12 @@ tell from inside the patch which site it came from.
 
 **"The pointer moved" is measured in whole design pixels, on the mouse path.**
 `pointer.localPosition` is written through
-`RoundToPixelPerfectPosition.RoundPosition` (`Pug.Other:373395`, inside the branch taken
+`RoundToPixelPerfectPosition.RoundPosition` (`Pug.Other:373388`, inside the branch taken
 when `SystemPrefersKeyboardAndMouse()`), which rounds each axis to 1/16 of a
 unit — one design pixel (`Pug.Other:274963`, `ppu = 16`). A movement that does not cross
 a design-pixel boundary leaves the value bit-identical and contributes nothing
 to the gate. The quantum is a pixel of CK's internal render target, not of the
-screen: `GetMouseUIViewPosition` already divides by 16 (`Pug.Other:374924`), so the ratio
+screen: `GetMouseUIViewPosition` already divides by 16 (`Pug.Other:374917`), so the ratio
 between the window and that render height decides how far the mouse has to
 travel — and that height is a serialized setting, not a constant. `PugRP`
 initializes `m_outputHeight` to 270 (`PugRP:1450`), but whether it is used at all
@@ -192,7 +192,7 @@ list does **not** leak hover to the elements behind it, so a guard for that is
 dead weight; and `ScrollBar.UpdateHandleSize` — which runs only when the handle is dragged
 or the content height changes — overwrites the handle collider's `y` whenever
 it runs, so authoring that value is pointless either way: `ScrollHeight` —
-content height minus window height (`Pug.Other:375200`) — is 0 until content
+content height minus window height (`Pug.Other:375193`) — is 0 until content
 actually overflows the window, and below that `ScrollBar.Update` deactivates
 the whole scrollbar root and never calls `UpdateHandleSize` at all; the
 moment it does overflow, `UpdateHandleSize` runs that same frame and
@@ -205,7 +205,7 @@ Moving the mouse into empty space calls
 regardless of any override of yours. What that does to a field the player is
 editing is in [text rendering and text input](#text-rendering-and-text-input).
 
-**`TrySelectNewElement` (`Pug.Other:373707`) clears on an edge and selects through a
+**`TrySelectNewElement` (`Pug.Other:373700`) clears on an edge and selects through a
 guard — the second call is reached on every pass with a target, its effect is
 not:**
 
@@ -216,7 +216,7 @@ if (selectedUIElement != null)
     selectedUIElement.Select();                   // whenever there is a target; Select() returns early
 ```
 
-`UIelement.Select()` (`Pug.Other:375506`) is four lines whose entire body is that guard:
+`UIelement.Select()` (`Pug.Other:375499`) is four lines whose entire body is that guard:
 it reaches `Manager.ui.OnUIElementSelected(this)` **only** when
 `currentSelectedUIElement` is not already this element, and `Select()` is that
 method's only caller in the game. A pointer wandering around inside an option it has
@@ -579,7 +579,7 @@ the Editor**, so the Editor assignment is only a design-time preview.
 
 ### The vanilla tooltip is selection-driven, not entity-driven
 
-`UIMouse.UpdateHoverText` (`Pug.Other:373939`) reads
+`UIMouse.UpdateHoverText` (`Pug.Other:373932`) reads
 `Manager.ui.currentSelectedUIElement` and calls four `UIelement` virtuals on it:
 `GetHoverTitle()`, `GetHoverDescription()`, `GetHoverStats(bool)` and
 `GetContainedObject()`. **No live ECS entity appears anywhere in that path.** To
@@ -589,7 +589,7 @@ objectID, variation = variation, amount = 1, variationUpdateCount = 0 },
 auxDataIndex = 0 }`. Spawning an entity, or porting your element onto the slot
 grid, is the expensive wrong answer.
 
-The tooltip is positioned relative to the `pointer` transform (`Pug.Other:374649`) — it is
+The tooltip is positioned relative to the `pointer` transform (`Pug.Other:374642`) — it is
 **cursor-anchored**, so the selected element's own transform position is
 irrelevant and an off-screen proxy element works.
 
@@ -638,7 +638,7 @@ The window a text sign opens is `SignTextUI` (`Pug.Other:338803`, reachable as
   the state again while the window stays open.
 
 Setting the toggle and sending the state are separate calls.
-`SignStateToggle.SetState(int)` (`Pug.Other:370233`) sets `stateIndex` and swaps
+`SignStateToggle.SetState(int)` (`Pug.Other:370226`) sets `stateIndex` and swaps
 the icons, and sends nothing. The RPC comes from `SignTextUI.SetVisibilityState()`,
 which sends `SetWorldLabelVisibility` with the toggle's current `stateIndex`
 (`Pug.Other:338891`).
@@ -797,17 +797,17 @@ the static is sandbox-legal) and let the effect drive hover.
 (`Pug.Other:359694`): it fires the element-selected event, then its
 `selectionListeners`, then walks `menuOptionEffects` (`Pug.Other:359701-359708`)
 and calls each effect's own `OnSelected`, which first stops that effect's
-deselection wind-down timers (`Pug.Other:366089-366090`; `OnDeselected` is what
-starts them, `Pug.Other:366100-366101`) and then recolours its `PugText` and any
-`SpriteRenderer`s wired beside it (`Pug.Other:366091-366095`). Note that the
+deselection wind-down timers (`Pug.Other:366082-366083`; `OnDeselected` is what
+starts them, `Pug.Other:366093-366094`) and then recolours its `PugText` and any
+`SpriteRenderer`s wired beside it (`Pug.Other:366084-366088`). Note that the
 recolour dereferences the text without a guard, so an effect on a component with
 no `PugText` throws rather than skipping — and its base class `PugTextEffect`
-carries `[RequireComponent(typeof(PugText))]` (`Pug.Other:365361`). Hand-edited
+carries `[RequireComponent(typeof(PugText))]` (`Pug.Other:365354`). Hand-edited
 prefab YAML — which this family does routinely — is one way to reach it
 regardless.
 
 **The effect is wired by GameObject, not by `labelText`.** `PugTextEffect.Awake`
-binds `_text = GetComponent<PugText>()` (`Pug.Other:365381`) — the text on its
+binds `_text = GetComponent<PugText>()` (`Pug.Other:365374`) — the text on its
 *own* GameObject — and `RadicalMenuOption.Awake` collects the effects with
 `GetComponentsInChildren<PugTextEffectMenuOption>(includeInactive: true)`
 (`Pug.Other:359610`). Where the option's `labelText` / `valueText` fields point therefore
@@ -890,7 +890,7 @@ Changes that arrived with it:
   it *reports* still follows `style.verticalAlignment`. So a one-line `PugText`
   styled `top` tells the layout it is a `Top…` child while drawing as a
   `Middle…` one, and sits half its height off — read from the source
-  (`Pug.Other:368524`), not yet seen in game. Style a layout child's text
+  (`Pug.Other:368517`), not yet seen in game. Style a layout child's text
   `center` vertically.
 
 **A child taller than its layout slot overhangs it, and only the ends of the
@@ -969,7 +969,7 @@ are easy to confuse because both read as "make it harder to confirm":
   > ⚠️ **`CanBeActivated()` does not gate the mouse.** It is consulted by the
   > input poll (`MenuManager.UpdateInputAndApplyToCurrentMenu`, `Pug.Other:278859`), which
   > is what keyboard and controller activation runs through. A click takes the
-  > other path: `UIMouse` → `UIelement.LeftClick` (`Pug.Other:375514`) →
+  > other path: `UIMouse` → `UIelement.LeftClick` (`Pug.Other:375507`) →
   > `RadicalMenuOption.OnLeftClicked` (`Pug.Other:359760`), whose entire body is
   > `OnActivated();` — no `CanBeActivated()` anywhere. So overriding it to false
   > silences the sound and drops the footer hint, and the control still fires
@@ -1022,14 +1022,14 @@ whether a term exists at all are in [localisation](localisation.md).
 ### A non-zero `maxWidth` can crash on a character its face does not map
 
 `PugFont.Render` enters `AddNewLinesToLinesExceedingMaxWidth` only when
-`maxWidth > 0f`. Inside it, the kerning lookup at `Pug.Other:367423-367435`
+`maxWidth > 0f`. Inside it, the kerning lookup at `Pug.Other:367416-367428`
 (`kerning[cp]`) is unguarded — neither `num5 < glyphData.Length` nor
 `cp < kerning.Length` is checked, unlike the twin lookup inside `PugFont.Render`
-itself (`Pug.Other:367152-367164`), which carries both guards. `cp`/`num5` land outside
+itself (`Pug.Other:367145-367157`), which carries both guards. `cp`/`num5` land outside
 the current face's tables when the character is one the face does not itself
 map — `thinTiny`'s 118-cell charset has no German `ä/ö/ü/ß`, for instance — and
 the lookup falls through to a **fallback font**'s glyph data (`GetGlyphData`,
-`Pug.Other:367489-367537`) at an index the current face's arrays were never sized for.
+`Pug.Other:367482-367530`) at an index the current face's arrays were never sized for.
 It only bites a **kerning-enabled** face: `Font5.asset` is one of only three
 shipped faces with `enableKerning: 1`. Neither "overflow" nor "one unbreakable
 token with no preceding break" survives a code read as the trigger — the
@@ -1048,34 +1048,34 @@ through it.
 
 Every pooled `PugText` in the game draws its glyphs from one pool, created with
 a ceiling of 10,240 (`Pug.Other:280675`). The glyph `SpriteRenderer`s are not
-copies: `PugFont.Render` takes them from that pool (`Pug.Other:367124`), parents
-each one under its line container (`Pug.Other:367173`), and the containers
-**under the `PugText` itself** (`Pug.Other:367061`). So they share the text's
+copies: `PugFont.Render` takes them from that pool (`Pug.Other:367117`), parents
+each one under its line container (`Pug.Other:367166`), and the containers
+**under the `PugText` itself** (`Pug.Other:367054`). So they share the text's
 fate. Destroy the GameObject while it still holds them and they die with it,
 while the pool goes on counting them as in use. Once the ceiling is reached,
-`GetFreeComponent` returns null, the render loop `break`s (`Pug.Other:367127`),
+`GetFreeComponent` returns null, the render loop `break`s (`Pug.Other:367120`),
 and from then on text is missing in **every** menu and HUD in the game — not in
 the screen that caused it — until a restart.
 
 Only two paths give glyphs back. `PugText.OnDestroy` is not one of them; it
-releases a material and nothing else (`Pug.Other:367940`).
+releases a material and nothing else (`Pug.Other:367933`).
 
-- **`OnDisable`, when `freeResourcesOnDisable` is set** (`Pug.Other:367969`). It
-  does not free on the spot: it queues the glyphs (`Pug.Other:367971`), and
+- **`OnDisable`, when `freeResourcesOnDisable` is set** (`Pug.Other:367962`). It
+  does not free on the spot: it queues the glyphs (`Pug.Other:367964`), and
   `TextManager` frees the queue in its next `LateUpdate` (`Pug.Other:280965`). A
   text that is disabled *because* it is being destroyed queues glyphs that are
   gone by the time the queue is read, and `TextManager` can only log it
   (`Pug.Other:280969`).
-- **`Clear()`** frees immediately (`Pug.Other:368457`), and unless called with
+- **`Clear()`** frees immediately (`Pug.Other:368450`), and unless called with
   `temporaryClear` or `bypassSetActive` it also deactivates the text's
-  GameObject (`Pug.Other:368468`).
+  GameObject (`Pug.Other:368461`).
 
 **The trap: detaching a doomed object can wake it up.** A screen that rebuilds
 its rows on every open, and detaches the old ones with `SetParent(null)` before
 the deferred `Destroy` so the layout stops counting them this frame, does so
 while the menu is still inactive. The old rows are `activeSelf`; once they are
 roots they are active in the hierarchy again. Each of their `PugText`s receives
-`OnEnable`, which with `renderOnStart` set re-renders (`Pug.Other:367951-367953`)
+`OnEnable`, which with `renderOnStart` set re-renders (`Pug.Other:367944-367946`)
 and takes a fresh set of glyphs from the pool. End of frame: the `Destroy`
 lands, `OnDisable` queues those glyphs, and the same destruction removes them.
 The glyphs the rows held before were freed correctly when the menu closed
@@ -1167,7 +1167,7 @@ the collider to the maximum row width instead. This second half applies to every
 
 **And beware the empty string, which measures as nothing.** `PugText.Render`
 returns early on `string.IsNullOrEmpty(textString)` after setting
-`dimensions = Rect.zero` (`Pug.Other:368365`), so anything derived from text
+`dimensions = Rect.zero` (`Pug.Other:368358`), so anything derived from text
 metrics collapses for a blank row: a text-sized collider becomes unhittable by
 `UIMouse`'s raycast, and a `renderHeightPixels` computed from
 `dimensions.height` makes a `LinearLayout` swallow the row entirely. Keyboard and
@@ -1391,45 +1391,45 @@ A row that scrolls therefore needs three pieces, not one:
 
 ### Glyph positions are not string positions
 
-`PugText.localCharacterEndPositions` (`Pug.Other:367790`) is a list of **glyph**
+`PugText.localCharacterEndPositions` (`Pug.Other:367783`) is a list of **glyph**
 end positions, and it is what places the caret: `Update` offsets the blinker by
 `localCharacterEndPositions[currentCharIndex - 1].x` (`Pug.Other:359850`). Recovering an
 index from a position — the nearest entry to where the caret sits — and then
 using that number as a **string** index assumes the two counts agree. They need
 not, and nothing announces when they stop.
 
-`PugFont.Render` empties the list (`Pug.Other:367020`) and adds one entry per character at
-the bottom of its loop (`Pug.Other:367213`). Four paths through that loop never reach the
+`PugFont.Render` empties the list (`Pug.Other:367013`) and adds one entry per character at
+the bottom of its loop (`Pug.Other:367206`). Four paths through that loop never reach the
 add, or reach it having consumed more than one character — and a fifth that looks
 like one of them is not:
 
 | In the string | What the list gets | Line |
 |---|---|---|
-| a character the current face has no glyph data for | nothing — `GetGlyphData` fails and the iteration `continue`s before the add, so every index from there on sits one too low | `Pug.Other:367118-367120` |
-| a colour tag | one entry for three characters (`i += 2`), or for eleven (`i += 10`) | `Pug.Other:367106`, `Pug.Other:367112` |
-| a pause sign (a backtick or `*`, while `usePauseSigns` is on) | nothing | `Pug.Other:367097-367099` |
-| more text than the container pool or the glyph pool can serve | nothing, and the loop `break`s — every later character is missing too | `Pug.Other:367052`, `Pug.Other:367127` |
-| `\r` | one entry, then `continue` — the count does **not** shift | `Pug.Other:367080-367082` |
+| a character the current face has no glyph data for | nothing — `GetGlyphData` fails and the iteration `continue`s before the add, so every index from there on sits one too low | `Pug.Other:367111-367113` |
+| a colour tag | one entry for three characters (`i += 2`), or for eleven (`i += 10`) | `Pug.Other:367099`, `Pug.Other:367105` |
+| a pause sign (a backtick or `*`, while `usePauseSigns` is on) | nothing | `Pug.Other:367090-367092` |
+| more text than the container pool or the glyph pool can serve | nothing, and the loop `break`s — every later character is missing too | `Pug.Other:367045`, `Pug.Other:367120` |
+| `\r` | one entry, then `continue` — the count does **not** shift | `Pug.Other:367073-367075` |
 
 The last row is worth stating precisely because it looks like it would shift: the
 carriage return leaves the iteration early, but it adds its entry first.
 
 **The dynamic-font path may not populate the list at all.** There the list is
-filled only under `trackDynamicTextCharacterEndPositions` (`Pug.Other:368547`), and even
+filled only under `trackDynamicTextCharacterEndPositions` (`Pug.Other:368540`), and even
 inside that gate a prefix whose `TMP_TextInfo` reports no characters adds nothing
-(`Pug.Other:368554`). With the flag off, nothing on that path ever writes an entry — and
+(`Pug.Other:368547`). With the flag off, nothing on that path ever writes an entry — and
 an empty list makes a nearest-entry search return 0 for every query, so every
 insertion silently goes to the **front** of the string.
 
 **Two doors lead to that path, and only one of them is about language.**
-`PugText.SetFont` tests `isWrittenToByUser` first (`Pug.Other:368023`). If it is set, the
-face comes from `TextManager.GetFontToUseForString` (`Pug.Other:368025`), which picks
+`PugText.SetFont` tests `isWrittenToByUser` first (`Pug.Other:368016`). If it is set, the
+face comes from `TextManager.GetFontToUseForString` (`Pug.Other:368018`), which picks
 whichever font matches the most characters of the current string — and hands back
-the Thai *unicode* font, i.e. `SetDynamicFont` (`Pug.Other:368057`), whenever the pixel
+the Thai *unicode* font, i.e. `SetDynamicFont` (`Pug.Other:368050`), whenever the pixel
 faces match fewer (`Pug.Other:280906-280919`). No language is consulted anywhere in it, so
 this door opens for **any** locale the moment a typed character is one the pixel
 face does not map. Only with the flag off does control reach
-`ShouldUseDynamicFont` (`Pug.Other:368035`), whose test is `Manager.prefs.language == "th"`
+`ShouldUseDynamicFont` (`Pug.Other:368028`), whose test is `Manager.prefs.language == "th"`
 (`Pug.Other:280818`) — and which returns `false` before ever getting there for text with
 `localize` off (`Pug.Other:280813-280816`).
 
@@ -1439,9 +1439,9 @@ The protection is real, invisible in play, and easy to remove by accident.
 
 **`Clear` never empties the list either.** It frees the pooled containers and
 glyph renderers and clears `glyphs`, `glyphTransforms`, `glyphColorOverrides` and
-`displayedTextString` — and stops there, in both modes (`Pug.Other:368447-368471`).
+`displayedTextString` — and stops there, in both modes (`Pug.Other:368440-368464`).
 Emptying `localCharacterEndPositions` is `PugFont.Render`'s doing alone, and
-`PugText.Render` returns early on an empty string (`Pug.Other:368365-368369`) long before
+`PugText.Render` returns early on an empty string (`Pug.Other:368358-368362`) long before
 it gets that far. So a field the player has just emptied still carries the
 previous render's entries: `Count > 0` while the text length is `0`. Any
 soundness check comparing the two counts has to special-case empty text, or it
@@ -1472,18 +1472,18 @@ So anything recovering a caret index from a position has to subtract the whole
 basis back off, and anything compared against a caret-derived number — a scroll
 offset, a clamp, a hit test — has to stay in that same basis or the two quietly
 disagree. This is not one screen's quirk: `TextInputField.Update`
-(`Pug.Other:371392-371400`) builds the same x basis for the other input class.
+(`Pug.Other:371385-371393`) builds the same x basis for the other input class.
 
 **`dimensions.xMin` is not zero by nature — but only one of four writers sets it
-per alignment.** `PugText.Render` branches three ways (`Pug.Other:368399-368418`), and an
+per alignment.** `PugText.Render` branches three ways (`Pug.Other:368392-368411`), and an
 empty string short-circuits before all of them with `dimensions = Rect.zero`
-(`Pug.Other:368368`). On the pooled pixel path `PugFont.Render` sets `xMin` per
-horizontal alignment: `0 + rightToLeftXOffset` for `left` (`Pug.Other:367244`),
-`round(-width / 2) + rightToLeftXOffset` for `center` (`Pug.Other:367249`), `-width +
-rightToLeftXOffset` for `right` (`Pug.Other:367265`). On the dynamic path
-`RenderDynamicText` builds it from TMP mesh bounds instead (`Pug.Other:368546`), where
+(`Pug.Other:368361`). On the pooled pixel path `PugFont.Render` sets `xMin` per
+horizontal alignment: `0 + rightToLeftXOffset` for `left` (`Pug.Other:367237`),
+`round(-width / 2) + rightToLeftXOffset` for `center` (`Pug.Other:367242`), `-width +
+rightToLeftXOffset` for `right` (`Pug.Other:367258`). On the dynamic path
+`RenderDynamicText` builds it from TMP mesh bounds instead (`Pug.Other:368539`), where
 alignment enters only through the pivot. And in the non-pooled branch
-`pooledObj` is null, so the write at `Pug.Other:367283-367286` never happens at all and
+`pooledObj` is null, so the write at `Pug.Other:367276-367279` never happens at all and
 `dimensions` keeps whatever the previous render left in it.
 
 A bound written as `dimensions.width - w` and one written as `dimensions.xMin +
@@ -1494,10 +1494,10 @@ is decided by the two doors described under [glyph positions](#glyph-positions-a
 
 **No shipped language is right-to-left, and that is the whole of what keeps the
 RTL machinery inert.** `rightToLeftXOffset` is added only while
-`LocalizationManager.IsRight2Left && localized` (`Pug.Other:367002-367004`), and
+`LocalizationManager.IsRight2Left && localized` (`Pug.Other:366995-366997`), and
 `UpdateStyleOverrides` separately turns a `left` style into `right` under the
 same condition when the style sets `invertHorizontalAlignment`
-(`Pug.Other:367887-367891`) — 21 of the 135 shipped prefabs carrying that field set it.
+(`Pug.Other:367880-367884`) — 21 of the 135 shipped prefabs carrying that field set it.
 `IsRight2Left` is I2's, tested against a 21-entry list (`ar-*`, `fa`, `he`,
 `ur`, `ji`), and none of the thirteen languages that reach it (`en`, `de`,
 `fr`, `pt-BR`, `it`, `ja`, `ko`, `ru`, `es`, `uk`, `zh-CN`, `zh-TW`, `th`) is
@@ -1897,7 +1897,7 @@ working one.
 
 **Take `OpenProfile`, Rewired action id `223`.** Of the menu face-button
 actions it is the only one vanilla never evaluates anywhere. The id appears
-twice: its `RewiredConsts` definition (`Pug.Other:404232`), which is how you
+twice: its `RewiredConsts` definition (`Pug.Other:404225`), which is how you
 reach it, and a single evaluation inside
 `InputManager.IsOpenProfileButtonDown()` (`Pug.Other:276313`) — and *that* method has
 zero callers in the whole decompile. Nothing collides with you.
@@ -1937,7 +1937,7 @@ is invisible, non-rebindable, global and of uncertain persistence.
 
 **Do not pick an action id because its name fits — pick it by category.**
 `RewiredConsts.Action` carries a `categoryName` on every constant
-(`Pug.Other:403958` ff.), and the category, not the name, decides whether your
+(`Pug.Other:403951` ff.), and the category, not the name, decides whether your
 poll ever sees anything: each one has its own controller maps, enabled and
 disabled as a set. The trap has a concrete shape. A settings screen wanting a
 "reset to defaults" prompt will find `ResetDefaults = 300` and read it as the
@@ -2065,7 +2065,7 @@ if (!currentSelectedUIElement.isMenuOption) currentSelectedUIElement.OnSelected(
 if (currentSelectedUIElement.isMenuOption)  Manager.menu.SelectOption(currentSelectedUIElement);
 ```
 
-`UIelement.isMenuOption` is `false` (`Pug.Other:375460`); `RadicalMenuOption` overrides it
+`UIelement.isMenuOption` is `false` (`Pug.Other:375453`); `RadicalMenuOption` overrides it
 to `true` (`Pug.Other:359528`), and it is the only override in the game.
 `MenuManager.SelectOption` (`Pug.Other:278836`) looks the element up in the **top menu's**
 `menuOptions` and, when it is not there, does nothing at all — silently, no log.
@@ -2110,7 +2110,7 @@ same branch. `IsMenuMouseInteractButtonPressed` (`Pug.Other:276255`) is the held
 `…ButtonDown` (`Pug.Other:276246`) the edge.
 
 **The mouse does not travel this path at all.** It runs through `UIMouse`
-(`Pug.Other:372754`), which drives `Manager.ui.currentSelectedUIElement` from hover (§
+(`Pug.Other:372747`), which drives `Manager.ui.currentSelectedUIElement` from hover (§
 "How `UIMouse` picks and selects an element") and re-derives that selection
 whenever its gate opens — pointer movement is the usual trigger, but an interact
 press, a selection that has gone or stopped being visible, and a ray that hits
@@ -2412,7 +2412,7 @@ was never built.
   0 while the UI sits on `"GUI"`, excluding everything.
 - **Read the target's layer and order off a live glyph, not the prefab.**
   `PugText.Render` copies `style.orderInLayer` onto every glyph renderer at
-  render time (`Pug.Other:367170`, with `maskInteraction` on the next line), and
+  render time (`Pug.Other:367163`, with `maskInteraction` on the next line), and
   a style asset shared between prefabs makes the serialized value a poor witness.
 
 The fourth trap is the opposite one, and it fails loudly somewhere else instead
@@ -2535,7 +2535,7 @@ menu-up/down and controller input, but a direct `MoveScroll` does not — gate i
 explicitly.
 
 **Read that self-gate before relying on it, because it is narrower than its
-name.** The full condition (`Pug.Other:375248`) is
+name.** The full condition (`Pug.Other:375241`) is
 
 ```csharp
 if (!SystemPrefersKeyboardAndMouse() || (SystemIsUsingKeyboard() && (IsMenuDownButtonPressed() || IsMenuUpButtonPressed())))

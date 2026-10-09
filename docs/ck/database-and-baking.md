@@ -153,10 +153,10 @@ The lifecycle itself is in [Mod anatomy](mod-anatomy.md).
 The obvious alternative — patching the runtime craft — is closed to a plain
 Harmony patch. The path is `InventoryUpdateSystem` → `ProcessCraftingJob` →
 `InventoryUtility.Craft`, and it is **Burst-compiled twice over**:
-`InventoryUpdateSystem` is a `[BurstCompile] ISystem` (`Pug.Other:427463`), and
+`InventoryUpdateSystem` is a `[BurstCompile] ISystem` (`Pug.Other:427456`), and
 the work sits in the separately `[BurstCompile]`d `IJob` it schedules
-(`ProcessCraftingJob`, `Pug.Other:427830`; scheduled at `Pug.Other:428187`, calling
-`InventoryUtility.Craft` at `Pug.Other:427883`).
+(`ProcessCraftingJob`, `Pug.Other:427823`; scheduled at `Pug.Other:428180`, calling
+`InventoryUtility.Craft` at `Pug.Other:427876`).
 
 **The distinction that matters is which `BurstDisabler` call.**
 `DisableBurstForSystem<InventoryUpdateSystem>()` does not reach it — that takes
@@ -193,7 +193,7 @@ resolved (`moddedObjectID` goes through `API.Authoring.GetObjectID`,
 `Pug.ECS.Conversion:1765`) and an extra crafting window opened, because that
 test only asks for a non-`None` ID (`Pug.Other:339027`, the check at `Pug.Other:339061`).
 The slot inside it stayed empty, because drawing one asks the bank
-(`PugDatabase.HasObject`, `Pug.Other:430826`), and nothing could be crafted. No
+(`PugDatabase.HasObject`, `Pug.Other:430819`), and nothing could be crafted. No
 error was logged.
 
 **Most 1.3 item mods ship the block as an asset.** StoragePlus, ChestsGalore,
@@ -359,7 +359,7 @@ frame.** `CraftingBuilding.buildingSpecificUISettings` names each window per
 station (`CraftingUISettings.titles`), falling back to `defaultUISettings` for a
 station it does not list. For a window index past the end of the titles, the
 window shows the default title and logs `Missing title for crafting UI window
-index …` (`Pug.Other:370859`) — from `Update` (`Pug.Other:370826`), so once per
+index …` (`Pug.Other:370852`) — from `Update` (`Pug.Other:370819`), so once per
 frame while the station is open. A mod that adds a window should add its title
 too.
 
@@ -578,8 +578,8 @@ the player's current interactable, and always otherwise (`Pug.Other:321349`,
 `InteractableObject` found with `GetComponentInChildren`, so one on a child
 counts. The sign window's toggle writes it through the `SetWorldLabelVisibility`
 RPC, whose server handler sets `amount` on whatever entity it is handed, with no
-type check (`Pug.Other:415532`) — and drops it, like the text RPC, from a player
-without admin rights on a guest-mode world (`Pug.Other:415258`; see [multiplayer and server](multiplayer-and-server.md#who-is-allowed-to-change-things-admin-level-and-guest-mode)).
+type check (`Pug.Other:415525`) — and drops it, like the text RPC, from a player
+without admin rights on a guest-mode world (`Pug.Other:415251`; see [multiplayer and server](multiplayer-and-server.md#who-is-allowed-to-change-things-admin-level-and-guest-mode)).
 A freshly placed sign was observed to start at `1`, which is why Hover is what a
 new sign shows; vanilla offers no other default.
 

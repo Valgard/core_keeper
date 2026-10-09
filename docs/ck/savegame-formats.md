@@ -158,13 +158,13 @@ only the object id and the variation, so an amount of `1` on those is observed
 rather than written, and a marker arriving by some other route need not carry
 it. A marker the 1.3 client places is prespawned with variation 0
 (`Pug.Other:346611`) and created by the server with amount 1
-(`Pug.Other:414924`). That covers markers the vanilla client creates, not every
+(`Pug.Other:414917`). That covers markers the vanilla client creates, not every
 1.3 marker: the pre-1.3 path is still in the game, a `CreateMapUI` command
-(`Pug.Other:414250`) whose server handler creates a marker at the variation the
-caller asks for, minus 2 (`Pug.Other:415314-415321`). Vanilla no longer calls it, but a
+(`Pug.Other:414243`) whose server handler creates a marker at the variation the
+caller asks for, minus 2 (`Pug.Other:415307-415314`). Vanilla no longer calls it, but a
 mod can, and its markers can carry a non-zero variation — except in a
 guest-mode world, where the server drops the command from a player who is not
-an admin (`Pug.Other:415255-415261`).
+an admin (`Pug.Other:415248-415254`).
 
 **World version 13 converts the old slots once.** `ConvertOldMapMarkersSystem`
 runs while a world is below version 13 (`Pug.Other:175127`) and touches only

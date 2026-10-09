@@ -216,8 +216,8 @@ last variant (`Pug.Base:15163`).
 
 **The server stores an icon address without resolving it.** Placing a marker
 sends `CreateCustomMapMarker`; the server's `MapMarkerRpc` handler
-(`Pug.Other:414914`) copies the address and variant into the new entity, created
-with amount 1 (`Pug.Other:414924`), and never looks the block up. So a dedicated server
+(`Pug.Other:414907`) copies the address and variant into the new entity, created
+with amount 1 (`Pug.Other:414917`), and never looks the block up. So a dedicated server
 does not need the mod whose icons its players use. A hosting player is a
 different case: that process is also a client that draws the markers, so the
 host needs the mod to see the icons like any other player. Measured on 1.3.0.2:
@@ -261,18 +261,18 @@ inferred from the logging per frame; its share of the stutter was not isolated.
 
 **1.3.0.2 cannot edit a placed marker.** The pieces exist:
 `MapUI.ApplyEditToExistingMarker` (`Pug.Other:346588`) sends
-`EditCustomMapMarker`, and the server handler's `targetEntity` branch (`Pug.Other:414934`)
+`EditCustomMapMarker`, and the server handler's `targetEntity` branch (`Pug.Other:414927`)
 updates icon, variant and name of an existing marker. That branch checks only
 that the target carries `MapMarkerCustomDataCD`: it never looks at who sent the
-request, and unlike the command path it has no guest-mode check either (`Pug.Other:415644`
+request, and unlike the command path it has no guest-mode check either (`Pug.Other:415637`
 runs it unconditionally), so any client could edit any player's marker it has as
 a ghost. The target travels as a ghost id; one the server cannot map arrives as
-`Entity.Null` (`Pug.Other:454482-454489`), and the handler then takes its create branch
-(`Pug.Other:414921`) and places a new marker at the request's position, which
-`EditCustomMapMarker` never sets (`Pug.Other:414631-414640`), so at the origin. The edit
-branch also writes the request's name unconditionally (`Pug.Other:414937-414940`), so an
+`Entity.Null` (`Pug.Other:454475-454482`), and the handler then takes its create branch
+(`Pug.Other:414914`) and places a new marker at the request's position, which
+`EditCustomMapMarker` never sets (`Pug.Other:414624-414633`), so at the origin. The edit
+branch also writes the request's name unconditionally (`Pug.Other:414930-414933`), so an
 edit with an empty name clears the marker's name, where creation sets a name
-only when one is given (`Pug.Other:414926`). But nothing calls
+only when one is given (`Pug.Other:414919`). But nothing calls
 `ApplyEditToExistingMarker`, in the client or the dedicated-server build, and
 the game offers no way to reach it — changing a marker means deleting it and
 placing a new one. A mod that wants editing has to open the dialog on an
@@ -607,11 +607,11 @@ insert the supporting tile is never reached.
 
 `PlacementHandler.Activate` — the call that populates `PlacementCD` from the
 object's properties — is invoked from
-`SelectedEquipmentChangeSystem.EquippedSlotChangeJob` (`Pug.Other:447025`, call
-at `Pug.Other:447259`).
+`SelectedEquipmentChangeSystem.EquippedSlotChangeJob` (`Pug.Other:447018`, call
+at `Pug.Other:447252`).
 
 **Trap: do not read that system's name as its cadence.** Its `OnUpdate` schedules
-the job **unconditionally every tick** (`Pug.Other:448211-448214`; its queries carry no
+the job **unconditionally every tick** (`Pug.Other:448204-448207`; its queries carry no
 `SetChangedVersionFilter`), and the `Activate` call sits *outside* the
 equip-change branch above it. The flags are refreshed per tick, not only when
 the equipped item changes.
@@ -628,17 +628,17 @@ the player at all.
 
 | Method | What it receives | Inventory reachable |
 |---|---|---|
-| `PlacementHandler.UpdatePlaceablePosition` (`Pug.Other:305800`) | the full `EquipmentUpdateAspect`, and through `LookupEquipmentUpdateData` the `BufferLookup<ContainedObjectsBuffer> containedObjectsBufferLookup` (`Pug.Other:438152`) | yes |
+| `PlacementHandler.UpdatePlaceablePosition` (`Pug.Other:305800`) | the full `EquipmentUpdateAspect`, and through `LookupEquipmentUpdateData` the `BufferLookup<ContainedObjectsBuffer> containedObjectsBufferLookup` (`Pug.Other:438145`) | yes |
 | `PlacementHandler.Activate` | `(ref PlacementCD, Entity placementPrefab, ComponentLookup<ObjectPropertiesCD>, ComponentLookup<TileCD>, ComponentLookup<PseudoTileCD>)` | no — there is no player entity in the signature |
 
 Vanilla reads that buffer lookup exactly this way in `UpdateJob.Execute`
-(`Pug.Other:438952`), so it is a supported route rather than a trick. If your
+(`Pug.Other:438945`), so it is a supported route rather than a trick. If your
 hook sits on `Activate`, no amount of lookup juggling will get you an inventory;
 move the work to `UpdatePlaceablePosition` instead.
 
 ## Consuming an item from an inventory slot
 
-`InventoryUtility.ConsumeEntityAt` (`Pug.Other:428869`, class at `Pug.Other:428613`)
+`InventoryUtility.ConsumeEntityAt` (`Pug.Other:428862`, class at `Pug.Other:428606`)
 takes an `optionalTargetObjectID`.
 
 **Trap: despite the name, it is not optional.** The slot's ObjectID is compared
@@ -649,8 +649,8 @@ data loss for the player, and because it needs a race to happen it will not show
 up in an unhurried manual test. With the argument set, the consume fails
 instead, which is the direction you want this failure to go.
 
-`Create.ConsumeEntityAt(Entity inventory, int index, …)` (`Pug.Other:426692`,
-class `Create` at `Pug.Other:426679`) looks like an overload of the same method but is
+`Create.ConsumeEntityAt(Entity inventory, int index, …)` (`Pug.Other:426685`,
+class `Create` at `Pug.Other:426672`) looks like an overload of the same method but is
 not — it is a different class. It builds an `InventoryChangeData` command and
 pushes it onto the inventory-update buffer; it consumes nothing itself.
 `InventoryUtility.ConsumeEntityAt` above already takes an `Entity inventory`,
@@ -967,7 +967,7 @@ two distinct consume sites:
 
 | Event | Where | What happens |
 |---|---|---|
-| Capture | `CageCattle()` `Pug.Other:422915` | Gated on `objectID == ObjectID.CattleCage`; calls `EntityUtility.DropPetInCage(...)`, `DestroyEntity(cattle)` (`Pug.Other:422961`), then `Create.ConsumeEntityAt(.., 1, destroy: true, ..)` (`Pug.Other:422965`) eats the empty box |
+| Capture | `CageCattle()` `Pug.Other:422908` | Gated on `objectID == ObjectID.CattleCage`; calls `EntityUtility.DropPetInCage(...)`, `DestroyEntity(cattle)` (`Pug.Other:422954`), then `Create.ConsumeEntityAt(.., 1, destroy: true, ..)` (`Pug.Other:422958`) eats the empty box |
 | Release | `PlaceItem()` `Pug.Other:323089` | The carried item is placed and consumed via `Create.ConsumeEntityAt(.., destroy: false, ..)`, amount from `objectDataCD2.amount` (`Pug.Other:323075-323078`); `Pug.Other:323011` is the `else` branch, not the consume |
 
 **There is no "filled box" item.** This is the natural assumption and it is
@@ -998,7 +998,7 @@ patching something a nested job calls — as `PlaceItem` is, from
 `EquipmentUpdateSystem.UpdateJob` — needs `DisableBurstForSystemAndJobs` (see [nested jobs need the `AndJobs` variant](harmony-and-ecs.md#nested-jobs-need-the-andjobs-variant)).
 
 **Trap: the data-only loot path does not fire on placement.** Emitting an empty
-`CattleCage` through `SpawnsItemsOnUseCD` / `OpenItemAndSpawnLoot` (`Pug.Other:422777`)
+`CattleCage` through `SpawnsItemsOnUseCD` / `OpenItemAndSpawnLoot` (`Pug.Other:422770`)
 looks like an elegant way to avoid a Burst patch entirely — it is a dead end.
 That path is not reached when an item is *placed*, so a pure CoreLib data patch
 cannot dispense anything at placement time. This was tested and rejected before
@@ -1010,7 +1010,7 @@ whether the path never fires on *any* placement is **unverified**.)
 Pets are `ObjectType.Pet` (802) — **not** `Creature`, which is a common wrong
 guess when relaxing a bake filter to "include pets".
 
-`SaveManager.SetObjectAsDiscovered` (`Pug.Other` ~`Pug.Other:380916`) force-zeroes
+`SaveManager.SetObjectAsDiscovered` (`Pug.Other` ~`Pug.Other:380909`) force-zeroes
 `variation` for anything with a `PetCD`, so `discoveredObjects2` only ever holds
 a pet at `(objectID, 0)`. **The game does not track which pet skins you have
 seen** — a skin collection is necessarily mod-owned state.

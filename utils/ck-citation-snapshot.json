@@ -120,20 +120,20 @@
     "DedicatedServer/Pug.Other:318309": [
       "if (diggableEntityAndInfo2.objectID == ObjectID.DiggingSpot && top.tileset == 0)"
     ],
-    "DedicatedServer/Pug.Other:378851": [
+    "DedicatedServer/Pug.Other:378844": [
       "private void Awake()"
     ],
-    "DedicatedServer/Pug.Other:378879-378880": [
+    "DedicatedServer/Pug.Other:378872-378873": [
       "UnityEngine.Debug.LogError(\"Server should start from ServerMain!\");",
       "Application.Quit();"
     ],
-    "DedicatedServer/Pug.Other:378890": [
+    "DedicatedServer/Pug.Other:378883": [
       "Manager.ecs.StartEcs(startClient: false, serverWorld, frameWorkloadTimer, null);"
     ],
-    "DedicatedServer/Pug.Other:378895": [
+    "DedicatedServer/Pug.Other:378888": [
       "Manager.ecs.StartEcs(startClient: false, 0, frameWorkloadTimer, null);"
     ],
-    "DedicatedServer/Pug.Other:450889-450905": [
+    "DedicatedServer/Pug.Other:450882-450898": [
       "public StandaloneFilesystem(string partition, PlatformInterface platformInterface)",
       "{",
       "_persistentPath = CommandLineArgs.GetParam(\"-datapath\");",
@@ -152,7 +152,7 @@
       "CreateDirectory(directoryInfo);",
       "}"
     ],
-    "DedicatedServer/Pug.Other:450907": [
+    "DedicatedServer/Pug.Other:450900": [
       "public StandaloneFilesystem(string partition, string subFolder, PlatformInterface platformInterface)"
     ],
     "DedicatedServer/Pug.Other:4709": [
@@ -2891,72 +2891,72 @@
     "Pug.Other:3647": [
       "public class PugDatabasePostConverter : PostConverter"
     ],
-    "Pug.Other:365361": [
+    "Pug.Other:365354": [
       "[RequireComponent(typeof(PugText))]"
     ],
-    "Pug.Other:365381": [
+    "Pug.Other:365374": [
       "_text = GetComponent<PugText>();"
     ],
-    "Pug.Other:366089-366090": [
+    "Pug.Other:366082-366083": [
       "jumpCooloff.Stop();",
       "colorCooloff.Stop();"
     ],
-    "Pug.Other:366091-366095": [
+    "Pug.Other:366084-366088": [
       "base.text.SetTempColor(isValueText ? SELECTED_VALUE_COLOR : SELECTED_TEXT_COLOR);",
       "foreach (SpriteRenderer spriteRenderer in spriteRenderers)",
       "{",
       "spriteRenderer.color = (isValueText ? SELECTED_VALUE_COLOR : SELECTED_TEXT_COLOR);",
       "}"
     ],
-    "Pug.Other:366100-366101": [
+    "Pug.Other:366093-366094": [
       "jumpCooloff.Start();",
       "colorCooloff.Start();"
     ],
-    "Pug.Other:366918": [
+    "Pug.Other:366911": [
       "public string charset"
     ],
-    "Pug.Other:367002-367004": [
+    "Pug.Other:366995-366997": [
       "bool flag = LocalizationManager.IsRight2Left && localized;",
       "int num = ((!flag) ? 1 : (-1));",
       "float num2 = (flag ? style.rightToLeftXOffset : 0f);"
     ],
-    "Pug.Other:367020": [
+    "Pug.Other:367013": [
       "pooledObj.localCharacterEndPositions.Clear();"
     ],
-    "Pug.Other:367052": [
+    "Pug.Other:367045": [
       "break;"
     ],
-    "Pug.Other:367061": [
+    "Pug.Other:367054": [
       "transform.parent = root;"
     ],
-    "Pug.Other:367080-367082": [
+    "Pug.Other:367073-367075": [
       "pooledObj.localCharacterEndPositions.Add(new Vector2(num3, num4));",
       "}",
       "continue;"
     ],
-    "Pug.Other:367097-367099": [
+    "Pug.Other:367090-367092": [
       "if (usePauseSigns && (c == '`' || c == '*'))",
       "{",
       "continue;"
     ],
-    "Pug.Other:367106": [
+    "Pug.Other:367099": [
       "i += 2;"
     ],
-    "Pug.Other:367112": [
+    "Pug.Other:367105": [
       "i += 10;"
     ],
-    "Pug.Other:367118-367120": [
+    "Pug.Other:367111-367113": [
       "if (!GetGlyphData(c, out gd, style, out usedCharacterFromOtherLanguage, out cp))",
       "{",
       "continue;"
     ],
-    "Pug.Other:367124": [
+    "Pug.Other:367117": [
       "spriteRenderer = tm.glyphPool.GetFreeComponent<SpriteRenderer>();"
     ],
-    "Pug.Other:367127": [
+    "Pug.Other:367120": [
       "break;"
     ],
-    "Pug.Other:367152-367164": [
+    "Pug.Other:367145-367157": [
       "if (enableKerning && num6 > 0 && num8 < glyphData.Length)",
       "{",
       "byte[] kerning = glyphData[num8].kerning;",
@@ -2971,34 +2971,34 @@
       "}",
       "}"
     ],
-    "Pug.Other:367170": [
+    "Pug.Other:367163": [
       "spriteRenderer.sortingOrder = style.orderInLayer;"
     ],
-    "Pug.Other:367173": [
+    "Pug.Other:367166": [
       "transform3.parent = transform;"
     ],
-    "Pug.Other:367213": [
+    "Pug.Other:367206": [
       "pooledObj.localCharacterEndPositions.Add(new Vector2(num3, num4));"
     ],
-    "Pug.Other:367244": [
+    "Pug.Other:367237": [
       "dimensions.xMin = 0f + num2;"
     ],
-    "Pug.Other:367249": [
+    "Pug.Other:367242": [
       "dimensions.xMin = RoundToPixelPerfectPosition.RoundFloat((0f - num7) / 2f) + num2;"
     ],
-    "Pug.Other:367265": [
+    "Pug.Other:367258": [
       "dimensions.xMin = 0f - num7 + num2;"
     ],
-    "Pug.Other:367283-367286": [
+    "Pug.Other:367276-367279": [
       "if (pooledObj != null)",
       "{",
       "pooledObj.dimensions = dimensions;",
       "}"
     ],
-    "Pug.Other:367285": [
+    "Pug.Other:367278": [
       "pooledObj.dimensions = dimensions;"
     ],
-    "Pug.Other:367423-367435": [
+    "Pug.Other:367416-367428": [
       "int num12 = gd.rect.width - num11;",
       "num10 += (float)num11 / pixelsPerUnit;",
       "if (enableKerning && num6 > 0)",
@@ -3013,7 +3013,7 @@
       "}",
       "num10 -= num13 / pixelsPerUnit;"
     ],
-    "Pug.Other:367489-367537": [
+    "Pug.Other:367482-367530": [
       "private bool GetGlyphData(char c, out GlyphData gd, PugTextStyle style, out bool usedCharacterFromOtherLanguage, out int cp)",
       "{",
       "gd = null;",
@@ -3064,59 +3064,59 @@
       "}",
       "}"
     ],
-    "Pug.Other:367790": [
+    "Pug.Other:367783": [
       "public List<Vector2> localCharacterEndPositions = new List<Vector2>();"
     ],
-    "Pug.Other:367887-367891": [
+    "Pug.Other:367880-367884": [
       "if (LocalizationManager.IsRight2Left && defaultStyle.invertHorizontalAlignment)",
       "{",
       "if (defaultStyle.horizontalAlignment == PugTextStyle.HorizontalAlignment.left)",
       "{",
       "style.horizontalAlignment = PugTextStyle.HorizontalAlignment.right;"
     ],
-    "Pug.Other:367922": [
+    "Pug.Other:367915": [
       "private void Start()"
     ],
-    "Pug.Other:367940": [
+    "Pug.Other:367933": [
       "private void OnDestroy()"
     ],
-    "Pug.Other:367951-367953": [
+    "Pug.Other:367944-367946": [
       "if (renderOnStart && startCalled && !HasCorrectGlyphs(textString))",
       "{",
       "Render();"
     ],
-    "Pug.Other:367969": [
+    "Pug.Other:367962": [
       "if (freeResourcesOnDisable)"
     ],
-    "Pug.Other:367971": [
+    "Pug.Other:367964": [
       "Manager.text.glyphsAwaitingFree.AddRange(glyphs);"
     ],
-    "Pug.Other:368023": [
+    "Pug.Other:368016": [
       "if (isWrittenToByUser)"
     ],
-    "Pug.Other:368025": [
+    "Pug.Other:368018": [
       "TextManager.FontInfo fontToUseForString = Manager.text.GetFontToUseForString(textString, newFontFace);"
     ],
-    "Pug.Other:368035": [
+    "Pug.Other:368028": [
       "else if (!ShouldForceLatinFont() && Manager.text.ShouldUseDynamicFont(newFontFace, localize))"
     ],
-    "Pug.Other:368057": [
+    "Pug.Other:368050": [
       "private void SetDynamicFont(TextManager.DynamicFontInfo dynamicFont)"
     ],
-    "Pug.Other:368365": [
+    "Pug.Other:368358": [
       "if (string.IsNullOrEmpty(textString))"
     ],
-    "Pug.Other:368365-368369": [
+    "Pug.Other:368358-368362": [
       "if (string.IsNullOrEmpty(textString))",
       "{",
       "MarkUIComponentAsDirty(render: true);",
       "dimensions = Rect.zero;",
       "return;"
     ],
-    "Pug.Other:368368": [
+    "Pug.Other:368361": [
       "dimensions = Rect.zero;"
     ],
-    "Pug.Other:368399-368418": [
+    "Pug.Other:368392-368411": [
       "if (isUsingDynamicText)",
       "{",
       "RenderDynamicText();",
@@ -3138,7 +3138,7 @@
       "}",
       "if (activate && !base.gameObject.activeSelf)"
     ],
-    "Pug.Other:368447-368471": [
+    "Pug.Other:368440-368464": [
       "public void Clear(bool temporaryClear = false, bool bypassSetActive = false)",
       "{",
       "TextManager text = Manager.text;",
@@ -3165,37 +3165,37 @@
       "}",
       "}"
     ],
-    "Pug.Other:368457": [
+    "Pug.Other:368450": [
       "text.glyphPool.Free(glyph.gameObject);"
     ],
-    "Pug.Other:368468": [
+    "Pug.Other:368461": [
       "base.gameObject.SetActive(value: false);"
     ],
-    "Pug.Other:368524": [
+    "Pug.Other:368517": [
       "PugTextStyle.VerticalAlignment verticalAlignment = ((displayedTextStringLinesAmount <= 1) ? PugTextStyle.VerticalAlignment.center : style.verticalAlignment);"
     ],
-    "Pug.Other:368546": [
+    "Pug.Other:368539": [
       "dimensions = new Rect(textBounds.center - textBounds.size / 2f, textBounds.size);"
     ],
-    "Pug.Other:368547": [
+    "Pug.Other:368540": [
       "if (trackDynamicTextCharacterEndPositions)"
     ],
-    "Pug.Other:368554": [
+    "Pug.Other:368547": [
       "if (textInfo.characterCount > 0)"
     ],
-    "Pug.Other:370233": [
+    "Pug.Other:370226": [
       "public void SetState(int index)"
     ],
-    "Pug.Other:370826": [
+    "Pug.Other:370819": [
       "private void Update()"
     ],
-    "Pug.Other:370859": [
+    "Pug.Other:370852": [
       "UnityEngine.Debug.LogWarning($\"Missing title for crafting UI window index {windowIndex} in building {component}. Using default title.\", this);"
     ],
     "Pug.Other:3709": [
       "public override void PostConvert(GameObject authoring)"
     ],
-    "Pug.Other:371392-371400": [
+    "Pug.Other:371385-371393": [
       "protected void Update()",
       "{",
       "UpdateHintText();",
@@ -3209,113 +3209,113 @@
     "Pug.Other:3718": [
       "readOnlyList = ScriptableData.GetDataBlocks<EntityAuthoringDataBlock>();"
     ],
-    "Pug.Other:372754": [
+    "Pug.Other:372747": [
       "public class UIMouse : MonoBehaviour"
     ],
-    "Pug.Other:373369": [
+    "Pug.Other:373362": [
       "public bool UpdateMouseUIInput(out bool leftClickWasUsed, out bool rightClickWasUsed)"
     ],
-    "Pug.Other:373373": [
+    "Pug.Other:373366": [
       "if (hasDoneMouseUpdateThisFrame)"
     ],
-    "Pug.Other:373385": [
+    "Pug.Other:373378": [
       "if (Manager.ui.isMouseShowing)"
     ],
-    "Pug.Other:373389": [
+    "Pug.Other:373382": [
       "Manager.input.touchpadInUse = false;"
     ],
-    "Pug.Other:373391": [
+    "Pug.Other:373384": [
       "bool flag = !Manager.input.SystemPrefersKeyboardAndMouse();"
     ],
-    "Pug.Other:373395": [
+    "Pug.Other:373388": [
       "pointer.localPosition = RoundToPixelPerfectPosition.RoundPosition(GetMouseUIViewPosition());"
     ],
     "Pug.Other:3734": [
       "IEntityMonoBehaviourData component2 = prefab.GetComponent<IEntityMonoBehaviourData>();"
     ],
-    "Pug.Other:373446": [
+    "Pug.Other:373439": [
       "TrySelectNewElement(uIelement, interactDownThisFrame: false);"
     ],
-    "Pug.Other:373447": [
+    "Pug.Other:373440": [
       "flag2 = true;"
     ],
-    "Pug.Other:373469": [
+    "Pug.Other:373462": [
       "int num = Manager.physics.RaycastNonAlloc(pointer.transform.position + Vector3.back * 5f, Vector3.forward, 10f, includeTriggers: true, ObjectLayerID.UILayerMask, out hits);"
     ],
-    "Pug.Other:373498": [
+    "Pug.Other:373491": [
       "Manager.input.touchpadInUse = singleplayerInputModule.WasButtonPressedDownThisFrame(PlayerInput.InputType.TOUCHPAD);"
     ],
-    "Pug.Other:373516": [
+    "Pug.Other:373509": [
       "if (!flag2 && (flag || flag3 || prevPointerPosition != pointer.localPosition || Manager.ui.currentSelectedUIElement == null || !Manager.ui.currentSelectedUIElement.isVisibleOnScreen || uIelement2 == null))"
     ],
-    "Pug.Other:373527": [
+    "Pug.Other:373520": [
       "if (Manager.ui.currentSelectedUIElement is InventorySlotUI inventorySlotUI)"
     ],
-    "Pug.Other:373621": [
+    "Pug.Other:373614": [
       "Manager.ui.currentSelectedUIElement?.LeftClick(flag13, flag14);"
     ],
-    "Pug.Other:373657": [
+    "Pug.Other:373650": [
       "else if (isHoldingAnyEntity && !_releaseGrabbedItemQueued)"
     ],
-    "Pug.Other:373707": [
+    "Pug.Other:373700": [
       "private void TrySelectNewElement(UIelement selectedUIElement, bool interactDownThisFrame)"
     ],
-    "Pug.Other:373939": [
+    "Pug.Other:373932": [
       "private void UpdateHoverText(bool attemptToUsePrevWidth, SlotHoverTooltip hoverContainer, UIelement inventorySlot, float maxWidthToUse = 9.5625f, TextAndFormatFields compareLabel = null, TextAndFormatFields tooltipLabel = null)"
     ],
     "Pug.Other:3740": [
       "ObjectInfo objectInfo = component2.ObjectInfo;"
     ],
-    "Pug.Other:374649": [
+    "Pug.Other:374642": [
       "Vector2 position2 = new Vector2(pointer.transform.localPosition.x + hoverContainer.hoverTopLeft.transform.localPosition.x, pointer.transform.localPosition.y + hoverContainer.hoverTopLeft.transform.localPosition.y - hoverContainer.hoverTextBackground.size.y);"
     ],
     "Pug.Other:3747": [
       "ObjectKey key = new ObjectKey(objectInfo.objectID, objectInfo.variation);"
     ],
-    "Pug.Other:374924": [
+    "Pug.Other:374917": [
       "return pugCamera.TransformMousePosition(mousePosition) / 16f;"
     ],
-    "Pug.Other:375200": [
+    "Pug.Other:375193": [
       "ScrollHeight = math.max(0f, _scrollable.GetCurrentWindowHeight() - windowHeight);"
     ],
-    "Pug.Other:375248": [
+    "Pug.Other:375241": [
       "if (!Manager.input.SystemPrefersKeyboardAndMouse() || (Manager.input.SystemIsUsingKeyboard() && (Manager.input.IsMenuDownButtonPressed() || Manager.input.IsMenuUpButtonPressed())))"
     ],
-    "Pug.Other:375460": [
+    "Pug.Other:375453": [
       "public virtual bool isMenuOption => false;"
     ],
-    "Pug.Other:375506": [
+    "Pug.Other:375499": [
       "public void Select()"
     ],
-    "Pug.Other:375514": [
+    "Pug.Other:375507": [
       "public void LeftClick(bool mod1 = false, bool mod2 = false, bool autoActivated = false)"
     ],
-    "Pug.Other:380215": [
+    "Pug.Other:380208": [
       "public class CharacterData : ISerializationCallbackReceiver"
     ],
-    "Pug.Other:380301-380303": [
+    "Pug.Other:380294-380296": [
       "public void OnAfterDeserialize()",
       "{",
       "}"
     ],
-    "Pug.Other:380325": [
+    "Pug.Other:380318": [
       "public void UpgradeIfOutdated()"
     ],
-    "Pug.Other:380423-380427": [
+    "Pug.Other:380416-380420": [
       "nonSerialized.discoveredObjects.Clear();",
       "foreach (DiscoveredObjectData item in discoveredObjects2)",
       "{",
       "nonSerialized.discoveredObjects.Add(item);",
       "}"
     ],
-    "Pug.Other:380739-380743": [
+    "Pug.Other:380732-380736": [
       "private static bool DecodeJson<T>(byte[] data, T characterData) where T : class",
       "{",
       "try",
       "{",
       "JsonUtility.FromJsonOverwrite(Encoding.UTF8.GetString(data), characterData);"
     ],
-    "Pug.Other:380758-380766": [
+    "Pug.Other:380751-380759": [
       "public static CharacterData GetCharacterDataFromSerialized(byte[] data)",
       "{",
       "CharacterData characterData = new CharacterData();",
@@ -3326,10 +3326,10 @@
       "characterData.UpgradeIfOutdated();",
       "return characterData;"
     ],
-    "Pug.Other:380765": [
+    "Pug.Other:380758": [
       "characterData.UpgradeIfOutdated();"
     ],
-    "Pug.Other:380769-380777": [
+    "Pug.Other:380762-380770": [
       "public void SetCharacterId(int id)",
       "{",
       "if (!IsCompatibleWithCurrentGameVersion(id))",
@@ -3340,53 +3340,53 @@
       "_characterId = id;",
       "}"
     ],
-    "Pug.Other:380788": [
+    "Pug.Other:380781": [
       "characterData[_characterId].UpgradeIfOutdated();"
     ],
-    "Pug.Other:380916": [
+    "Pug.Other:380909": [
       "public bool SetObjectAsDiscovered(ObjectDataCD objectData)"
     ],
-    "Pug.Other:381615": [
+    "Pug.Other:381608": [
       "characterData[i].UpgradeIfOutdated();"
     ],
-    "Pug.Other:381638": [
+    "Pug.Other:381631": [
       "public void WriteCharacter()"
     ],
-    "Pug.Other:381643": [
+    "Pug.Other:381636": [
       "public void WriteCharacter(int saveId)"
     ],
-    "Pug.Other:381712": [
+    "Pug.Other:381705": [
       "characterData[i].UpgradeIfOutdated();"
     ],
-    "Pug.Other:383093": [
+    "Pug.Other:383086": [
       "private void Awake()"
     ],
-    "Pug.Other:383124-383125": [
+    "Pug.Other:383117-383118": [
       "Manager.saves.SetCharacterId(60);",
       "Manager.saves.UseCustomCharacterDataProvider(() => File.ReadAllBytes(Application.streamingAssetsPath + \"/BenchmarkData/character.json\"));"
     ],
-    "Pug.Other:383130": [
+    "Pug.Other:383123": [
       "Manager.ecs.StartEcs(startClient: true, Manager.saves.GetWorldId(), frameWorkloadTimer, delegate(bool result)"
     ],
-    "Pug.Other:403958": [
+    "Pug.Other:403951": [
       "[ActionIdFieldInfo(categoryName = \"Common actions used in multiple input contexts\", friendlyName = \"UIInteract\")]"
     ],
-    "Pug.Other:404232": [
+    "Pug.Other:404225": [
       "public const int OpenProfile = 223;"
     ],
-    "Pug.Other:410068": [
+    "Pug.Other:410061": [
       "public World World => Manager.ecs.ServerWorld;"
     ],
-    "Pug.Other:410347": [
+    "Pug.Other:410340": [
       "private InvokeChecker _checker = new InvokeChecker();"
     ],
-    "Pug.Other:410410": [
+    "Pug.Other:410403": [
       "throw new InvalidOperationException(\"Not allowed to access \" + memberInfo.Name);"
     ],
-    "Pug.Other:414250": [
+    "Pug.Other:414243": [
       "public void CreateMapUI(float3 worldPosition, int activeUserMapMarkerType)"
     ],
-    "Pug.Other:414631-414640": [
+    "Pug.Other:414624-414633": [
       "public void EditCustomMapMarker(Entity targetEntity, DataBlockAddress iconAddress, int variantIndex, FixedString64Bytes name = default(FixedString64Bytes))",
       "{",
       "Entity entity = base.EntityManager.CreateEntity(mapMarkerRpcArchetype);",
@@ -3398,28 +3398,28 @@
       "name = name",
       "});"
     ],
-    "Pug.Other:414914": [
+    "Pug.Other:414907": [
       "private void OriginalLambdaBody(in MapMarkerRpc rpc, in ReceiveRpcCommandRequest rpcSource)"
     ],
-    "Pug.Other:414921": [
+    "Pug.Other:414914": [
       "if (rpc.targetEntity == Entity.Null)"
     ],
-    "Pug.Other:414924": [
+    "Pug.Other:414917": [
       "Entity e = EntityUtility.CreateEntity(ecb, rpc.position, ObjectID.MapMarker, 1, databaseLocal, out prefabEntity);"
     ],
-    "Pug.Other:414926": [
+    "Pug.Other:414919": [
       "if (rpc.name.Length > 0)"
     ],
-    "Pug.Other:414934": [
+    "Pug.Other:414927": [
       "else if (__MapMarkerCustomDataCD_ComponentLookup.HasComponent(rpc.targetEntity))"
     ],
-    "Pug.Other:414937-414940": [
+    "Pug.Other:414930-414933": [
       "ecb.SetComponent(rpc.targetEntity, new NameCD",
       "{",
       "Value = rpc.name",
       "});"
     ],
-    "Pug.Other:415255-415261": [
+    "Pug.Other:415248-415254": [
       "if (guestMode)",
       "{",
       "Command command = component.command;",
@@ -3428,10 +3428,10 @@
       "continue;",
       "}"
     ],
-    "Pug.Other:415258": [
+    "Pug.Other:415251": [
       "if (command != Command.MapPing && command != Command.RemoveLoginImmunity && command != Command.SetPlayerState && command != Command.UnlockCurrentState && fromEntity.GetAdminLevelOnServer(component2.SourceConnection) <= 0)"
     ],
-    "Pug.Other:415314-415321": [
+    "Pug.Other:415307-415314": [
       "case Command.CreateMapUI:",
       "{",
       "ObjectDataCD objectDataCD = new ObjectDataCD",
@@ -3441,124 +3441,124 @@
       "};",
       "EntityUtility.CreateEntity(ecb, component.position0, objectDataCD.objectID, 1, databaseLocal, out var _, objectDataCD.variation);"
     ],
-    "Pug.Other:415496": [
+    "Pug.Other:415489": [
       "PlayerController.AddSkill(component.entity0, (SkillID)component.int0, component.int1, ecb, isServer: true);"
     ],
-    "Pug.Other:415531": [
+    "Pug.Other:415524": [
       "ObjectDataCD componentData5 = EntityUtility.GetComponentData<ObjectDataCD>(component.entity0, base.World);"
     ],
-    "Pug.Other:415532": [
+    "Pug.Other:415525": [
       "componentData5.amount = component.int0;"
     ],
-    "Pug.Other:415533": [
+    "Pug.Other:415526": [
       "ecb.SetComponent(component.entity0, componentData5);"
     ],
-    "Pug.Other:415644": [
+    "Pug.Other:415637": [
       "ServerSystem_4A171A05_LambdaJob_1_Execute(ref ecb, ref databaseLocal);"
     ],
-    "Pug.Other:422777": [
+    "Pug.Other:422770": [
       "private static void OpenItemAndSpawnLoot(SpawnsItemsOnUseCD spawnsItemsOnUseCD, StateUpdateAspect stateUpdateAspect, SharedStateUpdateData sharedStateUpdateData, LookupStateUpdateData lookupStateUpdateData)"
     ],
-    "Pug.Other:422915": [
+    "Pug.Other:422908": [
       "private static bool CageCattle(StateUpdateAspect stateUpdateAspect, SharedStateUpdateData sharedStateUpdateData, LookupStateUpdateData lookupStateUpdateData)"
     ],
-    "Pug.Other:422961": [
+    "Pug.Other:422954": [
       "sharedStateUpdateData.ecb.DestroyEntity(entity);"
     ],
-    "Pug.Other:422965": [
+    "Pug.Other:422958": [
       "inventoryChangeData = Create.ConsumeEntityAt(stateUpdateAspect.entity, stateUpdateAspect.equippedObjectCD.ValueRO.equippedSlotIndex, 1, destroy: true, lookupStateUpdateData.godModeLookup.IsComponentEnabled(stateUpdateAspect.entity), position),"
     ],
-    "Pug.Other:426679": [
+    "Pug.Other:426672": [
       "public static class Create"
     ],
-    "Pug.Other:426692": [
+    "Pug.Other:426685": [
       "public static InventoryChangeData ConsumeEntityAt(Entity inventory, int index, int amount, bool destroy, bool dontConsume, float3 positionToSet = default(float3), int variationToInstatiate = -1, float3 direction = default(float3), ObjectID optionalTargetObjectID = ObjectID.None)"
     ],
-    "Pug.Other:427463": [
+    "Pug.Other:427456": [
       "[BurstCompile]"
     ],
-    "Pug.Other:427830": [
+    "Pug.Other:427823": [
       "private struct ProcessCraftingJob : IJob"
     ],
-    "Pug.Other:427883": [
+    "Pug.Other:427876": [
       "InventoryUtility.Craft(in inventoryHandlerShared, inventories[0], componentData2, inventories, new CanCraftObjectsBuffer"
     ],
-    "Pug.Other:428187": [
+    "Pug.Other:428180": [
       "state.Dependency = IJobExtensions.Schedule(new ProcessCraftingJob"
     ],
-    "Pug.Other:428613": [
+    "Pug.Other:428606": [
       "public static class InventoryUtility"
     ],
-    "Pug.Other:428869": [
+    "Pug.Other:428862": [
       "public static bool ConsumeEntityAt(in InventoryHandlerShared inventoryHandlerShared, Entity inventory, int index, int amount, bool destroy, float3 position, int variationToInstatiate = -1, float3 direction = default(float3), ObjectID optionalTargetObjectID = ObjectID.None)"
     ],
-    "Pug.Other:430826": [
+    "Pug.Other:430819": [
       "if (PugDatabase.HasObject(objectId, databaseBankCD.databaseBankBlob))"
     ],
-    "Pug.Other:437926": [
+    "Pug.Other:437919": [
       "public class EquipmentSystemGroup : ComponentSystemGroup"
     ],
-    "Pug.Other:438152": [
+    "Pug.Other:438145": [
       "public BufferLookup<ContainedObjectsBuffer> containedObjectsBufferLookup;"
     ],
-    "Pug.Other:438195": [
+    "Pug.Other:438188": [
       "public readonly struct EquipmentUpdateAspect(DynamicBuffer<AnimationBuffer> equipmentupdateaspect_animationbufferDb, RefRW<AnimationBufferPointer> equipmentupdateaspect_animationbufferpointerRef, RefRO<AnimationOrientationCD> equipmentupdateaspect_animationorientationcdRef, RefRO<CharacterTypeCD> equipmentupdateaspect_charactertypeRef, RefRO<ClientInput> equipmentupdateaspect_clientinputRef, DynamicBuffer<DealDamageToEntityBuffer> equipmentupdateaspect_dealdamagetoentitybufferDb, RefRO<EquipmentCD> equipmentupdateaspect_equipmentcdRef, RefRO<EquippedObjectCD> equipmentupdateaspect_equippedobjectcdRef, DynamicBuffer<GhostEffectEventBuffer> equipmentupdateaspect_ghosteffecteventbufferDb, RefRW<GhostEffectEventBufferPointerCD> equipmentupdateaspect_ghosteffecteventbufferpointercdRef, RefRW<HungerCD> equipmentupdateaspect_hungercdRef, RefRO<ManaCD> equipmentupdateaspect_manacdRef, RefRO<PetOwnerCD> equipmentupdateaspect_petownercdRef, RefRW<PlacementCD> equipmentupdateaspect_placementcdRef, DynamicBuffer<PlacementSizeByEquipmentTypeBuffer> equipmentupdateaspect_placementsizebyequipmenttypebufferDb, RefRW<PlayerAimPositionCD> equipmentupdateaspect_playeraimpositioncdRef, RefRW<PlayerAttackCooldownCD> equipmentupdateaspect_playerattackcooldowncdRef, RefRW<EquipmentSlotCD> equipmentupdateaspect_equipmentslotcdRef, RefRO<EquipmentSlotConstantCD> equipmentupdateaspect_equipmentslotconstantcdRef, RefRO<PlayerGhost> equipmentupdateaspect_playerghostRef, RefRW<DigStateCD> equipmentupdateaspect_digstatecdRef, RefRW<FishingMiniGameStateCD> equipmentupdateaspect_fishingminigamestatecdRef, RefRW<FishingStateCD> equipmentupdateaspect_fishingstatecdRef, RefRW<FlattenStateCD> equipmentupdateaspect_flattenstatecdRef, RefRW<PlaceObjectPlayerStateCD> equipmentupdateaspect_placeobjectstatecdRef, RefRW<PlaceWaterStateCD> equipmentupdateaspect_placewaterstatecdRef, RefRO<PlayerSleepStateCD> equipmentupdateaspect_playersleepstatecdRef, RefRW<PlayerStateCD> equipmentupdateaspect_playerstatecdRef, RefRW<RefillWaterStateCD> equipmentupdateaspect_refillwaterstatecdRef, RefRW<RandomCD> equipmentupdateaspect_randomcdRef, DynamicBuffer<SyncedPlayerSharedCooldownTimersCD> equipmentupdateaspect_syncedsharedcooldowntimersDb, Entity equipmentupdateaspect_entityE) : IAspect, IQueryTypeParameter, IAspectCreate<EquipmentUpdateAspect>"
     ],
-    "Pug.Other:438831": [
+    "Pug.Other:438824": [
       "public struct EquipmentUpdateSystem : ISystem, ISystemStartStop, ISystemCompilerGenerated"
     ],
-    "Pug.Other:438833": [
+    "Pug.Other:438826": [
       "[BurstCompile]"
     ],
-    "Pug.Other:438952": [
+    "Pug.Other:438945": [
       "bool flag3 = lookupEquipmentUpdateData.containedObjectsBufferLookup.TryGetBuffer(equipmentUpdateAspect.entity, out bufferData) && lookupEquipmentUpdateData.craftingLookup.TryGetComponent(equipmentUpdateAspect.entity, out componentData) && bufferData.Length > componentData.outputSlotIndex && bufferData[componentData.outputSlotIndex].objectID != ObjectID.None;"
     ],
-    "Pug.Other:438959": [
+    "Pug.Other:438952": [
       "switch (equipmentUpdateAspect.equipmentSlotCD.ValueRO.slotType)"
     ],
-    "Pug.Other:438965": [
+    "Pug.Other:438958": [
       "flag6 = PlaceObjectSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);"
     ],
-    "Pug.Other:438971": [
+    "Pug.Other:438964": [
       "flag6 = WaterCanSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);"
     ],
-    "Pug.Other:438983": [
+    "Pug.Other:438976": [
       "flag6 = PaintToolSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);"
     ],
-    "Pug.Other:438992": [
+    "Pug.Other:438985": [
       "flag6 = BucketSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);"
     ],
-    "Pug.Other:439635": [
+    "Pug.Other:439628": [
       "public void OnUpdate(ref SystemState state)"
     ],
-    "Pug.Other:439743": [
+    "Pug.Other:439736": [
       "return __TypeHandle.__PlayerEquipment_EquipmentUpdateSystem_UpdateJob_WithDefaultQuery_JobEntityTypeHandle.Schedule(ref job, query, dependency);"
     ],
-    "Pug.Other:447025": [
+    "Pug.Other:447018": [
       "private struct EquippedSlotChangeJob : IJobEntity, IJobChunk"
     ],
-    "Pug.Other:447259": [
+    "Pug.Other:447252": [
       "PlacementHandler.Activate(ref placementCD, equippedObjectCD.equipmentPrefab, objectPropertiesLookup, tileLookup, pseudoTileLookup);"
     ],
-    "Pug.Other:448211-448214": [
+    "Pug.Other:448204-448207": [
       "public void OnUpdate(ref SystemState state)",
       "{",
       "JobHandle job = __ScheduleViaJobChunkExtension_0(new EquippedSlotChangeJob",
       "{"
     ],
-    "Pug.Other:450334": [
+    "Pug.Other:450327": [
       "public class InteractablePostConverter : PostConverter"
     ],
-    "Pug.Other:450340": [
+    "Pug.Other:450333": [
       "if (!base.EntityManager.HasComponent<TriggerUseInteractionBuffer>(entity) && !base.EntityManager.HasComponent<TriggerExitInteractionBuffer>(entity))"
     ],
-    "Pug.Other:450375": [
+    "Pug.Other:450368": [
       "InteractableObject interactableObject = array[0];"
     ],
-    "Pug.Other:450380": [
+    "Pug.Other:450373": [
       "DirectionCD.RotateTransform(interactableObject.transform.rotation, interactableObject.transform.position, DirectionBasedOnVariationCD.GetVariationFromDirection(direction), objectInfo.prefabCornerOffset.ToInt2(), objectInfo.prefabTileSize.ToInt2(), out var _, out var newTranslation);"
     ],
-    "Pug.Other:450392-450399": [
+    "Pug.Other:450385-450392": [
       "interactRadiusSqr = interactableObject.radius * interactableObject.radius,",
       "requiredFactionToInteract = interactableObject.requiredFactionToInteract,",
       "allowToUseOnlyWhenClaimed = interactableObject.allowToUseOnlyWhenClaimed,",
@@ -3568,14 +3568,14 @@
       "ignorePlayerDirectionRadiusPercentage = interactableObject.ignorePlayerDirectionRadiusPercentage,",
       "requireLineOfSight = interactableObject.requireLineOfSight"
     ],
-    "Pug.Other:453667": [
+    "Pug.Other:453660": [
       "writer.WriteInt(ghostInstance.ghostId);"
     ],
-    "Pug.Other:453708-453709": [
+    "Pug.Other:453701-453702": [
       "data.entity0 = Entity.Null;",
       "if (num != 0 && state.ghostMap.TryGetValue(new SpawnedGhost"
     ],
-    "Pug.Other:454482-454489": [
+    "Pug.Other:454475-454482": [
       "data.targetEntity = Entity.Null;",
       "if (num != 0 && state.ghostMap.TryGetValue(new SpawnedGhost",
       "{",
@@ -3585,17 +3585,17 @@
       "{",
       "data.targetEntity = item;"
     ],
-    "Pug.Other:458931-458935": [
+    "Pug.Other:458924-458928": [
       "if (component.interactable != null)",
       "{",
       "entityCommandBuffer.SetComponent(current2.SpawnedObject.PrimaryEntity, new InteractableObjectReferenceCD",
       "{",
       "Value = component.interactable"
     ],
-    "Pug.Other:459691": [
+    "Pug.Other:459684": [
       "if (num3 < 9f && num3 < num2)"
     ],
-    "Pug.Other:459715": [
+    "Pug.Other:459708": [
       "ghost.PredictedSpawnEntity = dynamicBuffer[num].entity;"
     ],
     "Pug.Other:90696": [
@@ -4339,5 +4339,5 @@
       "public HashSet<ModId> disabledMods = new HashSet<ModId>();"
     ]
   },
-  "game_version": "1.3.0.5-cb48"
+  "game_version": "1.3.0.6-6e73"
 }
