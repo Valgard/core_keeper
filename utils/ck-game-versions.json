@@ -1,6 +1,7 @@
 {
   "_comment": "Core Keeper builds that shipped, newest first, canonical form: at least four segments, zero-padded. Starts at 0.6.3.0 because that is the build the Mod SDK shipped with -- no earlier version can carry a mod, so none can appear in CK_GAME_VERSION. Union of two sources, because neither is complete on its own: Steam's update feed (store events, type 12 and 14, titles in ENGLISH -- the localised ones carry different numbers) misses day-one hotfixes that never got their own post, and mod.io's Game Version tags miss builds nobody tagged. A short mod.io tag that names no build here but stands in for builds that have no tag of their own (1.3.0 for every 1.3.0.x build) is not a build and is deliberately absent. Refresh with utils/refresh_game_versions.py, which reports and does not write: the titles are hand-typed and contain errors.",
   "versions": [
+    "1.3.0.6",
     "1.3.0.5",
     "1.3.0.4",
     "1.3.0.3",

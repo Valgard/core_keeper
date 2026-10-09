@@ -74,7 +74,7 @@ export MOD_INSTALL_PATH="$MOD_INSTALL_BASE_PATH/CoreKeeperMods"
 # shorter tag that stands in for it: every 1.3.0.x build is published as
 # 1.3.0, the only tag the 1.3 update got (docs/publishing.md has the rule).
 # Always write the four-segment build.
-export CK_GAME_VERSION="1.3.0.5 1.3.0.4 1.3.0.3 1.3.0.2 1.3.0.1 1.2.1.5 1.2.1.4 1.2.1.3 1.2.1.2 1.2.1.0 1.2.0.7 1.2.0.6 1.2.0.5 1.2.0.4 1.2.0.3"
+export CK_GAME_VERSION="1.3.0.6 1.3.0.5 1.3.0.4 1.3.0.3 1.3.0.2 1.3.0.1 1.2.1.5 1.2.1.4 1.2.1.3 1.2.1.2 1.2.1.0 1.2.0.7 1.2.0.6 1.2.0.5 1.2.0.4 1.2.0.3"
 
 # Builds that shipped but have no mod.io "Game Version" tag, space-separated.
 # CLIPublishHelper drops these from CK_GAME_VERSION before publishing, so the
