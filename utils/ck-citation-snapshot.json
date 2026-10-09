@@ -3760,6 +3760,9 @@
     "PugMod.Loader:1013": [
       "UnityEngine.Debug.LogWarning(\"skipping mod \" + mod.Metadata.name + \" because of missing dependency: \" + dependency.modName);"
     ],
+    "PugMod.Loader:1089": [
+      "DynamicMethod dynamicMethod = new DynamicMethod(\"_forwardingFunc_\" + methodInfo.Name, null, new Type[2]"
+    ],
     "PugMod.Loader:1111": [
       "public List<string> unsupportedModsToLoad = new List<string>();"
     ],
@@ -3771,6 +3774,9 @@
     ],
     "PugMod.Loader:1232": [
       "UnityEngine.Debug.Log(\"not loading incompatible mod \" + metadata.name);"
+    ],
+    "PugMod.Loader:1301": [
+      "scriptAssembly = scriptDomain.LoadAssembly(text, mod.Metadata.skipSafetyChecks ? ScriptSecurityMode.EnsureLoad : ScriptSecurityMode.EnsureSecurity);"
     ],
     "PugMod.Loader:1353-1386": [
       "List<string> list2 = new List<string>(scriptFiles.Count);",
@@ -3811,8 +3817,20 @@
     "PugMod.Loader:1358": [
       "list2.Add(File.ReadAllText(Path.Combine(mod.Directory, scriptFile.path)));"
     ],
+    "PugMod.Loader:1367": [
+      "if (!SourceGenPatch.Patch(mod.Metadata.name, list2, !mod.Metadata.skipSafetyChecks))"
+    ],
     "PugMod.Loader:1373": [
       "scriptDomain.RoslynCompilerService.OutputName = mod.Metadata.name + \".dll\";"
+    ],
+    "PugMod.Loader:1386": [
+      "ScriptAssembly scriptAssembly = scriptDomain.CompileAndLoadFiles(array, mod.Metadata.skipSafetyChecks ? ScriptSecurityMode.EnsureLoad : ScriptSecurityMode.UseSettings, list.ToArray());"
+    ],
+    "PugMod.Loader:1403": [
+      "if (!JobsPatch.Patch(scriptAssembly.SystemAssembly))"
+    ],
+    "PugMod.Loader:1452": [
+      "SystemBaseRegistry.AddUnmanagedSystemType(item.SystemType, BurstRuntime.GetHashCode64(item.SystemType), array[0], array[1], array[2], array[3], array[4], array[5], item.FullName, 0);"
     ],
     "PugMod.Loader:1471-1485": [
       "private static void HarmonyPatchAssembly(Mod mod, ScriptAssembly assembly, HarmonyBootstrap harmony, InvokeChecker checker)",

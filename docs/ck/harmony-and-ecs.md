@@ -577,6 +577,67 @@ Two caveats make an absent line meaningless:
 
 See [multiplayer and server](multiplayer-and-server.md) — for version and protocol issues, and for [getting one running](multiplayer-and-server.md#getting-one-running).
 
+## The stock SDK and loader do not Burst-compile a mod
+
+`BurstDisabler` exists because the game's code is Burst-compiled. A mod's C#
+gets no such treatment from the stock tooling: neither the SDK's `ModBuilder`
+nor `PugMod.Loader` invokes the Burst compiler or loads Burst output for a mod.
+What that leaves at runtime is settled for a mod's `ISystem` and open for a
+`[BurstCompile]` job.
+
+- **The game ships Burst output, not a Burst compiler.** Its Burst code is
+  precompiled into one native library per build
+  (`CoreKeeper_Data/Plugins/x86_64/lib_burst_generated.dll` in the Windows
+  build), beside the managed `Unity.Burst.dll` runtime in `Managed/`. The
+  compiler belongs to the Editor package; that a standalone player has no JIT
+  for it is Unity's documented model, not something measured here.
+- **A mod's scripts reach the game as source.** `ModBuilder.BuildScripts`
+  copies the `.cs` files — the mod's own and the generated DOTS code — into
+  `Scripts/`; the loader rewrites the generated part (`SourceGenPatch`,
+  `PugMod.Loader:1367`) and compiles the lot with Roslyn
+  (`PugMod.Loader:1386`), producing a managed assembly.
+- **A mod's `ISystem` is registered with Burst switched off.** For a
+  source-compiled mod, `AddEntitySystems` wraps each lifecycle method in a
+  `DynamicMethod` (`PugMod.Loader:1089`) and registers the wrappers with
+  `burstCompileBits` 0 (`PugMod.Loader:1452`). The system is dispatched along
+  the same function-pointer route as the game's own, but with no Burst pointer
+  `SelectBurstFn` falls back to a pointer onto the managed delegate
+  (`Unity.Entities:58169-58189`). An `ISystem` in a precompiled DLL is not
+  covered by this: `AddEntitySystems` runs only for compiled scripts.
+- **A native library cannot travel in `Libraries/`.** `ModBuilder.BuildLibraries`
+  copies any `.dll`, but the loader — only when the mod sets
+  `accessesExtraAssemblies` — loads each one as a managed assembly
+  (`PugMod.Loader:1301`), and one it cannot load fails the whole mod.
+- **The loader never calls Burst's runtime hook.** Unity's
+  `BurstRuntime.LoadAdditionalLibrary` loads an extra Burst library at runtime;
+  nothing in `PugMod.Loader` calls it.
+
+**One route around the stock tooling existed, and is gone.** CoreLib carried
+it: `BurstModBuilder`, an `IPugModBuilderProcessor` (the SDK's hook into every
+mod build), ran Burst's `bcl.exe` over the mod's assembly and wrote a
+`<mod>_burst_generated_<platform>` library into its build output, and
+`TryLoadBurstAssembly` loaded that library through `LoadAdditionalLibrary`.
+The build step depends on a `buildBurst` field that the SDK's
+`ModBuilderSettings` has never had, and the loading half was removed from
+CoreLib in February 2026 ("Remove mod burst loading"); the method now only logs
+`Burst loading not supported!`. Two mods in the corpus — PlacementPlus and
+StoragePlus — still carry the call, commented out. Whether Burst code from a
+mod ever ran through that route is not established.
+
+`[BurstCompile]` itself compiles in a sandboxed mod — `Unity.Burst.dll` is in
+the reference list of the game's `RoslynCSharpSettings.asset`, and Player.log
+shows mods that use it compiling with `safetyCheck=True` — so its presence says
+nothing about what it does. What a `[BurstCompile]` job in a mod does at
+runtime is **unverified**; the loader's `JobsPatch` (`PugMod.Loader:1403`),
+which runs each mod job type's `EarlyJobInit`, is where to start looking.
+
+In practice the cost is speed: a mod's system runs at managed speed where the
+game's run Bursted. Where that would show has not been measured here; a system
+of the mod's own iterating many entities every frame is the likely place, and [the performance rule](#the-performance-rule)
+applies there first. The upside is the mirror image of this chapter's opening
+problem: no `BurstDisabler` is needed to patch a mod's own source-compiled
+system.
+
 ## Harmony binding mechanics
 
 ### Look for a public event before you patch
