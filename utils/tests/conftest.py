@@ -40,6 +40,29 @@ def _isolate_git_env(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
 
+@pytest.fixture(scope="session")
+def _structure_cache_root(tmp_path_factory):
+    """One throwaway directory for the whole session's decompile-structure cache."""
+    return tmp_path_factory.mktemp("ck-structure-cache")
+
+
+@pytest.fixture(autouse=True)
+def _isolate_structure_cache(monkeypatch, _structure_cache_root):
+    """Keep `decompile_structure`'s cache out of the real `~/.cache`.
+
+    Without this, every test that calls `structure_of` without an explicit
+    `cache_dir` writes into the developer's own cache -- 115 of 140 entries
+    there were test debris when this was found -- and, worse, reads from it: a
+    suite that passes because an earlier run left an entry behind is a suite
+    that depends on ambient state.
+
+    Autouse and in conftest for the same reason as `_isolate_git_env` above:
+    the cost of forgetting it falls on whoever writes the *next* suite. Session
+    scope so the real corpus is still parsed once per run rather than per test.
+    """
+    monkeypatch.setenv("CK_STRUCTURE_CACHE", str(_structure_cache_root))
+
+
 PIXAKI_FORMS = ("zip", "directory")
 
 # What a real Pixaki export carries besides its files. A ZIP stores these as

@@ -1,11 +1,24 @@
 """The structure layer against the real handbook corpus, not fixtures.
 
-This is the acceptance test of the symbol-anchoring work and the instrument
-that would have caught both throwaway regex recognisers the day they were
-written. It runs over every citation rather than a sample on purpose: the
-median search space moved by a factor of three between two prototypes that
-each looked plausible on a handful of citations, so an aggregate taken from
-part of the corpus measures whichever bug happens to dominate.
+This is the acceptance test of the symbol-anchoring work. It runs over every
+citation rather than a sample on purpose: the median search space moved by a
+factor of three between two prototypes that each looked plausible on a handful
+of citations, so an aggregate taken from part of the corpus measures whichever
+bug happens to dominate.
+
+**What each test here can and cannot catch**, because an earlier draft of this
+file -- and the design spec -- claimed more for the round trip than it delivers.
+`describe` computes an offset from the element it found and `locate` re-finds
+that element by name and inverts the arithmetic, so when both agree on the
+element the round trip is an identity: a wrong *extent* passes it unharmed, and
+a decoy element 3,816 lines long would too. What it does catch is every way the
+*name* fails -- an anchor matching several declarations, a form nothing can
+spell, a token that will not parse back -- which is how it found the seven
+`UpdateJob` declarations.
+
+Wrong extents are caught by the other two: the tier census, which moves if
+element boundaries shift, and the calibration fixtures, whose expected values
+were read out of the decompile by hand rather than taken from this code.
 
 It needs the decompile checkout and skips loudly without one. A skip here means
 the suite proved nothing about the handbook, which is different from passing.
@@ -17,6 +30,7 @@ import pytest
 from check_citation_drift import CITATION
 from check_citation_drift import DEFAULT_DECOMPILE
 from check_citation_drift import source_for
+from citation_notation import parse
 from citation_notation import render
 from citation_notation import tier
 from decompile_structure import describe
@@ -102,9 +116,11 @@ def test_the_documented_relative_line_is_reproduced(structures):
 def test_every_citation_round_trips(corpus, structures):
     """locate(describe(line)) == line, for all of them.
 
-    The property that makes the migration safe to run mechanically on a
-    verified chapter: the new citation provably resolves to the line the old
-    number pointed at, so the verdict that was weighed against that line stands.
+    What this licenses is the migration of an already-verified chapter without
+    re-reading it: the new citation provably resolves to the line the old number
+    pointed at, so the verdict weighed against that line still stands. That is
+    a statement about the arithmetic and the name, not about the extent -- see
+    the module docstring for what it cannot see.
     """
     broken = []
     for assembly, line in corpus:
@@ -139,3 +155,54 @@ def test_the_tier_census_matches_the_spec(corpus, structures):
 def test_the_corpus_is_the_size_the_spec_says(corpus):
     """722 unique citations — the denominator every other figure here rests on."""
     assert len(corpus) == 722
+
+
+@pytest.fixture(scope="module")
+def range_citations():
+    """Every unique range citation the handbook carries, as (assembly, first, last)."""
+    root = Path(__file__).resolve().parents[2] / "docs" / "ck"
+    spans = set()
+    for chapter in sorted(root.glob("*.md")):
+        for match in CITATION.finditer(chapter.read_text()):
+            citation = parse(match.group(0).strip("`"))
+            if citation is not None and citation.first != citation.last:
+                spans.add((citation.assembly, citation.first, citation.last))
+    return sorted(spans)
+
+
+def test_every_citation_survives_being_written_and_read_back(corpus, structures):
+    """Describe -> render -> parse returns the same citation, for all of them.
+
+    The round trip above never leaves the objects, so it cannot see a citation
+    that is correct in memory and unspellable on the page. One real parameter
+    type, `global::Discord.Discord`, carries the character the grammar splits
+    fields on, and a form built from it rendered a token `parse` refused.
+    """
+    broken = []
+    for assembly, line in corpus:
+        structure = structures[assembly]
+        if structure is None:
+            continue
+        citation = describe(structure, line, assembly)
+        if parse(render(citation)) != citation:
+            broken.append(render(citation))
+    assert broken == [], f"{len(broken)} citation(s) do not survive a round trip: {broken[:5]}"
+
+
+def test_every_range_citation_keeps_its_span(range_citations, structures):
+    """A range resolves to its first line and still spans as many lines.
+
+    127 of the handbook's citations are ranges and five of them cross out of
+    their first line's member, so this is the test that the widening to the
+    enclosing type actually holds on real data rather than on the fixture.
+    """
+    assert len(range_citations) == 127
+    broken = []
+    for assembly, first, last in range_citations:
+        structure = structures[assembly]
+        if structure is None:
+            continue
+        citation = describe(structure, first, assembly, last=last)
+        if locate(structure, citation) != first or citation.last - citation.first != last - first:
+            broken.append(f"{assembly}:{first}-{last} -> {render(citation)}")
+    assert broken == [], f"{len(broken)} range(s) do not round trip: {broken[:5]}"

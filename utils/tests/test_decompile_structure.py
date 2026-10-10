@@ -17,6 +17,8 @@ import json
 
 import decompile_structure
 from citation_notation import Citation
+from citation_notation import parse
+from citation_notation import render
 from decompile_structure import Structure
 from decompile_structure import describe
 from decompile_structure import locate
@@ -372,3 +374,66 @@ class Wrapper
     s = structure_of(write(tmp_path, text))
     assert describe(s, 3, "A").member == "this(int)"
     assert describe(s, 4, "A").member == "this(string)"
+
+
+def test_a_parameter_type_with_an_alias_qualifier_stays_spellable(tmp_path):
+    """`global::` carries a colon, which the citation grammar splits fields on.
+
+    Three real declarations in the cited assemblies have one, so this is not a
+    hypothetical: `describe` would emit a token `parse` rejects, and the
+    migration would write it into a chapter for the gate to refuse. The
+    qualifier means nothing a citation needs, so it is dropped.
+    """
+    text = """\
+class Foo
+{
+    void Baz(global::System.Int32 a, int b) { }
+    void Baz(long a, int b) { }
+}
+"""
+    s = structure_of(write(tmp_path, text))
+    citation = describe(s, 3, "A")
+    assert ":" not in citation.member
+    assert parse(render(citation)) == citation
+
+
+def test_an_unwritable_cache_directory_does_not_fail_the_run(tmp_path):
+    """The cache is an optimisation; failing to write one must not fail a gate.
+
+    `check_citation_drift` resolves symbols on every pre-commit run, so an
+    unwritable or unreachable cache directory has to cost time, not the commit.
+    """
+    path = write(tmp_path, SIMPLE)
+    blocked = tmp_path / "blocked"
+    blocked.mkdir()
+    blocked.chmod(0o500)
+    try:
+        assert structure_of(path, cache_dir=blocked / "sub") is not None
+    finally:
+        blocked.chmod(0o700)
+
+
+def test_describe_expresses_a_range_inside_one_element(tmp_path):
+    """127 of the handbook's citations are ranges; they must survive migration.
+
+    An absolute range can move at one end while the other holds. A relative one
+    travels with its element, which is the sturdiness the design claims for it
+    — and claiming it requires being able to write one.
+    """
+    s = structure_of(write(tmp_path, SIMPLE))
+    citation = describe(s, 10, "A", last=11)
+    assert (citation.member, citation.first, citation.last) == ("Baz(int, …)", 2, 3)
+    assert locate(s, citation) == 10
+
+
+def test_describe_widens_to_the_type_when_a_range_leaves_the_member(tmp_path):
+    """A span crossing two members is anchored on what contains both.
+
+    Five real range citations do exactly this. Anchoring on the first line's
+    member would describe a range reaching past the element it names, which
+    `locate` then refuses — so the citation has to name something wider.
+    """
+    s = structure_of(write(tmp_path, SIMPLE))
+    citation = describe(s, 12, "A", last=14)
+    assert (citation.type_name, citation.member) == ("Foo", None)
+    assert locate(s, citation) == 12

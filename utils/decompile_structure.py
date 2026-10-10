@@ -28,6 +28,7 @@ so the aggregate figure was an artifact of whichever bug dominated. Only
 calibration against known citations exposed it.
 """
 
+import contextlib
 import hashlib
 import json
 import os
@@ -231,7 +232,12 @@ def _params(node):
         if parameter.type != "parameter":
             continue
         declared = parameter.child_by_field_name("type")
-        types.append(_text(declared) if declared is not None else "?")
+        # `global::Discord.Discord` is three real declarations' parameter type,
+        # and the citation grammar splits its fields on ":" -- so a form built
+        # from it renders a token `parse` rejects. The qualifier resolves an
+        # alias and means nothing a citation needs, so it goes.
+        spelled = _text(declared) if declared is not None else "?"
+        types.append(spelled.replace("global::", ""))
     return tuple(types)
 
 
@@ -325,7 +331,7 @@ DEFAULT_CACHE_DIR = Path.home() / ".cache" / "ck-decompile-structure"
 # `EquipmentUpdateSystem.UpdateJob`) left the layout identical, so entries
 # written before it were accepted afterwards and seven citations silently
 # resolved to the escape hatch instead of their member.
-CACHE_FORMAT = 2
+CACHE_FORMAT = 3
 
 # The decompile README's title carries the build it was taken from. Duplicated
 # from `verify_status` rather than imported: that is a command-line tool, and a
@@ -466,7 +472,12 @@ def structure_of(path, *, cache_dir=None):
 
     structure = _parse(path)
     if structure is not None:
-        _write_entry(entry, structure, stat, _build_identity(path))
+        # The cache is an optimisation. An unwritable or unreachable directory
+        # costs this run its 4.4 s, not the commit: the drift checker resolves
+        # symbols on every pre-commit run and must not fail for want of
+        # somewhere to put an index.
+        with contextlib.suppress(OSError):
+            _write_entry(entry, structure, stat, _build_identity(path))
     return structure
 
 
@@ -487,6 +498,8 @@ def _forms(element):
     yield element.member
     if element.params is None:
         return
+    if any(":" in declared for declared in element.params):
+        return  # unspellable in a grammar that splits on ":"; stay with the name
     if not element.params:
         yield f"{element.member}()"
         return
@@ -536,31 +549,43 @@ def _shortest_unique(structure, element):
     return None
 
 
-def _enclosing(structure, line):
-    """The innermost element containing `line`, or None if it is in no element.
+def _enclosing(structure, first, last):
+    """The innermost element containing the whole span, or None if none does.
 
-    Members are disjoint, so the last one starting at or before `line` is the
+    Members are disjoint, so the last one starting at or before `first` is the
     only candidate -- a bisect. Types nest, so the innermost is the smallest
-    extent that contains the line, and that is a scan. The scan only runs when
+    extent that contains the span, and that is a scan. The scan only runs when
     no member matched, which is under a tenth of the corpus.
+
+    It takes a span rather than a line because 127 of the handbook's citations
+    are ranges, and a range must be anchored on something containing both ends.
+    A span crossing out of its first line's member is anchored on the type that
+    holds both -- anchoring on the member would describe a range reaching past
+    the element it names, which `locate` then refuses, so the citation would
+    resolve to nothing.
     """
-    index = bisect_right(structure._member_starts, line) - 1
-    if index >= 0 and structure.members[index].end >= line:
+    index = bisect_right(structure._member_starts, first) - 1
+    if index >= 0 and structure.members[index].end >= last:
         return structure.members[index]
 
     innermost = None
     for candidate in structure.types:
-        if candidate.start <= line <= candidate.end and (
-            innermost is None or candidate.end - candidate.start < innermost.end - innermost.start
+        if (
+            candidate.start <= first
+            and last <= candidate.end
+            and (
+                innermost is None
+                or candidate.end - candidate.start < innermost.end - innermost.start
+            )
         ):
             innermost = candidate
     return innermost
 
 
-def describe(structure, line, assembly):
-    """The citation that anchors `line`: the innermost tier that can name it.
+def describe(structure, line, assembly, last=None):
+    """The citation that anchors `line`, or the span `line`..`last`.
 
-    A member if one contains the line, else the enclosing type, else an
+    A member if one contains the whole span, else the enclosing type, else an
     absolute line. The tier decides what the citation survives, so the
     innermost is always the right answer -- it is exposed to the least.
 
@@ -569,22 +594,23 @@ def describe(structure, line, assembly):
     which the grammar reads back as the *type* tier, so claiming it would break
     the round trip in a way no reader could see.
     """
-    element = _enclosing(structure, line)
+    last = line if last is None else last
+    element = _enclosing(structure, line, last)
     if element is None or element.type_name is None:
-        return Citation(assembly, None, None, line, line)
+        return Citation(assembly, None, None, line, last)
 
     named = _shortest_unique_type(structure, element.type_name)
     if named is None:
-        return Citation(assembly, None, None, line, line)
+        return Citation(assembly, None, None, line, last)
 
-    offset = line - element.start + 1
+    first, final = line - element.start + 1, last - element.start + 1
     if element.member is None:
-        return Citation(assembly, named, None, offset, offset)
+        return Citation(assembly, named, None, first, final)
 
     form = _shortest_unique(structure, element)
     if form is None:
-        return Citation(assembly, None, None, line, line)
-    return Citation(assembly, named, form, offset, offset)
+        return Citation(assembly, None, None, line, last)
+    return Citation(assembly, named, form, first, final)
 
 
 def locate(structure, citation):
