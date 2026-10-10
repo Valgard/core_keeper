@@ -129,15 +129,46 @@ both — and is not optional for the nested struct, where the local is a copy.
 
 ### Trap: a config value the bake reads must be bound in `EarlyInit`
 
-The loader's order is: **`EarlyInit` (all mods) → database and world conversion
-(`PugDatabasePostConverter.PostConvert`) → `Init` (all mods)**. A value your
-prefix consumes *during* the conversion must therefore already be read and bound
-in `EarlyInit`.
+There are two kinds of conversion, and `Init` falls between them. Measured on
+1.3.0.6 in a client log and a dedicated-server log of the same mod set, the order
+is identical on both sides:
 
-Bound in `Init`, the bake has already run and copied the **hard-coded default**
-instead — and the idempotency guard that `PostConvert` needs anyway then freezes
-that default in place. Restarting does not repair it: the ordering is the same
-every session, so a one-line timing mistake becomes a permanent one.
+1. `EarlyInit`, every mod.
+2. **The startup conversion**, in `ECSManager.Init`: it registers the
+   post-converters, `PugDatabasePostConverter` among them (`Pug.Other:3115`),
+   and converts the server authoring prefab once (`Pug.Other:2550`,
+   `Pug.Other:2553`, `Pug.Other:2554`). A `PostConvert` prefix fires here — its
+   log lines come before `PugDatabase initialized` and before any mod's `Init`.
+3. `Init`, every mod, then `Update` — in the same loader call (below).
+4. **The per-world conversions**, from `ECSManager.StartEcs`: on a client when a
+   world is entered, on a dedicated server when it starts its world. The server's
+   `StartEcs` runs the loader's update before it converts
+   (`DedicatedServer/Pug.Other:2785`), so a mod not yet initialised is
+   initialised there first. Through 1.2 a dedicated server ran `Init` *after*
+   `StartEcs`; [Harmony and ECS](harmony-and-ecs.md#the-dedicated-server-trap) has that measurement.
+
+This section used to put the world conversions before `Init` as well, which no
+1.3 log shows. What it concluded still holds, because `PostConvert` already runs
+in step 2: a value your prefix consumes *during* the conversion must be read and
+bound in `EarlyInit`.
+
+Bound in `Init`, the startup bake has already run and copied the **hard-coded
+default** instead — and the idempotency guard that `PostConvert` needs anyway
+then freezes that default in place, so the world conversions copy it too.
+Restarting does not repair it: the ordering is the same every session, so a
+one-line timing mistake becomes a permanent one.
+
+**The loader calls every mod's `Init` before any mod's `Update`.** Its update is
+`_modHandlers.Call.Init()` followed by `_modHandlers.Call.Update()`
+(`PugMod.Loader:1216`, `PugMod.Loader:1217`), and the first loops over every
+handler not yet initialised (`PugMod.Loader:844`). The order of `Init` between
+two mods that do not depend on each other is not yours to choose, but the first
+`Update` comes after all of them. So an edit to a list that other mods also edit
+from `Init` — a station's `canCraftObjects`, for one — belongs in the first
+`Update` if it has to see their entries: that is still before the world
+conversion that bakes the list. Measured in Complete Tools on 1.3.0.6, whose
+first `Update` found Caveling Divining Rod's Iron Workbench entry, written in
+that mod's `Init`, on client and dedicated server alike.
 
 `API.ConfigFilesystem` is initialised before any mod's `EarlyInit`, so reading
 configuration that early does work — see [storing configuration and state](persistence.md).

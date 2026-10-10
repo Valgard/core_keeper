@@ -111,6 +111,7 @@ symptom, not the topic.
 | Every source mod fails to compile, on a non-English machine | [Platforms and hosts](platforms.md) — the Roslyn satellite lookup |
 | A mod that loaded yesterday does not load today | [Troubleshooting](troubleshooting.md) — a stale game-version tag, the commonest cause; [Multiplayer and server](multiplayer-and-server.md) if it is a join that broke; [Platforms and hosts](platforms.md) on a Wine host |
 | A recipe added to a vanilla workbench never shows up, or `Not enough SimpleCraftingUIs` in the log | [Database and baking](database-and-baking.md#how-a-station-window-lays-out-the-list-six-slots-three-windows) — the station window has three six-slot windows |
+| An edit made from `Init` misses another mod's entries, depending on load order | [Database and baking](database-and-baking.md#trap-a-config-value-the-bake-reads-must-be-bound-in-earlyinit) — every `Init` runs before any `Update` |
 | A tag you set on mod.io simply is not there | [Publishing to mod.io](publishing.md) — unknown values are dropped silently |
 | The Steam Workshop tab's "Initialize Steam" does nothing | [Troubleshooting](troubleshooting.md) — a native library the SDK does not ship on macOS |
 | A Workshop upload fails, or its preview is rejected | [Publishing to the Steam Workshop](steam-workshop.md) — the 1 MB preview cap and what else the tab does silently |
@@ -153,6 +154,7 @@ symptom, not the topic.
 | Know what you may reference at compile time | [The load-time sandbox](sandbox.md) |
 | Patch a DOTS system, or read the live ECS world | [Harmony and ECS](harmony-and-ecs.md) |
 | Change a recipe, an item stat, or any baked object data | [Database and baking](database-and-baking.md) |
+| Know when your code runs relative to the database conversions | [Database and baking](database-and-baking.md#trap-a-config-value-the-bake-reads-must-be-bound-in-earlyinit), [Mod anatomy](mod-anatomy.md#the-imod-lifecycle) |
 | Add an item to a vanilla workbench, or to a vanilla loot table | [Database and baking](database-and-baking.md#how-a-station-window-lays-out-the-list-six-slots-three-windows), [loot tables](database-and-baking.md#adding-an-item-to-a-vanilla-loot-table) |
 | Add an options-menu entry or a rebindable keybind | [UI framework](ui-framework.md) |
 | Make directional input mean something else for a while (a "mode") | [UI framework](ui-framework.md) |

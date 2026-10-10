@@ -1412,8 +1412,14 @@
       "conversionManager.EnqueueGameObjectHierarchy(Manager.ecs.serverAuthoringPrefab);",
       "conversionManager.ConvertEnqueuedObjectsImmediately();"
     ],
+    "Pug.Other:2550": [
+      "ConfigurePostConverters(conversionManager);"
+    ],
     "Pug.Other:2553": [
       "conversionManager.EnqueueGameObjectHierarchy(Manager.ecs.serverAuthoringPrefab);"
+    ],
+    "Pug.Other:2554": [
+      "conversionManager.ConvertEnqueuedObjectsImmediately();"
     ],
     "Pug.Other:2555": [
       "PugDatabase.UpdateEntityMonos(Manager.mod.ExtraAuthoring);"
@@ -1970,6 +1976,9 @@
     ],
     "Pug.Other:309566": [
       "Manager.main.player = this;"
+    ],
+    "Pug.Other:3115": [
+      "conversionManager.AddPostConverter(new PugDatabasePostConverter());"
     ],
     "Pug.Other:311913": [
       "if (inventorySlot.amount < consumedAmount && !PugDatabase.HasComponent<CattleCD>(inventorySlot.objectID))"
@@ -3865,6 +3874,9 @@
     "PugMod.Loader:1216": [
       "_modHandlers.Call.Init();"
     ],
+    "PugMod.Loader:1217": [
+      "_modHandlers.Call.Update();"
+    ],
     "PugMod.Loader:1232": [
       "UnityEngine.Debug.Log(\"not loading incompatible mod \" + metadata.name);"
     ],
@@ -4134,6 +4146,9 @@
     ],
     "PugMod.Loader:609": [
       "UnityEngine.Debug.Log($\"Trying to patch type {type} from unknown assembly\");"
+    ],
+    "PugMod.Loader:844": [
+      "for (int i = 0; i < _mods.Count; i++)"
     ],
     "PugMod.Platform:70": [
       "bool flag2 = ModVersion.IsCompatible(Application.version, subscribedMod.modProfile.tags);"
