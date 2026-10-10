@@ -91,3 +91,34 @@ def test_malformed_tokens_parse_to_none(form):
     a near-miss is the normal case and must not be an exception.
     """
     assert parse(form) is None
+
+
+@pytest.mark.parametrize(
+    ("label", "fields"),
+    [
+        ("a member with no enclosing type", ("A", None, "Bar", 1, 1)),
+        ("a location with only one end", ("A", "Foo", "Bar", None, 5)),
+        ("a location with only a start", ("A", "Foo", "Bar", 5, None)),
+        ("a reversed range", ("A", "Foo", "Bar", 3, 1)),
+        ("a line before the first", ("A", "Foo", "Bar", 0, 0)),
+        ("no assembly", ("", "Foo", "Bar", 1, 1)),
+    ],
+)
+def test_a_citation_the_grammar_cannot_express_is_refused(label, fields):
+    """Each of these used to be constructible, and each lied in its own way.
+
+    Measured before the invariants existed: `first=None, last=5` made `locate`
+    return the element's first line and `render` drop the end silently; a
+    reversed range made `locate` return a line with no relation to the citation;
+    a member with no type rendered `A:Bar:1`, which parses back as the *type*
+    tier. Two of the three were silent, which is why this is a constructor
+    check and not a documented convention.
+    """
+    with pytest.raises(ValueError):
+        Citation(*fields)
+
+
+def test_a_line_number_below_one_is_not_a_citation():
+    """`A:0` is well-formed and names nothing; a 1-based grammar has no line 0."""
+    assert parse("Pug.Other:0") is None
+    assert parse("Pug.Other:Foo:Bar:0") is None

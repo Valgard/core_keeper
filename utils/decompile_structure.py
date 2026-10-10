@@ -406,6 +406,13 @@ def _decode(data):
             )
             for type_name, member, params, start, end in data["elements"]
         )
+        # Sorted here rather than trusted from the file. `_enclosing` bisects
+        # over member starts, so their order is an invariant of `Structure` --
+        # and nothing in a JSON array enforces it. Read back out of order the
+        # bisect lands on the wrong element and the citation anchors somewhere
+        # else, with the round trip still green because `describe` and `locate`
+        # would agree on the same wrong element.
+        elements = tuple(sorted(elements, key=lambda e: (e.start, e.end)))
         return Structure(elements, tuple(tuple(r) for r in data["error_ranges"]))
     except (KeyError, TypeError, ValueError):
         return None
@@ -424,6 +431,8 @@ def _read_entry(entry, stat):
         data = json.loads(entry.read_text())
     except (OSError, ValueError):
         return None
+    if not isinstance(data, dict):
+        return None  # valid JSON of the wrong kind; `.get` below would raise
     if data.get("format") != CACHE_FORMAT:
         return None
     if data.get("size") != stat.st_size or data.get("mtime_ns") != stat.st_mtime_ns:

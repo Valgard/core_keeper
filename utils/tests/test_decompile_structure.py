@@ -16,6 +16,7 @@ an open question into a silent verdict.
 import json
 
 import decompile_structure
+import pytest
 from citation_notation import Citation
 from citation_notation import parse
 from citation_notation import render
@@ -438,3 +439,37 @@ def test_describe_widens_to_the_type_when_a_range_leaves_the_member(tmp_path):
     citation = describe(s, 12, "A", last=14)
     assert (citation.type_name, citation.member) == ("Foo", None)
     assert locate(s, citation) == 12
+
+
+@pytest.mark.parametrize("payload", ["null", "[1, 2, 3]", "17", '"text"'])
+def test_a_cache_entry_that_is_not_an_object_is_reparsed(tmp_path, payload):
+    """Valid JSON of the wrong kind must not escape as an AttributeError.
+
+    `structure_of` documents that it returns None when nothing is known and a
+    Structure otherwise; a corrupt entry made it raise instead, out of a
+    function a pre-commit hook calls.
+    """
+    path = write(tmp_path, SIMPLE)
+    cache = tmp_path / "cache"
+    structure_of(path, cache_dir=cache)
+    next(cache.iterdir()).write_text(payload)
+    assert structure_of(path, cache_dir=cache) is not None
+
+
+def test_a_cache_entry_in_the_wrong_order_does_not_misplace_an_anchor(tmp_path):
+    """`_enclosing` bisects over member starts, so their order is an invariant.
+
+    Nothing in a JSON file enforces it. Read back unsorted, the bisect lands on
+    the wrong element and the citation anchors somewhere else entirely -- with
+    the round trip still green, because describe and locate would agree on the
+    same wrong element. So the decoder restores the order rather than trusting
+    the file.
+    """
+    path = write(tmp_path, SIMPLE)
+    cache = tmp_path / "cache"
+    expected = structure_of(path, cache_dir=cache)
+    entry = next(cache.iterdir())
+    stored = json.loads(entry.read_text())
+    stored["elements"] = list(reversed(stored["elements"]))
+    entry.write_text(json.dumps(stored))
+    assert structure_of(path, cache_dir=cache).elements == expected.elements

@@ -6,19 +6,31 @@ factor of three between two prototypes that each looked plausible on a handful
 of citations, so an aggregate taken from part of the corpus measures whichever
 bug happens to dominate.
 
-**What each test here can and cannot catch**, because an earlier draft of this
-file -- and the design spec -- claimed more for the round trip than it delivers.
-`describe` computes an offset from the element it found and `locate` re-finds
-that element by name and inverts the arithmetic, so when both agree on the
-element the round trip is an identity: a wrong *extent* passes it unharmed, and
-a decoy element 3,816 lines long would too. What it does catch is every way the
-*name* fails -- an anchor matching several declarations, a form nothing can
-spell, a token that will not parse back -- which is how it found the seven
-`UpdateJob` declarations.
+**What each test here can and cannot catch.** Two earlier drafts of this
+paragraph were wrong, in the same way each time: they claimed a reach for a test
+without measuring it. What follows is measured.
 
-Wrong extents are caught by the other two: the tier census, which moves if
-element boundaries shift, and the calibration fixtures, whose expected values
-were read out of the decompile by hand rather than taken from this code.
+The round trip is an identity whenever `describe` and `locate` agree on the
+element. `describe` computes an offset from the element it found; `locate`
+re-finds it by name and inverts the arithmetic. So a wrong *extent* passes it
+unharmed. What it catches is every way the *name* fails -- an anchor matching
+several declarations, a form nothing can spell, a token that will not parse back
+-- which is how it found seven `UpdateJob` declarations sharing one name.
+
+The tier census does **not** cover extents either, which was the second wrong
+claim. A decoy member nested inside every real member of every cited assembly
+leaves it reading exactly 660/56/5/1, with the round trip, the token round trip
+and the range test all green: the decoy is the innermost element, so the tier
+stays "member" and the arithmetic stays consistent. What the census does catch
+is an extent that changes which tier a line falls in -- a member whose `end`
+runs past its own body, for instance.
+
+Extents are covered by the two property tests at the end of this file --
+members disjoint, members inside their type -- and by the four calibration
+fixtures, whose expected values were read out of the decompile by hand rather
+than taken from this code. The properties are the load-bearing half: five
+hand-checked points against 157,134 elements is a sample, and disjointness is
+a property.
 
 It needs the decompile checkout and skips loudly without one. A skip here means
 the suite proved nothing about the handbook, which is different from passing.
@@ -206,3 +218,60 @@ def test_every_range_citation_keeps_its_span(range_citations, structures):
         if locate(structure, citation) != first or citation.last - citation.first != last - first:
             broken.append(f"{assembly}:{first}-{last} -> {render(citation)}")
     assert broken == [], f"{len(broken)} range(s) do not round trip: {broken[:5]}"
+
+
+def test_member_extents_are_disjoint_across_the_corpus(structures):
+    """`_enclosing` bisects over member starts, which is only valid if they are.
+
+    The property both other instruments are blind to, measured rather than
+    argued: a decoy member nested inside every real member of every cited
+    assembly leaves the tier census at exactly 660/56/5/1 and the round trip at
+    zero failures. `describe` picks the decoy because it is the innermost
+    element, `locate` inverts the same arithmetic, and the citation ends up
+    naming a member that does not exist with nothing saying so.
+
+    Disjointness sees it, because a nested decoy overlaps its parent -- and so
+    does an extent that reaches into its neighbour, which the census catches but
+    this catches earlier and by name. It is also the assumption `_enclosing`
+    has been making all along, so checking it costs nothing that was not
+    already owed.
+    """
+    overlaps = []
+    for assembly, structure in sorted(structures.items()):
+        if structure is None:
+            continue
+        furthest = None
+        for element in structure.members:
+            if furthest is not None and element.start <= furthest.end:
+                overlaps.append(
+                    f"{assembly}: {furthest.type_name}:{furthest.member}"
+                    f" ({furthest.start}-{furthest.end}) overlaps"
+                    f" {element.type_name}:{element.member}"
+                    f" ({element.start}-{element.end})"
+                )
+            if furthest is None or element.end > furthest.end:
+                furthest = element
+    assert overlaps == [], f"{len(overlaps)} overlapping member extent(s): {overlaps[:3]}"
+
+
+def test_every_member_lies_inside_the_type_it_names(structures):
+    """A member's extent inside its type's, for every member that has a type.
+
+    The members with `type_name=None` are the namespace-level declarations, and
+    `describe` already refuses to claim those -- they are the legitimate
+    exception, not a violation.
+    """
+    escaped = []
+    for assembly, structure in sorted(structures.items()):
+        if structure is None:
+            continue
+        extents = {}
+        for element in structure.types:
+            extents.setdefault(element.type_name, []).append(element)
+        for element in structure.members:
+            if element.type_name is None:
+                continue
+            holders = extents.get(element.type_name, ())
+            if not any(t.start <= element.start and element.end <= t.end for t in holders):
+                escaped.append(f"{assembly}: {element.type_name}:{element.member}")
+    assert escaped == [], f"{len(escaped)} member(s) outside their type: {escaped[:3]}"
