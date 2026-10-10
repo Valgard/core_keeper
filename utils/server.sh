@@ -58,8 +58,11 @@ FAKE_ID_MIN=9999000
 # The client's loader config: carries the normalised game version and the mods
 # the player waved through the incompatible-mod dialog. Both are needed to model
 # the version filter; empty when absent, which simply disables that filter.
+# `|| true`: without that directory find fails, pipefail passes it on, and set -e
+# would end the script here without a word — before any command could report
+# what is actually missing.
 LOADER_CFG="$(find "$CK_BOTTLE_PATH/drive_c/users/${CK_WINE_USER:-crossover}/AppData/LocalLow/Pugstorm/Core Keeper/Steam" \
-    -maxdepth 3 -name config.json -path "*/modloader/*" 2>/dev/null | head -1)"
+    -maxdepth 3 -name config.json -path "*/modloader/*" 2>/dev/null | head -1 || true)"
 
 is_running() { pgrep -f "$PROC_PATTERN" >/dev/null 2>&1; }
 
@@ -255,6 +258,12 @@ for row in out:
 do_relink() {
     [ -d "$MODS_DIR" ] || { echo "ERROR: server mod dir not found: $MODS_DIR" >&2; exit 1; }
     [ -d "$MODIO_CACHE" ] || { echo "ERROR: mod.io cache not found: $MODIO_CACHE" >&2; exit 1; }
+    # Without the loader config the plan cannot drop version-incompatible mods,
+    # so the server may load one the client skips — a "Game version mismatch"
+    # with nothing pointing here. Usually a wrong CK_WINE_USER.
+    if [ -z "$LOADER_CFG" ]; then
+        echo "WARNING: client loader config not found — version-incompatible mods are not filtered out" >&2
+    fi
 
     local plan
     plan="$(mktemp)"
