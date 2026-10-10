@@ -21,12 +21,40 @@ utils/server.sh start     # launch, wait for GameInfo.txt, print the join string
 utils/server.sh status    # running? plus GameID, IP, port, password
 utils/server.sh stop      # terminate
 utils/server.sh log       # follow CoreKeeperServerLog.txt
+utils/server.sh --help    # the commands; `start --help` for the launch options
 ```
 
-Configuration comes from the environment (see `.envrc.example`):
-`CK_SERVER_WORLD`, `CK_SERVER_PORT`, `CK_SERVER_PASSWORD`,
-`CK_SERVER_MAXPLAYERS`, `CK_SERVER_PLATFORM`, plus the shared `CK_BOTTLE_*`
-variables the install scripts already use.
+Defaults come from the environment (see `.envrc.example`): `CK_SERVER_WORLD`,
+`CK_SERVER_PORT`, `CK_SERVER_PASSWORD`, `CK_SERVER_MAXPLAYERS`,
+`CK_SERVER_PLATFORM`, plus the shared `CK_BOTTLE_*` variables the install
+scripts already use. An empty value is a setting, not an absence: an empty
+`CK_SERVER_PORT` means relay only, an empty `CK_SERVER_PLATFORM` every platform.
+`start` takes options that override them for one run and covers every other
+parameter `ARGUMENTS.txt` documents — world name, seed, mode, season, content
+bundles, Game ID, bind address, data path. Undocumented flags such as
+`-disableautosave` go after `--`:
+
+```bash
+utils/server.sh start -w 3 --world-name "Test" --mode Hard --no-port
+utils/server.sh start --dry-run --season Halloween   # print the command, start nothing
+```
+
+The server documents its parameters itself, in `ARGUMENTS.txt` next to the exe,
+and the script reads the value lists for `--mode`, `--season`,
+`--activate-content` and `--platform` from that file instead of carrying its own
+copy — the content bundles grow with game updates, and a copy would start
+refusing new ones. Values are checked before anything launches, because the
+server reports invalid or ignored arguments in `GameInfo.txt`, where they are
+easy to miss; `status` shows those notes. Without that file, or with a section
+an update renamed, a value goes through unchecked with a warning.
+
+Two options need care here. `--activate-content` and `--activate-all-content`
+are **permanent** for the world, and that world is the client's own through the
+symlinks below. `--data-path` moves the saves away from the `DedicatedServer`
+folder those symlinks live in, so the server no longer shares the client's
+world. A macOS path must be absolute and already exist, because `cxstart`
+converts an argument to a Windows path only when it names an existing file; a
+Windows path (`C:/Saves`) passes as it is.
 
 The launch flags the script passes — `-batchmode` without `-nographics`, the
 port as a command-line argument — are explained in the handbook. One thing is
