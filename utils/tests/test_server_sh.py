@@ -6,6 +6,7 @@ directory, so neither the result nor the value lists depend on what is installed
 on the machine running the suite.
 """
 
+import json
 import shlex
 import subprocess
 import time
@@ -466,3 +467,158 @@ def test_a_plain_start_while_running_just_reports_it(run, launchable, fake_runni
     assert result.returncode == 0
     assert "Server already running" in result.stdout
     assert not log.exists()
+
+
+def write_worlds(worldinfos, names):
+    """Write one <slot>.worldinfo per entry, shaped like the game's (name among other keys)."""
+    worldinfos.mkdir(parents=True, exist_ok=True)
+    for slot, name in names.items():
+        (worldinfos / f"{slot}.worldinfo").write_text(
+            json.dumps({"version": 1, "name": name, "seed": 7})
+        )
+
+
+@pytest.fixture
+def worlds(tmp_path):
+    """The default server data path's worldinfos, as the run fixture's bottle places it."""
+    data = (
+        tmp_path
+        / "bottle/drive_c/users/crossover/AppData/LocalLow/Pugstorm/Core Keeper/DedicatedServer"
+    )
+    worldinfos = data / "worldinfos"
+    write_worlds(worldinfos, {0: "Trontheim", 1: "Test", 2: "Test 2", 3: "Twin", 4: "twin"})
+    return worldinfos
+
+
+@pytest.mark.parametrize(
+    ("name", "slot"),
+    [
+        ("Test", "1"),  # exact, and not "Test 2"
+        ("trontheim", "0"),  # case-insensitive when there is no exact match
+        ("twin", "4"),  # an exact match beats a case-insensitive one
+    ],
+)
+def test_select_loads_the_world_with_that_name(run, worlds, name, slot):
+    """--select resolves a name to the slot the server actually takes."""
+    argv = server_argv(run("start", "-n", "--select", name))
+    assert value_of(argv, "-world") == slot
+
+
+@pytest.mark.parametrize(
+    ("names", "want"),
+    [
+        ({5: "Dup", 6: "Dup"}, "Dup"),  # two exact matches
+        ({5: "Dup", 6: "dup"}, "DUP"),  # no exact match, two case-insensitive ones
+    ],
+)
+def test_select_refuses_a_name_several_worlds_share(run, worlds, names, want):
+    """Several worlds answer to the name: picking one of them would be a guess."""
+    write_worlds(worlds, names)
+    result = run("start", "-n", "--select", want)
+    assert result.returncode == 1
+    assert "slots 5, 6" in result.stderr
+
+
+@pytest.mark.parametrize(("name", "shown"), [("Test", "Test"), ("trontheim", "Trontheim")])
+def test_select_shows_the_world_under_its_own_name(run, worlds, name, shown):
+    """The server shows its stored name unless told otherwise, so --select passes the file's."""
+    argv = server_argv(run("start", "-n", "--select", name))
+    assert value_of(argv, "-worldname") == shown
+
+
+def test_an_explicit_world_name_wins_over_the_selected_one(run, worlds):
+    """--world-name next to --select is a deliberate choice of display name."""
+    argv = server_argv(run("start", "-n", "--select", "Test", "--world-name", "Shown"))
+    assert value_of(argv, "-worldname") == "Shown"
+
+
+def test_select_wins_over_the_environment_slot(run, worlds):
+    """CK_SERVER_WORLD is a default; --select names the world for this run."""
+    argv = server_argv(run("start", "-n", "--select", "Test", CK_SERVER_WORLD="3"))
+    assert value_of(argv, "-world") == "1"
+
+
+def test_select_lists_the_worlds_when_the_name_is_unknown(run, worlds):
+    """The error for an unknown name is also the list to choose from."""
+    result = run("start", "-n", "-s", "Nowhere")
+    assert result.returncode == 1
+    assert "no world named 'Nowhere'" in result.stderr
+    assert " 1  Test" in result.stderr
+
+
+def test_select_ignores_backups(run, worlds):
+    """Only <slot>.worldinfo counts, not the .pugbackup copies beside it."""
+    (worlds / "1.worldinfo.pugbackup").write_text(json.dumps({"name": "Backup"}))
+    result = run("start", "-n", "--select", "Backup")
+    assert result.returncode == 1
+    assert "no world named 'Backup'" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "not json",
+        json.dumps({"name": None}),
+        json.dumps({"name": 5}),
+        json.dumps({"seed": 1}),
+        "[]",
+    ],
+)
+def test_an_unreadable_world_is_reported_even_when_another_matches(run, worlds, content):
+    """The broken file may be the world that was meant, so a match elsewhere must not hide it."""
+    (worlds / "9.worldinfo").write_text(content)
+    result = run("start", "-n", "--select", "Test")
+    assert value_of(server_argv(result), "-world") == "1"
+    assert "no readable world name in 9.worldinfo" in result.stderr
+
+
+def test_a_slot_outside_the_servers_range_is_refused(run, worlds):
+    """A stray 35.worldinfo names a slot the server would reject; say where it came from."""
+    write_worlds(worlds, {35: "Far"})
+    result = run("start", "-n", "--select", "Far")
+    assert result.returncode == 1
+    assert "--select found 'Far' in slot 35" in result.stderr
+
+
+def test_select_reads_the_worlds_of_a_custom_data_path(run, worlds, tmp_path):
+    """With --data-path the worlds that server would load are the ones searched."""
+    other = tmp_path / "other"
+    write_worlds(other / "worldinfos", {7: "Elsewhere"})
+    argv = server_argv(run("start", "-n", "--data-path", str(other), "--select", "Elsewhere"))
+    assert value_of(argv, "-world") == "7"
+
+
+@pytest.mark.parametrize(
+    ("args", "message"),
+    [
+        (["--select", "Test", "-w", "2"], "-w and --select both choose the world"),
+        (["--select", "Test", "--data-path", "C:/Saves"], "cannot read the worlds under a Windows"),
+        (["--select", "Test", "--data-path", "saves"], "must be an absolute macOS path"),
+    ],
+)
+def test_select_conflicts_are_refused(run, worlds, args, message):
+    """--select cannot combine with another way of choosing, or with worlds it cannot read."""
+    result = run("start", "-n", *args)
+    assert result.returncode == 1
+    assert message in result.stderr
+
+
+def test_select_without_a_world_list_fails(run):
+    """No worldinfos directory at all is an error, not a fallback to slot 0."""
+    result = run("start", "-n", "--select", "Test")
+    assert result.returncode == 1
+    assert "no world list at" in result.stderr
+
+
+def test_world_name_alone_warns_that_it_does_not_select(run):
+    """The --world-name mix-up: it names whatever slot loads, here CK_SERVER_WORLD's default."""
+    result = run("start", "-n", "--world-name", "Test")
+    assert "does not select one — loading slot 0" in result.stderr
+    assert value_of(server_argv(result), "-world") == "0"
+
+
+@pytest.mark.parametrize("choice", [["-w", "1"], ["--select", "Test"]])
+def test_world_name_with_a_chosen_world_does_not_warn(run, worlds, choice):
+    """Once the world is chosen explicitly, naming it is unambiguous."""
+    result = run("start", "-n", *choice, "--world-name", "Shown")
+    assert "WARNING" not in result.stderr

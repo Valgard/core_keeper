@@ -35,9 +35,24 @@ bundles, Game ID, bind address, data path. Undocumented flags such as
 `-disableautosave` go after `--`:
 
 ```bash
-utils/server.sh start -w 3 --world-name "Test" --mode Hard --no-port
+utils/server.sh start --select "Test"                # load the world named Test
+utils/server.sh start -w 3 --mode Hard --no-port
 utils/server.sh start --dry-run --season Halloween   # print the command, start nothing
 ```
+
+**The server picks a world by slot, never by name** ([handbook](ck/multiplayer-and-server.md)).
+`-w` passes the slot. `--select NAME` looks the name up in
+`worldinfos/<slot>.worldinfo` — the client's own world list, which this setup
+can read only because that folder is one of the symlinks below — and passes
+both the slot and the name, since the server would otherwise show the world
+under whatever name its `ServerConfig.json` last recorded. It refuses a name no
+world carries, listing what exists, and one several worlds share, and it names
+any world file it could not read. `--world-name` is the trap: it selects
+nothing, it only sets the name clients see for whatever slot loads, which here
+is `CK_SERVER_WORLD` (default 0), because the script always passes `-w`. The
+script warns when it comes without `-w` or `--select`. The client's own world
+list keeps its names either way; the dedicated server does not write the
+`.worldinfo` files.
 
 The server documents its parameters itself, in `ARGUMENTS.txt` next to the exe,
 and the script reads the value lists for `--mode`, `--season`,

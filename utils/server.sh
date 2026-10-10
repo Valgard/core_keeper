@@ -52,6 +52,11 @@ MODS_DIR="$CK_SERVER_DIR/CoreKeeperServer_Data/StreamingAssets/Mods"
 MODIO_CACHE="$CK_BOTTLE_PATH/drive_c/users/Public/mod.io/5289/mods"
 # The server's own parameter reference, shipped next to the exe.
 ARGUMENTS_TXT="$CK_SERVER_DIR/ARGUMENTS.txt"
+# The server's default data path. Its worldinfos/ is a symlink to the client's
+# (docs/dedicated-server.md), holding one <slot>.worldinfo per world with the
+# name the client lists it under. The dedicated server itself never reads them:
+# it takes name, mode and seed from its own ServerConfig.json.
+SERVER_DATA="$CK_BOTTLE_PATH/drive_c/users/${CK_WINE_USER:-crossover}/AppData/LocalLow/Pugstorm/Core Keeper/DedicatedServer"
 # Matches the Windows process inside the bottle; -f is the only pgrep/pkill flag
 # that behaves correctly under macOS proctools.
 PROC_PATTERN="CoreKeeperServer.exe"
@@ -124,6 +129,55 @@ canonical() {
     printf '%s' "$match"
 }
 
+# Prints "<slot><TAB><name>" for the world named $2, read from the
+# <slot>.worldinfo files in $1 — the slot to pass, and the name as the file
+# spells it. The server only knows slots, so this is the whole of selecting by
+# name. An exact match wins; failing that, a case-insensitive one. Dies when the
+# name matches no world (listing every world by slot) or several (naming their
+# slots): guessing between two worlds of one name would start the wrong one.
+#
+# A file that cannot be read is reported even when the lookup succeeds: it may
+# be the world that was meant, and then the match found is the wrong one.
+world_slot_by_name() {
+    local dir="$1" name="$2"
+    [ -d "$dir" ] || die_usage "--select: no world list at $dir"
+    WORLDINFOS="$dir" WANT="$name" python3 -c '
+import json, os, re, sys
+
+dir_, want = os.environ["WORLDINFOS"], os.environ["WANT"]
+worlds, unreadable = [], []
+for entry in os.listdir(dir_):
+    m = re.fullmatch(r"(\d+)\.worldinfo", entry)
+    if not m:
+        continue
+    try:
+        with open(os.path.join(dir_, entry), encoding="utf-8-sig") as f:
+            name = json.load(f).get("name")
+    except (OSError, ValueError, AttributeError):
+        name = None
+    if isinstance(name, str):
+        worlds.append((int(m.group(1)), name))
+    else:
+        unreadable.append(entry)
+worlds.sort()
+
+if unreadable:
+    print("WARNING: no readable world name in %s, so not considered" % ", ".join(sorted(unreadable)), file=sys.stderr)
+
+hits = [w for w in worlds if w[1] == want] or [w for w in worlds if w[1].casefold() == want.casefold()]
+if len(hits) == 1:
+    print("%d\t%s" % hits[0])
+    sys.exit(0)
+
+if hits:
+    print("several worlds are named %r: slots %s - select one with -w" % (want, ", ".join(str(s) for s, _ in hits)), file=sys.stderr)
+else:
+    listing = "\n".join("  %2d  %s" % w for w in worlds) or "  (none)"
+    print("no world named %r. Worlds by slot:\n%s" % (want, listing), file=sys.stderr)
+sys.exit(1)
+' || die_usage "--select could not pick a world (see above)"
+}
+
 usage() {
     cat <<'EOF'
 Usage: utils/server.sh <command> [options]
@@ -166,8 +220,14 @@ brackets is the current default. Options take their value as '--opt VALUE' or
 '--opt=VALUE'.
 
 World:
-  -w, --world N              World index, 0-29.                  [${CK_SERVER_WORLD}]
-      --world-name NAME      Name clients see in their network settings.
+  -w, --world N              World slot to load, 0-29.           [${CK_SERVER_WORLD}]
+  -s, --select NAME          Load the world with this name, looked up in the
+                             worldinfos, and show it under that name; instead
+                             of -w.
+      --world-name NAME      Name clients see in their network settings. Does
+                             NOT select a world: the one -w or --select loads
+                             is shown under this name. Kept by the server for
+                             later starts without it.
       --seed SEED            World seed, any string. Only used when the world
                              is first created; omit for a random seed.
       --hashed-seed N        An already hashed seed, 0-4294967295, for when
@@ -212,7 +272,9 @@ Script:
 
 Everything after '--' goes to CoreKeeperServer.exe unchanged. The server's own
 reference for every parameter is ARGUMENTS.txt in its install directory; the
-value lists above are read from it.
+value lists above are read from it. The server keeps world, name, seed, mode,
+season, player cap, Game ID and password in ServerConfig.json in its data path,
+and a later start without the matching option uses what is stored there.
 EOF
 }
 
@@ -455,6 +517,7 @@ do_relink() {
 do_start() {
     local world_name="" seed="" hashed_seed="" mode="" season="" content="" all_content=0
     local data_path="" game_id="" ip="" relink=1 dry_run=0 have_opts=0 platform_opt=0
+    local select="" world_opt=0
     local passthrough=()
 
     while [ $# -gt 0 ]; do
@@ -463,7 +526,7 @@ do_start() {
             --*=*) val="${opt#*=}"; opt="${opt%%=*}"; inline=1 ;;
         esac
         case "$opt" in
-            -w | --world | --world-name | --seed | --hashed-seed | --mode | --season | --activate-content | \
+            -w | --world | -s | --select | --world-name | --seed | --hashed-seed | --mode | --season | --activate-content | \
                 --data-path | --game-id | -p | --port | --password | --ip | --max-players | --platform | --timeout)
                 if [ "$inline" = 0 ]; then
                     [ $# -ge 2 ] || die_usage "$opt needs a value"
@@ -476,7 +539,8 @@ do_start() {
         esac
         case "$opt" in
             -h | --help) usage_start; exit 0 ;;
-            -w | --world) CK_SERVER_WORLD="$val" ;;
+            -w | --world) CK_SERVER_WORLD="$val"; world_opt=1 ;;
+            -s | --select) select="$val" ;;
             --world-name) world_name="$val" ;;
             --seed) seed="$val" ;;
             --hashed-seed) hashed_seed="$val" ;;
@@ -502,6 +566,33 @@ do_start() {
         have_opts=1
         shift
     done
+
+    # --select first: it decides the slot every check below sees.
+    local selected=""
+    if [ -n "$select" ]; then
+        [ "$world_opt" = 0 ] || die_usage "-w and --select both choose the world; give one of them"
+        # The worlds a non-default --data-path holds are the ones that server
+        # would load. A Windows path cannot be read from here.
+        local worldinfos="$SERVER_DATA/worldinfos"
+        case "$data_path" in
+            '') ;;
+            /*) worldinfos="$data_path/worldinfos" ;;
+            [A-Za-z]:[/\\]*) die_usage "--select cannot read the worlds under a Windows --data-path; use -w" ;;
+            *) die_usage "--data-path must be an absolute macOS path or a Windows path like C:/Saves, got '$data_path'" ;;
+        esac
+        selected="$(world_slot_by_name "$worldinfos" "$select")"
+        CK_SERVER_WORLD="${selected%%$'\t'*}"
+        selected="${selected#*$'\t'}"
+        in_range "$CK_SERVER_WORLD" 0 29 || die_usage "--select found '$selected' in slot $CK_SERVER_WORLD, outside the 0-29 the server accepts"
+        # The dedicated server shows the name from its ServerConfig.json, which
+        # holds whatever the last -worldname said — so without this the world
+        # would appear under a stale name. An explicit --world-name still wins.
+        [ -n "$world_name" ] || world_name="$selected"
+    elif [ -n "$world_name" ] && [ "$world_opt" = 0 ]; then
+        # The mix-up this guards against happened: --world-name "Test" meant as
+        # "load the world called Test" started slot 0 under that name instead.
+        echo "WARNING: --world-name names the world, it does not select one — loading slot $CK_SERVER_WORLD (CK_SERVER_WORLD); use -w or --select to choose" >&2
+    fi
 
     # Validated after parsing, so a bad CK_SERVER_* value from .envrc is caught
     # the same way as a bad option. The server reports invalid or ignored
@@ -612,7 +703,7 @@ do_start() {
         "$EXE" "${argv[@]}" >/dev/null 2>&1 &
     disown
 
-    echo "Starting (world $CK_SERVER_WORLD)…"
+    echo "Starting (world ${CK_SERVER_WORLD}${selected:+, \"$selected\"})…"
     local waited=0
     while [ ! -f "$GAMEINFO" ] && [ "$waited" -lt "$START_TIMEOUT" ]; do
         sleep 4
