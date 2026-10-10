@@ -39,7 +39,7 @@ machinery those arrangements sit on.
 
 | Chapter | Covers |
 |---|---|
-| [Toolchain requirements](toolchain.md) | What the SDK demands of any setup — the exact Unity version, the build modules, the one-time wizard steps, the project lock, and where the macOS meta-file fix is written up |
+| [Toolchain requirements](toolchain.md) | What the SDK demands of any setup — the exact Unity version, the build modules, the wizard steps and why a game update repeats one, the project lock, duplicate package GUIDs, the macOS Inspector that drops edits, and where the macOS meta-file fix is written up |
 | [Organising a mod project](organising-a-mod-project.md) | Why the Editor writes outside your repository and what closes that gap, separating machine paths from mod identity, a formatting gate that cannot silently pass, pinning what produces shipped bytes |
 | [Platforms and hosts](platforms.md) | Where the game runs and keeps its files, what a Wine-based host breaks and how those failures look, reading logs on a translated host |
 | [Mod anatomy](mod-anatomy.md) | The `IMod` lifecycle, assembly definitions, the ModBuilderSettings `.asset` versus the generated manifest, the two kinds of GUID, dependencies, chat commands, and `requiredOn` with its crossed checks |
@@ -117,6 +117,9 @@ symptom, not the topic.
 | A workbench shows an empty extra window | [Database and baking](database-and-baking.md#how-a-station-window-lays-out-the-list-six-slots-three-windows) — observed with trailing `None` padding, cause open |
 | A setting changed in a menu is back to its old value after a restart | [Storing configuration and state](persistence.md#2-corelibs-configfile--typed-entries-at-a-price) — another mod turned `SaveOnConfigSet` off |
 | An edit made from `Init` misses another mod's entries, depending on load order | [Database and baking](database-and-baking.md#trap-a-config-value-the-bake-reads-must-be-bound-in-earlyinit) — every `Init` runs before any `Update` |
+| The Unity Editor crashes when you open any prefab | [Toolchain requirements](toolchain.md#after-a-game-update-update-the-sdk-then-update-game-files-again) — stale SDK Editor assemblies after a game update |
+| Inspector edits revert on macOS | [Toolchain requirements](toolchain.md#on-macos-the-inspector-loses-edits-on-components-that-reference-a-data-block) — the data-block drawer throws; use the Debug Inspector |
+| Every prefab shows a missing script after adding a package's source | [Toolchain requirements](toolchain.md#two-copies-of-one-package-break-its-guids) — two copies, new GUIDs |
 | A tag you set on mod.io simply is not there | [Publishing to mod.io](publishing.md) — unknown values are dropped silently |
 | The Steam Workshop tab's "Initialize Steam" does nothing | [Troubleshooting](troubleshooting.md) — a native library the SDK does not ship on macOS |
 | A Workshop upload fails, or its preview is rejected | [Publishing to the Steam Workshop](steam-workshop.md) — the 1 MB preview cap and what else the tab does silently |

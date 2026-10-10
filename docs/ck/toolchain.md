@@ -43,6 +43,62 @@ nothing re-runs that scan later. Do it first and the list is empty — the mod
 compiles against nothing, and no amount of updating game files afterwards
 repairs it.
 
+## After a game update: update the SDK, then Update Game Files again
+
+"Once" above means once per clone, not once for good. **Update Game Files is
+also the step that installs the SDK's Editor assemblies**, and those are tied to
+the game build. Besides copying the game's assemblies, it unpacks every
+`*.Editor.dll` from `Assets/ModSDK/EditorAssemblies.zip` — a file tracked in the
+SDK repository and replaced by Pugstorm's "Update SDK for …" commits — into the
+project (`ImporterWindow` in the SDK's importer package). A game update can
+therefore need both halves: pull the SDK, so the zip matches the game, and run
+Update Game Files, so the project holds what is in it.
+
+Skipping either one shows up in a place that looks unrelated. Measured with an
+SDK clone left at its 1.3.0.1 update while the game was on 1.3.0.5: **opening any
+prefab crashed the Editor**, with a `MissingMethodException` for
+`PugText.RenderEditorPreview` followed by a native crash. The 1.3.0.2 game
+assemblies still declare `PugText.RenderEditorPreview(PugText, bool)`; the
+1.3.0.4 ones no longer do. The `PugText.Editor.dll` in the SDK's 1.3.0.1 zip calls
+it, while the one in the zip of "Update SDK for 1.3.0.3" carries a preview
+method of its own. Pulling the SDK and running Update Game Files once more fixed
+it.
+
+## Two copies of one package break its GUIDs
+
+Unity requires every asset GUID to be unique in a project. **Adding a source
+clone of a package while the installed package is still there** — CoreLib as an
+`Assets/` folder beside the `ck.modding.corelib` package, for one — puts two
+copies of every `.meta` GUID into the project, and Unity resolves that on its
+own by giving one copy new GUIDs. Observed in an SDK clone: 707 `.meta` files in the
+CoreLib clone were rewritten, every prefab that referenced CoreLib's
+`SupportsCoreLib` by its usual GUID showed a missing script and refused to save,
+and the cause looked like an upstream GUID change until the clone's own history
+said otherwise. Remove the package before adding the clone. If it has already
+happened, remove the package and restore the clone's `.meta` files from its
+repository; the prefabs resolve again without being touched.
+
+## On macOS, the Inspector loses edits on components that reference a data block
+
+A field edited in the normal Inspector **does not keep its value** on a
+component that has a data-block reference field, with nothing in the Inspector
+to say so. The cause is the SDK's `DataBlockRefDrawer` (in
+`ScriptableData.Editor.dll`): drawing the field calls
+`ScriptableDataEditorUtility.GetCachedDataBlocks`, which sorts the blocks
+through `FilePathComparer`, a P/Invoke of `StrCmpLogicalW` in Windows'
+`shlwapi.dll` with no platform branch. On macOS that throws a
+`DllNotFoundException` — from the sort, so only once the project holds two or
+more blocks of the type. The exception and the lost edit were observed; that the
+exception ends the Inspector pass before the component's changes are applied is
+the reading that connects them. A failed sort is not cached, so it repeats on
+every repaint.
+
+The **Debug** Inspector draws the raw serialized fields without that drawer and
+keeps edits; it was used to author an item prefab on a macOS Editor this way.
+Editing the prefab's YAML with the Editor closed is the other route. Measured on
+an SDK at its 1.3.0.5 commit; Linux, which lacks `shlwapi.dll` too, is
+untested.
+
 ## The Editor locks the project
 
 A `-batchmode` build cannot run while the Editor has the project open; Unity
@@ -71,10 +127,13 @@ present.
 
 ## When the setup itself misbehaves
 
-Two failures belong to getting a toolchain running rather than to any mod, and
+These failures belong to getting a toolchain running rather than to any mod, and
 each is written up under the symptom you actually see:
 
 | Symptom | Where |
 |---|---|
 | A fresh SDK clone will not compile on macOS | [Troubleshooting](troubleshooting.md#a-fresh-sdk-clone-will-not-compile-on-a-macos-editor-host) |
 | The Editor hangs at "Initial Asset Database Refresh" | [Troubleshooting](troubleshooting.md#the-unity-editor-hangs-at-initial-asset-database-refresh) |
+| The Editor crashes as soon as a prefab is opened, after a game update | [Above](#after-a-game-update-update-the-sdk-then-update-game-files-again) — stale SDK Editor assemblies |
+| Prefabs show a missing script after a package was swapped for its source | [Above](#two-copies-of-one-package-break-its-guids) — duplicate GUIDs |
+| Inspector edits revert on macOS | [Above](#on-macos-the-inspector-loses-edits-on-components-that-reference-a-data-block) — use the Debug Inspector |
