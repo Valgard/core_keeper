@@ -34,6 +34,9 @@
     "DedicatedServer/Pug.Other:2542": [
       "conversionManager.EnqueueGameObjectHierarchy(Manager.ecs.serverAuthoringPrefab);"
     ],
+    "DedicatedServer/Pug.Other:2549": [
+      "Manager.mod.Authoring.ObjectProperties = entityQuery.GetSingleton<DatabaseCD>().ObjectPropertyLookup.AsEnum<ObjectID>();"
+    ],
     "DedicatedServer/Pug.Other:2690-2712": [
       "private void PauseWorld(World world)",
       "{",
@@ -175,6 +178,9 @@
     ],
     "Interaction.Converters:135": [
       "if (interactableOnUseAction.GetPersistentEventCount() > 0)"
+    ],
+    "LoadItemDictSystem.cs:87": [
+      "var modAuthoring = (API.Authoring as ModAPIAuthoring)?.ObjectIDLookup;"
     ],
     "LocalizationModule.cs:132": [
       "localizationSourceData.AddLanguage(translations.LocalizationName, translations.LocalizationCode);"
@@ -332,6 +338,9 @@
     "Pug.ECS.Authoring:3031": [
       "foreach (InventoryItemAuthoring.CraftingObject item in component2.requiredObjectsToCraft)"
     ],
+    "Pug.ECS.Authoring:3033": [
+      "ObjectID objectID2 = ((API.Authoring != null) ? API.Authoring.GetObjectID(item.objectName) : ObjectID.None);"
+    ],
     "Pug.ECS.Authoring:3251": [
       "public List<ObjectID> canBePlacedOnObjects;"
     ],
@@ -448,8 +457,14 @@
     "Pug.ECS.Conversion:3572": [
       "Manager.mod.Authoring.ObjectIDLookup.TryAdd(authoring.objectName, (ObjectID)base.ObjectIndex);"
     ],
+    "Pug.ECS.Conversion:3576": [
+      "base.PropertiesBuilder.SetPropertyString(base.ObjectIndex, \"name\", authoring.objectName);"
+    ],
     "Pug.ECS.Conversion:5813": [
       "protected override void Convert(EntityMonoBehaviourData authoring)"
+    ],
+    "Pug.ECS.Conversion:5815": [
+      "string text = authoring.objectInfo.objectID.ToString();"
     ],
     "Pug.ECS.Conversion:5818": [
       "Manager.mod.Authoring.ObjectIDLookup.TryAdd(text, authoring.objectInfo.objectID);"
@@ -1415,6 +1430,9 @@
     "Pug.Other:2550": [
       "ConfigurePostConverters(conversionManager);"
     ],
+    "Pug.Other:2551": [
+      "PugDatabase.UpdateEntityMonos(PugDatabase.BuildAuthoringListFromEntityDataBlocks());"
+    ],
     "Pug.Other:2553": [
       "conversionManager.EnqueueGameObjectHierarchy(Manager.ecs.serverAuthoringPrefab);"
     ],
@@ -1491,6 +1509,9 @@
     ],
     "Pug.Other:272172": [
       "[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]"
+    ],
+    "Pug.Other:272234": [
+      "API.Authoring = new ModAPIAuthoring();"
     ],
     "Pug.Other:272241-272255": [
       "if (!num)",
@@ -2538,6 +2559,15 @@
     "Pug.Other:324307": [
       "private static void PlaceItem(ref NativeList<PlacementHandler.EntityAndInfoFromPlacement> entitiesToRemoveByWater, in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)"
     ],
+    "Pug.Other:325814": [
+      "if (!(entityMono is IEntityMonoBehaviourData { ObjectInfo: { objectID: not ObjectID.None } objectInfo } entityMonoBehaviourData))"
+    ],
+    "Pug.Other:325825": [
+      "objectsByType.TryAdd(key, objectInfo);"
+    ],
+    "Pug.Other:325888": [
+      "public static ObjectInfo GetObjectInfo(ObjectID objectID, int variation = 0)"
+    ],
     "Pug.Other:326289": [
       "if (!(num2 <= lootTableBank.Value.lootTables[i].guaranteedDropsLootTable[j].accumulatedDropChance))"
     ],
@@ -3350,6 +3380,9 @@
     "Pug.Other:3747": [
       "ObjectKey key = new ObjectKey(objectInfo.objectID, objectInfo.variation);"
     ],
+    "Pug.Other:3749": [
+      "if (!dictionary.TryGetValue(key, out var value))"
+    ],
     "Pug.Other:374917": [
       "return pugCamera.TransformMousePosition(mousePosition) / 16f;"
     ],
@@ -3457,6 +3490,9 @@
     ],
     "Pug.Other:410061": [
       "public World World => Manager.ecs.ServerWorld;"
+    ],
+    "Pug.Other:410199": [
+      "public readonly Dictionary<string, ObjectID> ObjectIDLookup = new Dictionary<string, ObjectID>();"
     ],
     "Pug.Other:410222": [
       "if (ObjectIDLookup.TryGetValue(name, out var value))"
@@ -4261,6 +4297,9 @@
       "BurstCompiler.Options.EnableBurstCompilation = false;",
       "}",
       "}"
+    ],
+    "PugProperties:1436": [
+      "BlobBuilderArray<ObjectData> blobBuilderArray = builder.Allocate(ref reference.Objects, num + 1);"
     ],
     "PugRP:1266-1271": [
       "public enum OutputMode",

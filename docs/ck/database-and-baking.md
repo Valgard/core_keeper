@@ -283,7 +283,8 @@ first entity conversion of the process, in the order the conversion queue
 reaches the prefab.** Nothing derives it from the name, and no ID table is
 exchanged or reconciled between processes — the IDs themselves cross the
 network all the time, in ghost snapshots and in the craft request below. Traced
-on build `1.3.0.5-cb48`, client and dedicated server alike:
+on build `1.3.0.5-cb48` and re-checked on `1.3.0.6-6e73`, client and dedicated
+server alike:
 
 1. `API.Authoring.GetObjectID(name)` is a dictionary lookup and nothing else
    (`Pug.Other:410222`); a name that is not in it returns `ObjectID.None`.
@@ -331,8 +332,22 @@ come out in a different order on each side. The dedicated-server decompile runs
 the identical path (`DedicatedServer/Pug.Other:2542`,
 `DedicatedServer/Pug.Other:3617`, `DedicatedServer/PugMod.Loader:2236`). Nothing
 at connect time would notice: the connect request carries a hash over the ghost
-collection (`Pug.Other:2599`), not the ID table. This is read from the code; the
-mismatch has not been observed in game.
+collection (`Pug.Other:2599`), not the ID table.
+
+**Measured on 1.3.0.5, 2026-10-08.** Complete Tools registered its item on a
+block with a *fixed* address, in a mod set with nine random-address blocks:
+CoreLib's root workbench plus seven workbenches it generated for ChestsGalore,
+and Caveling Divining Rod's rod. The same item, the Relucite Pickaxe, came out
+as 32870 on the client and 32874 on a local dedicated server, and two client
+launches with nothing changed gave 32870 and 32873 — the value moves from launch
+to launch, as the random sort predicts. A craft on the server failed: the client
+showed the materials vanish and come back, which is its predicted craft being
+rolled back, because to the server 32870 named another object. The workbench
+CoreLib itself creates showed it too — placed on the dedicated server, it became
+a different object, and the copy in the player's inventory showed as a different
+item after every server restart. The CoreLib side is reported upstream as [CoreLib issue #53](https://github.com/CoreKeeperMods/CoreLib/issues/53);
+CoreLib's generated workbenches use the no-address overload (`EntityModule.cs`,
+line 280 in CoreLib 5.0.0).
 
 **Saves are the exception, and the strongest sign that the game treats these
 IDs as unstable.** Both save paths translate modded IDs back by name on load. A
@@ -344,17 +359,107 @@ re-resolves each modded slot with `API.Authoring.GetObjectID`
 (`Pug.Other:133539`, `Pug.Other:133541`). Neither runs during play: crafting,
 synced entities and the UI all use the raw ID.
 
-**A stable address is not a stable `ObjectID`.** Two ways to the first, neither
-measured: ship the block as an asset, whose address is serialised with it, or
-call the overload that takes an address, `CreateRuntimeInstance<T>(modId,
-address)` — the loader then derives the block's address from a SHA-256 of the
-mod's manifest GUID and the given address (`PugMod.Loader:2262`,
-`PugMod.Loader:2295`), the same on every machine for one build of the mod. What
-the overload's `m_overload` side effect does is [below](#scriptabledata-blocks-addresses-and-order). Either way, the IDs are
-only as stable as everything else that consumes the counter: another mod's
-random-address block still sorts among yours — CoreLib creates one for every
-workbench it generates — and a mod installed on only one side shifts every value
-after its own.
+**A stable address is not a stable `ObjectID` — measured, not only argued.**
+Two ways to the first: ship the block as an asset, whose address is serialised
+with it, or call the overload that takes an address,
+`CreateRuntimeInstance<T>(modId, address)` — the loader then derives the
+block's address from a SHA-256 of the mod's manifest GUID and the given address
+(`PugMod.Loader:2262`, `PugMod.Loader:2295`), the same on every machine for one
+build of the mod. What the overload's `m_overload` side effect does is [below](#scriptabledata-blocks-addresses-and-order).
+The measurement above used that overload. The IDs are only as stable as
+everything else that consumes the counter: another mod's random-address block
+still sorts among yours, and a mod installed on only one side shifts every value
+after its own. Choosing an address that sorts first only narrows the same
+dependency — the number is still a function of every other installed mod, and a
+second mod doing the same thing breaks it.
+
+### Pinning a modded item's `ObjectID`: seed the lookup first
+
+**What does work is to give the item a preferred index before the first
+conversion, by writing its ID into the lookup that `GetObjectID` reads.** The
+chain is the one in step 3 above: an `ObjectAuthoring` prefers whatever
+`API.Authoring.GetObjectID(objectName)` returns (`Pug.ECS.Authoring:2992`,
+`Pug.ECS.Authoring:2983`), and that is `ModAPIAuthoring.ObjectIDLookup`, a
+public `readonly Dictionary<string, ObjectID>` (`Pug.Other:410199`, read at
+`Pug.Other:410222`). An ID found there is used as the object's index and the
+counter is not consulted (`PugConversion:1044`); the converter's own write is a
+`TryAdd`, so the seeded value stays (`Pug.ECS.Conversion:3572`); and every later
+conversion reuses it. The lookup exists from the moment the loader's API is
+created (`Pug.Other:272234`), before `EarlyInit`, so `EarlyInit` is where to
+seed it:
+
+```csharp
+var lookup = (API.Authoring as ModAPIAuthoring)?.ObjectIDLookup;
+if (lookup == null) { /* log loudly: the game changed */ return; }
+if (!lookup.TryGetValue("MyItem", out _))
+    lookup["MyItem"] = (ObjectID)FixedIdFor("MyItem");
+```
+
+The cast passes the sandbox — `ModAPIAuthoring` is a public type in namespace
+`PugMod`, and CoreLib, itself a sandboxed source mod, does the same cast
+(`LoadItemDictSystem.cs:87`). **Measured:** Complete Tools seeds twelve items
+this way, each with an FNV-1a hash of its object name mapped into 50000–59999.
+On 1.3.0.5 the Relucite Pickaxe resolved to the same seeded ID on the client and
+on the dedicated server, verified as below, and was crafted on the server and
+kept; on 1.3.0.6 the twelve IDs logged by client and dedicated server were
+identical.
+
+Three things the seed makes your problem:
+
+- **Pick a range the counter does not reach.** The counter does not skip
+  values a preferred index already took (`PugConversion:1046`), so a seed inside
+  its range collides with whatever the counter hands out there. A collision is
+  silent: `PugDatabasePostConverter` groups blocks by `(objectID, variation)`
+  without complaint (`Pug.Other:3747`, `Pug.Other:3749`). Do not go to the other
+  extreme either — the property lookup is allocated as one array up to the
+  highest index in use (`PugProperties:1436`), so an ID in the millions costs
+  memory for every index below it.
+- **The object name is now the identity, permanently.** Saves already resolve
+  modded items by name; with a seed derived from the name, so does multiplayer.
+  A renamed object, or a changed derivation, is a different item to every
+  player who runs another version.
+- **Another mod may seed the same name.** Seeding only when the name is absent,
+  as above, keeps the first writer's value.
+
+**Verify against `API.Authoring.ObjectProperties`, never against the lookup.**
+`GetObjectID` reads the dictionary you just wrote, so it returns your seed
+whatever the conversion did. `PugDatabase.GetObjectInfo` echoes it too: the
+managed catalogue is filled before the conversion runs (next section), keyed on
+the `objectID` the lookup supplied (`Pug.Other:325825`, read back at
+`Pug.Other:325888`). `ObjectProperties` is assigned once, after the startup
+conversion (`Pug.Other:2560`; dedicated server
+`DedicatedServer/Pug.Other:2549`), from the property lookup in which the
+converter wrote each object's `"name"` at the index it actually used
+(`Pug.ECS.Conversion:3576`). Reading the name back at your ID through
+`ObjectProperties.TryGetPropertyString` is evidence; reading the ID back
+through `GetObjectID` is an echo.
+
+### Seeding an item hides its recipe from the managed catalogue
+
+`PugDatabase`'s managed catalogue — `objectsByType`, what `GetObjectInfo` and
+mods such as Item Browser read — is a snapshot taken *before* the startup
+conversion: `PugDatabase.UpdateEntityMonos(BuildAuthoringListFromEntityDataBlocks())`
+(`Pug.Other:2551`) reads each block's `ObjectInfo`, skips any whose `objectID`
+is still `None` (`Pug.Other:325814`) and `TryAdd`s the rest
+(`Pug.Other:325825`). Nothing refreshes it afterwards; its only other caller
+adds the `ExtraAuthoring` list (`Pug.Other:2555`).
+
+Building that `ObjectInfo` resolves each ingredient of the item's recipe by name
+through the same lookup (`Pug.ECS.Authoring:3033`). At that moment the lookup
+holds only pre-seeded names: vanilla names arrive during the conversion
+(`Pug.ECS.Conversion:5818`). An unseeded modded item is still `None` and skipped,
+so nobody noticed. A seeded one is taken — with **`ObjectID.None` for every
+vanilla ingredient**. Crafting is unaffected, because the ECS side resolves the
+recipe during conversion; a mod that walks the managed recipe is not. Measured
+in Complete Tools on 1.3.0.6: Item Browser threw a `NullReferenceException` in
+`ObjectUtility.GetValue` on opening its Items tab, and switching Complete Tools
+off made it go away.
+
+**Seed the ingredient names as well.** A vanilla object's lookup name is its
+enum constant's name (`Pug.ECS.Conversion:5815`), so
+`Enum.TryParse<ObjectID>(name, out var id)` gives the value the conversion would
+write anyway; seeding those names before registering the items gave Item Browser
+complete recipes again, with no exception, on the next launch.
 
 ### The recipe entry: `CraftingAuthoring.CraftableObject`
 
@@ -413,7 +518,12 @@ each authoring object as it converts and is the same on 1.2 and 1.3.)
 created before 1.3 may not reference — `ScriptableData.Addressables.dll`
 is a different assembly and does not resolve the type. Both columns are
 verified in game in single-player, the first by `caveling-divining-rod` on
-1.3.0.2; neither has been measured on a dedicated server.
+1.3.0.2. On a dedicated server only half of it is measured: Complete Tools
+edits nine stations' lists through the first column from its first `Update`, and
+on 1.3.0.6 its server log shows each edit made before the server world
+converted. Whether the server's baked list then carried the entries is not
+shown, and a craft there cannot show it, because a craft does not consult the
+station's list ([below](#a-craft-carries-the-objectid-the-server-checks-materials)).
 
 **Now established, from the conversion pipeline above:** conversion reconverts
 the whole prefab list per world, rebuilding the blob from the authoring data

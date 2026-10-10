@@ -111,6 +111,8 @@ symptom, not the topic.
 | Every source mod fails to compile, on a non-English machine | [Platforms and hosts](platforms.md) — the Roslyn satellite lookup |
 | A mod that loaded yesterday does not load today | [Troubleshooting](troubleshooting.md) — a stale game-version tag, the commonest cause; [Multiplayer and server](multiplayer-and-server.md) if it is a join that broke; [Platforms and hosts](platforms.md) on a Wine host |
 | A recipe added to a vanilla workbench never shows up, or `Not enough SimpleCraftingUIs` in the log | [Database and baking](database-and-baking.md#how-a-station-window-lays-out-the-list-six-slots-three-windows) — the station window has three six-slot windows |
+| A modded item turns into another item on a dedicated server, or a craft there takes the materials and gives them back | [Database and baking](database-and-baking.md#where-a-modded-items-objectid-comes-from) — client and server numbered the item differently; [pinning the ID](database-and-baking.md#pinning-a-modded-items-objectid-seed-the-lookup-first) |
+| Item Browser (or another reader of the managed recipes) throws in `ObjectUtility.GetValue` when its Items tab opens | [Database and baking](database-and-baking.md#seeding-an-item-hides-its-recipe-from-the-managed-catalogue) — a pre-seeded item's ingredients resolved to `None` |
 | An edit made from `Init` misses another mod's entries, depending on load order | [Database and baking](database-and-baking.md#trap-a-config-value-the-bake-reads-must-be-bound-in-earlyinit) — every `Init` runs before any `Update` |
 | A tag you set on mod.io simply is not there | [Publishing to mod.io](publishing.md) — unknown values are dropped silently |
 | The Steam Workshop tab's "Initialize Steam" does nothing | [Troubleshooting](troubleshooting.md) — a native library the SDK does not ship on macOS |
@@ -154,6 +156,7 @@ symptom, not the topic.
 | Know what you may reference at compile time | [The load-time sandbox](sandbox.md) |
 | Patch a DOTS system, or read the live ECS world | [Harmony and ECS](harmony-and-ecs.md) |
 | Change a recipe, an item stat, or any baked object data | [Database and baking](database-and-baking.md) |
+| Give a modded item an `ObjectID` that client and server agree on | [Database and baking](database-and-baking.md#pinning-a-modded-items-objectid-seed-the-lookup-first) |
 | Know when your code runs relative to the database conversions | [Database and baking](database-and-baking.md#trap-a-config-value-the-bake-reads-must-be-bound-in-earlyinit), [Mod anatomy](mod-anatomy.md#the-imod-lifecycle) |
 | Add an item to a vanilla workbench, or to a vanilla loot table | [Database and baking](database-and-baking.md#how-a-station-window-lays-out-the-list-six-slots-three-windows), [loot tables](database-and-baking.md#adding-an-item-to-a-vanilla-loot-table) |
 | Add an options-menu entry or a rebindable keybind | [UI framework](ui-framework.md) |
