@@ -32,10 +32,12 @@ CK_BOTTLE_NAME="${CK_BOTTLE_NAME:-Core Keeper}"
 CK_BOTTLE_PATH="${CK_BOTTLE_PATH:-$HOME/Library/Application Support/CrossOver/Bottles/$CK_BOTTLE_NAME}"
 CK_SERVER_DIR="${CK_SERVER_DIR:-$CK_BOTTLE_PATH/drive_c/Program Files (x86)/Steam/steamapps/common/Core Keeper Dedicated Server}"
 CK_SERVER_WORLD="${CK_SERVER_WORLD:-0}"
-CK_SERVER_PORT="${CK_SERVER_PORT:-27015}"
-CK_SERVER_PASSWORD="${CK_SERVER_PASSWORD:-}"
+# No colon for these three: an empty value is a setting ("relay only", "let the
+# server generate one", "every platform"), so only an unset one takes the default.
+CK_SERVER_PORT="${CK_SERVER_PORT-27015}"
+CK_SERVER_PASSWORD="${CK_SERVER_PASSWORD-}"
 CK_SERVER_MAXPLAYERS="${CK_SERVER_MAXPLAYERS:-8}"
-CK_SERVER_PLATFORM="${CK_SERVER_PLATFORM:-Steam}"
+CK_SERVER_PLATFORM="${CK_SERVER_PLATFORM-Steam}"
 
 CXSTART="/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/cxstart"
 EXE="$CK_SERVER_DIR/CoreKeeperServer.exe"
