@@ -1905,6 +1905,9 @@
     "Pug.Other:297405": [
       "public bool GetControllerTextInput(string description, int maxChars, string currentText, PlatformInterface.GotControllerTextInput callback, bool hidden = false)"
     ],
+    "Pug.Other:303889": [
+      "public RecipeInfo GetRecipeInfo(int index)"
+    ],
     "Pug.Other:305187": [
       "craftActionData = Create.Craft(objectID, amount, additionalFreeAmount, playerController.entity, craftingEntity)"
     ],
@@ -2036,6 +2039,18 @@
     ],
     "Pug.Other:314790": [
       "IncreasePetXp(playerAttackAspect.entity, experienceFromDamage, in playerAttackAspect.petOwnerCD.ValueRO, in playerAttackAspect.playerGhost.ValueRO, playerAttackLookups.containedObjectsBufferLookup[playerAttackAspect.entity], playerAttackLookups.inventoryChangeBufferLookup, playerAttackShared.inventoryChangeBufferEntity);"
+    ],
+    "Pug.Other:318061": [
+      "public CraftingUISettings defaultUISettings;"
+    ],
+    "Pug.Other:318064": [
+      "public List<CraftingUISettingsOverride> buildingSpecificUISettings;"
+    ],
+    "Pug.Other:318081": [
+      "public CraftingUISettings GetCraftingUISettings()"
+    ],
+    "Pug.Other:318085": [
+      "return defaultUISettings;"
     ],
     "Pug.Other:318136": [
       "if (EntityUtility.HasComponentData<IncludedCraftingBuildingsBuffer>(base.entity, base.world))"
@@ -2638,6 +2653,9 @@
       "num3++;",
       "}"
     ],
+    "Pug.Other:338587": [
+      "if (showEmptySlots || (recipeInfo.isValid && recipeInfo.objectID != ObjectID.None))"
+    ],
     "Pug.Other:338803": [
       "public class SignTextUI : UIelement"
     ],
@@ -2653,11 +2671,17 @@
     "Pug.Other:338981": [
       "public const int MAX_RECIPES_PER_UI = 6;"
     ],
+    "Pug.Other:339020": [
+      "num2 = craftingCategoryWindowInfo.endSlotIndex + 1;"
+    ],
     "Pug.Other:339027": [
       "if (AnyAvailableRecipeInRange(recipes, num3, num3 + 6))"
     ],
     "Pug.Other:339031": [
       "UnityEngine.Debug.LogError($\"Not enough SimpleCraftingUIs in SimpleCraftingUIContainer to show all recipes. Needed at least {amountOfWindowsShowing + 1}, but only have {simpleCraftingUIs.Count}.\", this);"
+    ],
+    "Pug.Other:339058": [
+      "endIndex = Mathf.Min(endIndex, canCraftBuffer.Length);"
     ],
     "Pug.Other:339061": [
       "if (canCraftBuffer[i].objectID != ObjectID.None)"
@@ -3296,6 +3320,9 @@
     ],
     "Pug.Other:370819": [
       "private void Update()"
+    ],
+    "Pug.Other:370845": [
+      "CraftingBuilding.CraftingUISettings craftingUISettings = component.GetCraftingUISettings();"
     ],
     "Pug.Other:370852": [
       "UnityEngine.Debug.LogWarning($\"Missing title for crafting UI window index {windowIndex} in building {component}. Using default title.\", this);"

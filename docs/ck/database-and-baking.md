@@ -601,9 +601,51 @@ frame.** `CraftingBuilding.buildingSpecificUISettings` names each window per
 station (`CraftingUISettings.titles`), falling back to `defaultUISettings` for a
 station it does not list. For a window index past the end of the titles, the
 window shows the default title and logs `Missing title for crafting UI window
-index …` (`Pug.Other:370852`) — from `Update` (`Pug.Other:370819`), so once per
-frame while the station is open. A mod that adds a window should add its title
-too.
+index …` (`Pug.Other:370852`) — from `SmallTitleUIBackground.Update`
+(`Pug.Other:370819`), so once per frame while the station is open: one Complete
+Tools session logged 10733 of them before its windows had titles. A mod that adds
+a window should add its title too.
+
+**The titles are not reachable as data, so patch the getter — on a copy.** Both
+lists are serialized fields of `CraftingBuilding` (`Pug.Other:318061`,
+`Pug.Other:318064`), the station's graphical `EntityMonoBehaviour`, not its
+authoring prefab, so the runtime edits this chapter describes do not reach them.
+The title code asks `CraftingBuilding.GetCraftingUISettings()`
+(`Pug.Other:370845`), which returns the stored `CraftingUISettings` instance
+itself (`Pug.Other:318081`, `Pug.Other:318085`) — a class, shared by every
+building of that kind, so writing titles into it would change them for every
+station using it. A Harmony postfix on `GetCraftingUISettings` that returns a
+cached copy with the extra titles appended works: measured in Complete Tools on
+1.3.0.6, the warning count went from 10733 to zero, and the added windows showed
+vanilla's `tools` title. Size the copy from the live recipe list rather than from
+your own count, since another mod may have appended entries too.
+
+**Observed, cause open: placeholder-only trailing ranges drew an empty window.**
+Complete Tools padded each station's own list with `None` entries up to a
+six-slot boundary and wrote its items after it; with its setting off, those
+items were themselves left `None`. On 1.3.0.6 the Wood, Tin, Iron and Scarlet
+workbenches then showed an empty fourth window — although the range check above
+returns false for a range holding nothing but `None`
+(`AnyAvailableRecipeInRange`, `Pug.Other:339061`). Not writing trailing
+placeholders past the last real item removed it. The windows were the extra ones
+Simple Crafting Pool Extender adds, and it is **not** the cause: it only clones
+container entries, and every entry, cloned or vanilla, goes through the same
+check at `Pug.Other:339027`. So that range was not all `None` as the game saw
+it, or something other than this loop showed the window, and which is not
+established. Two places where the check and the drawn window disagree are known
+from the code: a slot is drawn only if `CraftingHandler.GetRecipeInfo` resolves
+it to a valid object (`Pug.Other:338587`, `Pug.Other:303889`), a different
+source from the raw buffer the check reads; and the check clamps a range to the
+buffer's length, not to the active category's end (`Pug.Other:339058`, against
+`Pug.Other:339020`), so on a workbench with categories the last range of one
+category can pass on the next category's entries. Neither explains the Wood
+workbench, which has no categories. The one-variable test that would settle it:
+a diagnostic postfix on `SimpleCraftingUIContainer.ShowCraftingUI` that logs, for
+the affected station, the buffer's length, the category bounds, the `objectID`
+of every entry in the fourth range, and per window whether it is active and how
+many of its slots are — then the same station with the container left at
+vanilla's three windows, where a fourth range that passes the check logs `Not
+enough SimpleCraftingUIs` instead of drawing.
 
 A fourth window needs more `SimpleCraftingUI` instances in the container. This
 workspace's `simple-crafting-pool-extender` adds them: a postfix on
