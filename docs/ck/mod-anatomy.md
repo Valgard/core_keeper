@@ -346,7 +346,7 @@ so a mod may have more than one handler. Conventionally the bootstrap `IMod` cla
 |---|---|---|
 | `EarlyInit()` | After **all** mods have compiled and loaded, in dependency order — the loader runs a full load pass over the whole sorted list first, then a second pass that calls `EarlyInit` | Resolve your own `LoadedMod` via `API.ModLoader.LoadedMods`; load framework submodules; register keybinds. `API.ConfigFilesystem` is already initialised. |
 | `ModObjectLoaded(obj)` | Once per asset loaded from your bundles, right after your `EarlyInit` | Capture and register prefabs by name. This is the only place you see your own loaded assets. |
-| `Init()` | On the **first loader `Update` tick** after loading, once per handler — every mod's `Init` before any mod's `Update` | Anything needing a running game loop. The startup conversion has run, the per-world ones have not — see [the order of conversions](database-and-baking.md#trap-a-config-value-the-bake-reads-must-be-bound-in-earlyinit). |
+| `Init()` | On the **first loader `Update` tick** after loading, once per handler — at startup every mod's `Init` before any mod's `Update`; a hot-reloaded mod later | Anything needing a running game loop. At startup, as measured on 1.3.0.6, the startup conversion has run and the per-world ones have not — see [the order of conversions](database-and-baking.md#trap-a-config-value-the-bake-reads-must-be-bound-in-earlyinit). |
 | `Update()` | Every frame, after `Init` | Hotkey polling, timers. |
 | `Shutdown()` | On mod reset/reload, **before** the asset bundles are unloaded and before the Harmony patches are undone | Persist state; drop references to bundle-owned objects. |
 | `CanBeUnloaded()` | Polled before a hot reload | Returning `false` (the default) blocks the reload, logging `Mod reload blocked by <type>`. |
@@ -400,14 +400,15 @@ not established in either direction. Do not pick a winner. Write a single idempo
 it from *both* sites: whichever runs second is the one that does the work, and every
 further call is a no-op.
 
-`Init` is **not** part of the load pass. The loader calls it from its own `Update`, guarded
-by a per-handler "already initialised" flag, and then immediately calls `Update` — the
-`Init` loop covers every handler first (`PugMod.Loader:1216`, `PugMod.Loader:1217`), so a
-mod's first `Update` sees what every other mod did in its `Init`. That is why `Init` is the
-earliest point with a live frame loop. It comes after the startup conversion and before the
-per-world ones (measured on 1.3.0.6, client and dedicated server), so the managed
-`PugDatabase` catalogue and `API.Authoring.ObjectProperties` exist by then, and a world's
-converted database does not.
+`Init` is **not** part of the load pass. The loader calls it from its own `Update`,
+guarded by a per-handler "already initialised" flag, and then immediately calls `Update`
+— the `Init` loop covers every handler first (`PugMod.Loader:1216`,
+`PugMod.Loader:1217`), so at startup a mod's first `Update` sees what every other mod
+did in its `Init`. That is why `Init` is the earliest point with a live frame loop. It
+comes after the startup conversion and before the per-world ones (measured on 1.3.0.6,
+client and dedicated server — on the client an observation, not something the code
+enforces), so the managed `PugDatabase` catalogue and `API.Authoring.ObjectProperties`
+exist by then, and a world's converted database does not.
 
 **On a dedicated server the relative order of `Init` and ECS startup differs from the
 client.** That has concrete consequences for Burst-disabling; see [Harmony and ECS](harmony-and-ecs.md).

@@ -119,7 +119,7 @@ symptom, not the topic.
 | An edit made from `Init` misses another mod's entries, depending on load order | [Database and baking](database-and-baking.md#trap-a-config-value-the-bake-reads-must-be-bound-in-earlyinit) — every `Init` runs before any `Update` |
 | The Unity Editor crashes when you open any prefab | [Toolchain requirements](toolchain.md#after-a-game-update-update-the-sdk-then-update-game-files-again) — stale SDK Editor assemblies after a game update |
 | Inspector edits revert on macOS | [Toolchain requirements](toolchain.md#on-macos-the-inspector-loses-edits-on-components-that-reference-a-data-block) — the data-block drawer throws; use the Debug Inspector |
-| Every prefab shows a missing script after adding a package's source | [Toolchain requirements](toolchain.md#two-copies-of-one-package-break-its-guids) — two copies, new GUIDs |
+| Every prefab shows a missing script after adding a package's source while the package was still installed | [Toolchain requirements](toolchain.md#two-copies-of-one-package-break-its-guids) — two copies, new GUIDs |
 | A tag you set on mod.io simply is not there | [Publishing to mod.io](publishing.md) — unknown values are dropped silently |
 | The Steam Workshop tab's "Initialize Steam" does nothing | [Troubleshooting](troubleshooting.md) — a native library the SDK does not ship on macOS |
 | A Workshop upload fails, or its preview is rejected | [Publishing to the Steam Workshop](steam-workshop.md) — the 1 MB preview cap and what else the tab does silently |

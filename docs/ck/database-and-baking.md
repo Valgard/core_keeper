@@ -135,9 +135,9 @@ is identical on both sides:
 
 1. `EarlyInit`, every mod.
 2. **The startup conversion**, in `ECSManager.Init`: it registers the
-   post-converters, `PugDatabasePostConverter` among them (`Pug.Other:3115`),
-   and converts the server authoring prefab once (`Pug.Other:2550`,
-   `Pug.Other:2553`, `Pug.Other:2554`). A `PostConvert` prefix fires here — its
+   post-converters (`Pug.Other:2550`), `PugDatabasePostConverter` among them
+   (`Pug.Other:3115`), and converts the server authoring prefab once
+   (`Pug.Other:2553`, `Pug.Other:2554`). A `PostConvert` prefix fires here — its
    log lines come before `PugDatabase initialized` and before any mod's `Init`.
 3. `Init`, every mod, then `Update` — in the same loader call (below).
 4. **The per-world conversions**, from `ECSManager.StartEcs`: on a client when a
@@ -147,10 +147,15 @@ is identical on both sides:
    initialised there first. Through 1.2 a dedicated server ran `Init` *after*
    `StartEcs`; [Harmony and ECS](harmony-and-ecs.md#the-dedicated-server-trap) has that measurement.
 
-This section used to put the world conversions before `Init` as well, which no
-1.3 log shows. What it concluded still holds, because `PostConvert` already runs
-in step 2: a value your prefix consumes *during* the conversion must be read and
-bound in `EarlyInit`.
+Only one link in this order is enforced by code: the dedicated server's `Init`
+before its world conversion. The rest is what the logs show. On the client in
+particular, `Init` runs from the first loader update after the mods have loaded,
+and nothing in the code ties that moment to the startup conversion, so treat
+steps 2 and 3 as observed rather than guaranteed. This section used to put the
+world conversions before `Init` as well, which no 1.3 log shows. What it
+concluded still holds, because `PostConvert` already runs in step 2: a value
+your prefix consumes *during* the conversion must be read and bound in
+`EarlyInit`.
 
 Bound in `Init`, the startup bake has already run and copied the **hard-coded
 default** instead — and the idempotency guard that `PostConvert` needs anyway
@@ -158,7 +163,7 @@ then freezes that default in place, so the world conversions copy it too.
 Restarting does not repair it: the ordering is the same every session, so a
 one-line timing mistake becomes a permanent one.
 
-**The loader calls every mod's `Init` before any mod's `Update`.** Its update is
+**At startup, the loader calls every mod's `Init` before any mod's `Update`.** Its update is
 `_modHandlers.Call.Init()` followed by `_modHandlers.Call.Update()`
 (`PugMod.Loader:1216`, `PugMod.Loader:1217`), and the first loops over every
 handler not yet initialised (`PugMod.Loader:844`). The order of `Init` between
@@ -168,7 +173,9 @@ from `Init` — a station's `canCraftObjects`, for one — belongs in the first
 `Update` if it has to see their entries: that is still before the world
 conversion that bakes the list. Measured in Complete Tools on 1.3.0.6, whose
 first `Update` found Caveling Divining Rod's Iron Workbench entry, written in
-that mod's `Init`, on client and dedicated server alike.
+that mod's `Init`, on client and dedicated server alike. A mod hot-reloaded
+later is the exception: its `Init` comes from a later loader update, after the
+others have long been updating.
 
 `API.ConfigFilesystem` is initialised before any mod's `EarlyInit`, so reading
 configuration that early does work — see [storing configuration and state](persistence.md).
@@ -278,11 +285,15 @@ here.
 
 ### Where a modded item's `ObjectID` comes from
 
-**During play, a modded item's `ObjectID` is a counter value handed out by the
-first entity conversion of the process, in the order the conversion queue
-reaches the prefab.** Nothing derives it from the name, and no ID table is
-exchanged or reconciled between processes — the IDs themselves cross the
-network all the time, in ghost snapshots and in the craft request below. Traced
+**During play, a modded item built on `ObjectAuthoring` gets as its `ObjectID` a
+counter value handed out by the first entity conversion of the process, in the
+order the conversion queue reaches the prefab** — unless it has a preferred
+index: a modded prefab on `EntityMonoBehaviourData` with an `objectID` set uses
+that value, and a pre-seeded name uses its seed ([below](#pinning-a-modded-items-objectid-seed-the-lookup-first)). Nothing derives
+the counter value from the name, and no ID table is exchanged between processes
+— the IDs themselves cross the network all the time, in ghost snapshots and in
+the craft request below. The one reconciliation is at join time, and it covers
+a character's inventory only (see the saves paragraph below). Traced
 on build `1.3.0.5-cb48` and re-checked on `1.3.0.6-6e73`, client and dedicated
 server alike:
 
@@ -347,17 +358,24 @@ CoreLib itself creates showed it too — placed on the dedicated server, it beca
 a different object, and the copy in the player's inventory showed as a different
 item after every server restart. The CoreLib side is reported upstream as [CoreLib issue #53](https://github.com/CoreKeeperMods/CoreLib/issues/53);
 CoreLib's generated workbenches use the no-address overload (`EntityModule.cs`,
-line 280 in CoreLib 5.0.0).
+line 280 in mod.io modfile 8237090). Caveling Divining Rod has since moved to a
+fixed address and a pre-seeded ID (60001).
 
 **Saves are the exception, and the strongest sign that the game treats these
 IDs as unstable.** Both save paths translate modded IDs back by name on load. A
 world save keeps the name of every ID, and `DefaultConvertSystem` renumbers
 every ID from 32767 up through that name (`Pug.Other:176409`,
 `Pug.Other:176415`, `Pug.Other:176425`). A character save stores
-`inventoryObjectNames` beside the IDs (`Pug.Other:381160`), and loading
-re-resolves each modded slot with `API.Authoring.GetObjectID`
-(`Pug.Other:133539`, `Pug.Other:133541`). Neither runs during play: crafting,
-synced entities and the UI all use the raw ID.
+`inventoryObjectNames` beside the IDs (`Pug.Other:381160`). When a player
+joins, the client sends that character data to the server, and the server-side
+`StartGameRPCSystem` re-resolves every inventory slot of 32767 and up by its
+name against the *server's* lookup (`Pug.Other:133539`, `Pug.Other:133541`) —
+the only place modded IDs are reconciled between two processes. It is skipped
+for a player last connected to this same server (`Pug.Other:133529`,
+`DedicatedServer/Pug.Other:133510`), whose inventory then keeps its raw IDs.
+That skip is the likeliest reading of the inventory item above that changed
+after every server restart; it is not traced further. Nothing else reconciles:
+crafting requests, ghosts and the UI all carry the raw ID.
 
 **A stable address is not a stable `ObjectID` — measured, not only argued.**
 Two ways to the first: ship the block as an asset, whose address is serialised
@@ -398,22 +416,29 @@ if (!lookup.TryGetValue("MyItem", out _))
 The cast passes the sandbox — `ModAPIAuthoring` is a public type in namespace
 `PugMod`, and CoreLib, itself a sandboxed source mod, does the same cast
 (`LoadItemDictSystem.cs:87`). **Measured:** Complete Tools seeds twelve items
-this way, each with an FNV-1a hash of its object name mapped into 50000–59999.
-On 1.3.0.5 the Relucite Pickaxe resolved to the same seeded ID on the client and
-on the dedicated server, verified as below, and was crafted on the server and
-kept; on 1.3.0.6 the twelve IDs logged by client and dedicated server were
-identical.
+this way, each with an FNV-1a hash of its object name mapped into 50000–59999
+and probed upward on a collision — so an ID also depends on the order of the
+mod's own catalogue. On 1.3.0.5 the Relucite Pickaxe resolved to the same seeded
+ID on the client and on the dedicated server, verified as below, and was crafted
+on the server and kept. On 1.3.0.6 the twelve IDs were identical on both sides;
+the mod logs an ID only after reading the object's name back at it through
+`ObjectProperties` and finding no other object there, so those lines are not an
+echo of the seed.
 
 Three things the seed makes your problem:
 
-- **Pick a range the counter does not reach.** The counter does not skip
-  values a preferred index already took (`PugConversion:1046`), so a seed inside
-  its range collides with whatever the counter hands out there. A collision is
-  silent: `PugDatabasePostConverter` groups blocks by `(objectID, variation)`
-  without complaint (`Pug.Other:3747`, `Pug.Other:3749`). Do not go to the other
-  extreme either — the property lookup is allocated as one array up to the
-  highest index in use (`PugProperties:1436`), so an ID in the millions costs
-  memory for every index below it.
+- **Pick a range the counter does not reach.** The counter does not skip values
+  a preferred index already took (`PugConversion:1046`), so a seed inside its
+  range collides with whatever the counter hands out there. Nothing fails:
+  `PugDatabasePostConverter` groups blocks by `(objectID, variation)` without
+  complaint (`Pug.Other:3747`, `Pug.Other:3749`), and the only trace is an
+  info-level `replacing name at index N` when the second object writes its name
+  property there (`PugProperties:1606`). Complete Tools and Caveling Divining
+  Rod both refuse to seed an ID another seeded name already holds, which covers
+  seeds but not counter values. Do not go to the other extreme either — the
+  property lookup is allocated as one array up to the highest index in use
+  (`PugProperties:1436`), so an ID in the millions costs memory for every index
+  below it.
 - **The object name is now the identity, permanently.** Saves already resolve
   modded items by name; with a seed derived from the name, so does multiplayer.
   A renamed object, or a changed derivation, is a different item to every
@@ -441,16 +466,24 @@ mods such as Item Browser read — is a snapshot taken *before* the startup
 conversion: `PugDatabase.UpdateEntityMonos(BuildAuthoringListFromEntityDataBlocks())`
 (`Pug.Other:2551`) reads each block's `ObjectInfo`, skips any whose `objectID`
 is still `None` (`Pug.Other:325814`) and `TryAdd`s the rest
-(`Pug.Other:325825`). Nothing refreshes it afterwards; its only other caller
-adds the `ExtraAuthoring` list (`Pug.Other:2555`).
+(`Pug.Other:325825`). Nothing refreshes it during play; its only other caller
+there adds the `ExtraAuthoring` list after the conversion (`Pug.Other:2555`).
+A third caller, in `Pug.Dev`, is an Editor dungeon tool.
 
 Building that `ObjectInfo` resolves each ingredient of the item's recipe by name
 through the same lookup (`Pug.ECS.Authoring:3033`). At that moment the lookup
 holds only pre-seeded names: vanilla names arrive during the conversion
-(`Pug.ECS.Conversion:5818`). An unseeded modded item is still `None` and skipped,
-so nobody noticed. A seeded one is taken — with **`ObjectID.None` for every
-vanilla ingredient**. Crafting is unaffected, because the ECS side resolves the
-recipe during conversion; a mod that walks the managed recipe is not. Measured
+(`Pug.ECS.Conversion:5818`). An unseeded modded item is still `None` there and
+skipped; it enters the catalogue at the `ExtraAuthoring` pass instead — every
+bundle prefab with entity data is in that list (`Pug.Other:279067`) — when all
+names resolve, so its recipe is complete. A seeded one is taken at the first
+pass, with **`ObjectID.None` for every vanilla ingredient**, and because both
+passes `TryAdd`, the complete entry from the second pass is dropped. Crafting
+is unaffected, because the ECS side resolves the recipe during conversion. The
+managed recipe is not only a mods' concern: vanilla's own
+`CraftingHandler.RecipeInfo` exposes it (`Pug.Other:303759`), and a processing
+station checks materials against it before sending a craft
+(`Pug.Other:338169`); that path was not tried with a seeded item. Measured
 in Complete Tools on 1.3.0.6: Item Browser threw a `NullReferenceException` in
 `ObjectUtility.GetValue` on opening its Items tab, and switching Complete Tools
 off made it go away.
@@ -458,8 +491,10 @@ off made it go away.
 **Seed the ingredient names as well.** A vanilla object's lookup name is its
 enum constant's name (`Pug.ECS.Conversion:5815`), so
 `Enum.TryParse<ObjectID>(name, out var id)` gives the value the conversion would
-write anyway; seeding those names before registering the items gave Item Browser
-complete recipes again, with no exception, on the next launch.
+write anyway; seeding those names in `EarlyInit`, before the conversion, gave
+Item Browser complete recipes again, with no exception, on the next launch. That
+covers vanilla ingredients only: an ingredient that is another mod's item is not
+in the enum and stays `None` unless that mod seeds it.
 
 ### The recipe entry: `CraftingAuthoring.CraftableObject`
 
@@ -533,7 +568,9 @@ re-entrancy guard a `PostConvert` prefix needs remains open.
 
 ### A craft carries the `ObjectID`; the server checks materials
 
-Clicking a recipe sends the item's `ObjectID`, not a slot or a name: the station
+At a crafting station, clicking a recipe sends the item's `ObjectID`, not a slot
+or a name. Processing stations differ: their window sends a slot index
+(`ActivateRecipeSlot`, `Pug.Other:338174`). At a crafting station the
 window calls `CraftItem(player, objectID, …)` (`Pug.Other:334113`), which queues
 a craft action built from that ID (`Pug.Other:305187`). The crafting job runs on
 the server, and on the client as predicted crafting (`Pug.Other:427908`). It
@@ -612,13 +649,15 @@ lists are serialized fields of `CraftingBuilding` (`Pug.Other:318061`,
 authoring prefab, so the runtime edits this chapter describes do not reach them.
 The title code asks `CraftingBuilding.GetCraftingUISettings()`
 (`Pug.Other:370845`), which returns the stored `CraftingUISettings` instance
-itself (`Pug.Other:318081`, `Pug.Other:318085`) — a class, shared by every
-building of that kind, so writing titles into it would change them for every
-station using it. A Harmony postfix on `GetCraftingUISettings` that returns a
-cached copy with the extra titles appended works: measured in Complete Tools on
-1.3.0.6, the warning count went from 10733 to zero, and the added windows showed
-vanilla's `tools` title. Size the copy from the live recipe list rather than from
-your own count, since another mod may have appended entries too.
+itself (`Pug.Other:318081`, `Pug.Other:318085`), a class instance rather than a
+copy, so a write into it changes what every later caller gets. Whether it is
+also shared between buildings is Unity's instantiation business and not shown
+here; return a copy and the question does not arise. A Harmony postfix on
+`GetCraftingUISettings` that returns a cached copy with the extra titles
+appended works: measured in Complete Tools on 1.3.0.6, the warning count went
+from 10733 to zero, and the added windows showed vanilla's `tools` title. Size
+the copy from the live recipe list rather than from your own count, since
+another mod may have appended entries too.
 
 **Observed, cause open: placeholder-only trailing ranges drew an empty window.**
 Complete Tools padded each station's own list with `None` entries up to a
@@ -628,24 +667,26 @@ workbenches then showed an empty fourth window — although the range check abov
 returns false for a range holding nothing but `None`
 (`AnyAvailableRecipeInRange`, `Pug.Other:339061`). Not writing trailing
 placeholders past the last real item removed it. The windows were the extra ones
-Simple Crafting Pool Extender adds, and it is **not** the cause: it only clones
-container entries, and every entry, cloned or vanilla, goes through the same
-check at `Pug.Other:339027`. So that range was not all `None` as the game saw
-it, or something other than this loop showed the window, and which is not
-established. Two places where the check and the drawn window disagree are known
-from the code: a slot is drawn only if `CraftingHandler.GetRecipeInfo` resolves
-it to a valid object (`Pug.Other:338587`, `Pug.Other:303889`), a different
-source from the raw buffer the check reads; and the check clamps a range to the
-buffer's length, not to the active category's end (`Pug.Other:339058`, against
-`Pug.Other:339020`), so on a workbench with categories the last range of one
-category can pass on the next category's entries. Neither explains the Wood
-workbench, which has no categories. The one-variable test that would settle it:
-a diagnostic postfix on `SimpleCraftingUIContainer.ShowCraftingUI` that logs, for
-the affected station, the buffer's length, the category bounds, the `objectID`
-of every entry in the fourth range, and per window whether it is active and how
-many of its slots are — then the same station with the container left at
-vanilla's three windows, where a fourth range that passes the check logs `Not
-enough SimpleCraftingUIs` instead of drawing.
+Simple Crafting Pool Extender adds, and it is **not** the cause: besides cloning
+container entries it only repositions the category navigation (a postfix on
+`CraftingCategoryNavigationUI.LateUpdate`), and every entry, cloned or vanilla,
+goes through the same check at `Pug.Other:339027`. So that range was not all
+`None` as the game saw it, or something other than this loop showed the window,
+and which is not established. Two places where the check and the drawn window
+disagree are known from the code: a slot is drawn only if
+`CraftingHandler.GetRecipeInfo` resolves it to a valid object
+(`Pug.Other:338587`, `Pug.Other:303889`), a different source from the raw buffer
+the check reads; and the check clamps a range to the buffer's length, not to the
+active category's end (`Pug.Other:339058`, against `Pug.Other:339020`), so on a
+workbench with categories the last range of one category can pass on the next
+category's entries. Neither explains the Wood workbench, which has no
+categories. The one-variable test that would settle it: a diagnostic postfix on
+`SimpleCraftingUIContainer.ShowCraftingUI` that logs, for the affected station,
+the buffer's length, the category bounds, the `objectID` of every entry in the
+fourth range, and per window whether it is active and how many of its slots are
+— then the same station with the container left at vanilla's three windows,
+where a fourth range that passes the check logs `Not enough SimpleCraftingUIs`
+instead of drawing.
 
 A fourth window needs more `SimpleCraftingUI` instances in the container. This
 workspace's `simple-crafting-pool-extender` adds them: a postfix on

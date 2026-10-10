@@ -46,11 +46,14 @@ repairs it.
 ## After a game update: update the SDK, then Update Game Files again
 
 "Once" above means once per clone, not once for good. **Update Game Files is
-also the step that installs the SDK's Editor assemblies**, and those are tied to
-the game build. Besides copying the game's assemblies, it unpacks every
-`*.Editor.dll` from `Assets/ModSDK/EditorAssemblies.zip` — a file tracked in the
-SDK repository and replaced by Pugstorm's "Update SDK for …" commits — into the
-project (`ImporterWindow` in the SDK's importer package). A game update can
+also the step that installs the SDK's own builds of game assemblies**, and those
+are tied to the game build. It reads `Assets/ModSDK/EditorAssemblies.zip` — a
+file tracked in the SDK repository and replaced by Pugstorm's "Update SDK for …"
+commits — and installs its non-Editor assemblies, builds compiled for the Editor,
+in place of the game's copies of the same names, which it then skips; it copies
+the remaining game assemblies, and it unpacks the zip's `*.Editor.dll` files
+into the project (`PugText.Editor.dll` only when `Pug.Other` was imported). All
+of this is `ImporterWindow` in the SDK's importer package. A game update can
 therefore need both halves: pull the SDK, so the zip matches the game, and run
 Update Game Files, so the project holds what is in it.
 
@@ -135,5 +138,5 @@ each is written up under the symptom you actually see:
 | A fresh SDK clone will not compile on macOS | [Troubleshooting](troubleshooting.md#a-fresh-sdk-clone-will-not-compile-on-a-macos-editor-host) |
 | The Editor hangs at "Initial Asset Database Refresh" | [Troubleshooting](troubleshooting.md#the-unity-editor-hangs-at-initial-asset-database-refresh) |
 | The Editor crashes as soon as a prefab is opened, after a game update | [Above](#after-a-game-update-update-the-sdk-then-update-game-files-again) — stale SDK Editor assemblies |
-| Prefabs show a missing script after a package was swapped for its source | [Above](#two-copies-of-one-package-break-its-guids) — duplicate GUIDs |
+| Prefabs show a missing script after a package's source clone was added while the package was still installed | [Above](#two-copies-of-one-package-break-its-guids) — duplicate GUIDs |
 | Inspector edits revert on macOS | [Above](#on-macos-the-inspector-loses-edits-on-components-that-reference-a-data-block) — use the Debug Inspector |

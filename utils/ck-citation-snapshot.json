@@ -1,5 +1,8 @@
 {
   "citations": {
+    "ConfigFile.cs:457": [
+      "if (SaveOnConfigSet)"
+    ],
     "ConfigFile.cs:509": [
       "if (SaveOnConfigSet)"
     ],
@@ -9,6 +12,9 @@
     "ControlMappingMenu.prefab:2459-2460": [
       "_helpButtonList: 0600000005000000000000000100000002000000",
       "_helpButtonListNoJoystick: 05000000000000000100000002000000"
+    ],
+    "DedicatedServer/Pug.Other:133510": [
+      "UnityEngine.Debug.Log(\"Skipping load inventory by PlayerWasLastConnectedToThisServer\");"
     ],
     "DedicatedServer/Pug.Other:137119": [
       "if (rpc.command == NetworkCommand.ChangePvPTeam)"
@@ -758,6 +764,9 @@
     ],
     "Pug.Other:133051": [
       "CharacterData characterDataFromSerialized = SaveManager.GetCharacterDataFromSerialized(characterDataEntry.data);"
+    ],
+    "Pug.Other:133529": [
+      "UnityEngine.Debug.Log(\"Skipping load inventory by PlayerWasLastConnectedToThisServer\");"
     ],
     "Pug.Other:133539": [
       "if (characterData.inventoryObjectNames.Count > i && characterData.inventory.Count > i && characterData.inventory[i].objectID >= (ObjectID)32767 && !string.IsNullOrEmpty(characterData.inventoryObjectNames[i]))"
@@ -1911,6 +1920,9 @@
     "Pug.Other:297405": [
       "public bool GetControllerTextInput(string description, int maxChars, string currentText, PlatformInterface.GotControllerTextInput callback, bool hidden = false)"
     ],
+    "Pug.Other:303759": [
+      ""
+    ],
     "Pug.Other:303889": [
       "public RecipeInfo GetRecipeInfo(int index)"
     ],
@@ -2658,6 +2670,12 @@
       "{",
       "num3++;",
       "}"
+    ],
+    "Pug.Other:338169": [
+      "if (recipeInfo.requiredObjectsToCraft.Count == 1 && base.activeCraftingHandler.HasMaterialsInCraftingInventoryToCraftRecipe(recipeInfo, checkPlayerInventoryToo: true, nearbyChests, useRequiredObjectsSetInRecipeInfo: true))"
+    ],
+    "Pug.Other:338174": [
+      "craftActionData = Create.ActivateRecipeSlot(base.activeCraftingHandler.craftingEntity, player.entity, 1, mod1, visibleSlotIndex)"
     ],
     "Pug.Other:338587": [
       "if (showEmptySlots || (recipeInfo.isValid && recipeInfo.objectID != ObjectID.None))"
@@ -4333,6 +4351,9 @@
     ],
     "PugProperties:1436": [
       "BlobBuilderArray<ObjectData> blobBuilderArray = builder.Allocate(ref reference.Objects, num + 1);"
+    ],
+    "PugProperties:1606": [
+      "UnityEngine.Debug.Log($\"replacing {name} at index {lookupIndex}\");"
     ],
     "PugRP:1266-1271": [
       "public enum OutputMode",
