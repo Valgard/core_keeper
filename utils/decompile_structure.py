@@ -34,6 +34,7 @@ import json
 import os
 import re
 from bisect import bisect_right
+from collections import Counter
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
@@ -121,10 +122,6 @@ class Structure:
         return tuple(e for e in self.elements if e.member is not None)
 
     @cached_property
-    def _member_starts(self):
-        return tuple(e.start for e in self.members)
-
-    @cached_property
     def types(self):
         """Types only. These nest, so finding the innermost is a scan, not a bisect."""
         return tuple(e for e in self.elements if e.member is None)
@@ -166,13 +163,36 @@ def _extent(node):
     return (node.start_point[0] + 1, node.end_point[0] + 1)
 
 
+def _declarator_name(node):
+    """The name node of the first `variable_declarator` under `node`, or None.
+
+    A field or an event field carries no `name` field of its own; the name sits
+    on a declarator one level down, in a `variable_declaration`. A declaration
+    with several declarators (`int a, b;`) is named for the first -- they share
+    one extent, so any choice is as good as another and only determinism
+    matters.
+
+    Both levels are searched, the declaration's own children and theirs. The
+    second is where the declarator really sits: of the cited assemblies'
+    nameless member nodes, all 61,485 that have one keep it there and none
+    keeps it directly -- the only others are the 162 operators and indexers
+    `_member_name` answers before it ever gets here. The first level is
+    searched for what a tree the grammar gave up on could leave behind, which
+    costs one type comparison per child and has not been observed.
+    """
+    for child in node.named_children:
+        candidates = [child] if child.type == "variable_declarator" else child.named_children
+        for candidate in candidates:
+            if candidate.type == "variable_declarator":
+                return candidate.child_by_field_name("name")
+    return None
+
+
 def _member_name(node):
     """The member's name as written, or None when no name can be derived.
 
-    `name` covers most declarations. A field or an event field keeps its name on
-    a variable declarator instead, and a declaration with several declarators
-    (`int a, b;`) is named for the first -- they share one extent, so any choice
-    is as good as another and only determinism matters.
+    `name` covers most declarations; `_declarator_name` covers the fields and
+    event fields that keep theirs elsewhere.
 
     An `explicit_interface_specifier` is joined back on, because tree-sitter's
     `name` field returns the bare name for both `Serialize` and
@@ -200,20 +220,9 @@ def _member_name(node):
 
     name = node.child_by_field_name("name")
     if name is None:
-        declarator = next(
-            (
-                d
-                for d in node.named_children
-                for d in ([d] if d.type == "variable_declarator" else d.named_children)
-                if d.type == "variable_declarator"
-            ),
-            None,
-        )
-        if declarator is None:
-            return None
-        name = declarator.child_by_field_name("name")
-        if name is None:
-            return None
+        name = _declarator_name(node)
+    if name is None:
+        return None
 
     qualifier = next(
         (c for c in node.named_children if c.type == "explicit_interface_specifier"),
@@ -362,7 +371,7 @@ def _build_identity(path):
     build. That costs nothing -- the field is diagnostic and never compared --
     and widening the search would start finding other projects' READMEs.
     """
-    for parent in [path.parent, *list(path.parents)[1:3]]:
+    for parent in path.parents[:3]:
         readme = parent / "README.md"
         if readme.is_file():
             match = _BUILD_HEADING.search(readme.read_text(errors="replace"))
@@ -529,8 +538,9 @@ def _forms(element):
         return
     for count in range(1, len(element.params) + 1):
         shown = ", ".join(element.params[:count])
-        omitted = count < len(element.params)
-        yield f"{element.member}({shown}, …)" if omitted else f"{element.member}({shown})"
+        if count < len(element.params):
+            shown += ", …"
+        yield f"{element.member}({shown})"
 
 
 def _type_forms(qualified):
@@ -565,11 +575,16 @@ def _shortest_unique(structure, element):
     `locate` re-derives each candidate's spellings through `_forms`, the same
     generator this reads, and the style checker is meant to call this rather
     than re-decide.
+
+    Counted over the siblings' forms rather than per form over the siblings,
+    which needs `_forms` to yield each spelling of one member at most once --
+    it does, because the bare name carries no `(` and every other form carries
+    a parameter prefix of its own length.
     """
     siblings = structure.members_by_type.get(element.type_name, ())
-    spellings = [frozenset(_forms(sibling)) for sibling in siblings]
+    spelled = Counter(form for sibling in siblings for form in _forms(sibling))
     for form in _forms(element):
-        if sum(form in spelling for spelling in spellings) == 1:
+        if spelled[form] == 1:
             return form
     return None
 
@@ -589,7 +604,7 @@ def _enclosing(structure, first, last):
     the element it names, which `locate` then refuses, so the citation would
     resolve to nothing.
     """
-    index = bisect_right(structure._member_starts, first) - 1
+    index = bisect_right(structure.members, first, key=lambda e: e.start) - 1
     if index >= 0 and structure.members[index].end >= last:
         return structure.members[index]
 
@@ -665,7 +680,7 @@ def locate(structure, citation):
             element
             for candidate in candidates
             for element in structure.members_by_type.get(candidate.type_name, ())
-            if citation.member in frozenset(_forms(element))
+            if citation.member in _forms(element)
         ]
     if len(matches) != 1:
         return None  # absent, or named ambiguously -- never guess which
