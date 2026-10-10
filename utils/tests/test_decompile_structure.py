@@ -16,7 +16,10 @@ an open question into a silent verdict.
 import json
 
 import decompile_structure
+from citation_notation import Citation
 from decompile_structure import Structure
+from decompile_structure import describe
+from decompile_structure import locate
 from decompile_structure import structure_of
 
 SIMPLE = """\
@@ -199,3 +202,107 @@ def test_the_environment_overrides_the_default_location(tmp_path, monkeypatch):
     monkeypatch.setenv("CK_STRUCTURE_CACHE", str(tmp_path / "elsewhere"))
     structure_of(write(tmp_path, SIMPLE))
     assert (tmp_path / "elsewhere").is_dir()
+
+
+def test_describe_prefers_the_member_over_the_type(tmp_path):
+    """The innermost anchor wins, because it is exposed to the least."""
+    s = structure_of(write(tmp_path, SIMPLE))
+    body = SIMPLE.splitlines().index("            bar = a;") + 1
+    c = describe(s, body, "A")
+    assert (c.type_name, c.member) == ("Foo", "Baz(int, …)")
+
+
+def test_describe_falls_back_to_the_type_between_members(tmp_path):
+    """The type tier: inside a class, inside none of its members."""
+    s = structure_of(write(tmp_path, SIMPLE))
+    brace = SIMPLE.splitlines().index("    {") + 1
+    c = describe(s, brace, "A")
+    assert (c.type_name, c.member) == ("Foo", None)
+
+
+def test_describe_falls_back_to_absolute_outside_every_type(tmp_path):
+    """The escape hatch, and only here: a `using` line has nothing to name."""
+    s = structure_of(write(tmp_path, SIMPLE))
+    c = describe(s, 1, "A")
+    assert (c.type_name, c.member, c.first) == (None, None, 1)
+
+
+def test_describe_uses_the_bare_name_when_it_is_unique(tmp_path):
+    """No parameter list where the name alone identifies the member."""
+    s = structure_of(write(tmp_path, SIMPLE))
+    field = SIMPLE.splitlines().index("        private int bar;") + 1
+    assert describe(s, field, "A").member == "bar"
+
+
+def test_describe_adds_the_shortest_unique_prefix_with_an_ellipsis(tmp_path):
+    """One type separates these overloads, so the other two are elided."""
+    text = """\
+class Foo
+{
+    void Baz(int a, string b, bool c) { }
+    void Baz(long a, string b, bool c) { }
+}
+"""
+    s = structure_of(write(tmp_path, text))
+    assert describe(s, 3, "A").member == "Baz(int, …)"
+
+
+def test_describe_omits_the_ellipsis_when_the_prefix_is_the_whole_list(tmp_path):
+    """Nothing was left out, so nothing claims to have been."""
+    text = """\
+class Foo
+{
+    void Baz(int a) { }
+    void Baz(long a) { }
+}
+"""
+    s = structure_of(write(tmp_path, text))
+    assert describe(s, 3, "A").member == "Baz(int)"
+
+
+def test_locate_is_the_inverse_of_describe(tmp_path):
+    """Every line of the fixture round trips, the escape hatch included.
+
+    The property that would have caught both throwaway recognisers' bugs the
+    day they were written.
+    """
+    s = structure_of(write(tmp_path, SIMPLE))
+    for line in range(1, len(SIMPLE.splitlines()) + 1):
+        c = describe(s, line, "A")
+        assert locate(s, c) == line, f"round trip broke at line {line}"
+
+
+def test_locate_returns_none_for_an_absent_member(tmp_path):
+    """A renamed or removed member is the third drift outcome, not a silent hit."""
+    s = structure_of(write(tmp_path, SIMPLE))
+    assert locate(s, Citation("A", "Foo", "Gone", 1, 1)) is None
+
+
+def test_locate_returns_none_when_the_offset_leaves_the_element(tmp_path):
+    """Review Focus 3: never clamp, never hand back a line outside the element."""
+    s = structure_of(write(tmp_path, SIMPLE))
+    assert locate(s, Citation("A", "Foo", "Baz(int, …)", 1, 400)) is None
+    assert locate(s, Citation("A", "Foo", "Baz(int, …)", 400, 400)) is None
+
+
+def test_locate_resolves_a_whole_element_citation_to_its_first_line(tmp_path):
+    """`Assembly:Class` and `Assembly:Class:member` are grammar forms too.
+
+    They carry no line, so locate has to answer with the element's own first
+    line rather than raising on the missing offset.
+    """
+    s = structure_of(write(tmp_path, SIMPLE))
+    assert locate(s, Citation("A", "Foo", None, None, None)) == 5
+    assert locate(s, Citation("A", "Foo", "bar", None, None)) == 7
+
+
+def test_a_namespace_level_member_falls_back_to_an_absolute_citation(tmp_path):
+    """A member with no enclosing type cannot be spelled, so it is not claimed.
+
+    `Assembly:member:N` would re-parse as the *type* tier and break the round
+    trip, so describe reaches for the escape hatch instead of inventing a form.
+    """
+    s = structure_of(write(tmp_path, "delegate void Handler(int a);\n"))
+    c = describe(s, 1, "A")
+    assert (c.type_name, c.member, c.first) == (None, None, 1)
+    assert locate(s, c) == 1

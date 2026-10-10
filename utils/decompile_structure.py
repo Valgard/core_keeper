@@ -32,11 +32,15 @@ import hashlib
 import json
 import os
 import re
+from bisect import bisect_right
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 
 import tree_sitter
 import tree_sitter_c_sharp
+from citation_notation import Citation
+from citation_notation import tier
 
 # Nodes that declare a type. A line inside one of these but inside no member of
 # it is still anchorable -- that is the type tier, 56 citations today.
@@ -99,6 +103,38 @@ class Structure:
 
     elements: tuple[Element, ...]
     error_ranges: tuple[tuple[int, int], ...]
+
+    # Indexes, built on first use and kept on the instance. `cached_property`
+    # writes through `__dict__`, which `frozen=True` does not guard, and the
+    # generated `__eq__` compares declared fields only -- so two Structures
+    # still compare equal whether or not either has been indexed.
+    #
+    # They exist because the obvious alternative is the mistake this project
+    # already made once: a linear scan per citation over ~62,000 elements is
+    # 45 million comparisons for one assembly's citations, which is how an
+    # earlier measurement in this design ran past its timeout.
+
+    @cached_property
+    def members(self):
+        """Members only, in `start` order. Disjoint, so one line has at most one."""
+        return tuple(e for e in self.elements if e.member is not None)
+
+    @cached_property
+    def _member_starts(self):
+        return tuple(e.start for e in self.members)
+
+    @cached_property
+    def types(self):
+        """Types only. These nest, so finding the innermost is a scan, not a bisect."""
+        return tuple(e for e in self.elements if e.member is None)
+
+    @cached_property
+    def members_by_type(self):
+        """Members grouped by enclosing type -- the scope uniqueness is judged in."""
+        index = {}
+        for element in self.members:
+            index.setdefault(element.type_name, []).append(element)
+        return index
 
 
 def _text(node):
@@ -371,3 +407,135 @@ def structure_of(path, *, cache_dir=None):
     if structure is not None:
         _write_entry(entry, structure, stat, _build_identity(path))
     return structure
+
+
+def _forms(element):
+    """Every spelling of this member, shortest first.
+
+    The bare name, then the parameter type list truncated to one type, two, and
+    so on, with `…` standing for everything left out. A prefix that is the whole
+    list carries no ellipsis, because nothing was omitted and saying otherwise
+    would make a complete signature look truncated.
+
+    There is no modifier tier and no separate interface tier. Modifiers are not
+    in `Element` -- nothing in the corpus needs them to disambiguate -- and an
+    explicit interface implementation already carries its qualifier *inside*
+    `member`, so it is a different name rather than a longer form of the same
+    one, and unique by the language rule that allows it at all.
+    """
+    yield element.member
+    if element.params is None:
+        return
+    if not element.params:
+        yield f"{element.member}()"
+        return
+    for count in range(1, len(element.params) + 1):
+        shown = ", ".join(element.params[:count])
+        omitted = count < len(element.params)
+        yield f"{element.member}({shown}, …)" if omitted else f"{element.member}({shown})"
+
+
+def _shortest_unique(structure, element):
+    """The shortest spelling of `element` that no sibling in its type shares.
+
+    **This is the only place that decides what "shortest unique" means.** ADR
+    0042 records what letting two implementations judge one claim cost: "both
+    had to be taught to judge alike -- they did not, twice, before this was
+    closed." Here the consequence would be worse, because a verification pass
+    would write citations its own commit hook rejects, and the natural response
+    to a red gate over freshly written citations is to weaken the gate. So
+    `locate` re-derives candidates through this same function, and the style
+    checker calls it rather than re-deciding.
+    """
+    siblings = structure.members_by_type.get(element.type_name, ())
+    spellings = [frozenset(_forms(sibling)) for sibling in siblings]
+    for form in _forms(element):
+        if sum(form in spelling for spelling in spellings) == 1:
+            return form
+    return None
+
+
+def _enclosing(structure, line):
+    """The innermost element containing `line`, or None if it is in no element.
+
+    Members are disjoint, so the last one starting at or before `line` is the
+    only candidate -- a bisect. Types nest, so the innermost is the smallest
+    extent that contains the line, and that is a scan. The scan only runs when
+    no member matched, which is under a tenth of the corpus.
+    """
+    index = bisect_right(structure._member_starts, line) - 1
+    if index >= 0 and structure.members[index].end >= line:
+        return structure.members[index]
+
+    innermost = None
+    for candidate in structure.types:
+        if candidate.start <= line <= candidate.end and (
+            innermost is None or candidate.end - candidate.start < innermost.end - innermost.start
+        ):
+            innermost = candidate
+    return innermost
+
+
+def describe(structure, line, assembly):
+    """The citation that anchors `line`: the innermost tier that can name it.
+
+    A member if one contains the line, else the enclosing type, else an
+    absolute line. The tier decides what the citation survives, so the
+    innermost is always the right answer -- it is exposed to the least.
+
+    An element with no enclosing type is passed over rather than claimed: a
+    namespace-level delegate would have to be spelled `Assembly:member:N`,
+    which the grammar reads back as the *type* tier, so claiming it would break
+    the round trip in a way no reader could see.
+    """
+    element = _enclosing(structure, line)
+    if element is None or element.type_name is None:
+        return Citation(assembly, None, None, line, line)
+
+    offset = line - element.start + 1
+    if element.member is None:
+        return Citation(assembly, element.type_name, None, offset, offset)
+
+    form = _shortest_unique(structure, element)
+    if form is None:
+        return Citation(assembly, None, None, line, line)
+    return Citation(assembly, element.type_name, form, offset, offset)
+
+
+def locate(structure, citation):
+    """The absolute line a citation resolves to, or None if it no longer does.
+
+    None is the outcome that does not exist under absolute line numbers and is
+    the reason for this change: a renamed or removed member stops resolving and
+    says so, where a line number would have gone on pointing at whatever moved
+    into its place.
+
+    Permissive where `describe` is canonical: any valid spelling resolves, not
+    only the shortest. The style checker reports a longer-than-necessary form
+    rather than blocking on it, so such citations exist legitimately and must
+    not fail to resolve for being verbose.
+    """
+    if tier(citation) == "absolute":
+        return citation.first
+
+    if citation.member is None:
+        matches = [
+            element for element in structure.types if element.type_name == citation.type_name
+        ]
+    else:
+        matches = [
+            element
+            for element in structure.members_by_type.get(citation.type_name, ())
+            if citation.member in frozenset(_forms(element))
+        ]
+    if len(matches) != 1:
+        return None  # absent, or named ambiguously -- never guess which
+    element = matches[0]
+
+    if citation.first is None:
+        return element.start
+    first = element.start + citation.first - 1
+    last = element.start + citation.last - 1
+    if citation.first < 1 or last > element.end:
+        return None  # the offset leaves the element; clamping would invent a line
+    return first
