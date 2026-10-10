@@ -199,6 +199,70 @@ def test_a_line_past_the_end_yields_an_empty_list_not_a_crash(tmp_path):
     assert mod.resolve("Pug.Other", 900, 900, tree) == []
 
 
+def test_source_for_resolves_a_decompiled_assembly(tmp_path):
+    """The plain case: an assembly name is a file beside the decompile root."""
+    tree = make_decompile(tmp_path, "Pug.Other", ["a"])
+    assert mod.source_for("Pug.Other", tree) == tree / "Pug.Other.decompiled.cs"
+
+
+def test_source_for_resolves_a_dedicated_server_assembly(tmp_path):
+    """The embedded "/" lands the join in the server tree with no branch of its own."""
+    tree = tmp_path / "decompile"
+    server = tree / "DedicatedServer"
+    server.mkdir(parents=True)
+    (server / "Pug.Other.decompiled.cs").write_text("a\n")
+    assert mod.source_for("DedicatedServer/Pug.Other", tree) == server / "Pug.Other.decompiled.cs"
+
+
+def test_source_for_resolves_an_asset_by_name(tmp_path):
+    """An asset citation states a filename, so the path segments are searched for."""
+    tree = tmp_path / "decompile"
+    assets = tree / "Resources" / "Assets" / "GameObject"
+    assets.mkdir(parents=True)
+    (assets / "ControlMappingMenu.prefab").write_text("a\n")
+    assert mod.source_for("ControlMappingMenu.prefab", tree) == assets / "ControlMappingMenu.prefab"
+
+
+def test_source_for_resolves_a_dependency_source_in_a_clone(tmp_path):
+    """A `.cs` citation names a file in a dependency's own clone, not an assembly.
+
+    This is the branch `relocate_citations.source_for` never had, which is how a
+    design measurement once put `LocalizationModule.cs` in the wrong anchor tier.
+    """
+    tree = tmp_path / "decompile"
+    module = tree / "CoreLib-source-1.0" / "Submodules" / "Localization"
+    module.mkdir(parents=True)
+    (module / "LocalizationModule.cs").write_text("a\n")
+    assert mod.source_for("LocalizationModule.cs", tree) == (module / "LocalizationModule.cs")
+
+
+def test_source_for_refuses_an_ambiguous_asset_name(tmp_path):
+    """Two files of that name means the citation named neither. Never guess."""
+    tree = tmp_path / "decompile"
+    for sub in ("A", "B"):
+        directory = tree / "Resources" / "Assets" / sub
+        directory.mkdir(parents=True)
+        (directory / "Thing.prefab").write_text("a\n")
+    assert mod.source_for("Thing.prefab", tree) is None
+
+
+def test_source_for_returns_none_for_an_unknown_name(tmp_path):
+    """A name matching no branch resolves to nothing rather than a missing path."""
+    tree = tmp_path / "decompile"
+    tree.mkdir()
+    assert mod.source_for("Nope.Missing", tree) is None
+
+
+def test_resolve_still_returns_stripped_lines(tmp_path):
+    """The regression guard for the extraction: resolve()'s own contract is unchanged.
+
+    `source_for` was lifted out of this function's three branches, so this test
+    is what proves the lift moved code rather than behaviour.
+    """
+    tree = make_decompile(tmp_path, "Pug.Other", ["  first", "  second"])
+    assert mod.resolve("Pug.Other", 1, 2, tree) == ["first", "second"]
+
+
 def write_chapter(root, name, text):
     """Write a handbook chapter at `docs/ck/<name>` under `root`, creating the tree if needed."""
     docs = root / "docs" / "ck"

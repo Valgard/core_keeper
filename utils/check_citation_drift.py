@@ -81,13 +81,8 @@ def _stripped_lines(path, first, last):
     return [line.strip() for line in lines[first - 1 : last]]
 
 
-def resolve(assembly, first, last, decompile):
-    """Return the stripped text of lines first..last, or None if unresolvable.
-
-    Stripped, because leading whitespace is the one part of a decompiled line
-    that changes for reasons having nothing to do with the code — a nesting
-    level added around it moves every line inside without altering what any of
-    them says. Comparing stripped text keeps the report about the statement.
+def source_for(assembly, decompile):
+    """The file a citation's first field names, or None if it resolves to no file.
 
     `assembly` carries the whole name as the citation wrote it, so a
     `DedicatedServer/Pug.Other` citation needs no separate branch here — the
@@ -96,18 +91,25 @@ def resolve(assembly, first, last, decompile):
     name the decompile has nothing by: a recognised Unity asset extension
     sends the search into `Resources/Assets/` instead, by filename rather
     than by path, because a citation states the file's name, not which of the
-    hundred type-named subdirectories under it holds that file. A name
-    matching more than one file there resolves to nothing rather than
-    guessing which one the sentence means.
+    hundred type-named subdirectories under it holds that file. A `.cs` name
+    is searched for the same way, one level further out, in the dependency
+    clones that sit beside the decompiled assemblies. In both of those cases a
+    name matching more than one file resolves to nothing rather than guessing
+    which one the sentence means.
+
+    This is the only path resolver. It used to be two: `resolve` below had all
+    three branches while `relocate_citations` carried a copy with two, and a
+    measurement taken through the short one put `LocalizationModule.cs` in the
+    wrong anchor tier. One function, so there is nothing to keep in step.
     """
     source = Path(decompile) / f"{assembly}.decompiled.cs"
     if source.is_file():
-        return _stripped_lines(source, first, last)
+        return source
 
     if Path(assembly).suffix in ASSET_EXTENSIONS:
         matches = sorted(Path(decompile, "Resources", "Assets").rglob(assembly))
         if len(matches) == 1:
-            return _stripped_lines(matches[0], first, last)
+            return matches[0]
 
     if Path(assembly).suffix in SOURCE_EXTENSIONS:
         matches = sorted(
@@ -117,9 +119,23 @@ def resolve(assembly, first, last, decompile):
             for match in clone.rglob(assembly)
         )
         if len(matches) == 1:
-            return _stripped_lines(matches[0], first, last)
+            return matches[0]
 
     return None
+
+
+def resolve(assembly, first, last, decompile):
+    """Return the stripped text of lines first..last, or None if unresolvable.
+
+    Stripped, because leading whitespace is the one part of a decompiled line
+    that changes for reasons having nothing to do with the code — a nesting
+    level added around it moves every line inside without altering what any of
+    them says. Comparing stripped text keeps the report about the statement.
+
+    Which file those lines come from is `source_for`'s question, not this one's.
+    """
+    source = source_for(assembly, decompile)
+    return _stripped_lines(source, first, last) if source is not None else None
 
 
 def key_of(assembly, first, last):

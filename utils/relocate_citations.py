@@ -35,29 +35,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from check_citation_drift import ASSET_EXTENSIONS
 from check_citation_drift import CITATION
 from check_citation_drift import DEFAULT_DECOMPILE
 from check_citation_drift import DEFAULT_SNAPSHOT
 from check_citation_drift import key_of
-
-
-def source_for(assembly, decompile):
-    """The file a citation's assembly name refers to, or None.
-
-    Mirrors resolve()'s lookup rules -- a plain or DedicatedServer/-prefixed
-    assembly name is a path, a recognised asset extension is a filename to
-    search for under Resources/Assets/ -- but returns the path rather than the
-    lines, because relocation has to read the whole file, not a slice of it.
-    """
-    direct = Path(decompile) / f"{assembly}.decompiled.cs"
-    if direct.is_file():
-        return direct
-    if Path(assembly).suffix in ASSET_EXTENSIONS:
-        matches = sorted(Path(decompile, "Resources", "Assets").rglob(assembly))
-        if len(matches) == 1:
-            return matches[0]
-    return None
+from check_citation_drift import source_for
 
 
 def find_sequence(haystack, needle):
