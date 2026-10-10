@@ -551,6 +551,12 @@ def test_gitignore_excludes_superpowers_process_artifacts():
     assert "\ndocs/\n" not in gi
 
 
+def test_gitignore_excludes_subagent_workspace():
+    """/.superpowers/ (subagent-driven-development workspace) is ignored, anchored at the root."""
+    gi = nm.build_gitignore("FasterPetTalents")
+    assert "\n/.superpowers/\n" in gi
+
+
 def test_changelog_starts_at_0_1_0():
     """A fresh CHANGELOG.md opens with a "## [0.1.0]" entry.
 

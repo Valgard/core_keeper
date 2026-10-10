@@ -646,7 +646,10 @@ UserSettings/
 
 # Superpowers process artifacts — plans and brainstorming scratch, slop once
 # the work is implemented. docs/specs/ and docs/adrs/ stay tracked.
+# /.superpowers/ is the subagent-driven-development workspace (ledger, briefs,
+# reports) — anchored, since it only ever lives at the repo root.
 docs/superpowers/
+/.superpowers/
 
 # LocalizationGenerator output (regenerated each build from localization/localization.yaml)
 unity/{mod_name}/Localization/Generated/
