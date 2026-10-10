@@ -11,11 +11,11 @@ earlier drafts of this paragraph each claimed a reach that a twenty-line
 measurement then refuted, so this one states only what was measured. Each row
 is a defect injected into the real corpus; the columns say which test went red.
 
-| injected defect | round trip | census | properties |
+| injected defect | round trip | tier bounds | properties |
 |---|---|---|---|
-| type names left unqualified | — | 654/55/**12** | — |
-| every member's `end` + 20 | — | **709/2/10** | **overlap** |
-| decoy member nested in each real one | — | 660/56/5/1 | **overlap** |
+| type names left unqualified | — | **absolute 12 > 10** | — |
+| every member's `end` + 20 | — | **type 2 < 20** | **overlap** |
+| decoy member nested in each real one | — | 727/57/5/1, in bounds | **overlap** |
 
 The round trip caught none of the three, and that is not a gap to close but
 what it is: `describe` falls back to a tier `locate` can always invert, so the
@@ -65,8 +65,20 @@ CALIBRATION = [
     (326339, "PugDatabase", "GetRandomLoot"),
 ]
 
-# The anchor-tier census the design spec states, measured over the same corpus.
-TIERS = {"member": 660, "type": 56, "absolute": 5, "unchecked": 1}
+# Bounds on the anchor-tier distribution, not the counts themselves. The counts
+# are a measurement of one day's corpus -- the spec records 660/56/5/1 over 722
+# citations -- and the handbook gains citations constantly: `main` added 68 in a
+# single day while this branch was being built. A test pinned to the numbers
+# goes red every time somebody documents something, which is the gate that
+# teaches people to edit the expected value instead of looking at it.
+#
+# These bounds were chosen by measuring them against the defects the exact
+# census caught, on the enlarged corpus: leaving nested type names unqualified
+# pushes `absolute` to 12, and adding 20 lines to every member's extent
+# collapses `type` to 2. Both still fail here.
+MAX_ABSOLUTE = 10
+MIN_TYPE = 20
+MIN_MEMBER_SHARE = 0.85
 
 
 @pytest.fixture(scope="module")
@@ -146,27 +158,40 @@ def test_every_citation_round_trips(corpus, structures):
     assert broken == [], f"{len(broken)} citation(s) do not round trip: {broken[:10]}"
 
 
-def test_the_tier_census_matches_the_spec(corpus, structures):
-    """The anchor tiers come out 660 / 56 / 5 / 1 over the 722 unique citations.
-
-    A census that drifts is the signal that element extents moved — a grammar
-    upgrade, or a decompile regenerated from different DLLs — and it is worth a
-    hard failure rather than a warning, because the citations keep resolving
-    either way and nothing else would say so.
-    """
-    counts = dict.fromkeys(TIERS, 0)
+def _census(corpus, structures):
+    """How many citations land in each anchor tier."""
+    counts = dict.fromkeys(("member", "type", "absolute", "unchecked"), 0)
     for assembly, line in corpus:
         structure = structures[assembly]
         if structure is None:
             counts["unchecked"] += 1
             continue
         counts[tier(describe(structure, line, assembly))] += 1
-    assert counts == TIERS
+    return counts
 
 
-def test_the_corpus_is_the_size_the_spec_says(corpus):
-    """722 unique citations — the denominator every other figure here rests on."""
-    assert len(corpus) == 722
+def test_the_anchor_tiers_stay_in_the_shape_the_design_assumes(corpus, structures):
+    """Nearly every citation anchors on a member, a few on a type, almost none absolutely.
+
+    The instrument that notices element extents moving -- a grammar upgrade, a
+    decompile regenerated from different DLLs -- because the citations keep
+    resolving either way and nothing else here would say so. Bounds rather than
+    counts, for the reason given at MAX_ABSOLUTE.
+    """
+    counts = _census(corpus, structures)
+    assert counts["absolute"] <= MAX_ABSOLUTE, counts
+    assert counts["type"] >= MIN_TYPE, counts
+    assert counts["member"] >= MIN_MEMBER_SHARE * len(corpus), counts
+
+
+def test_every_citation_is_accounted_for_in_exactly_one_tier(corpus, structures):
+    """The tiers partition the corpus, so no citation is counted twice or lost.
+
+    What the pinned corpus size used to assert, as a property instead: it holds
+    at any size, and it is the invariant the other figures here rest on.
+    """
+    assert sum(_census(corpus, structures).values()) == len(corpus)
+    assert corpus, "the corpus is empty -- the citation regex or docs/ck moved"
 
 
 @pytest.fixture(scope="module")
