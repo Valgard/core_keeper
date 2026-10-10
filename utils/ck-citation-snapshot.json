@@ -1,5 +1,11 @@
 {
   "citations": {
+    "ConfigFile.cs:509": [
+      "if (SaveOnConfigSet)"
+    ],
+    "ConfigFile.cs:90": [
+      "public bool SaveOnConfigSet { get; set; } = true;"
+    ],
     "ControlMappingMenu.prefab:2459-2460": [
       "_helpButtonList: 0600000005000000000000000100000002000000",
       "_helpButtonListNoJoystick: 05000000000000000100000002000000"

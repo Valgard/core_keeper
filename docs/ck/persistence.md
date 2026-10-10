@@ -252,6 +252,21 @@ This bites specifically when a `AcceptableValueBase` subclass computes its
 description rather than returning a literal — a plausible thing to write, and
 the failure surfaces nowhere near it.
 
+**Trap: another mod can switch your file's auto-save off.** All of the saving
+above hangs on one public flag, `ConfigFile.SaveOnConfigSet`, which defaults to
+`true` (`ConfigFile.cs:90`) and is checked before every save
+(`ConfigFile.cs:509`) — and the registry hands every file to every mod. General
+Mod Config Menu, which syncs settings between server and client, sets it to
+`false` on every registered file whose `ConfigFilePath` does not start with
+`CoreLib` (its `ConfigSyncSystem.OnCreate`, read in mod.io modfile 8270186). It
+never sets it back, so in a process with that mod loaded a foreign settings UI
+writes the new value into memory and nothing reaches the disk; the next launch
+shows the old one. Measured on 1.3.0.6 with Mod Settings Menu v1, which relied
+on the auto-save: a changed setting did not survive a restart — on the title
+screen as well as in a world — and disabling General Mod Config Menu alone made
+it stick. Call `ConfigFile.Save()` yourself after a write whose persistence
+matters, rather than trusting the flag you set at construction.
+
 **Change notification and reloading are both there.** `ConfigFile.SettingChanged`
 and the per-entry `ConfigEntryBase.SettingChanged` fire on every write, and
 `ConfigFile.Reload()` re-reads the file from disk. Together they allow a split

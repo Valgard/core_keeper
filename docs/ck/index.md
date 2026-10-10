@@ -115,6 +115,7 @@ symptom, not the topic.
 | Item Browser (or another reader of the managed recipes) throws in `ObjectUtility.GetValue` when its Items tab opens | [Database and baking](database-and-baking.md#seeding-an-item-hides-its-recipe-from-the-managed-catalogue) — a pre-seeded item's ingredients resolved to `None` |
 | `Missing title for crafting UI window` floods the log | [Database and baking](database-and-baking.md#how-a-station-window-lays-out-the-list-six-slots-three-windows) — an added window needs a title; patch the getter on a copy |
 | A workbench shows an empty extra window | [Database and baking](database-and-baking.md#how-a-station-window-lays-out-the-list-six-slots-three-windows) — observed with trailing `None` padding, cause open |
+| A setting changed in a menu is back to its old value after a restart | [Storing configuration and state](persistence.md#2-corelibs-configfile--typed-entries-at-a-price) — another mod turned `SaveOnConfigSet` off |
 | An edit made from `Init` misses another mod's entries, depending on load order | [Database and baking](database-and-baking.md#trap-a-config-value-the-bake-reads-must-be-bound-in-earlyinit) — every `Init` runs before any `Update` |
 | A tag you set on mod.io simply is not there | [Publishing to mod.io](publishing.md) — unknown values are dropped silently |
 | The Steam Workshop tab's "Initialize Steam" does nothing | [Troubleshooting](troubleshooting.md) — a native library the SDK does not ship on macOS |
