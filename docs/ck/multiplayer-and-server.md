@@ -571,6 +571,21 @@ Four things about starting it are not obvious:
   It does nothing on its own — the shipped `ARGUMENTS.txt` says it "has no
   effect unless -port is also set", because the flag is read only inside the
   direct-connection branch that `-port` gates.
+- **`-world` selects, `-worldname` does not — and both persist.** The server
+  takes a world by its slot alone; `-worldname` only sets the name clients see
+  for whichever slot loads. Each argument overwrites a field of the server's
+  settings, which are saved as `ServerConfig.json` in its data path, and an
+  argument left out leaves the stored value in force (`ReloadAllSettings` in the
+  dedicated server's `Pug.Other`): without `-world` the server loads the slot
+  last stored, 0 only on a fresh install, and without `-worldname` the name last
+  stored. The same holds for seed, mode, season, player cap, Game ID and
+  password. Name, mode and seed of the running world come from those settings
+  too — the server's `GetWorldInfo` and `GetWorldName` return them for any slot
+  — so it never consults a `<slot>.worldinfo`, and a launcher that picks a world
+  by name has to read those files itself and pass the name along with the slot,
+  or the world appears under the stored name. Observed once: after `-worldname`
+  and a clean shutdown the name was in `ServerConfig.json`, and the slot's
+  `.worldinfo` was untouched.
 - **A cold start with a full mod set takes minutes**, observed under CrossOver —
   every source mod goes through Roslyn and the world is decompressed on load. A
   server that looks hung shortly after launch usually is not.
