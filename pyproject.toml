@@ -16,8 +16,10 @@ dependencies = [
     # turns those spans into element extents, and handbook citations are
     # anchored on them. A grammar release that re-shaped one node would move
     # every citation inside it -- silently, because the citation would still
-    # resolve, just to a different line. Not an optional extra either: the
-    # drift checker resolves a symbol on every pre-commit run.
+    # resolve, just to a different line. Not an optional extra either:
+    # check_citation_style.py is a pre-commit hook, and its structural half
+    # needs `describe` -- which is also the half that has to degrade cleanly in
+    # a mod repository, where neither this package nor a decompile exists.
     "tree-sitter==0.26.0",
     "tree-sitter-c-sharp==0.23.5",
 ]

@@ -473,9 +473,9 @@ def structure_of(path, *, cache_dir=None):
     structure = _parse(path)
     if structure is not None:
         # The cache is an optimisation. An unwritable or unreachable directory
-        # costs this run its 4.4 s, not the commit: the drift checker resolves
-        # symbols on every pre-commit run and must not fail for want of
-        # somewhere to put an index.
+        # costs this run its 4.4 s, not the commit: check_citation_style.py is
+        # a pre-commit hook and its structural half resolves symbols through
+        # here, so it must not fail for want of somewhere to put an index.
         with contextlib.suppress(OSError):
             _write_entry(entry, structure, stat, _build_identity(path))
     return structure

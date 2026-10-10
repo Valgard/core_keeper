@@ -400,8 +400,9 @@ class Foo
 def test_an_unwritable_cache_directory_does_not_fail_the_run(tmp_path):
     """The cache is an optimisation; failing to write one must not fail a gate.
 
-    `check_citation_drift` resolves symbols on every pre-commit run, so an
-    unwritable or unreachable cache directory has to cost time, not the commit.
+    `check_citation_style.py` is a pre-commit hook and its structural half
+    resolves symbols through here, so an unwritable or unreachable cache
+    directory has to cost time, not the commit.
     """
     path = write(tmp_path, SIMPLE)
     blocked = tmp_path / "blocked"

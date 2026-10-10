@@ -40,27 +40,37 @@ def _isolate_git_env(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
 
-@pytest.fixture(scope="session")
-def _structure_cache_root(tmp_path_factory):
-    """One throwaway directory for the whole session's decompile-structure cache."""
-    return tmp_path_factory.mktemp("ck-structure-cache")
-
-
-@pytest.fixture(autouse=True)
-def _isolate_structure_cache(monkeypatch, _structure_cache_root):
+@pytest.fixture(scope="session", autouse=True)
+def _isolate_structure_cache(tmp_path_factory):
     """Keep `decompile_structure`'s cache out of the real `~/.cache`.
 
     Without this, every test that calls `structure_of` without an explicit
     `cache_dir` writes into the developer's own cache -- 115 of 140 entries
-    there were test debris when this was found -- and, worse, reads from it: a
-    suite that passes because an earlier run left an entry behind is a suite
-    that depends on ambient state.
+    there were test debris when this was found -- and, worse, reads from it.
+
+    **Session scope and autouse, not function scope.** A first version of this
+    was a function-scoped autouse fixture, and it did nothing for the suite
+    that needed it most: pytest builds a module-scoped fixture before the
+    function-scoped ones of the tests that use it, so
+    `test_structure_corpus.py`'s `structures` fixture had already parsed all 27
+    assemblies against the real cache before the env var was ever set.
+    `--setup-show` prints the order plainly; what hid it from a count of cache
+    entries is that a cache *hit* writes nothing, so the number does not move.
+
+    The cost is that the corpus suite re-parses rather than reusing a warm
+    cache -- around 13 s a run. That is the right price: this is the gate that
+    licenses migrating an already-verified chapter without re-reading it, and
+    the alternative is a gate that can validate changed extraction logic
+    against entries the old logic wrote. `CACHE_FORMAT` is meant to catch that,
+    but it only works if a human remembers to bump it, and the first edit to
+    change `_member_name` after it existed did not.
 
     Autouse and in conftest for the same reason as `_isolate_git_env` above:
-    the cost of forgetting it falls on whoever writes the *next* suite. Session
-    scope so the real corpus is still parsed once per run rather than per test.
+    the cost of forgetting it falls on whoever writes the *next* suite.
     """
-    monkeypatch.setenv("CK_STRUCTURE_CACHE", str(_structure_cache_root))
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv("CK_STRUCTURE_CACHE", str(tmp_path_factory.mktemp("ck-structure-cache")))
+        yield
 
 
 PIXAKI_FORMS = ("zip", "directory")
