@@ -129,7 +129,7 @@ def test_a_missing_path_is_unknown(tmp_path):
 def test_a_second_call_does_not_reparse(tmp_path, monkeypatch):
     """A cache hit does not reach the parser at all.
 
-    The whole point: 7.8 s for the 25 cited assemblies is not a price a
+    The whole point: 12.2 s for the 26 cited C# sources is not a price a
     pre-commit gate can pay once per run, let alone per citation.
     """
     path = write(tmp_path, SIMPLE)
@@ -201,7 +201,12 @@ def test_a_truncated_entry_is_reparsed_not_read_as_complete(tmp_path):
 
 
 def test_the_environment_overrides_the_default_location(tmp_path, monkeypatch):
-    """`.envrc` decides where the cache lives, so a machine can move it."""
+    """An environment variable decides where the cache lives.
+
+    `CK_STRUCTURE_CACHE`, read at call time rather than at import, so a machine
+    or a test can move it. The design spec says `.envrc` sets it; nothing does
+    yet, and wiring that is the next plan's business.
+    """
     monkeypatch.setenv("CK_STRUCTURE_CACHE", str(tmp_path / "elsewhere"))
     structure_of(write(tmp_path, SIMPLE))
     assert (tmp_path / "elsewhere").is_dir()
@@ -266,8 +271,11 @@ class Foo
 def test_locate_is_the_inverse_of_describe(tmp_path):
     """Every line of the fixture round trips, the escape hatch included.
 
-    The property that would have caught both throwaway recognisers' bugs the
-    day they were written.
+    An inverse relationship, not a check on the data: `describe` falls back to
+    a tier `locate` can always invert, so this goes red when the two stop
+    agreeing -- `_forms` changed on one side only -- and not when an element's
+    extent is wrong. `test_structure_corpus.py`'s module docstring has the
+    measurements that establish which is which.
     """
     s = structure_of(write(tmp_path, SIMPLE))
     for line in range(1, len(SIMPLE.splitlines()) + 1):
@@ -401,9 +409,10 @@ class Foo
 def test_an_unwritable_cache_directory_does_not_fail_the_run(tmp_path):
     """The cache is an optimisation; failing to write one must not fail a gate.
 
-    `check_citation_style.py` is a pre-commit hook and its structural half
-    resolves symbols through here, so an unwritable or unreachable cache
-    directory has to cost time, not the commit.
+    Nothing imports this module yet; the consumer it is for is
+    `check_citation_style.py`'s structural half, which is a pre-commit hook. So
+    an unwritable or unreachable cache directory has to cost time, not the
+    commit.
     """
     path = write(tmp_path, SIMPLE)
     blocked = tmp_path / "blocked"

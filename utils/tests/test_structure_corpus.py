@@ -6,31 +6,31 @@ factor of three between two prototypes that each looked plausible on a handful
 of citations, so an aggregate taken from part of the corpus measures whichever
 bug happens to dominate.
 
-**What each test here can and cannot catch.** Two earlier drafts of this
-paragraph were wrong, in the same way each time: they claimed a reach for a test
-without measuring it. What follows is measured.
+**What each test here catches, by mutation rather than by argument.** Three
+earlier drafts of this paragraph each claimed a reach that a twenty-line
+measurement then refuted, so this one states only what was measured. Each row
+is a defect injected into the real corpus; the columns say which test went red.
 
-The round trip is an identity whenever `describe` and `locate` agree on the
-element. `describe` computes an offset from the element it found; `locate`
-re-finds it by name and inverts the arithmetic. So a wrong *extent* passes it
-unharmed. What it catches is every way the *name* fails -- an anchor matching
-several declarations, a form nothing can spell, a token that will not parse back
--- which is how it found seven `UpdateJob` declarations sharing one name.
+| injected defect | round trip | census | properties |
+|---|---|---|---|
+| type names left unqualified | — | 654/55/**12** | — |
+| every member's `end` + 20 | — | **709/2/10** | **overlap** |
+| decoy member nested in each real one | — | 660/56/5/1 | **overlap** |
 
-The tier census does **not** cover extents either, which was the second wrong
-claim. A decoy member nested inside every real member of every cited assembly
-leaves it reading exactly 660/56/5/1, with the round trip, the token round trip
-and the range test all green: the decoy is the innermost element, so the tier
-stays "member" and the arithmetic stays consistent. What the census does catch
-is an extent that changes which tier a line falls in -- a member whose `end`
-runs past its own body, for instance.
+The round trip caught none of the three, and that is not a gap to close but
+what it is: `describe` falls back to a tier `locate` can always invert, so the
+two are mutual inverses by construction. It did catch the seven `UpdateJob`
+declarations while it was being built, before that fallback existed. What it
+pins today is the inverse relationship itself -- change `_forms` on one side
+only and it goes red -- which is worth a test and is not a check on the data.
 
-Extents are covered by the two property tests at the end of this file --
-members disjoint, members inside their type -- and by the four calibration
-fixtures, whose expected values were read out of the decompile by hand rather
-than taken from this code. The properties are the load-bearing half: five
-hand-checked points against 157,134 elements is a sample, and disjointness is
-a property.
+So the data is covered by the census and the two property tests, and they are
+complementary rather than redundant: the census sees a line change tier, which
+a nested decoy never does; the properties see an extent overlap another, which
+the census reads as a perfectly ordinary distribution. The four calibration
+fixtures cover name construction at four points, read out of the decompile by
+hand rather than taken from this code -- a sample, where the properties are
+properties.
 
 It needs the decompile checkout and skips loudly without one. A skip here means
 the suite proved nothing about the handbook, which is different from passing.

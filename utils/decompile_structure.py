@@ -112,7 +112,7 @@ class Structure:
     #
     # They exist because the obvious alternative is the mistake this project
     # already made once: a linear scan per citation over ~62,000 elements is
-    # 45 million comparisons for one assembly's citations, which is how an
+    # tens of millions of comparisons across the corpus, which is how an
     # earlier measurement in this design ran past its timeout.
 
     @cached_property
@@ -232,10 +232,12 @@ def _params(node):
         if parameter.type != "parameter":
             continue
         declared = parameter.child_by_field_name("type")
-        # `global::Discord.Discord` is three real declarations' parameter type,
-        # and the citation grammar splits its fields on ":" -- so a form built
-        # from it renders a token `parse` rejects. The qualifier resolves an
-        # alias and means nothing a citation needs, so it goes.
+        # Three declarations in the cited assemblies carry an alias-qualified
+        # parameter type -- one `global::Discord.Discord`, two
+        # `global::Platform...` -- and the citation grammar splits its fields
+        # on ":", so a form built from one would render a token `parse` rejects.
+        # No citation reaches one today; the qualifier resolves an alias and
+        # means nothing a citation needs, so it goes before one does.
         spelled = _text(declared) if declared is not None else "?"
         types.append(spelled.replace("global::", ""))
     return tuple(types)
@@ -276,13 +278,16 @@ def _errors(root):
     inside a member body, which `_collect` deliberately does not enter.
 
     **An error range does not disqualify an anchor, and must not.** Measured on
-    `Pug.Other` at 1.3.0.6: 4,570 ranges covering 14.68 % of the file, the
+    `Pug.Other` at 1.3.0.6: 4,570 ranges covering 14.65 % of the file (their
+    union; they overlap, so summing their lengths double-counts), the
     widest of them 63,160 lines -- from a `namespace` keyword the grammar
     rejects straight to the end of the file -- and 61 of that assembly's 506
     cited lines sit inside one. The declarations inside those ranges parse
-    correctly all the same: `PugMap` comes out spanning its real 590 lines and
-    its fields one line each. So the ranges say where the *grammar* gave up on
-    the enclosing syntax, not where the elements are untrustworthy. Refusing to
+    correctly all the same: `PugMap` comes out spanning its real 590 lines,
+    and its fields their own (five of nine on one line, the rest carrying an
+    attribute that tree-sitter counts into the declaration). So the ranges say
+    where the *grammar* gave up on the enclosing syntax, not where the elements
+    are untrustworthy. Refusing to
     anchor inside one would move 61 verifiable citations into the escape hatch,
     which has no location check at all -- strictly worse than an anchor that
     provably round-trips.
@@ -351,8 +356,11 @@ def _build_identity(path):
     """The build this file was decompiled from, for diagnostics, or None.
 
     Found by looking for a README with a version heading in the file's own
-    directory and the two above it -- an assembly sits at the decompile root, a
-    dependency clone's source a level or two down.
+    directory and the two above it, which reaches every decompiled assembly:
+    they sit at the decompile root. It does not reach a dependency clone's own
+    source, which is five levels down, so `LocalizationModule.cs` records no
+    build. That costs nothing -- the field is diagnostic and never compared --
+    and widening the search would start finding other projects' READMEs.
     """
     for parent in [path.parent, *list(path.parents)[1:3]]:
         readme = parent / "README.md"
@@ -462,10 +470,16 @@ def _write_entry(entry, structure, stat, build):
 def structure_of(path, *, cache_dir=None):
     """The Structure of the file at `path`, or None if nothing is known about it.
 
-    Parsing the 25 cited assemblies costs 7.8 s, 5.6 s of it the two 16 MB
-    copies of `Pug.Other`. A pre-commit gate cannot pay that per run, so the
-    result is cached outside the repository -- it describes the decompile, not
-    the repository, and `git clean -fdx` should not cost 7.8 s.
+    Parsing the 26 cited C# sources (44.6 MB) costs 12.2 s with this
+    extraction, 9.1 s of it the two 16 MB copies of `Pug.Other`; a warm entry
+    answers in 0.1 s. A pre-commit gate cannot pay the cold price per run, so
+    the result is cached outside the repository -- it describes the decompile
+    rather than the repository, and `git clean -fdx` should not cost 12 s.
+
+    (The design spec quotes 7.8 s and 5.6 s. Those were measured during the
+    design, against an extraction that collected members only; this one also
+    walks types and error ranges. The ratio between the two figures survived,
+    the absolute numbers did not.)
     """
     path = Path(path)
     try:
@@ -481,10 +495,11 @@ def structure_of(path, *, cache_dir=None):
 
     structure = _parse(path)
     if structure is not None:
-        # The cache is an optimisation. An unwritable or unreachable directory
-        # costs this run its 4.4 s, not the commit: check_citation_style.py is
-        # a pre-commit hook and its structural half resolves symbols through
-        # here, so it must not fail for want of somewhere to put an index.
+        # The cache is an optimisation and must never be able to fail a run.
+        # Nothing imports this module yet; what it is being built for is
+        # check_citation_style.py's structural half, which is a pre-commit
+        # hook, so an unwritable or unreachable directory has to cost the parse
+        # and not the commit.
         with contextlib.suppress(OSError):
             _write_entry(entry, structure, stat, _build_identity(path))
     return structure
@@ -547,8 +562,9 @@ def _shortest_unique(structure, element):
     closed." Here the consequence would be worse, because a verification pass
     would write citations its own commit hook rejects, and the natural response
     to a red gate over freshly written citations is to weaken the gate. So
-    `locate` re-derives candidates through this same function, and the style
-    checker calls it rather than re-deciding.
+    `locate` re-derives each candidate's spellings through `_forms`, the same
+    generator this reads, and the style checker is meant to call this rather
+    than re-decide.
     """
     siblings = structure.members_by_type.get(element.type_name, ())
     spellings = [frozenset(_forms(sibling)) for sibling in siblings]
