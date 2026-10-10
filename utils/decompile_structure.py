@@ -130,10 +130,30 @@ class Structure:
 
     @cached_property
     def members_by_type(self):
-        """Members grouped by enclosing type -- the scope uniqueness is judged in."""
+        """Members grouped by enclosing type -- the scope uniqueness is judged in.
+
+        Keyed by the *qualified* type name, so two systems' nested `UpdateJob`
+        structs do not pool their members into one namespace.
+        """
         index = {}
         for element in self.members:
             index.setdefault(element.type_name, []).append(element)
+        return index
+
+    @cached_property
+    def types_by_form(self):
+        """Every suffix of every qualified type name, to the elements it could mean.
+
+        `EquipmentUpdateSystem.UpdateJob` is reachable as `UpdateJob` and as
+        the full name; the first is shared with six other declarations and the
+        second is not. Uniqueness is counted in *elements*, not names, because
+        two declarations can share even a fully qualified name and a citation
+        to either would then resolve to neither.
+        """
+        index = {}
+        for element in self.types:
+            for form in _type_forms(element.type_name):
+                index.setdefault(form, []).append(element)
         return index
 
 
@@ -158,7 +178,25 @@ def _member_name(node):
     `IRpcCommandSerializer<Rpc>.Serialize`. A layer reading only that field
     merges two real members, and a citation to either is then measured against
     the other.
+
+    Three kinds have no identifier at all in C#, and each is named the way the
+    decompile writes it: an indexer is `this` and is told apart by its
+    parameters, a binary operator is `operator ==`, a conversion is named for
+    its target type as `operator Foo`. Measured over the cited assemblies they
+    are 162 of 157,134 member nodes -- 0.1 %, but *all* of those three kinds,
+    where every other kind is fully named. Leaving them unnamed anchored their
+    lines on the enclosing type instead, which for a large type gives up most
+    of the precision this module exists for.
     """
+    if node.type == "indexer_declaration":
+        return "this"
+    if node.type == "operator_declaration":
+        operator = node.child_by_field_name("operator")
+        return f"operator {_text(operator)}" if operator is not None else None
+    if node.type == "conversion_operator_declaration":
+        target = node.child_by_field_name("type")
+        return f"operator {_text(target)}" if target is not None else None
+
     name = node.child_by_field_name("name")
     if name is None:
         declarator = next(
@@ -208,7 +246,15 @@ def _collect(node, type_name, elements):
             continue
         if child.type in _TYPE_NODES:
             name = child.child_by_field_name("name")
-            inner = _text(name) if name is not None else type_name
+            if name is None:
+                _collect(child, type_name, elements)
+                continue
+            # Nested types carry their enclosing type, dotted, because a simple
+            # name is not an anchor: `UpdateJob` names seven declarations in
+            # `Pug.Other` alone -- it is what DOTS calls the job struct nested
+            # in a system. `describe` shortens this back to the briefest
+            # unique suffix, so the 3,343 unqualified names stay unqualified.
+            inner = f"{type_name}.{_text(name)}" if type_name else _text(name)
             start, end = _extent(child)
             elements.append(Element(inner, None, None, start, end))
             _collect(child, inner, elements)
@@ -268,6 +314,18 @@ def _parse(path):
 
 
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "ck-decompile-structure"
+
+# What this module's own output means, stamped into every entry. Bump it when a
+# change alters the *content* of a Structure for a file that has not moved --
+# a node type added to either list, a change to how a name is built, a new
+# field on Element. The file's size and mtime cannot see such a change, and the
+# shape check in `_decode` only catches it when the JSON layout changes too.
+#
+# Earned, not anticipated: qualifying nested type names (`UpdateJob` ->
+# `EquipmentUpdateSystem.UpdateJob`) left the layout identical, so entries
+# written before it were accepted afterwards and seven citations silently
+# resolved to the escape hatch instead of their member.
+CACHE_FORMAT = 2
 
 # The decompile README's title carries the build it was taken from. Duplicated
 # from `verify_status` rather than imported: that is a command-line tool, and a
@@ -360,6 +418,8 @@ def _read_entry(entry, stat):
         data = json.loads(entry.read_text())
     except (OSError, ValueError):
         return None
+    if data.get("format") != CACHE_FORMAT:
+        return None
     if data.get("size") != stat.st_size or data.get("mtime_ns") != stat.st_mtime_ns:
         return None
     return _decode(data)
@@ -374,6 +434,7 @@ def _write_entry(entry, structure, stat, build):
     """
     entry.parent.mkdir(parents=True, exist_ok=True)
     payload = _encode(structure) | {
+        "format": CACHE_FORMAT,
         "size": stat.st_size,
         "mtime_ns": stat.st_mtime_ns,
         "build": build,
@@ -435,6 +496,26 @@ def _forms(element):
         yield f"{element.member}({shown}, …)" if omitted else f"{element.member}({shown})"
 
 
+def _type_forms(qualified):
+    """Suffixes of a dotted type name, shortest first: `Inner`, `Outer.Inner`, ..."""
+    parts = qualified.split(".")
+    for count in range(1, len(parts) + 1):
+        yield ".".join(parts[-count:])
+
+
+def _shortest_unique_type(structure, qualified):
+    """The briefest suffix of `qualified` that names one declaration, or None.
+
+    The same rule the member names follow, for the same reason: an anchor that
+    matches seven declarations is not an anchor. None when even the full name
+    is shared, which leaves the citation nothing to be but absolute.
+    """
+    for form in _type_forms(qualified):
+        if len(structure.types_by_form.get(form, ())) == 1:
+            return form
+    return None
+
+
 def _shortest_unique(structure, element):
     """The shortest spelling of `element` that no sibling in its type shares.
 
@@ -492,14 +573,18 @@ def describe(structure, line, assembly):
     if element is None or element.type_name is None:
         return Citation(assembly, None, None, line, line)
 
+    named = _shortest_unique_type(structure, element.type_name)
+    if named is None:
+        return Citation(assembly, None, None, line, line)
+
     offset = line - element.start + 1
     if element.member is None:
-        return Citation(assembly, element.type_name, None, offset, offset)
+        return Citation(assembly, named, None, offset, offset)
 
     form = _shortest_unique(structure, element)
     if form is None:
         return Citation(assembly, None, None, line, line)
-    return Citation(assembly, element.type_name, form, offset, offset)
+    return Citation(assembly, named, form, offset, offset)
 
 
 def locate(structure, citation):
@@ -518,14 +603,17 @@ def locate(structure, citation):
     if tier(citation) == "absolute":
         return citation.first
 
+    candidates = structure.types_by_form.get(citation.type_name, ())
     if citation.member is None:
-        matches = [
-            element for element in structure.types if element.type_name == citation.type_name
-        ]
+        matches = list(candidates)
     else:
+        # Gathered across every type the cited name could mean, so a member
+        # that is unique on its own still resolves under a type name that is
+        # not -- which is what makes `describe`'s shortening safe to undo.
         matches = [
             element
-            for element in structure.members_by_type.get(citation.type_name, ())
+            for candidate in candidates
+            for element in structure.members_by_type.get(candidate.type_name, ())
             if citation.member in frozenset(_forms(element))
         ]
     if len(matches) != 1:

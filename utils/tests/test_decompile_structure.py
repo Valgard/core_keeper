@@ -306,3 +306,69 @@ def test_a_namespace_level_member_falls_back_to_an_absolute_citation(tmp_path):
     c = describe(s, 1, "A")
     assert (c.type_name, c.member, c.first) == (None, None, 1)
     assert locate(s, c) == 1
+
+
+def test_an_entry_from_a_different_code_version_is_reparsed(tmp_path):
+    """A semantic change keeps the entry's shape and must still invalidate it.
+
+    Found in the wild while building this: qualifying nested type names left
+    `type_name` a string, so the decoder accepted entries written before the
+    change and served an index that no longer matched the code. The file had
+    not moved, so neither size nor mtime noticed. Only a stamp of what wrote
+    the entry can catch that class of staleness.
+    """
+    path = write(tmp_path, SIMPLE)
+    cache = tmp_path / "cache"
+    structure_of(path, cache_dir=cache)
+    entry = next(cache.iterdir())
+    stored = json.loads(entry.read_text())
+    assert stored["format"] == decompile_structure.CACHE_FORMAT
+    stored["format"] = decompile_structure.CACHE_FORMAT - 1
+    entry.write_text(json.dumps(stored))
+    calls = []
+    monkeypatch_target = decompile_structure._parse
+    decompile_structure._parse = lambda p: calls.append(p) or monkeypatch_target(p)
+    try:
+        assert structure_of(path, cache_dir=cache) is not None
+    finally:
+        decompile_structure._parse = monkeypatch_target
+    assert calls == [path]
+
+
+def test_the_three_declarations_with_no_identifier_are_still_named(tmp_path):
+    """An operator, a conversion and an indexer have no name in C# syntax.
+
+    They are 162 of the corpus's 157,134 member nodes -- 0.1 %, but 100 % of
+    those three kinds, where every other kind is fully named. Listing them as
+    members while being unable to name them left their lines anchored on the
+    enclosing type instead, which for a large type is most of the precision
+    this design exists for. Each is spelled the way the decompile spells it.
+    """
+    text = """\
+class Wrapper
+{
+    public static implicit operator Wrapper(int v) { return null; }
+    public static bool operator ==(Wrapper a, Wrapper b) { return false; }
+    public int this[int i] { get { return i; } }
+}
+"""
+    s = structure_of(write(tmp_path, text))
+    assert {e.member for e in s.elements if e.member} == {
+        "operator Wrapper",
+        "operator ==",
+        "this",
+    }
+
+
+def test_an_indexer_is_disambiguated_by_its_parameter_list(tmp_path):
+    """Two indexers differ only in their parameters, which is what `this` has."""
+    text = """\
+class Wrapper
+{
+    public int this[int i] { get { return i; } }
+    public int this[string s] { get { return 0; } }
+}
+"""
+    s = structure_of(write(tmp_path, text))
+    assert describe(s, 3, "A").member == "this(int)"
+    assert describe(s, 4, "A").member == "this(string)"
