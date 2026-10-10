@@ -13,6 +13,9 @@ parameter list at all while a nullary method's is `()`. Collapsing either turns
 an open question into a silent verdict.
 """
 
+import json
+
+import decompile_structure
 from decompile_structure import Structure
 from decompile_structure import structure_of
 
@@ -115,3 +118,84 @@ def test_a_non_csharp_file_is_unknown(tmp_path):
 def test_a_missing_path_is_unknown(tmp_path):
     """An unreadable path is the other way nothing is known."""
     assert structure_of(tmp_path / "absent.decompiled.cs") is None
+
+
+def test_a_second_call_does_not_reparse(tmp_path, monkeypatch):
+    """A cache hit does not reach the parser at all.
+
+    The whole point: 7.8 s for the 25 cited assemblies is not a price a
+    pre-commit gate can pay once per run, let alone per citation.
+    """
+    path = write(tmp_path, SIMPLE)
+    cache = tmp_path / "cache"
+    first = structure_of(path, cache_dir=cache)
+    calls = []
+    monkeypatch.setattr(decompile_structure, "_parse", lambda p: calls.append(p))
+    assert structure_of(path, cache_dir=cache) == first
+    assert calls == []
+
+
+def test_a_changed_mtime_reparses(tmp_path):
+    """A regenerated decompile must not keep serving the old index."""
+    path = write(tmp_path, SIMPLE)
+    cache = tmp_path / "cache"
+    structure_of(path, cache_dir=cache)
+    path.write_text(SIMPLE.replace("Baz", "Qux"))
+    s = structure_of(path, cache_dir=cache)
+    assert "Qux" in {e.member for e in s.elements if e.member}
+
+
+def test_the_build_identity_is_recorded_but_not_part_of_the_key(tmp_path, monkeypatch):
+    """The key is the file's identity; the build travels along for diagnostics.
+
+    A decompile regenerated without a version change is the failure this
+    arrangement exists to avoid, so the build must not be able to decide a hit.
+    """
+    path = write(tmp_path, SIMPLE)
+    cache = tmp_path / "cache"
+    structure_of(path, cache_dir=cache)
+    entry = next(cache.iterdir())
+    assert "build" in json.loads(entry.read_text())
+
+    stored = json.loads(entry.read_text())
+    stored["build"] = "9.9.9.9-ffff"
+    entry.write_text(json.dumps(stored))
+    calls = []
+    monkeypatch.setattr(decompile_structure, "_parse", lambda p: calls.append(p))
+    assert structure_of(path, cache_dir=cache) is not None
+    assert calls == []
+
+
+def test_an_entry_in_an_older_shape_is_reparsed_not_raised_on(tmp_path):
+    """Review Focus 2: Element will gain fields, and old entries must not crash.
+
+    The file's own identity is left intact, so the entry still looks fresh and
+    the decoder is the thing under test. Blanking the size as well would make
+    this pass through the staleness check without ever reaching it.
+    """
+    path = write(tmp_path, SIMPLE)
+    cache = tmp_path / "cache"
+    structure_of(path, cache_dir=cache)
+    entry = next(cache.iterdir())
+    stored = json.loads(entry.read_text())
+    stored["elements"] = [{"unexpected": 1}]
+    entry.write_text(json.dumps(stored))
+    assert structure_of(path, cache_dir=cache) is not None
+
+
+def test_a_truncated_entry_is_reparsed_not_read_as_complete(tmp_path):
+    """Review Focus 5: the main checkout and a worktree share one cache directory."""
+    path = write(tmp_path, SIMPLE)
+    cache = tmp_path / "cache"
+    expected = structure_of(path, cache_dir=cache)
+    entry = next(cache.iterdir())
+    half = entry.read_text()
+    entry.write_text(half[: len(half) // 2])
+    assert structure_of(path, cache_dir=cache) == expected
+
+
+def test_the_environment_overrides_the_default_location(tmp_path, monkeypatch):
+    """`.envrc` decides where the cache lives, so a machine can move it."""
+    monkeypatch.setenv("CK_STRUCTURE_CACHE", str(tmp_path / "elsewhere"))
+    structure_of(write(tmp_path, SIMPLE))
+    assert (tmp_path / "elsewhere").is_dir()

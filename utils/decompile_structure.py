@@ -28,6 +28,10 @@ so the aggregate figure was an artifact of whichever bug dominated. Only
 calibration against known citations exposed it.
 """
 
+import hashlib
+import json
+import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -227,6 +231,143 @@ def _parse(path):
     return Structure(tuple(elements), _errors(root))
 
 
-def structure_of(path):
-    """The Structure of the file at `path`, or None if nothing is known about it."""
-    return _parse(Path(path))
+DEFAULT_CACHE_DIR = Path.home() / ".cache" / "ck-decompile-structure"
+
+# The decompile README's title carries the build it was taken from. Duplicated
+# from `verify_status` rather than imported: that is a command-line tool, and a
+# library reaching into one inverts the dependency for the sake of one regex.
+_BUILD_HEADING = re.compile(r"^#\s.*`(\d+\.\d+\.\d+\.\d+-\w+)`", re.MULTILINE)
+
+
+def _cache_dir(explicit):
+    """Where entries live: the argument, else `CK_STRUCTURE_CACHE`, else the default."""
+    if explicit is not None:
+        return Path(explicit)
+    override = os.environ.get("CK_STRUCTURE_CACHE")
+    return Path(override) if override else DEFAULT_CACHE_DIR
+
+
+def _build_identity(path):
+    """The build this file was decompiled from, for diagnostics, or None.
+
+    Found by looking for a README with a version heading in the file's own
+    directory and the two above it -- an assembly sits at the decompile root, a
+    dependency clone's source a level or two down.
+    """
+    for parent in [path.parent, *list(path.parents)[1:3]]:
+        readme = parent / "README.md"
+        if readme.is_file():
+            match = _BUILD_HEADING.search(readme.read_text(errors="replace"))
+            if match:
+                return match[1]
+    return None
+
+
+def _entry_for(directory, path):
+    digest = hashlib.sha256(str(path.resolve()).encode()).hexdigest()[:32]
+    return directory / f"{digest}.json"
+
+
+def _encode(structure):
+    # `is not None`, never truthiness: `()` is falsy and means "a method that
+    # takes nothing", while None means "no parameter list at all". An `and`
+    # here collapses the two, which is the distinction this module exists to
+    # keep -- and it did collapse it, caught by the cache round trip.
+    return {
+        "elements": [
+            [
+                e.type_name,
+                e.member,
+                list(e.params) if e.params is not None else None,
+                e.start,
+                e.end,
+            ]
+            for e in structure.elements
+        ],
+        "error_ranges": [list(r) for r in structure.error_ranges],
+    }
+
+
+def _decode(data):
+    """A Structure from a cache entry, or None if the entry is not one.
+
+    None rather than an exception, because an entry written by an older version
+    of this module is the expected case every time `Element` gains a field --
+    and the right answer to it is to parse the file again, not to fail a gate.
+    """
+    try:
+        elements = tuple(
+            Element(
+                type_name,
+                member,
+                tuple(params) if params is not None else None,
+                start,
+                end,
+            )
+            for type_name, member, params, start, end in data["elements"]
+        )
+        return Structure(elements, tuple(tuple(r) for r in data["error_ranges"]))
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _read_entry(entry, stat):
+    """The cached Structure for a file in this exact state, or None.
+
+    The key is `(path, size, mtime_ns)`: the path picks the entry, the other two
+    decide whether it still describes the file. The build identity is read back
+    but never compared -- a decompile regenerated without a version change would
+    otherwise keep serving a stale index, which is the one failure this cache
+    must not have.
+    """
+    try:
+        data = json.loads(entry.read_text())
+    except (OSError, ValueError):
+        return None
+    if data.get("size") != stat.st_size or data.get("mtime_ns") != stat.st_mtime_ns:
+        return None
+    return _decode(data)
+
+
+def _write_entry(entry, structure, stat, build):
+    """Write one entry, atomically, so a concurrent reader never sees a half of it.
+
+    The main checkout and a worktree share this directory and both run the
+    gates. A reader must get either the previous entry or the whole new one, so
+    the write lands on a private name first and is renamed into place.
+    """
+    entry.parent.mkdir(parents=True, exist_ok=True)
+    payload = _encode(structure) | {
+        "size": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+        "build": build,
+    }
+    temporary = entry.with_suffix(f".{os.getpid()}.tmp")
+    temporary.write_text(json.dumps(payload))
+    os.replace(temporary, entry)
+
+
+def structure_of(path, *, cache_dir=None):
+    """The Structure of the file at `path`, or None if nothing is known about it.
+
+    Parsing the 25 cited assemblies costs 7.8 s, 5.6 s of it the two 16 MB
+    copies of `Pug.Other`. A pre-commit gate cannot pay that per run, so the
+    result is cached outside the repository -- it describes the decompile, not
+    the repository, and `git clean -fdx` should not cost 7.8 s.
+    """
+    path = Path(path)
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    if path.suffix != ".cs":
+        return None
+
+    entry = _entry_for(_cache_dir(cache_dir), path)
+    if (cached := _read_entry(entry, stat)) is not None:
+        return cached
+
+    structure = _parse(path)
+    if structure is not None:
+        _write_entry(entry, structure, stat, _build_identity(path))
+    return structure
