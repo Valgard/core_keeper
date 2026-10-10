@@ -11,6 +11,15 @@ requires-python = ">=3.13"
 dependencies = [
     "pillow==12.1.1",
     "pyyaml>=6.0.3",
+    # Pinned exactly for the same reason as Pillow, one step removed: the
+    # grammar decides which node spans a declaration, `decompile_structure`
+    # turns those spans into element extents, and handbook citations are
+    # anchored on them. A grammar release that re-shaped one node would move
+    # every citation inside it -- silently, because the citation would still
+    # resolve, just to a different line. Not an optional extra either: the
+    # drift checker resolves a symbol on every pre-commit run.
+    "tree-sitter==0.26.0",
+    "tree-sitter-c-sharp==0.23.5",
 ]
 
 [dependency-groups]
