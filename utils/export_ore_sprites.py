@@ -268,7 +268,7 @@ def expect(ok: bool, what: str, pinned: set[str], found: set[str]) -> None:
 
 def main() -> None:
     """Parse the arguments and run the export."""
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").partition("\n\n")[0])
     parser.add_argument("out", nargs="?", default="ore_sprites", type=Path)
     parser.add_argument("--resources", default=DEFAULT_RESOURCES, type=Path)
     args = parser.parse_args()

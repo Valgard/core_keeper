@@ -154,8 +154,8 @@ def ink_edges(atlas_img, index, advance_width):
     """
     x0, y0, _, _ = cell_box(index)
     px = atlas_img.load()
-    left = [None] * BOX_H
-    right = [None] * BOX_H
+    left: list[int | None] = [None] * BOX_H
+    right: list[int | None] = [None] * BOX_H
     for row in range(BOX_H):
         y = y0 + BOX_Y + row
         for col in range(advance_width):
@@ -305,7 +305,7 @@ def main(argv=None):
     never leaves a partial regeneration behind for "refusing to emit" to be
     untrue about.
     """
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(description=(__doc__ or "").partition("\n")[0])
     ap.add_argument("--pixaki", required=True, help="path to the .pixaki master")
     ap.add_argument("--sheet", help="write the Atlas layer here as PNG")
     ap.add_argument("--kerning", help="write the CELLS x CELLS kerning matrix here as raw bytes")

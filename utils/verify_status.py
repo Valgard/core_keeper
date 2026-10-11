@@ -209,7 +209,7 @@ def current_build(decompile, snapshot):
 
 def main(argv=None):
     """Print one line per chapter: state, name, and why."""
-    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap = argparse.ArgumentParser(description=(__doc__ or "").partition("\n\n")[0])
     ap.add_argument("root", nargs="?", default=".")
     ap.add_argument(
         "--build", help="current build, e.g. 1.3.0.5-cb48 (default: read from the decompile)"

@@ -120,7 +120,9 @@ class Citation:
             raise ValueError(
                 f"a location needs both ends or neither, got {self.first}..{self.last}"
             )
-        if self.first is not None and not 1 <= self.first <= self.last:
+        # When `first` is set, `last` is too -- the check above refused one end
+        # alone -- but the type checker cannot see that, so it is stated once more.
+        if self.first is not None and self.last is not None and not 1 <= self.first <= self.last:
             raise ValueError(f"lines are 1-based and ordered, got {self.first}..{self.last}")
 
 

@@ -187,7 +187,7 @@ def main():
     thing -- the rest is this tool's rationale for a reader of the source, not
     something `--help` should dump onto a terminal.
     """
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(description=(__doc__ or "").partition("\n")[0])
     ap.add_argument("pixaki", help="the .pixaki master, in either packaging")
     ap.add_argument("--layer", help="report only the layer with this exact name")
     ap.add_argument(

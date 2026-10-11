@@ -66,7 +66,7 @@ def parse_changelog(text: str) -> tuple[str, str]:
     return entries[0]
 
 
-def _read_metadata(asset_text: str) -> dict:
+def _read_metadata(asset_text: str) -> dict[str, int | str]:
     r"""The `metadata:` block of a ModBuilderSettings .asset, flat and shallow.
 
     Horizontal whitespace only around the value — `\s` would match the newline
@@ -74,7 +74,7 @@ def _read_metadata(asset_text: str) -> dict:
     the line below it. `displayName:` is empty on any mod the SDK's settings GUI
     created, and it becomes the Workshop item's title.
     """
-    out: dict[str, object] = {}
+    out: dict[str, int | str] = {}
     for key in ("name", "displayName", "skipSafetyChecks", "requiredOn"):
         match = re.search(rf"^[^\S\n]*{key}:[^\S\n]*(.*?)[^\S\n]*$", asset_text, re.MULTILINE)
         if match and match.group(1):
@@ -137,12 +137,14 @@ def resolve_dependencies(
     for name, required in declared:
         file_id = cache.get(name)
         if file_id:
+            non_numeric = f"{cache_path} has a non-numeric Workshop id for {name!r}: {file_id!r}"
+            # A JSON value can be a list or an object too, which int() refuses.
+            if not isinstance(file_id, (int, float, str)):
+                raise ValueError(non_numeric)
             try:
                 file_id = int(file_id)
-            except (TypeError, ValueError) as err:
-                raise ValueError(
-                    f"{cache_path} has a non-numeric Workshop id for {name!r}: {file_id!r}"
-                ) from err
+            except ValueError as err:
+                raise ValueError(non_numeric) from err
             resolved.append({"name": name, "fileId": file_id, "required": required})
             continue
         if required:
@@ -223,7 +225,9 @@ def version_tags(game_versions: str) -> list[str]:
     return tags
 
 
-def derive_tags(metadata: Mapping[str, object], modio_type: str, game_versions: str) -> list[str]:
+def derive_tags(
+    metadata: Mapping[str, int | str], modio_type: str, game_versions: str
+) -> list[str]:
     """Version and category tags from the environment, plus the two derived groups.
 
     Sent flat: Core Keeper's Workshop configuration owns the grouping, so a

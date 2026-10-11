@@ -26,6 +26,7 @@ Usage:
 """
 
 import argparse
+import io
 import json
 import sys
 import time
@@ -209,7 +210,8 @@ def main(argv: list[str]) -> int:
         # the family owns must not be one up-arrow away from a comparison run.
         parser.error("--execute needs the mods named explicitly")
 
-    sys.stdout.reconfigure(line_buffering=True)
+    if isinstance(sys.stdout, io.TextIOWrapper):  # a stand-in like io.StringIO has no reconfigure()
+        sys.stdout.reconfigure(line_buffering=True)
 
     utils_dir = Path(__file__).resolve().parent
     root = utils_dir.parent

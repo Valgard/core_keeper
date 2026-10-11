@@ -357,7 +357,7 @@ def main(argv):
     it leaves unresolved citations behind. Those are a handbook defect to fix,
     not a reason to refuse recording what did resolve.
     """
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").partition("\n")[0])
     parser.add_argument("root", nargs="?", default=".")
     parser.add_argument("--capture", action="store_true", help="record, do not compare")
     parser.add_argument(

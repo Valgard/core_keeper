@@ -60,6 +60,7 @@ import argparse
 import dataclasses
 import hashlib
 import html
+import io
 import json
 import os
 import shutil
@@ -500,20 +501,30 @@ def run_ck_workshop(
     killer.start()
     try:
         if stdin is not None:
+            pipe_in = process.stdin
+            if pipe_in is None:  # asked for as PIPE above; Popen only types it Optional
+                process.kill()
+                process.wait()
+                raise RuntimeError("ck-workshop was started without the stdin pipe asked for")
             # From a thread, so that reading the child's output and feeding it
             # cannot wait on each other. A bundle is well under a pipe buffer
             # today and the tool reads stdin to EOF before printing anything —
             # but both of those are properties of the other side, and a
             # deadlock here would look like a hung upload.
             feeder = threading.Thread(
-                target=lambda: (process.stdin.write(stdin), process.stdin.close()),
+                target=lambda: (pipe_in.write(stdin), pipe_in.close()),
                 daemon=True,
             )
             feeder.start()
+        pipe_out = process.stdout
+        if pipe_out is None:  # the same: PIPE was asked for, Popen types it Optional
+            process.kill()
+            process.wait()
+            raise RuntimeError("ck-workshop was started without the stdout pipe asked for")
         lines = []
         sink = tee_to.open("w") if tee_to else None
         try:
-            for line in process.stdout:
+            for line in pipe_out:
                 lines.append(line)
                 sys.stderr.write(line)
                 if sink:
@@ -942,7 +953,8 @@ def main(argv: list[str]) -> int:
 
     # Block-buffered when piped, which puts the whole plan after the child
     # process output it is supposed to precede.
-    sys.stdout.reconfigure(line_buffering=True)
+    if isinstance(sys.stdout, io.TextIOWrapper):  # a stand-in like io.StringIO has no reconfigure()
+        sys.stdout.reconfigure(line_buffering=True)
 
     utils_dir = Path(__file__).resolve().parent
     root = utils_dir.parent

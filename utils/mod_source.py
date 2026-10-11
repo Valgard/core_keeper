@@ -840,6 +840,12 @@ class Workspace:
                 source_files=installed.source_files,
             )
 
+        # Unreachable through the index: every id it holds came from an own
+        # mod, an installed mod or a catalogue entry, and the first two have
+        # returned above. Raised rather than left to an AttributeError on None
+        # so a future index source that breaks this says what it broke.
+        if entry is None:
+            raise RuntimeError(f"mod ids {ids} are in the index but in none of its sources")
         return Resolution(
             kind=KIND_CATALOGUE,
             mod_id=entry.mod_id,
