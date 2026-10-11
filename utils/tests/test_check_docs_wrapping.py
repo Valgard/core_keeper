@@ -7,6 +7,7 @@ fenced block that the rewrapper would have swallowed.
 """
 
 import check_docs_wrapping as mod
+from citation_notation import find
 
 
 def write(tmp_path, name, text):
@@ -331,6 +332,96 @@ class TestLinks:
         assert lines[0].startswith("short lead in [")
         assert lines[0].rstrip().endswith(")")
         assert lines[1].startswith("tail")
+
+
+class TestCitations:
+    """A citation carrying a parameter list is one token, and a split one is a defect.
+
+    The same relationship as TestLinks above, for a different kind of
+    unbreakable reference -- and with a worse failure mode. A split link
+    leaves visible markup; a split citation matches no pattern at all, so the
+    drift checker, the style checker and `verify_status`'s normaliser all go
+    quiet on it at once rather than red.
+    """
+
+    # The longest shape in the handbook's corpus: 2 of `platforms.md`'s 3
+    # citations look like this once anchored.
+    CITATION = (
+        "`DedicatedServer/Pug.Other:StandaloneFilesystem:"
+        "StandaloneFilesystem(string, PlatformInterface):1-17`"
+    )
+
+    def test_a_citation_carrying_a_parameter_list_is_not_broken_across_lines(self):
+        """A space inside a citation is not a break opportunity.
+
+        `wrap_tokens` splits on whitespace, so the parameter list makes one
+        citation look like two tokens. Measured on the real `platforms.md`:
+        the fixer broke 2 of its 3 citations, and a broken citation matches no
+        pattern -- the drift checker stops seeing it, the style checker stops
+        checking it, and the snapshot reports it as no longer cited anywhere.
+        """
+        text = f"The constructor reads the platform ({self.CITATION}; the second argument)."
+        wrapped = "\n".join(mod.wrap_tokens(text, 80))
+        assert [token for token, _ in find(wrapped)] == [self.CITATION.strip("`")]
+
+    def test_a_line_that_is_one_long_citation_is_not_a_fixable_defect(self):
+        """103 columns with nowhere to break is correct, not mis-wrapped.
+
+        Measured on the anchored `platforms.md`: the line is `(`, a 99-column
+        citation, and `;`. The long-line rule asks whether a break was
+        available before the target, and a space inside the citation is not
+        one -- so without this the checker reports a defect the fixer cannot
+        fix, and the gate exits 1 after five passes with no way to satisfy it
+        short of un-anchoring the citation. The same exemption the file
+        already grants an unbreakable code span.
+        """
+        para = [f"({self.CITATION};"]
+        assert mod.defects(para, 80) == []
+
+    def test_a_citation_the_next_line_begins_with_counts_as_one_word(self):
+        """`first_token` of a line starting with a citation is the whole citation.
+
+        It feeds the short-line rule -- "would the next word have fit here".
+        Unglued, the first token is the fragment up to the parameter list's
+        space, 24 columns against the citation's 43, and 40 + 1 + 24 fits
+        where 40 + 1 + 43 does not: the previous line is reported as having
+        broken too early, on a line the fixer cannot improve. Sized to fire
+        that rule and nothing else -- the citation here is short enough that
+        the long-line rule stays out of it.
+        """
+        citation = "`Pug.Other:Foo:Bar(int, longlonglonglong):3`"
+        para = ["x" * 40, f"{citation} tail"]
+        assert mod.defects(para, 80) == []
+
+    def test_a_citation_split_across_two_lines_is_reported(self):
+        """The one defect of this class no other gate can see.
+
+        Every other citation check works from a pattern, and a broken
+        citation matches none of them -- so they report nothing rather than
+        something wrong. This is the only place a human finds out, the same
+        way `split_links` is the only place a broken link does.
+        """
+        para = [
+            "reads the platform (`DedicatedServer/Pug.Other:Standalone:Standalone(string,",
+            "PlatformInterface):1`).",
+        ]
+        assert any("citation split across lines" in why for _, why in mod.defects(para, 80))
+
+    def test_a_wrapped_code_span_that_only_looks_like_a_citation_is_not_reported(self):
+        """A code span may legitimately wrap; only the citation shape is a defect.
+
+        Both cases here are ones a pattern of "backtick, a name, a colon,
+        a line break" reports wrongly -- measured, not supposed: against a
+        rule without the two guards, the YAML span and the workbench id both
+        come back as split citations and the error message does not. A gate
+        that turns red on correct prose is the failure ADR 0042 names.
+        """
+        for para in (
+            ["the manifest sets `skipSafetyChecks:", "true` for this mod."],
+            ["the workbench id `Mod:WorkbenchChestExtra", "is what CoreLib writes` here."],
+            ["the loader reports `mod load error:", "CompileFailed` and stops."],
+        ):
+            assert not any("citation split" in why for _, why in mod.defects(para, 80))
 
 
 class TestListItems:

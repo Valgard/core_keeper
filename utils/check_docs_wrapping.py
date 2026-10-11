@@ -35,6 +35,10 @@ import textwrap
 from itertools import pairwise
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from citation_notation import FINDER
+
 FENCE = re.compile(r"^\s*(```|~~~)")
 # A link is kept whole on one line for the sake of reading the source. The
 # rendered output is fine either way — CommonMark allows a break inside link
@@ -44,7 +48,7 @@ LINK = re.compile(r"\[([^\]]*)\]\([^)\s]+\)", re.S)
 # a bullet needs whitespace after the marker; "*emphasis*" starting a line is
 # prose, and treating it as a list ends the paragraph where it should continue
 BULLET = re.compile(r"^(\s*)([-*+]|\d+\.)(\s+)(.*)$")
-GLUE = "\x00"  # stands in for a space inside a link while wrapping
+GLUE = "\x00"  # stands in for a space inside a link or a citation while wrapping
 PAD = "\x01"  # filler that gives a placeholder the link's *visible* length
 # a token is "a link" even with trailing punctuation: "[x](y)," is still one
 LINK_TOKEN = re.compile(r"\[[^\]]*\]\([^)\s]+\)[.,;:!?)\]]*$", re.S)
@@ -63,6 +67,26 @@ SLACK = 18  # how far below target a line may sit before it looks broken
 def glue_links(text):
     """Make every link one unbreakable token, without changing its length."""
     return LINK.sub(lambda m: m.group(0).replace(" ", GLUE), text)
+
+
+def glue_citations(text):
+    """Make every citation one unbreakable token, without changing its length.
+
+    The counterpart to `glue_links` for the other reference this handbook
+    writes that carries a space: a member specification's parameter list, as
+    in `Pug.Other:RuntimeDataBlocks:CreateRuntimeInstance(Type, long, …):16`.
+    41 of the 820 citations the handbook can anchor have one.
+
+    A split citation is worse than a split link, which is the reason this
+    exists rather than a preference. A broken link survives as visible
+    markup; a citation with a newline inside it matches no pattern at all, so
+    `check_citation_drift`, `check_citation_style` and `verify_status`'s
+    normaliser all stop seeing it in the same moment -- quietly, and with the
+    snapshot then reporting it as no longer cited anywhere, which reads as an
+    invitation to delete the one record of what the line used to say.
+    Measured: rewrapping a freshly anchored `platforms.md` broke 2 of its 3.
+    """
+    return FINDER.sub(lambda m: m.group(0).replace(" ", GLUE), text)
 
 
 def visible_len(text):
@@ -113,6 +137,31 @@ def split_links(lines):
     return [m.group(0) for m in LINK.finditer(joined) if "\n" in m.group(0)]
 
 
+# A citation broken at a space inside its parameter list. `FINDER` cannot be
+# reused: it is written for a token on one line, and the two guards that make
+# it precise have to be restated here.
+#
+# Both are borrowed rather than invented. No space after the first colon is
+# what keeps `skipSafetyChecks: true` and the handbook's other 190-odd
+# colon-carrying code spans out; ending on a real line number is what
+# separates a citation from `Mod:WorkbenchChestExtra` and from
+# `PugMod.Loader:LoadScripts (...)`, which `citation_notation` records as
+# indistinguishable from a citation by any other rule. The location is always
+# on the last line of a broken citation, because it is the final field and no
+# space follows it -- the break can only fall inside the parameter list.
+#
+# A citation with no location (`Assembly:Class:member`) is therefore not
+# reported, which matches `FINDER` not discovering those in prose either.
+SPLIT_CITATION = re.compile(
+    r"`(?:DedicatedServer/)?[A-Za-z][A-Za-z0-9_.]*:[^\s`][^`\n]*\n[^`\n]*:[1-9]\d*(?:-[1-9]\d*)?`"
+)
+
+
+def split_citations(lines):
+    """Citations in these lines that straddle a break — invisible to every other check."""
+    return [m.group(0) for m in SPLIT_CITATION.finditer("\n".join(lines))]
+
+
 def wrap_tokens(text, width, initial_indent="", subsequent_indent=""):
     """Wrap through textwrap, with links whole and never starting a line.
 
@@ -129,7 +178,7 @@ def wrap_tokens(text, width, initial_indent="", subsequent_indent=""):
     """
 
     def fill(source, indent):
-        masked, links = mask_links(source)
+        masked, links = mask_links(glue_citations(source))
         return [
             unglue(unmask_links(line, links))
             for line in textwrap.wrap(
@@ -160,13 +209,19 @@ def wrap_tokens(text, width, initial_indent="", subsequent_indent=""):
 
 
 def first_token(line):
-    """The next unit a wrapper must place, links counted whole.
+    """The next unit a wrapper must place, links and citations counted whole.
 
     Splitting on whitespace measures only a link's first word, so a line
     ending short to make room for one looks like a defect when it is the only
     possible break. The check has to tokenise the way the fixer does.
+
+    A citation's parameter list is the same hazard at a smaller size: for
+    `Pug.Other:Foo:Bar(int, longlonglonglong):3`, the fragment up to the
+    space is 24 columns against the whole token's 43, which is the difference
+    between "would have fit" and "would not" -- and the line before it is
+    then reported as broken too early, with nothing the fixer can do about it.
     """
-    glued = glue_links(line).split()
+    glued = glue_citations(glue_links(line)).split()
     return unglue(glued[0]) if glued else ""
 
 
@@ -289,12 +344,23 @@ def defects(para, width):
     found = []
     for link in split_links(para):
         found.append((0, f"link split across lines: {' '.join(link.split())[:60]}"))
+    # Printed whole, unlike the link above: a link's text is arbitrary prose,
+    # while a citation is bounded by its grammar — 100 columns at the longest
+    # in this corpus — and which citation it is *is* the finding.
+    for citation in split_citations(para):
+        found.append((0, f"citation split across lines: {' '.join(citation.split())}"))
     for offset, line in enumerate(para):
         # long only counts when a break was actually available before the target
         # a line that overshoots because it ends on a link is correct by
         # construction — wrap_tokens put it there on purpose
         if visible_len(line) > width + OVERSHOOT and not LINK_TOKEN.search(line):
-            head = line[: width + 1].rstrip()
+            # Glued first, so a space inside a citation is not mistaken for a
+            # break opportunity. Gluing does not change the length, so the
+            # slice still names the same columns. Without it, the anchored
+            # `platforms.md` reports a 103-column line nothing can shorten --
+            # it is `(`, a 99-column citation and `;` -- and the fixer and the
+            # checker then disagree until FIX_PASSES runs out.
+            head = glue_citations(line)[: width + 1].rstrip()
             if " " in head[20:]:
                 found.append((offset, f"{visible_len(line)} visible columns, target {width}"))
     for offset, (line, nxt) in enumerate(pairwise(para)):
