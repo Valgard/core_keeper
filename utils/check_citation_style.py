@@ -117,12 +117,21 @@ def unfenced_lines(path):
     Shared by both halves rather than written twice, so the structural half
     inherits the boundary instead of growing its own version of it.
     """
-    in_fence = False
+    opener = None
     for number, line in enumerate(path.read_text().splitlines(), start=1):
-        if FENCE.match(line):
-            in_fence = not in_fence
+        marker = FENCE.match(line)
+        if marker:
+            # Remember *which* marker opened the block and close only on the
+            # same one. A toggle inverts on a nested fence, and nesting is this
+            # repository's own convention -- `CLAUDE.md` instructs `~~~` for an
+            # outer block holding ``` inside it. A toggle would then treat the
+            # inner opener as the close and start checking the code as prose.
+            if opener is None:
+                opener = marker.group(1)
+            elif marker.group(1) == opener:
+                opener = None
             continue
-        if not in_fence:
+        if opener is None:
             yield number, line
 
 
@@ -195,6 +204,12 @@ def structural_problems(path, decompile):
                     why = f"not checked: {assembly} is not C#, so it has no elements to name"
                     fix = "nothing to do — a line is the only anchor such a file has"
                 found.append((number, f"`{token}`", why, fix))
+                continue
+
+            if citation.first is None:
+                # Grammar forms 3 and 4 name an element and no line. Nothing
+                # can be suggested about their location, and the arithmetic
+                # below would raise -- in a gate, as a traceback.
                 continue
 
             resolved = locate(structure, citation)
@@ -360,7 +375,7 @@ def main(argv=None):
     decompile = Path(args.decompile).expanduser()
     structural_ready, skip_reason = structural_available(decompile)
 
-    blocking = structural = 0
+    blocking = structural = skipped = 0
     for path in files:
         for number, text, why, fix in syntactic_problems(path):
             blocking += 1
@@ -368,6 +383,8 @@ def main(argv=None):
         if structural_ready:
             for number, text, why, fix in structural_problems(path, decompile):
                 structural += 1
+                if why.startswith("not checked") or why == "does not resolve":
+                    skipped += 1
                 print(f"{path}:{number}: {text}  — {why}; {fix}")
 
     if not structural_ready:
@@ -379,7 +396,15 @@ def main(argv=None):
         return 1
 
     if structural:
-        print(f"\n{structural} citation(s) could be anchored better — reported, not blocking.")
+        # "could be anchored better" is true of the three findings that advise
+        # a form, and false of the two that report a skip or a citation that
+        # does not resolve -- so the summary counts them apart rather than
+        # filing a broken citation under a style preference.
+        advisable = structural - skipped
+        if advisable:
+            print(f"\n{advisable} citation(s) could be anchored better — reported, not blocking.")
+        if skipped:
+            print(f"{skipped} citation(s) were not checked or no longer resolve — see above.")
     print(f"OK — {len(files)} markdown file(s), every line reference carries its assembly")
     return 0
 

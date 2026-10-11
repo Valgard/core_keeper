@@ -174,6 +174,25 @@ def key_of(assembly, first, last):
     return f"{assembly}:{first}" if first == last else f"{assembly}:{first}-{last}"
 
 
+def _structure_for(source, structures):
+    """The Structure of `source`, through the caller's cache when it gave one.
+
+    Keyed on the **resolved path**, not on the assembly name. The validity of a
+    parsed structure depends on which file it came from, and a cache keyed on
+    the name alone would hand a caller holding one dict across two decompile
+    trees the text of the wrong tree, silently. The name is what the citation
+    says; the path is what was read.
+    """
+    from decompile_structure import structure_of
+
+    if structures is None:
+        return structure_of(source)
+    key = str(source)
+    if key not in structures:
+        structures[key] = structure_of(source)
+    return structures[key]
+
+
 def resolve_citation(citation, decompile, structures=None):
     """The stripped text a Citation points at, or None when it no longer resolves.
 
@@ -201,19 +220,27 @@ def resolve_citation(citation, decompile, structures=None):
     parser into every one of those checkouts.
     """
     from decompile_structure import locate
-    from decompile_structure import structure_of
 
     source = source_for(citation.assembly, decompile)
     if source is None:
         return None
+    if citation.first is None:
+        # Grammar forms 3 and 4 name an element without a line. `locate`
+        # supports them; these call sites used to assume a location and raised
+        # TypeError on the arithmetic below -- which in the style checker is
+        # the blocking traceback `structural_available` exists to prevent, and
+        # `Citation`'s own docstring says the next plan builds citations by
+        # hand. The element's first line is what such a citation points at.
+        structure = _structure_for(source, structures)
+        if structure is None:
+            return None
+        line = locate(structure, citation)
+        return None if line is None else _stripped_lines(source, line, line)
+
     if tier(citation) == "absolute":
         return _stripped_lines(source, citation.first, citation.last)
 
-    if structures is None:
-        structures = {}
-    if citation.assembly not in structures:
-        structures[citation.assembly] = structure_of(source)
-    structure = structures[citation.assembly]
+    structure = _structure_for(source, structures)
     if structure is None:
         return None
     line = locate(structure, citation)
@@ -247,8 +274,19 @@ def collect(root, decompile):
                 # exists but no longer holds the named symbol is the new third
                 # outcome: it belongs in the corpus as None, so that compare()
                 # can tell "stopped resolving" from "never recorded".
-                if source_for(citation.assembly, decompile) is None:
+                source = source_for(citation.assembly, decompile)
+                if source is None:
                     problems.append(f"{chapter.name}:{number}  {token}  no decompiled assembly")
+                    continue
+                if source.suffix != ".cs" and tier(citation) != "absolute":
+                    # A member or type anchor into a file that has no elements
+                    # to name. Reported here rather than as a `None` in the
+                    # corpus, because `compare` would then call it a rename --
+                    # a cause this file cannot have, on a gate that blocks.
+                    problems.append(
+                        f"{chapter.name}:{number}  {token}  "
+                        f"{citation.assembly} is not C#, so it has no elements to name"
+                    )
                     continue
                 corpus[token] = resolve_citation(citation, decompile, structures)
     return corpus, sorted(problems), seen

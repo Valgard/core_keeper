@@ -160,7 +160,10 @@ def test_every_citation_is_accounted_for_in_exactly_one_tier(corpus, structures)
     at any size, and it is the invariant the other figures here rest on.
     """
     assert sum(_census(corpus, structures).values()) == len(corpus)
-    assert corpus, "the corpus is empty -- the citation regex or docs/ck moved"
+    # A floor on the corpus itself, which the range fixture has and this did
+    # not: every other assertion here is relative to `len(corpus)`, so a
+    # fixture that silently collected nothing would satisfy all of them.
+    assert len(corpus) >= 500, f"only {len(corpus)} citations — the fixture or docs/ck moved"
 
 
 def test_every_citation_survives_being_written_and_read_back(corpus, structures):
@@ -189,7 +192,12 @@ def test_every_range_citation_keeps_its_span(range_citations, structures):
     their first line's member, so this is the test that the widening to the
     enclosing type actually holds on real data rather than on the fixture.
     """
-    assert len(range_citations) == 127
+    # A floor, not the count. 07167d0 removed the pinned corpus figures from
+    # this suite because `main` gained 68 citations in a day and every one of
+    # them went red; re-pinning 127 here would have brought that back the first
+    # time anyone wrote a range. What the test needs is that there are enough
+    # of them to be worth checking.
+    assert len(range_citations) >= 100
     broken = []
     for assembly, first, last in range_citations:
         structure = structures[assembly]

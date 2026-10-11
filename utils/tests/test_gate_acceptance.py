@@ -29,6 +29,7 @@ from check_citation_drift import resolve_citation
 from check_citation_drift import source_for
 from check_citation_style import structural_problems
 from check_citation_style import syntactic_problems
+from citation_notation import find
 from citation_notation import parse
 from citation_notation import render
 from decompile_structure import describe
@@ -127,6 +128,35 @@ def test_the_style_checker_accepts_every_citation_describe_writes(generated, dec
 
     assert syntactic_problems(chapter) == []
     assert structural_problems(chapter, decompile) == []
+
+
+def test_every_generated_citation_is_findable_in_prose(generated):
+    """`parse` accepting a token is not enough; `find` has to discover it.
+
+    The leg that was missing, and both Criticals this branch's reviews turned
+    up lived in it. A citation `describe` writes but `find` cannot see makes the
+    style checker, the drift corpus and the normaliser all go quiet on it — and
+    the snapshot then reports it as "no longer cited anywhere", which reads as
+    advice to delete the last record of what the line said.
+    """
+    _, written = generated
+    invisible = [
+        token
+        for _assembly, _line, token in written
+        if [t for t, _ in find(f"see `{token}` here")] != [token]
+    ]
+    assert invisible == [], f"{len(invisible)} citation(s) are not findable: {invisible[:5]}"
+
+
+def test_every_generated_range_is_findable_in_prose(generated_ranges):
+    """The same leg for ranges, which the `corpus` fixture cannot produce."""
+    _, written = generated_ranges
+    invisible = [
+        token
+        for _assembly, _first, token in written
+        if [t for t, _ in find(f"see `{token}` here")] != [token]
+    ]
+    assert invisible == [], f"{len(invisible)} range(s) are not findable: {invisible[:5]}"
 
 
 def test_every_generated_citation_parses_back_to_what_describe_returned(generated):

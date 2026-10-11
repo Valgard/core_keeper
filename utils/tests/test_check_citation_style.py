@@ -17,6 +17,7 @@ import check_citation_style as mod
 from check_citation_style import BARE
 from check_citation_style import TILDE_AFTER_ASSEMBLY
 from check_citation_style import syntactic_problems
+from citation_notation import find
 
 
 def flagged(text):
@@ -152,6 +153,10 @@ class TestCodeFences:
 
 # --- the two halves ----------------------------------------------------------
 
+# Carries the shapes whose absence hid a real defect: an operator and an array
+# parameter produce member names with characters the citation finder's first
+# field pattern refused, so `describe` could write a citation nothing could
+# discover and every test here passed vacuously.
 FAKE_SOURCE = """\
 class Foo
 {
@@ -163,6 +168,21 @@ class Foo
     void Baz()
     {
         y();
+    }
+
+    public static bool operator ==(Foo a, Foo b)
+    {
+        return false;
+    }
+
+    void Take(byte[] data)
+    {
+        z();
+    }
+
+    void Take(int n)
+    {
+        z();
     }
 }
 """
@@ -222,6 +242,30 @@ def test_a_fenced_citation_is_not_reported_anywhere(tmp_path):
     assert mod.syntactic_problems(path) == []
 
 
+def test_a_nested_fence_does_not_reopen_the_block(tmp_path):
+    """`~~~` outside ``` is this repository's own convention for nesting.
+
+    A toggle inverts on the inner opener, so everything after it reads as
+    prose and the example inside gets reported. Closing only on the marker
+    that opened the block is what makes nesting safe.
+    """
+    path = write(
+        tmp_path,
+        "~~~markdown\n```\n`:419767`\n```\nand `:263245` still inside\n~~~\nprose after\n",
+    )
+    assert mod.syntactic_problems(path) == []
+
+
+def test_a_violation_after_a_nested_block_closes_is_still_caught(tmp_path):
+    """The other half: skipping must end where the outer fence ends."""
+    path = write(
+        tmp_path,
+        "~~~markdown\n```\n`:419767`\n```\n~~~\nand then `:263245` in prose\n",
+    )
+    found = mod.syntactic_problems(path)
+    assert [text for _, text, _, _ in found] == ["`:263245`"]
+
+
 def test_a_bare_line_where_a_name_exists_is_a_structural_problem(tmp_path, fake_decompile):
     """The finding that drives the migration: this line is inside a named member."""
     path = write(tmp_path, "see `A:4` here\n")
@@ -256,6 +300,30 @@ def test_an_assembly_missing_from_the_checkout_is_skipped_with_its_reason(tmp_pa
     assert whys(mod.structural_problems(path, fake_decompile)) == [
         "not checked: nothing named Absent.Assembly in the decompile"
     ]
+
+
+@pytest.mark.parametrize("line", [15, 20])
+def test_a_citation_into_an_operator_or_an_array_parameter_is_checkable(
+    tmp_path, fake_decompile, line
+):
+    """The two member shapes whose absence from this fixture hid a real defect.
+
+    Line 15 is inside `operator ==` (13-16) and line 20 inside `Take(byte[])`
+    (18-21). Both
+    produce member names carrying a character the finder's field pattern once
+    refused, which made the citation `describe` writes for them undiscoverable
+    — so this checker, the drift corpus and the normaliser all went silent and
+    the snapshot reported the citation as no longer cited.
+    """
+    path = write(tmp_path, f"see `A:{line}` here\n")
+    problems = mod.structural_problems(path, fake_decompile)
+    assert len(problems) == 1
+
+    # The property that matters is not which characters the advice contains but
+    # that the citation it advises can be found again. An operator name or an
+    # array parameter is exactly what an over-specific field pattern refuses.
+    suggested = problems[0][3].removeprefix("write ").strip("`")
+    assert [t for t, _ in find(f"see `{suggested}` here")] == [suggested]
 
 
 def test_a_file_that_is_found_but_not_csharp_says_that_instead(tmp_path, fake_decompile):

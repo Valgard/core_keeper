@@ -148,6 +148,46 @@ def test_a_doc_to_doc_line_reference_is_not_a_citation():
     assert find("see `docs/ck/index.md:12`") == []
 
 
+@pytest.mark.parametrize(
+    "token",
+    [
+        "A:Foo:operator ==:3",
+        "A:Foo:Take(byte[]):3",
+        "A:Foo:this(int):2",
+        "A:Foo:IRpc<T>.Serialize:1",
+        "A:Foo:Bar(Dictionary<int, string>, …):7",
+        "A:Foo:op_Implicit(A?):1",
+    ],
+)
+def test_every_shape_describe_can_write_is_also_found(token):
+    """`parse` accepting a form is not enough; `find` has to see it in prose.
+
+    The gap this closes was real and silent: an earlier field pattern listed
+    what a member name may contain, which left `operator ==` and
+    `Take(byte[])` parseable but undiscoverable. The style checker, the drift
+    corpus and the normaliser all went quiet on such a citation, and the
+    snapshot then reported it as "no longer cited anywhere" -- advice to delete
+    the last record of what the line said. 45 members in the cited assemblies
+    carry a character the old pattern refused.
+    """
+    assert [t for t, _ in find(f"see `{token}` here")] == [token]
+
+
+@pytest.mark.parametrize(
+    "token",
+    ["modId:0", "fileId:0", "requiredOn:0", "{fileID: 2456}", "docs/ck/index.md:12"],
+)
+def test_a_manifest_field_or_a_path_is_still_not_found(token):
+    """Widening what a name may hold must not widen what counts as a citation.
+
+    `modId:0` is the shape that mattered: it used to match, fail `parse`, and
+    be reported by the *blocking* half as a malformed citation -- a false red
+    on prose that is not a citation at all. A line is 1-based, so the location
+    cannot begin with a zero.
+    """
+    assert find(f"see `{token}` here") == []
+
+
 def test_a_malformed_token_is_dropped_not_returned():
     """`parse` is the judge; a candidate it refuses never reaches the caller.
 

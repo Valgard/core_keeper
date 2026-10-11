@@ -49,8 +49,28 @@ _LOCATION = re.compile(r"^(\d+)(?:-(\d+))?$")
 # citation without one. So `Assembly:Class` and `Assembly:Class:member` stay in
 # the grammar, parseable and renderable, but are not discovered in prose.
 _ASSEMBLY = r"(?:DedicatedServer/)?[A-Za-z][A-Za-z0-9_.]*"
-_NAME_FIELD = r"[A-Za-z0-9_][A-Za-z0-9_.()<>,… \t-]*"
-FINDER = re.compile(rf"`({_ASSEMBLY}(?::{_NAME_FIELD})*:\d+(?:-\d+)?)`")
+
+# A name field is anything but a backtick, a colon, a brace or a slash, after a
+# first character that is not whitespace. Phrased as an exclusion because the
+# alternative -- listing what a member name may contain -- is a list that is
+# wrong until the next measurement. It was: the first version allowed letters,
+# digits and the punctuation of a parameter list, which left `describe` able to
+# write `operator ==` and `Take(byte[])` -- forms `parse` accepts and this
+# could not see, so the style checker, the drift corpus and the normaliser all
+# went silent on them and the snapshot then read "no longer cited anywhere".
+# 45 members in the cited assemblies carry such a character.
+#
+# The four exclusions each earn their place: a backtick ends the token, a colon
+# separates fields, `{` keeps Unity's `{fileID: 2456}` out, and `/` keeps
+# `docs/ck/index.md:12` out while the `DedicatedServer/` prefix above is
+# matched before this applies.
+_NAME_FIELD = r"[^\s`:{/][^`:{/]*"
+
+# The location must be a real line, so `1-9` rather than `0-9` for its first
+# digit. Not cosmetic: `` `modId:0` `` is a manifest field, and with `\d+` it
+# matched here, failed `parse`, and was reported by the *blocking* half as a
+# malformed citation -- a false red on prose that is not a citation at all.
+FINDER = re.compile(rf"`({_ASSEMBLY}(?::{_NAME_FIELD})*:[1-9]\d*(?:-[1-9]\d*)?)`")
 
 
 @dataclass(frozen=True)
@@ -83,6 +103,14 @@ class Citation:
         """Refuse what the five grammar forms cannot spell."""
         if not self.assembly:
             raise ValueError("a citation names an assembly or a file")
+        if self.type_name is None and self.member is None and self.first is None:
+            # Renders to the bare assembly, which `parse` then refuses -- so
+            # the type could build a value that cannot survive its own round
+            # trip, in a docstring that claims otherwise.
+            raise ValueError(f"{self.assembly!r} alone names nothing to cite")
+        for field in (self.type_name, self.member):
+            if field is not None and (not field.strip() or field.strip() != field):
+                raise ValueError(f"{field!r} is not a name; a field carries no outer space")
         if self.member is not None and self.type_name is None:
             raise ValueError(
                 f"member {self.member!r} has no enclosing type; "
@@ -129,7 +157,15 @@ def parse(token):
 
     type_name = rest[0] if rest else None
     member = rest[1] if len(rest) > 1 else None
-    return Citation(assembly, type_name, member, first, last)
+    try:
+        return Citation(assembly, type_name, member, first, last)
+    except ValueError:
+        # The constructor is the one place that knows what the grammar can
+        # spell; turning its refusal into this function's None is the whole of
+        # what `parse` adds. Validating here as well would be the two-judges
+        # arrangement ADR 0042 paid for -- and `parse` must not raise, because
+        # its callers walk prose where a near-miss is the normal case.
+        return None
 
 
 def render(c):

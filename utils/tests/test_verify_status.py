@@ -250,13 +250,28 @@ class TestChangedLines:
 
         assert changed_lines(repo, commit, "a") == (1, 0)
 
-    def test_a_chapter_absent_at_that_commit_counts_as_nothing(self, repo):
-        """Today's behaviour for a chapter the verification predates."""
+    def test_a_chapter_that_did_not_exist_at_that_commit_counts_as_all_added(self, repo):
+        """`git show` and `git diff --numstat` fail on different things.
+
+        numstat does not see an untracked file; `git show` does not see a path
+        that was absent from the commit. Claiming parity and then testing it on
+        an untracked file checks the intersection, not the difference: measured,
+        a tracked chapter added after its verification gave `5 0` under numstat
+        and `(0, 0)` here, which prints as *verified*. A rename of `docs/ck/`
+        would promote every stale verdict in one go.
+        """
+        _commit(repo, "docs/ck/a.md", "one\n", "docs(ck): verify a against 1.3.0.5-cb48")
+        commit = self._head(repo)
+        _commit(repo, "docs/ck/b.md", "one\ntwo\nthree\nfour\nfive\n", "docs(ck): add b")
+
+        assert changed_lines(repo, commit, "b") == (5, 0)
+
+    def test_a_chapter_that_exists_nowhere_counts_as_nothing(self, repo):
+        """Absent from the commit and absent now is the one case that is really zero."""
         _commit(repo, "docs/ck/a.md", "one\n", "docs(ck): add a")
         commit = self._head(repo)
-        (repo / "docs/ck/b.md").write_text("two\n")
 
-        assert changed_lines(repo, commit, "b") == (0, 0)
+        assert changed_lines(repo, commit, "gone") == (0, 0)
 
     def test_a_renumbering_does_not_cost_a_chapter_its_tick(self, repo):
         """The whole point, through latest_verifications rather than in isolation."""

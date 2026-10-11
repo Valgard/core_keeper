@@ -147,7 +147,14 @@ def changed_lines(root, commit, chapter):
     try:
         before = _git(root, "show", f"{commit}:{path}")
     except subprocess.CalledProcessError:
-        return (0, 0)
+        # Absent from that commit, so every line it has now was written after
+        # the verification. NOT (0, 0): an earlier version returned that and
+        # claimed parity with `git diff --numstat`, which is false in exactly
+        # this case -- numstat reported the file as wholly added and printed
+        # `partial`, while (0, 0) prints `verified`. The two fail on different
+        # things: numstat cannot see an untracked file, `git show` cannot see a
+        # path the commit did not have.
+        before = ""
     current = Path(root, path)
     after = current.read_text() if current.is_file() else ""
 
@@ -240,7 +247,12 @@ def main(argv=None):
 
     partial = [n for n in chapters if statuses[n].state == "partial"]
     if partial:
+        # Names the raw diff deliberately, with a word about why its numbers
+        # will be larger: the counts above are taken after normalising the
+        # citations away, and a reader who ran the plain command and saw +92/-31
+        # against a reported +61/-0 would reasonably think one of them lying.
         print("\nunverified hunks: git diff <commit> -- docs/ck/<chapter>.md")
+        print("(that diff counts renumbered citations too; the figures above do not)")
     return 0
 
 

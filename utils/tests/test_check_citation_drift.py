@@ -696,6 +696,46 @@ def test_a_renamed_member_does_not_resolve(tmp_path):
     assert mod.resolve_citation(parse("A:Foo:Bar:3"), tree) is None
 
 
+@pytest.mark.parametrize(
+    ("token", "expected"),
+    [("A:Foo:Bar", ["void Bar()"]), ("A:Foo", ["class Foo"])],
+)
+def test_a_citation_naming_an_element_without_a_line_resolves_to_its_first(
+    tmp_path, token, expected
+):
+    """Grammar forms 3 and 4 carry no location, and `locate` supports them.
+
+    These call sites used to assume one and raised `TypeError` on the
+    arithmetic -- which in the style checker is the blocking traceback
+    `structural_available` exists to prevent, and `Citation`'s own docstring
+    says the next plan will build citations by hand.
+    """
+    tree = make_decompile(tmp_path, "A", SOURCE)
+    assert mod.resolve_citation(parse(token), tree) == expected
+
+
+def test_a_member_anchor_into_a_non_csharp_file_is_reported_as_such(tmp_path):
+    """Not as a rename, which is a cause a `.prefab` cannot have.
+
+    Three causes share one `None` from `resolve_citation`, and `compare` turns
+    that into a sentence. Saying "the class or member was renamed" about a file
+    that has no classes at all is a false cause on a gate that blocks, so this
+    one is separated before it ever becomes a `None`.
+    """
+    tree = tmp_path / "decompile"
+    assets = tree / "Resources" / "Assets" / "GameObject"
+    assets.mkdir(parents=True)
+    (assets / "Thing.prefab").write_text("m_Name: Thing\n")
+    write_chapter(tmp_path, "a.md", "see `Thing.prefab:Foo:Bar:1` here\n")
+
+    corpus, problems, _ = mod.collect(tmp_path, tree)
+
+    assert corpus == {}
+    assert problems == [
+        "a.md:1  Thing.prefab:Foo:Bar:1  Thing.prefab is not C#, so it has no elements to name"
+    ]
+
+
 def test_an_unresolvable_assembly_does_not_resolve(tmp_path):
     """Distinct from a renamed member only in the message the caller writes."""
     tree = make_decompile(tmp_path, "A", SOURCE)
