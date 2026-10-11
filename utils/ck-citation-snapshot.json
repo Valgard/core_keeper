@@ -49,7 +49,52 @@
     "DedicatedServer/Pug.Other:2549": [
       "Manager.mod.Authoring.ObjectProperties = entityQuery.GetSingleton<DatabaseCD>().ObjectPropertyLookup.AsEnum<ObjectID>();"
     ],
-    "DedicatedServer/Pug.Other:2690-2712": [
+    "DedicatedServer/Pug.Other:272187-272190": [
+      "_modLoaders.Add(new SideLoader());",
+      "}",
+      "_ = Environment.UserName;",
+      "StandaloneFilesystem configFilesystem = new StandaloneFilesystem(text, \"modloader\", _platformInterface);"
+    ],
+    "DedicatedServer/Pug.Other:2785": [
+      "Integration.Instance.Update();"
+    ],
+    "DedicatedServer/Pug.Other:287335": [
+      "public class AchievementsManager : ManagerBase"
+    ],
+    "DedicatedServer/Pug.Other:287429": [
+      "public void TriggerAchievement(AchievementID id)"
+    ],
+    "DedicatedServer/Pug.Other:290156": [
+      "if (crossPlatformId != 0L && other.crossPlatformId != 0L)"
+    ],
+    "DedicatedServer/Pug.Other:290509": [
+      "List<PlayerAdminEntry> list = (from admin in adminList.adminList"
+    ],
+    "DedicatedServer/Pug.Other:290993": [
+      "if (adminList.adminList.Count == 0 || isLocalPlayer)"
+    ],
+    "DedicatedServer/Pug.Other:293651": [
+      "public class RGBManager : ManagerBase"
+    ],
+    "DedicatedServer/Pug.Other:302705": [
+      "bool flag9 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
+    ],
+    "DedicatedServer/Pug.Other:303123": [
+      "bool flag4 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
+    ],
+    "DedicatedServer/Pug.Other:318309": [
+      "if (diggableEntityAndInfo2.objectID == ObjectID.DiggingSpot && top.tileset == 0)"
+    ],
+    "DedicatedServer/Pug.Other:3617": [
+      "list.Sort();"
+    ],
+    "DedicatedServer/Pug.Other:423184": [
+      "InventoryUtility.Craft(in inventoryHandlerShared, inventories[0], componentData2, inventories, new CanCraftObjectsBuffer"
+    ],
+    "DedicatedServer/Pug.Other:4709": [
+      "public static void TriggerAchievementForEveryone(EntityCommandBuffer ecb, EntityArchetype rpcArchetype, AchievementID achievementID)"
+    ],
+    "DedicatedServer/Pug.Other:ECSManager:PauseWorld:1-23": [
       "private void PauseWorld(World world)",
       "{",
       "if (world != null)",
@@ -74,91 +119,49 @@
       "}",
       "}"
     ],
-    "DedicatedServer/Pug.Other:272115": [
-      "[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]"
+    "DedicatedServer/Pug.Other:ECSManager:StartEcs:27": [
+      "BurstDisabler.ResetWorlds();"
     ],
-    "DedicatedServer/Pug.Other:272187-272190": [
-      "_modLoaders.Add(new SideLoader());",
-      "}",
-      "_ = Environment.UserName;",
-      "StandaloneFilesystem configFilesystem = new StandaloneFilesystem(text, \"modloader\", _platformInterface);"
+    "DedicatedServer/Pug.Other:ECSManager:StartEcs:30": [
+      "BurstDisabler.AddWorld(allWorld);"
     ],
-    "DedicatedServer/Pug.Other:272197": [
+    "DedicatedServer/Pug.Other:ECSManager:StartEcs:38": [
       "Integration.Instance.Update();"
     ],
-    "DedicatedServer/Pug.Other:2752-2756": [
+    "DedicatedServer/Pug.Other:ECSManager:StartEcs:5-9": [
       "if (ClientWorld != null || ServerWorld != null)",
       "{",
       "UnityEngine.Debug.LogError(\"Trying to start new ECS instance without unloading old\");",
       "UnloadWorldsInternal();",
       "}"
     ],
-    "DedicatedServer/Pug.Other:2774": [
-      "BurstDisabler.ResetWorlds();"
-    ],
-    "DedicatedServer/Pug.Other:2777": [
-      "BurstDisabler.AddWorld(allWorld);"
-    ],
-    "DedicatedServer/Pug.Other:2785": [
-      "Integration.Instance.Update();"
-    ],
-    "DedicatedServer/Pug.Other:279172": [
-      "Integration.Instance.Update();"
-    ],
-    "DedicatedServer/Pug.Other:287335": [
-      "public class AchievementsManager : ManagerBase"
-    ],
-    "DedicatedServer/Pug.Other:287429": [
-      "public void TriggerAchievement(AchievementID id)"
-    ],
-    "DedicatedServer/Pug.Other:290156": [
-      "if (crossPlatformId != 0L && other.crossPlatformId != 0L)"
-    ],
-    "DedicatedServer/Pug.Other:290509": [
-      "List<PlayerAdminEntry> list = (from admin in adminList.adminList"
-    ],
-    "DedicatedServer/Pug.Other:290993": [
-      "if (adminList.adminList.Count == 0 || isLocalPlayer)"
-    ],
-    "DedicatedServer/Pug.Other:293651": [
-      "public class RGBManager : ManagerBase"
-    ],
-    "DedicatedServer/Pug.Other:3022": [
+    "DedicatedServer/Pug.Other:ECSManager:UnloadWorldsInternal:1": [
       "private void UnloadWorldsInternal()"
     ],
-    "DedicatedServer/Pug.Other:302705": [
-      "bool flag9 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
-    ],
-    "DedicatedServer/Pug.Other:303123": [
-      "bool flag4 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
-    ],
-    "DedicatedServer/Pug.Other:3046": [
+    "DedicatedServer/Pug.Other:ECSManager:UnloadWorldsInternal:25": [
       "BurstDisabler.ResetWorlds();"
     ],
-    "DedicatedServer/Pug.Other:318309": [
-      "if (diggableEntityAndInfo2.objectID == ObjectID.DiggingSpot && top.tileset == 0)"
+    "DedicatedServer/Pug.Other:Manager:EarlyInit:1": [
+      "[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]"
     ],
-    "DedicatedServer/Pug.Other:3617": [
-      "list.Sort();"
+    "DedicatedServer/Pug.Other:Manager:EarlyInit:83": [
+      "Integration.Instance.Update();"
     ],
-    "DedicatedServer/Pug.Other:378844": [
+    "DedicatedServer/Pug.Other:ModManager:Update:8": [
+      "Integration.Instance.Update();"
+    ],
+    "DedicatedServer/Pug.Other:SceneHandler:Awake:1": [
       "private void Awake()"
     ],
-    "DedicatedServer/Pug.Other:378872-378873": [
+    "DedicatedServer/Pug.Other:SceneHandler:Awake:29-30": [
       "UnityEngine.Debug.LogError(\"Server should start from ServerMain!\");",
       "Application.Quit();"
     ],
-    "DedicatedServer/Pug.Other:378883": [
+    "DedicatedServer/Pug.Other:SceneHandler:Awake:40": [
       "Manager.ecs.StartEcs(startClient: false, serverWorld, frameWorkloadTimer, null);"
     ],
-    "DedicatedServer/Pug.Other:378888": [
+    "DedicatedServer/Pug.Other:SceneHandler:Awake:45": [
       "Manager.ecs.StartEcs(startClient: false, 0, frameWorkloadTimer, null);"
-    ],
-    "DedicatedServer/Pug.Other:423184": [
-      "InventoryUtility.Craft(in inventoryHandlerShared, inventories[0], componentData2, inventories, new CanCraftObjectsBuffer"
-    ],
-    "DedicatedServer/Pug.Other:4709": [
-      "public static void TriggerAchievementForEveryone(EntityCommandBuffer ecb, EntityArchetype rpcArchetype, AchievementID achievementID)"
     ],
     "DedicatedServer/Pug.Other:StandaloneFilesystem:StandaloneFilesystem(string, PlatformInterface):1-17": [
       "public StandaloneFilesystem(string partition, PlatformInterface platformInterface)",
@@ -472,16 +475,16 @@
     "Pug.ECS.Conversion:3576": [
       "base.PropertiesBuilder.SetPropertyString(base.ObjectIndex, \"name\", authoring.objectName);"
     ],
-    "Pug.ECS.Conversion:5813": [
-      "protected override void Convert(EntityMonoBehaviourData authoring)"
-    ],
     "Pug.ECS.Conversion:5815": [
       "string text = authoring.objectInfo.objectID.ToString();"
     ],
     "Pug.ECS.Conversion:5818": [
       "Manager.mod.Authoring.ObjectIDLookup.TryAdd(text, authoring.objectInfo.objectID);"
     ],
-    "Pug.ECS.Conversion:5838": [
+    "Pug.ECS.Conversion:EntityMonoBehaviourDataConverter:Convert:1": [
+      "protected override void Convert(EntityMonoBehaviourData authoring)"
+    ],
+    "Pug.ECS.Conversion:EntityMonoBehaviourDataConverter:Convert:26": [
       "AddComponentData(new ObjectCategoryTagsCD"
     ],
     "Pug.Mods:714": [
@@ -498,12 +501,6 @@
     ],
     "Pug.Objects:3092": [
       "public override void UpdateGraphicsFromObjectInfo(ObjectInfo info)"
-    ],
-    "Pug.Other:12807": [
-      "ecb.AppendToBuffer(entity6, new AddPetExperienceBuffer"
-    ],
-    "Pug.Other:12809": [
-      "amount = PetExtensions.GetExperienceFromDamage(num2)"
     ],
     "Pug.Other:129722": [
       "private struct NetworkClientStartSystem_33002849_LambdaJob_0_Job : IJobChunk"
@@ -758,12 +755,6 @@
     ],
     "Pug.Other:131842": [
       "UnityEngine.Debug.Log($\"server has ghost collection hash {ghostCollectionHash} for {singletonBuffer.Length} ghosts\");"
-    ],
-    "Pug.Other:132644": [
-      "[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation, WorldSystemFilterFlags.Default)]"
-    ],
-    "Pug.Other:133051": [
-      "CharacterData characterDataFromSerialized = SaveManager.GetCharacterDataFromSerialized(characterDataEntry.data);"
     ],
     "Pug.Other:133529": [
       "UnityEngine.Debug.Log(\"Skipping load inventory by PlayerWasLastConnectedToThisServer\");"
@@ -1481,49 +1472,8 @@
     "Pug.Other:265203": [
       "public static void AddTile(int tileSet, PugTilemap.TileType tileType, int2 position, bool isWorldModeCreative, DynamicBuffer<TileUpdateBuffer> tileUpdateBuffer)"
     ],
-    "Pug.Other:265210": [
-      "if (isWorldModeCreative || (tile.tileset != 2 && ((!math.all(position == new int2(0, 0)) && !math.all(position == new int2(0, 1)) && !math.all(position == new int2(-1, 1)) && !math.all(position == new int2(1, 1))) || tile.tileType == PugTilemap.TileType.roofHole)))"
-    ],
-    "Pug.Other:265218-265228": [
-      "if (tile.tileType == PugTilemap.TileType.wall)",
-      "{",
-      "tileUpdateBuffer.Add(new TileUpdateBuffer",
-      "{",
-      "command = TileUpdateBuffer.Command.Remove,",
-      "position = position,",
-      "tile = new TileCD",
-      "{",
-      "tileType = PugTilemap.TileType.roofHole",
-      "}",
-      "});"
-    ],
-    "Pug.Other:265230-265249": [
-      "else if (tile.tileType == PugTilemap.TileType.ground)",
-      "{",
-      "tileUpdateBuffer.Add(new TileUpdateBuffer",
-      "{",
-      "command = TileUpdateBuffer.Command.Remove,",
-      "position = position,",
-      "tile = new TileCD",
-      "{",
-      "tileType = PugTilemap.TileType.pit",
-      "}",
-      "});",
-      "tileUpdateBuffer.Add(new TileUpdateBuffer",
-      "{",
-      "command = TileUpdateBuffer.Command.Remove,",
-      "position = position,",
-      "tile = new TileCD",
-      "{",
-      "tileType = PugTilemap.TileType.water",
-      "}",
-      "});"
-    ],
     "Pug.Other:272125": [
       "public static NetworkingManager networking => main._networkingManager;"
-    ],
-    "Pug.Other:272172": [
-      "[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]"
     ],
     "Pug.Other:272234": [
       "API.Authoring = new ModAPIAuthoring();"
@@ -1558,9 +1508,6 @@
       "if (!num)",
       "{",
       "_modLoaders.Add(new SteamWorkshopLoader(userIdentifier));"
-    ],
-    "Pug.Other:272263": [
-      "Integration.Instance.Update();"
     ],
     "Pug.Other:2738": [
       "if (ServerWorld != null)"
@@ -1598,15 +1545,6 @@
     "Pug.Other:276332": [
       "public bool SystemIsUsingMouse()"
     ],
-    "Pug.Other:2775-2781": [
-      "if (startClient && requestedPlayType != ClientServerBootstrap.PlayType.Server)",
-      "{",
-      "for (int i = 0; i < num; i++)",
-      "{",
-      "_allWorlds.Add(CreateClientWorld(\"ClientWorld\" + i));",
-      "}",
-      "}"
-    ],
     "Pug.Other:277791": [
       "Manager.RunAfterInitComplete(CreatePools());"
     ],
@@ -1622,9 +1560,6 @@
     "Pug.Other:278136": [
       "private TimerSimple typingInputCooldown = new TimerSimple(0.3f, unscaled: true);"
     ],
-    "Pug.Other:2782": [
-      "if (worldId != -1 && requestedPlayType != ClientServerBootstrap.PlayType.Client)"
-    ],
     "Pug.Other:278228": [
       "public void AttemptToPlayMenuSfx(SfxID sfx, float pitch = 1f, float pitchDev = 0f, bool reuse = true, float volume = 1f)"
     ],
@@ -1636,9 +1571,6 @@
     ],
     "Pug.Other:278392": [
       "private void UpdateHelperButtons()"
-    ],
-    "Pug.Other:2784": [
-      "_allWorlds.Add(CreateServerWorld(\"ServerWorld\", worldId));"
     ],
     "Pug.Other:278405": [
       "List<MenuHelperButtons.HelpButtonTypes> buttonsToShow = (topMenu.UseCustomHelpButtons ? topMenu.GetHelpButtonsToShow() : defaultHelpButtons);"
@@ -1773,28 +1705,11 @@
     "Pug.Other:279189": [
       "PugMods.LootTable.Init(lootTableBank);"
     ],
-    "Pug.Other:279330": [
-      "Integration.Instance.Update();"
-    ],
-    "Pug.Other:2796": [
-      "BurstDisabler.ResetWorlds();"
-    ],
-    "Pug.Other:2797-2799": [
-      "foreach (World allWorld in _allWorlds)",
-      "{",
-      "BurstDisabler.AddWorld(allWorld);"
-    ],
-    "Pug.Other:2799": [
-      "BurstDisabler.AddWorld(allWorld);"
-    ],
     "Pug.Other:280176": [
       "UnityEngine.Debug.LogWarning($\"{Name}: Couldn't allocate {numNewElements} objects because \" + $\"max capacity ({_maxSize}) exceeded! Consider increasing max size \" + $\"to {_maxSize + numNewElements} or more.\");"
     ],
     "Pug.Other:280675": [
       "glyphPool = new PoolSystem(glyphPrefab.gameObject, typeof(SpriteRenderer), base.transform, autoEnable: true, 2048, 10240, 2048, \"TextGlyph\");"
-    ],
-    "Pug.Other:2807": [
-      "StartCoroutine(ConvertAuthoringDataRoutine(worldId, frameWorkloadTimer, callback));"
     ],
     "Pug.Other:280813-280816": [
       "if (!localize)",
@@ -1891,9 +1806,6 @@
       "{",
       "i2LanguageData.AddLanguage(item.name, item.ISO6391);"
     ],
-    "Pug.Other:2859": [
-      "callback?.Invoke();"
-    ],
     "Pug.Other:288981": [
       "string s = JsonUtility.ToJson(modConfigFile, prettyPrint: true);"
     ],
@@ -1948,9 +1860,6 @@
     "Pug.Other:306169": [
       "public static bool ShouldCheckPlaceObjectOnTile(Entity placementPrefab, ref PlacementCD placementCD, ref int3 pos, ref int totalTilesOK, in float3 playerPosition, ref TileCD prevTile, ref PugDatabase.EntityObjectInfo infoAboutObjectToPlace, in ObjectPropertiesCD objectProperties, NativeHashMap<int3, bool> tilesChecked, NativeArray<ObjectID> canBePlacedOnObjects, NativeArray<ObjectID> canNotBePlaceOnObjects, out bool isPlacingElectronic, out bool foundValidTileToPlaceOn, out TileCD tileData, in CanPlaceSharedData canPlaceSharedData)"
     ],
-    "Pug.Other:306184": [
-      "bool flag5 = placementCD.canPlaceOnPit && tileData.tileType == PugTilemap.TileType.pit;"
-    ],
     "Pug.Other:306224": [
       "if (objectDataCD.objectID != ObjectID.None && ObjectCanBePlacedOnObject(objectDataCD.objectID, ref infoAboutObjectToPlace, canNotBePlaceOnObjects, canBePlacedOnObjects, canPlaceSharedData.objectPropertiesLookup, canPlaceSharedData.databaseBank))"
     ],
@@ -2001,9 +1910,6 @@
     "Pug.Other:306891": [
       "bool flag9 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
     ],
-    "Pug.Other:3069": [
-      "BurstDisabler.ResetWorlds();"
-    ],
     "Pug.Other:307309": [
       "bool flag4 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
     ],
@@ -2031,32 +1937,8 @@
     "Pug.Other:312444": [
       "if (PugDatabase.HasComponent<CookedFoodCD>(anyObjectIDReplaceForNameAndDesc))"
     ],
-    "Pug.Other:312952": [
-      "public static void AddCombatSkillByCooldown(Entity playerOwner, Entity attacker, bool isMagic, bool isRanged, EntityCommandBuffer ecb, bool isServer, ComponentLookup<EquipmentSlotCD> equipmentSlotLookup, ComponentLookup<EquippedObjectCD> equippedObjectLookup, ComponentLookup<ProjectileSourceCD> projectileSourceLookup, ComponentLookup<DamageSourceCD> damageSourceLookup, ComponentLookup<CooldownCD> cooldownLookup, ComponentLookup<HasWeaponDamageCD> hasWeaponDamageLookup, BufferLookup<SummarizedConditionEffectsBuffer> summarizedConditionEffectsBufferLookup, PugDatabase.DatabaseBankCD databaseBank)"
-    ],
-    "Pug.Other:312962": [
-      "amount = ((!(componentData.weaponCooldown > 0f)) ? 0.25f : (componentData.weaponCooldown * 2.5f));"
-    ],
-    "Pug.Other:312966": [
-      "amount = componentData2.weaponCooldown * componentData2.inheritedSkillFraction * 2.5f;"
-    ],
-    "Pug.Other:312996": [
-      "public static void AddSkill(Entity entity, SkillID skillID, float amount, EntityCommandBuffer ecb, bool isServer)"
-    ],
-    "Pug.Other:313010": [
-      "public static void IncreasePetXp(Entity playerEntity, int xpIncrease, in PetOwnerCD petOwnerCD, in PlayerGhost playerGhost, in DynamicBuffer<ContainedObjectsBuffer> containedObjectsBuffer, BufferLookup<InventoryChangeBuffer> inventoryChangeBufferLookup, Entity inventoryChangeBufferEntity)"
-    ],
     "Pug.Other:3133": [
       "private void InitWorld(World world)"
-    ],
-    "Pug.Other:314658": [
-      "private static bool AttemptToDealDamageToEnemy(in PlayerAttackAspect playerAttackAspect, in PlayerAttackShared playerAttackShared, in PlayerAttackLookups playerAttackLookups, Entity entityToTakeDamage, float3 entityToTakeDamagePosition, NativeArray<SummarizedConditionsBuffer> conditionsAtHit, NativeArray<SummarizedConditionEffectsBuffer> conditionEffectsAtHit, int damage, bool isRanged, bool isMagic, int manaCost, bool isBeam, bool isExplosive, bool isWoundup, float windupMult, bool shouldKnockback, Vector3 projectileDirection, bool shouldShowHitFeedbackOnHitEntityPart, bool shouldHandleImmuneToDamageOnEntityPart, Entity hitEntityPart, out int attackerHealthChange, out int ownerHealthChange, out int attackerManaChange, out bool gainSkill)"
-    ],
-    "Pug.Other:314789": [
-      "int experienceFromDamage = PetExtensions.GetExperienceFromDamage(damageAfterReduction);"
-    ],
-    "Pug.Other:314790": [
-      "IncreasePetXp(playerAttackAspect.entity, experienceFromDamage, in playerAttackAspect.petOwnerCD.ValueRO, in playerAttackAspect.playerGhost.ValueRO, playerAttackLookups.containedObjectsBufferLookup[playerAttackAspect.entity], playerAttackLookups.inventoryChangeBufferLookup, playerAttackShared.inventoryChangeBufferEntity);"
     ],
     "Pug.Other:318061": [
       "public CraftingUISettings defaultUISettings;"
@@ -2079,400 +1961,11 @@
     "Pug.Other:321353": [
       "if (_visibilityState == 1 && Manager.main.player.GetCurrentInteractableObject() != GetComponentInChildren<InteractableObject>())"
     ],
-    "Pug.Other:321753": [
-      "public class BucketSlot : PlaceObjectSlot"
-    ],
-    "Pug.Other:321761": [
-      "public new static bool UpdateEquipment(bool interactHeld, bool secondInteractHeld, in ClientInput clientInput, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData, bool hasItemInMouse)"
-    ],
-    "Pug.Other:321777": [
-      "private static void PlaceItem(in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)"
-    ],
-    "Pug.Other:322331": [
-      "private static void PlaceItem(in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData)"
-    ],
     "Pug.Other:322506": [
       "if (diggableEntityAndInfo2.objectID == ObjectID.DiggingSpot && top.tileset == 0)"
     ],
-    "Pug.Other:322701": [
-      "public class PaintToolSlot : PlaceObjectSlot"
-    ],
-    "Pug.Other:322705": [
-      "public new static bool UpdateEquipment(bool interactHeld, bool secondInteractHeld, in ClientInput clientInput, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData, bool hasItemInMouse)"
-    ],
-    "Pug.Other:322723": [
-      "private static void PlaceItem(ref NativeList<PlacementHandler.EntityAndInfoFromPlacement> diggableEntityAndInfos, in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)"
-    ],
-    "Pug.Other:322907-323257": [
-      "public class PlaceObjectSlot : EquipmentSlot",
-      "{",
-      "public const float SLOT_COOLDOWN = 0.25f;",
-      "",
-      "public const float PLACE_STOP_DURATION = 0.05f;",
-      "",
-      "public PlacementHandler placementHandler;",
-      "",
-      "protected override EquipmentSlotType slotType => EquipmentSlotType.PlaceObjectSlot;",
-      "",
-      "public static bool UpdateEquipment(bool interactHeld, bool secondInteractHeld, in ClientInput clientInput, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData, bool hasItemInMouse)",
-      "{",
-      "if (clientInput.IsButtonStateSet(CommandInputButtonStateNames.Rotate_Pressed))",
-      "{",
-      "Rotate(in equipmentUpdateAspect, in equipmentUpdateSharedData, in equipmentUpdateLookupData);",
-      "}",
-      "Entity equipmentPrefab = equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab;",
-      "if (equipmentUpdateLookupData.objectPropertiesLookup.TryGetComponent(equipmentPrefab, out var componentData) && componentData.Has(1718179513))",
-      "{",
-      "AlignWithPlayer(in equipmentUpdateAspect, in equipmentUpdateSharedData, in equipmentUpdateLookupData);",
-      "}",
-      "NativeList<PlacementHandler.EntityAndInfoFromPlacement> diggableEntityAndInfos = new NativeList<PlacementHandler.EntityAndInfoFromPlacement>(Allocator.Temp);",
-      "PlacementHandler.UpdatePlaceablePosition(equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab, ref diggableEntityAndInfos, in equipmentUpdateAspect, in equipmentUpdateSharedData, in equipmentUpdateLookupData);",
-      "diggableEntityAndInfos.Dispose();",
-      "if (!secondInteractHeld)",
-      "{",
-      "return false;",
-      "}",
-      "if (hasItemInMouse)",
-      "{",
-      "return false;",
-      "}",
-      "PlaceItem(in equipmentUpdateAspect, equipmentUpdateSharedData, equipmentUpdateLookupData);",
-      "return true;",
-      "}",
-      "",
-      "private static void PlaceItem(in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)",
-      "{",
-      "ref PlacementCD valueRW = ref equipmentUpdateAspect.placementCD.ValueRW;",
-      "if (!valueRW.canPlaceObject)",
-      "{",
-      "return;",
-      "}",
-      "ObjectDataCD objectDataCD = equipmentUpdateAspect.equippedObjectCD.ValueRO.containedObject.objectData;",
-      "ref PugDatabase.EntityObjectInfo entityObjectInfo = ref PugDatabase.GetEntityObjectInfo(objectDataCD.objectID, equipmentUpdateSharedData.databaseBank.databaseBankBlob, objectDataCD.variation);",
-      "bool flag = entityObjectInfo.objectType == ObjectType.Critter;",
-      "int2 prefabCornerOffset = entityObjectInfo.prefabCornerOffset;",
-      "int3 int5 = valueRW.bestPositionToPlaceAt - new int3(prefabCornerOffset.x, 0, prefabCornerOffset.y);",
-      "Entity equipmentPrefab = equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab;",
-      "if (!CanPlaceItem(equipmentPrefab, ref entityObjectInfo, int5, in equipmentUpdateAspect, in equipmentUpdateSharedData, in equipmentUpdateLookupData))",
-      "{",
-      "return;",
-      "}",
-      "int3 int6 = int5;",
-      "if (valueRW.timeSincePlaced.isRunning && valueRW.timeSincePlaced.GetElapsedSeconds(equipmentUpdateSharedData.currentTick, equipmentUpdateSharedData.tickRate) < 1f && math.all(int6 == valueRW.positionLastPlacedAt) && !IsPlacingWallAfterPreviouslyPlacedGround(in valueRW, ref entityObjectInfo))",
-      "{",
-      "UnityEngine.Debug.LogWarning(\"Trying to place in same spot or the same entity too quick, gotta wait for server.\");",
-      "return;",
-      "}",
-      "if (!flag)",
-      "{",
-      "valueRW.timeSincePlaced.Start(equipmentUpdateSharedData.currentTick);",
-      "}",
-      "float3 float5 = float3.zero;",
-      "ObjectDataCD objectDataCD2 = equipmentUpdateAspect.equippedObjectCD.ValueRO.containedObject.objectData;",
-      "valueRW.positionLastPlacedAt = int6;",
-      "if (!PlayerController.CanConsumeEntityInSlot(equipmentPrefab, objectDataCD2, 1, equipmentUpdateLookupData.cattleLookup))",
-      "{",
-      "return;",
-      "}",
-      "if (!equipmentUpdateSharedData.worldInfoCD.IsWorldModeEnabled(WorldMode.Creative) && entityObjectInfo.objectType != ObjectType.PlaceablePrefab && entityObjectInfo.objectType != ObjectType.Critter && entityObjectInfo.objectType != ObjectType.TrainingDummy && !equipmentUpdateLookupData.cattleLookup.HasComponent(equipmentPrefab) && !equipmentUpdateLookupData.mountLookup.HasComponent(equipmentPrefab))",
-      "{",
-      "UnityEngine.Debug.LogError(\"Tried to consume an item that is not a placeable prefab or critter or training dummy and we're not a creative mode character, aborting\");",
-      "return;",
-      "}",
-      "ref PugDatabase.EntityObjectInfo entityObjectInfo2 = ref PugDatabase.GetEntityObjectInfo(objectDataCD2.objectID, equipmentUpdateSharedData.databaseBank.databaseBankBlob, objectDataCD2.variation);",
-      "float2 float6 = (float2)entityObjectInfo2.prefabTileSize / 2f;",
-      "float3 float7 = new float3(float6.x - 0.5f, 0f, float6.y - 0.5f);",
-      "float3 positionToPlaceAt = valueRW.bestPositionToPlaceAt + float7;",
-      "if (valueRW.rotationVariationToPlace > 0)",
-      "{",
-      "DirectionCD.RotateTransform(quaternion.identity, float7, valueRW.rotationVariationToPlace, entityObjectInfo2.prefabCornerOffset, entityObjectInfo2.prefabTileSize, out var _, out var newTranslation);",
-      "positionToPlaceAt = valueRW.bestPositionToPlaceAt + newTranslation;",
-      "}",
-      "equipmentUpdateAspect.placeObjectStateCD.ValueRW.positionToPlaceAt = positionToPlaceAt;",
-      "equipmentUpdateAspect.playerStateCD.ValueRW.PushState(PlayerStateEnum.PlaceObject);",
-      "float cooldown = (equipmentUpdateLookupData.godModeLookup.IsComponentEnabled(equipmentUpdateAspect.entity) ? 0.15f : 0.25f);",
-      "EquipmentSlot.StartCooldownForItem(in equipmentUpdateAspect, equipmentUpdateSharedData, equipmentUpdateLookupData, cooldown);",
-      "float3 float8 = valueRW.bestPositionToPlaceAt;",
-      "bool critterDamageKillEvenIfSquashBugsIsOff = true;",
-      "float3 position = equipmentUpdateLookupData.localTransformLookup[equipmentUpdateAspect.entity].Position;",
-      "TileAccessor tileAccessor = equipmentUpdateSharedData.tileAccessor;",
-      "if (equipmentUpdateLookupData.tileLookup.HasComponent(equipmentPrefab))",
-      "{",
-      "PugTilemap.TileType tileTypeToPlace = GetTileTypeToPlace(int5, ref entityObjectInfo, in equipmentUpdateSharedData.tileAccessor, in equipmentUpdateSharedData.tileWithTilesetToObjectDataMapCD);",
-      "DynamicBuffer<TileUpdateBuffer> tileUpdateBuffer = equipmentUpdateLookupData.tileUpdateBufferLookup[equipmentUpdateSharedData.tileUpdateBufferEntity];",
-      "EntityUtility.AddTile(entityObjectInfo.tileset, tileTypeToPlace, new int2(int5.x, int5.z), equipmentUpdateSharedData.worldInfoCD.IsWorldModeEnabled(WorldMode.Creative), tileUpdateBuffer);",
-      "equipmentUpdateLookupData.inventoryUpdateBuffer[equipmentUpdateSharedData.inventoryUpdateBufferEntity].Add(new InventoryChangeBuffer",
-      "{",
-      "inventoryChangeData = Create.ConsumeEntityAt(equipmentUpdateAspect.entity, equipmentUpdateAspect.equippedObjectCD.ValueRO.equippedSlotIndex, 1, destroy: true, equipmentUpdateLookupData.godModeLookup.IsComponentEnabled(equipmentUpdateAspect.entity), position, objectDataCD2.variation),",
-      "playerEntity = equipmentUpdateAspect.entity",
-      "});",
-      "valueRW.previouslyPlacedTileType = tileTypeToPlace;",
-      "}",
-      "else",
-      "{",
-      "float3 float9 = new float3(int5.x, 0f, int5.z);",
-      "if (!equipmentUpdateLookupData.objectPropertiesLookup.TryGetComponent(equipmentPrefab, out var componentData))",
-      "{",
-      "UnityEngine.Debug.LogError(\"tried to place an item without object properties\");",
-      "return;",
-      "}",
-      "componentData.TryGet<int>(245919617, out valueRW.currentPrefabVariation);",
-      "DynamicBuffer<AdaptiveEntityBuffer> bufferData;",
-      "ObjectPropertiesCD componentData2;",
-      "int value;",
-      "if (flag)",
-      "{",
-      "valueRW.currentPrefabVariation = 1;",
-      "}",
-      "else if (equipmentUpdateLookupData.adaptiveEntityBufferLookup.TryGetBuffer(equipmentPrefab, out bufferData))",
-      "{",
-      "if (bufferData.IsCreated && bufferData.Length > 0)",
-      "{",
-      "int2 int7 = float9.RoundToInt2();",
-      "TileCD top = tileAccessor.GetTop(int7 + AdjacentDir.GetInt2(1));",
-      "TileCD top2 = tileAccessor.GetTop(int7 + AdjacentDir.GetInt2(16));",
-      "TileCD top3 = tileAccessor.GetTop(int7 + AdjacentDir.GetInt2(64));",
-      "TileCD top4 = tileAccessor.GetTop(int7 + AdjacentDir.GetInt2(4));",
-      "PlacementHandler.AdaptiveVariationCanBePlaced(valueRW.currentPrefabVariation, out valueRW.currentPrefabVariation, bufferData, top, top2, top3, top4);",
-      "}",
-      "}",
-      "else if (valueRW.placeObjectOnWall)",
-      "{",
-      "bool variationZeroIsNoDirection = componentData.IsValid && componentData.Has(-377237680);",
-      "valueRW.currentPrefabVariation = DirectionBasedOnVariationCD.GetVariationFromDirection(valueRW.wallSideToPlaceObject, variationZeroIsNoDirection);",
-      "float9 += valueRW.wallSideToPlaceObject.ToFloat3();",
-      "}",
-      "else if (equipmentUpdateLookupData.directionBasedOnVariationLookup.HasComponent(equipmentPrefab))",
-      "{",
-      "valueRW.currentPrefabVariation = valueRW.rotationVariationToPlace;",
-      "}",
-      "else if (equipmentUpdateLookupData.objectPropertiesLookup.TryGetComponent(equipmentPrefab, out componentData2) && componentData2.TryGet<int>(1273594437, out value))",
-      "{",
-      "critterDamageKillEvenIfSquashBugsIsOff = false;",
-      "if (value > 0)",
-      "{",
-      "float num = 3f + (float)equipmentUpdateLookupData.summarizedConditionsBufferLookup[equipmentUpdateAspect.entity][126].value;",
-      "if (num > 0f)",
-      "{",
-      "float num2 = equipmentUpdateAspect.randomCD.ValueRW.Value.NextFloat();",
-      "float num3 = num / 100f;",
-      "if (num2 < num3)",
-      "{",
-      "valueRW.currentPrefabVariation = value;",
-      "}",
-      "}",
-      "}",
-      "}",
-      "if (PlacementHandler.ObjectCanBeRotated(equipmentPrefab, equipmentUpdateLookupData.directionBasedOnVariationLookup, equipmentUpdateLookupData.objectPropertiesLookup, equipmentUpdateLookupData.directionLookup) && PlacementHandler.ShouldRotatePhysics(equipmentPrefab, equipmentUpdateLookupData.directionLookup))",
-      "{",
-      "float5 = DirectionBasedOnVariationCD.GetDirectionFromVariation(valueRW.rotationVariationToPlace).ToFloat3();",
-      "}",
-      "else if (PlacementHandler.ObjectCanBeToggledToNewNonRotationOption(equipmentPrefab, equipmentUpdateLookupData.objectPropertiesLookup))",
-      "{",
-      "valueRW.currentPrefabVariation = valueRW.nonRotationVariationToPlace;",
-      "}",
-      "int amount = 1;",
-      "if (entityObjectInfo2.objectType == ObjectType.Creature)",
-      "{",
-      "amount = objectDataCD2.amount;",
-      "valueRW.currentPrefabVariation = objectDataCD2.variation;",
-      "}",
-      "bool flag2 = equipmentUpdateLookupData.godModeLookup.IsComponentEnabled(equipmentUpdateAspect.entity);",
-      "if (!flag2 && equipmentUpdateLookupData.hasExplodedLookup.HasComponent(equipmentPrefab) && !equipmentUpdateLookupData.proximityTriggerLookup.HasComponent(equipmentPrefab) && !equipmentUpdateLookupData.electricityLookup.HasComponent(equipmentPrefab))",
-      "{",
-      "float num4 = equipmentUpdateAspect.randomCD.ValueRW.Value.NextFloat();",
-      "int value2 = equipmentUpdateLookupData.summarizedConditionsBufferLookup[equipmentUpdateAspect.entity][305].value;",
-      "flag2 = num4 < (float)value2 / 100f;",
-      "}",
-      "equipmentUpdateLookupData.inventoryUpdateBuffer[equipmentUpdateSharedData.inventoryUpdateBufferEntity].Add(new InventoryChangeBuffer",
-      "{",
-      "inventoryChangeData = Create.ConsumeEntityAt(equipmentUpdateAspect.entity, equipmentUpdateAspect.equippedObjectCD.ValueRO.equippedSlotIndex, amount, destroy: false, flag2, float9, valueRW.currentPrefabVariation, float5),",
-      "playerEntity = equipmentUpdateAspect.entity",
-      "});",
-      "}",
-      "if (!flag)",
-      "{",
-      "int2 prefabTileSize = entityObjectInfo.prefabTileSize;",
-      "float3 float10 = valueRW.bestPositionToPlaceAt + new float3(prefabTileSize.x, 0f, prefabTileSize.y) / 2f - new float3(0.5f, 0f, 0.5f);",
-      "float3 critterDamageSize = new float3(prefabTileSize.x, 1f, prefabTileSize.y);",
-      "equipmentUpdateAspect.dealDamageToEntityBuffer.Add(new DealDamageToEntityBuffer",
-      "{",
-      "attackType = DealDamageToEntityBuffer.AttackType.CritterDamage,",
-      "hitPosition = float10,",
-      "optionalFromPosition = float10,",
-      "critterDamageSize = critterDamageSize,",
-      "critterDamageCanDamageFlying = true,",
-      "critterDamageKillEvenIfSquashBugsIsOff = critterDamageKillEvenIfSquashBugsIsOff",
-      "});",
-      "}",
-      "if (entityObjectInfo.tileType != PugTilemap.TileType.none)",
-      "{",
-      "DynamicBuffer<GhostEffectEventBuffer> ghostEffectEventBuffer = equipmentUpdateAspect.ghostEffectEventBuffer;",
-      "ref GhostEffectEventBufferPointerCD valueRW2 = ref equipmentUpdateAspect.ghostEffectEventBufferPointerCD.ValueRW;",
-      "GhostEffectEventBuffer item = new GhostEffectEventBuffer",
-      "{",
-      "Tick = equipmentUpdateSharedData.currentTick,",
-      "value = new EffectEventCD",
-      "{",
-      "effectID = EffectID.PlaceTile,",
-      "position1 = float8,",
-      "value1 = (int)entityObjectInfo.tileType",
-      "}",
-      "};",
-      "ghostEffectEventBuffer.AddToRingBuffer(ref valueRW2, in item);",
-      "}",
-      "else if (flag)",
-      "{",
-      "DynamicBuffer<GhostEffectEventBuffer> ghostEffectEventBuffer2 = equipmentUpdateAspect.ghostEffectEventBuffer;",
-      "ref GhostEffectEventBufferPointerCD valueRW3 = ref equipmentUpdateAspect.ghostEffectEventBufferPointerCD.ValueRW;",
-      "GhostEffectEventBuffer item = new GhostEffectEventBuffer",
-      "{",
-      "Tick = equipmentUpdateSharedData.currentTick,",
-      "value = new EffectEventCD",
-      "{",
-      "effectID = EffectID.PlaceCritter,",
-      "position1 = float8 - new float3(0f, 0.5f, 0f)",
-      "}",
-      "};",
-      "ghostEffectEventBuffer2.AddToRingBuffer(ref valueRW3, in item);",
-      "}",
-      "else",
-      "{",
-      "DynamicBuffer<GhostEffectEventBuffer> ghostEffectEventBuffer3 = equipmentUpdateAspect.ghostEffectEventBuffer;",
-      "ref GhostEffectEventBufferPointerCD valueRW4 = ref equipmentUpdateAspect.ghostEffectEventBufferPointerCD.ValueRW;",
-      "GhostEffectEventBuffer item = new GhostEffectEventBuffer",
-      "{",
-      "Tick = equipmentUpdateSharedData.currentTick,",
-      "value = new EffectEventCD",
-      "{",
-      "effectID = EffectID.PlaceObject,",
-      "position1 = float8,",
-      "value1 = (int)entityObjectInfo.objectID,",
-      "vector1 = float5",
-      "}",
-      "};",
-      "ghostEffectEventBuffer3.AddToRingBuffer(ref valueRW4, in item);",
-      "}",
-      "}",
-      "",
-      "private static bool CanPlaceItem(Entity placementPrefab, ref PugDatabase.EntityObjectInfo objectToPlaceInfo, int3 pos, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData)",
-      "{",
-      "ref PlacementCD valueRW = ref equipmentUpdateAspect.placementCD.ValueRW;",
-      "if (!equipmentUpdateLookupData.tileLookup.HasComponent(placementPrefab))",
-      "{",
-      "valueRW.tilePlacementTimer.Stop(equipmentUpdateSharedData.currentTick);",
-      "return true;",
-      "}",
-      "PugTilemap.TileType tileTypeToPlace = GetTileTypeToPlace(pos, ref objectToPlaceInfo, in equipmentUpdateSharedData.tileAccessor, in equipmentUpdateSharedData.tileWithTilesetToObjectDataMapCD);",
-      "int num;",
-      "if (!equipmentUpdateAspect.clientInput.ValueRO.IsButtonStateSet(CommandInputButtonStateNames.SecondInteract_Pressed) && (tileTypeToPlace == PugTilemap.TileType.wall || tileTypeToPlace == PugTilemap.TileType.ground) && (tileTypeToPlace != PugTilemap.TileType.wall || valueRW.previouslyPlacedTileType != PugTilemap.TileType.wall) && (tileTypeToPlace != PugTilemap.TileType.ground || valueRW.previouslyPlacedTileType != PugTilemap.TileType.ground) && valueRW.tilePlacementTimer.isRunning)",
-      "{",
-      "num = (valueRW.tilePlacementTimer.IsTimerElapsed(equipmentUpdateSharedData.currentTick) ? 1 : 0);",
-      "if (num == 0)",
-      "{",
-      "goto IL_00ca;",
-      "}",
-      "}",
-      "else",
-      "{",
-      "num = 1;",
-      "}",
-      "valueRW.tilePlacementTimer.Start(equipmentUpdateSharedData.currentTick, 0.65f, equipmentUpdateSharedData.tickRate);",
-      "goto IL_00ca;",
-      "IL_00ca:",
-      "return (byte)num != 0;",
-      "}",
-      "",
-      "private static PugTilemap.TileType GetTileTypeToPlace(int3 pos, ref PugDatabase.EntityObjectInfo objectToPlaceInfo, in TileAccessor tileAccessor, in TileWithTilesetToObjectDataMapCD tileWithTilesetToObjectDataMapCD)",
-      "{",
-      "int2 worldPosition = pos.ToInt2();",
-      "if (objectToPlaceInfo.tileType == PugTilemap.TileType.wall && !tileAccessor.HasType(worldPosition, PugTilemap.TileType.ground) && !tileAccessor.HasType(worldPosition, PugTilemap.TileType.bridge) && PugDatabase.TryGetTileItemInfo(PugTilemap.TileType.ground, (Tileset)objectToPlaceInfo.tileset, in tileWithTilesetToObjectDataMapCD).objectID != ObjectID.None)",
-      "{",
-      "return PugTilemap.TileType.ground;",
-      "}",
-      "return objectToPlaceInfo.tileType;",
-      "}",
-      "",
-      "private static bool IsPlacingWallAfterPreviouslyPlacedGround(in PlacementCD placementCD, ref PugDatabase.EntityObjectInfo objectToPlaceInfo)",
-      "{",
-      "if (placementCD.previouslyPlacedTileType == PugTilemap.TileType.ground)",
-      "{",
-      "return objectToPlaceInfo.tileType == PugTilemap.TileType.wall;",
-      "}",
-      "return false;",
-      "}",
-      "",
-      "public static void Rotate(in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData)",
-      "{",
-      "if (PlacementHandler.ObjectCanBeRotated(equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab, equipmentUpdateLookupData.directionBasedOnVariationLookup, equipmentUpdateLookupData.objectPropertiesLookup, equipmentUpdateLookupData.directionLookup))",
-      "{",
-      "ref PlacementCD valueRW = ref equipmentUpdateAspect.placementCD.ValueRW;",
-      "valueRW.rotationVariationToPlace = (valueRW.rotationVariationToPlace + 1) % 4;",
-      "}",
-      "else if (PlacementHandler.ObjectCanBeToggledToNewNonRotationOption(equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab, equipmentUpdateLookupData.objectPropertiesLookup))",
-      "{",
-      "int value = 0;",
-      "if (equipmentUpdateLookupData.objectPropertiesLookup.TryGetComponent(equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab, out var componentData))",
-      "{",
-      "componentData.TryGet<int>(-1876849774, out value);",
-      "}",
-      "ref PlacementCD valueRW2 = ref equipmentUpdateAspect.placementCD.ValueRW;",
-      "valueRW2.nonRotationVariationToPlace = (valueRW2.nonRotationVariationToPlace + 1) % value;",
-      "}",
-      "}",
-      "",
-      "public static void AlignWithPlayer(in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData)",
-      "{",
-      "if (PlacementHandler.ObjectCanBeRotated(equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab, equipmentUpdateLookupData.directionBasedOnVariationLookup, equipmentUpdateLookupData.objectPropertiesLookup, equipmentUpdateLookupData.directionLookup))",
-      "{",
-      "ref PlacementCD valueRW = ref equipmentUpdateAspect.placementCD.ValueRW;",
-      "Direction facingDirection = equipmentUpdateAspect.animationOrientationCD.ValueRO.facingDirection;",
-      "valueRW.rotationVariationToPlace = DirectionBasedOnVariationCD.GetVariationFromDirection(new int2((int)facingDirection.vec2.x, (int)facingDirection.vec2.y));",
-      "}",
-      "}",
-      "",
-      "public override void OnFree()",
-      "{",
-      "placementHandler.Disable();",
-      "base.OnFree();",
-      "}",
-      "",
-      "public override void OnEquip(PlayerController player)",
-      "{",
-      "placementHandler.Enable();",
-      "base.OnEquip(player);",
-      "}",
-      "",
-      "public override void OnUnequip(PlayerController player)",
-      "{",
-      "placementHandler.Disable();",
-      "base.OnUnequip(player);",
-      "}",
-      "",
-      "public override void OnPickUp(PlayerController player, bool fireSceneEvent)",
-      "{",
-      "base.OnPickUp(player, fireSceneEvent);",
-      "placementHandler.Disable();",
-      "}",
-      "}"
-    ],
-    "Pug.Other:322931": [
-      "if (!secondInteractHeld)"
-    ],
-    "Pug.Other:322935": [
-      "if (hasItemInMouse)"
-    ],
-    "Pug.Other:322943": [
-      "private static void PlaceItem(in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)"
-    ],
     "Pug.Other:322946": [
       "if (!valueRW.canPlaceObject)"
-    ],
-    "Pug.Other:322956": [
-      "if (!CanPlaceItem(equipmentPrefab, ref entityObjectInfo, int5, in equipmentUpdateAspect, in equipmentUpdateSharedData, in equipmentUpdateLookupData))"
-    ],
-    "Pug.Other:322961": [
-      "if (valueRW.timeSincePlaced.isRunning && valueRW.timeSincePlaced.GetElapsedSeconds(equipmentUpdateSharedData.currentTick, equipmentUpdateSharedData.tickRate) < 1f && math.all(int6 == valueRW.positionLastPlacedAt) && !IsPlacingWallAfterPreviouslyPlacedGround(in valueRW, ref entityObjectInfo))"
     ],
     "Pug.Other:322966": [
       "if (!flag)"
@@ -2485,18 +1978,6 @@
     ],
     "Pug.Other:322973": [
       "if (!PlayerController.CanConsumeEntityInSlot(equipmentPrefab, objectDataCD2, 1, equipmentUpdateLookupData.cattleLookup))"
-    ],
-    "Pug.Other:322977": [
-      "if (!equipmentUpdateSharedData.worldInfoCD.IsWorldModeEnabled(WorldMode.Creative) && entityObjectInfo.objectType != ObjectType.PlaceablePrefab && entityObjectInfo.objectType != ObjectType.Critter && entityObjectInfo.objectType != ObjectType.TrainingDummy && !equipmentUpdateLookupData.cattleLookup.HasComponent(equipmentPrefab) && !equipmentUpdateLookupData.mountLookup.HasComponent(equipmentPrefab))"
-    ],
-    "Pug.Other:322991": [
-      "equipmentUpdateAspect.placeObjectStateCD.ValueRW.positionToPlaceAt = positionToPlaceAt;"
-    ],
-    "Pug.Other:322992": [
-      "equipmentUpdateAspect.playerStateCD.ValueRW.PushState(PlayerStateEnum.PlaceObject);"
-    ],
-    "Pug.Other:322994": [
-      "EquipmentSlot.StartCooldownForItem(in equipmentUpdateAspect, equipmentUpdateSharedData, equipmentUpdateLookupData, cooldown);"
     ],
     "Pug.Other:322999": [
       "if (equipmentUpdateLookupData.tileLookup.HasComponent(equipmentPrefab))"
@@ -2528,35 +2009,6 @@
     "Pug.Other:323089": [
       "inventoryChangeData = Create.ConsumeEntityAt(equipmentUpdateAspect.entity, equipmentUpdateAspect.equippedObjectCD.ValueRO.equippedSlotIndex, amount, destroy: false, flag2, float9, valueRW.currentPrefabVariation, float5),"
     ],
-    "Pug.Other:323158": [
-      "private static bool CanPlaceItem(Entity placementPrefab, ref PugDatabase.EntityObjectInfo objectToPlaceInfo, int3 pos, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData)"
-    ],
-    "Pug.Other:323163": [
-      "valueRW.tilePlacementTimer.Stop(equipmentUpdateSharedData.currentTick);"
-    ],
-    "Pug.Other:323163-323180": [
-      "valueRW.tilePlacementTimer.Stop(equipmentUpdateSharedData.currentTick);",
-      "return true;",
-      "}",
-      "PugTilemap.TileType tileTypeToPlace = GetTileTypeToPlace(pos, ref objectToPlaceInfo, in equipmentUpdateSharedData.tileAccessor, in equipmentUpdateSharedData.tileWithTilesetToObjectDataMapCD);",
-      "int num;",
-      "if (!equipmentUpdateAspect.clientInput.ValueRO.IsButtonStateSet(CommandInputButtonStateNames.SecondInteract_Pressed) && (tileTypeToPlace == PugTilemap.TileType.wall || tileTypeToPlace == PugTilemap.TileType.ground) && (tileTypeToPlace != PugTilemap.TileType.wall || valueRW.previouslyPlacedTileType != PugTilemap.TileType.wall) && (tileTypeToPlace != PugTilemap.TileType.ground || valueRW.previouslyPlacedTileType != PugTilemap.TileType.ground) && valueRW.tilePlacementTimer.isRunning)",
-      "{",
-      "num = (valueRW.tilePlacementTimer.IsTimerElapsed(equipmentUpdateSharedData.currentTick) ? 1 : 0);",
-      "if (num == 0)",
-      "{",
-      "goto IL_00ca;",
-      "}",
-      "}",
-      "else",
-      "{",
-      "num = 1;",
-      "}",
-      "valueRW.tilePlacementTimer.Start(equipmentUpdateSharedData.currentTick, 0.65f, equipmentUpdateSharedData.tickRate);"
-    ],
-    "Pug.Other:323180": [
-      "valueRW.tilePlacementTimer.Start(equipmentUpdateSharedData.currentTick, 0.65f, equipmentUpdateSharedData.tickRate);"
-    ],
     "Pug.Other:323186-323193": [
       "private static PugTilemap.TileType GetTileTypeToPlace(int3 pos, ref PugDatabase.EntityObjectInfo objectToPlaceInfo, in TileAccessor tileAccessor, in TileWithTilesetToObjectDataMapCD tileWithTilesetToObjectDataMapCD)",
       "{",
@@ -2577,20 +2029,8 @@
       "return false;",
       "}"
     ],
-    "Pug.Other:323801": [
-      "private static void PlaceItem(ref NativeList<PlacementHandler.EntityAndInfoFromPlacement> entitiesToSeed, in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)"
-    ],
     "Pug.Other:323882": [
       "valueRW.positionLastPlacedAt = x.ToInt3();"
-    ],
-    "Pug.Other:324277": [
-      "public class WaterCanSlot : PlaceObjectSlot"
-    ],
-    "Pug.Other:324285": [
-      "public new static bool UpdateEquipment(bool interactHeld, bool secondInteractHeld, in ClientInput clientInput, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData, bool hasItemInMouse)"
-    ],
-    "Pug.Other:324307": [
-      "private static void PlaceItem(ref NativeList<PlacementHandler.EntityAndInfoFromPlacement> entitiesToRemoveByWater, in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)"
     ],
     "Pug.Other:325814": [
       "if (!(entityMono is IEntityMonoBehaviourData { ObjectInfo: { objectID: not ObjectID.None } objectInfo } entityMonoBehaviourData))"
@@ -2803,12 +2243,6 @@
     "Pug.Other:351417": [
       "Manager.networking.SetGuestMode(currentGuestModeSetting, Manager.ecs.ClientWorld);"
     ],
-    "Pug.Other:351545": [
-      "Manager.ecs.StartEcs(startClient: true, -1, frameWorkloadTimer, delegate(bool result)"
-    ],
-    "Pug.Other:352265": [
-      "Mods.OnModManagementEvent = (ModManagementEventDelegate)Delegate.Combine(Mods.OnModManagementEvent, new ModManagementEventDelegate(ModManagementEventCallback));"
-    ],
     "Pug.Other:352414": [
       "private void OpenModUI()"
     ],
@@ -3015,28 +2449,6 @@
     ],
     "Pug.Other:360010": [
       "public void Deactivate(bool commit)"
-    ],
-    "Pug.Other:360562-360574": [
-      "public static void StartGame(int characterID)",
-      "{",
-      "Manager.saves.SetCharacterId(characterID);",
-      "Manager.menu.isStartingGame = true;",
-      "if (Manager.saves.IsFirstTimePlayingOnAnyServer() && !Manager.saves.IsCreativeModeWorld())",
-      "{",
-      "Manager.load.LoadIntroScene();",
-      "}",
-      "else",
-      "{",
-      "Manager.load.LoadMainScene();",
-      "}",
-      "}"
-    ],
-    "Pug.Other:360576-360580": [
-      "private void GoToCharacterTypeSelection()",
-      "{",
-      "Manager.saves.SetCharacterId(saveFileId);",
-      "Manager.menu.PushMenu(RadicalMenu.MenuType.CHARACTER_TYPE_SELECTION);",
-      "}"
     ],
     "Pug.Other:3640": [
       "list.Sort();"
@@ -3452,86 +2864,11 @@
     "Pug.Other:375507": [
       "public void LeftClick(bool mod1 = false, bool mod2 = false, bool autoActivated = false)"
     ],
-    "Pug.Other:380208": [
-      "public class CharacterData : ISerializationCallbackReceiver"
-    ],
-    "Pug.Other:380294-380296": [
-      "public void OnAfterDeserialize()",
-      "{",
-      "}"
-    ],
-    "Pug.Other:380318": [
-      "public void UpgradeIfOutdated()"
-    ],
-    "Pug.Other:380416-380420": [
-      "nonSerialized.discoveredObjects.Clear();",
-      "foreach (DiscoveredObjectData item in discoveredObjects2)",
-      "{",
-      "nonSerialized.discoveredObjects.Add(item);",
-      "}"
-    ],
-    "Pug.Other:380732-380736": [
-      "private static bool DecodeJson<T>(byte[] data, T characterData) where T : class",
-      "{",
-      "try",
-      "{",
-      "JsonUtility.FromJsonOverwrite(Encoding.UTF8.GetString(data), characterData);"
-    ],
-    "Pug.Other:380751-380759": [
-      "public static CharacterData GetCharacterDataFromSerialized(byte[] data)",
-      "{",
-      "CharacterData characterData = new CharacterData();",
-      "if (!DecodeJson(data, characterData))",
-      "{",
-      "return null;",
-      "}",
-      "characterData.UpgradeIfOutdated();",
-      "return characterData;"
-    ],
-    "Pug.Other:380758": [
-      "characterData.UpgradeIfOutdated();"
-    ],
-    "Pug.Other:380762-380770": [
-      "public void SetCharacterId(int id)",
-      "{",
-      "if (!IsCompatibleWithCurrentGameVersion(id))",
-      "{",
-      "UnityEngine.Debug.LogWarning(\"Activating a character that is not compatible with the current game version.\");",
-      "}",
-      "_characterDead = false;",
-      "_characterId = id;",
-      "}"
-    ],
-    "Pug.Other:380781": [
-      "characterData[_characterId].UpgradeIfOutdated();"
-    ],
     "Pug.Other:380909": [
       "public bool SetObjectAsDiscovered(ObjectDataCD objectData)"
     ],
     "Pug.Other:381160": [
       "characterData[characterId].inventoryObjectNames.Add(value);"
-    ],
-    "Pug.Other:381608": [
-      "characterData[i].UpgradeIfOutdated();"
-    ],
-    "Pug.Other:381631": [
-      "public void WriteCharacter()"
-    ],
-    "Pug.Other:381636": [
-      "public void WriteCharacter(int saveId)"
-    ],
-    "Pug.Other:381705": [
-      "characterData[i].UpgradeIfOutdated();"
-    ],
-    "Pug.Other:383086": [
-      "private void Awake()"
-    ],
-    "Pug.Other:383117-383118": [
-      "Manager.saves.SetCharacterId(60);",
-      "Manager.saves.UseCustomCharacterDataProvider(() => File.ReadAllBytes(Application.streamingAssetsPath + \"/BenchmarkData/character.json\"));"
-    ],
-    "Pug.Other:383123": [
-      "Manager.ecs.StartEcs(startClient: true, Manager.saves.GetWorldId(), frameWorkloadTimer, delegate(bool result)"
     ],
     "Pug.Other:403951": [
       "[ActionIdFieldInfo(categoryName = \"Common actions used in multiple input contexts\", friendlyName = \"UIInteract\")]"
@@ -3612,9 +2949,6 @@
       "};",
       "EntityUtility.CreateEntity(ecb, component.position0, objectDataCD.objectID, 1, databaseLocal, out var _, objectDataCD.variation);"
     ],
-    "Pug.Other:415489": [
-      "PlayerController.AddSkill(component.entity0, (SkillID)component.int0, component.int1, ecb, isServer: true);"
-    ],
     "Pug.Other:415524": [
       "ObjectDataCD componentData5 = EntityUtility.GetComponentData<ObjectDataCD>(component.entity0, base.World);"
     ],
@@ -3681,38 +3015,8 @@
     "Pug.Other:438145": [
       "public BufferLookup<ContainedObjectsBuffer> containedObjectsBufferLookup;"
     ],
-    "Pug.Other:438188": [
-      "public readonly struct EquipmentUpdateAspect(DynamicBuffer<AnimationBuffer> equipmentupdateaspect_animationbufferDb, RefRW<AnimationBufferPointer> equipmentupdateaspect_animationbufferpointerRef, RefRO<AnimationOrientationCD> equipmentupdateaspect_animationorientationcdRef, RefRO<CharacterTypeCD> equipmentupdateaspect_charactertypeRef, RefRO<ClientInput> equipmentupdateaspect_clientinputRef, DynamicBuffer<DealDamageToEntityBuffer> equipmentupdateaspect_dealdamagetoentitybufferDb, RefRO<EquipmentCD> equipmentupdateaspect_equipmentcdRef, RefRO<EquippedObjectCD> equipmentupdateaspect_equippedobjectcdRef, DynamicBuffer<GhostEffectEventBuffer> equipmentupdateaspect_ghosteffecteventbufferDb, RefRW<GhostEffectEventBufferPointerCD> equipmentupdateaspect_ghosteffecteventbufferpointercdRef, RefRW<HungerCD> equipmentupdateaspect_hungercdRef, RefRO<ManaCD> equipmentupdateaspect_manacdRef, RefRO<PetOwnerCD> equipmentupdateaspect_petownercdRef, RefRW<PlacementCD> equipmentupdateaspect_placementcdRef, DynamicBuffer<PlacementSizeByEquipmentTypeBuffer> equipmentupdateaspect_placementsizebyequipmenttypebufferDb, RefRW<PlayerAimPositionCD> equipmentupdateaspect_playeraimpositioncdRef, RefRW<PlayerAttackCooldownCD> equipmentupdateaspect_playerattackcooldowncdRef, RefRW<EquipmentSlotCD> equipmentupdateaspect_equipmentslotcdRef, RefRO<EquipmentSlotConstantCD> equipmentupdateaspect_equipmentslotconstantcdRef, RefRO<PlayerGhost> equipmentupdateaspect_playerghostRef, RefRW<DigStateCD> equipmentupdateaspect_digstatecdRef, RefRW<FishingMiniGameStateCD> equipmentupdateaspect_fishingminigamestatecdRef, RefRW<FishingStateCD> equipmentupdateaspect_fishingstatecdRef, RefRW<FlattenStateCD> equipmentupdateaspect_flattenstatecdRef, RefRW<PlaceObjectPlayerStateCD> equipmentupdateaspect_placeobjectstatecdRef, RefRW<PlaceWaterStateCD> equipmentupdateaspect_placewaterstatecdRef, RefRO<PlayerSleepStateCD> equipmentupdateaspect_playersleepstatecdRef, RefRW<PlayerStateCD> equipmentupdateaspect_playerstatecdRef, RefRW<RefillWaterStateCD> equipmentupdateaspect_refillwaterstatecdRef, RefRW<RandomCD> equipmentupdateaspect_randomcdRef, DynamicBuffer<SyncedPlayerSharedCooldownTimersCD> equipmentupdateaspect_syncedsharedcooldowntimersDb, Entity equipmentupdateaspect_entityE) : IAspect, IQueryTypeParameter, IAspectCreate<EquipmentUpdateAspect>"
-    ],
-    "Pug.Other:438824": [
-      "public struct EquipmentUpdateSystem : ISystem, ISystemStartStop, ISystemCompilerGenerated"
-    ],
-    "Pug.Other:438826": [
-      "[BurstCompile]"
-    ],
     "Pug.Other:438945": [
       "bool flag3 = lookupEquipmentUpdateData.containedObjectsBufferLookup.TryGetBuffer(equipmentUpdateAspect.entity, out bufferData) && lookupEquipmentUpdateData.craftingLookup.TryGetComponent(equipmentUpdateAspect.entity, out componentData) && bufferData.Length > componentData.outputSlotIndex && bufferData[componentData.outputSlotIndex].objectID != ObjectID.None;"
-    ],
-    "Pug.Other:438952": [
-      "switch (equipmentUpdateAspect.equipmentSlotCD.ValueRO.slotType)"
-    ],
-    "Pug.Other:438958": [
-      "flag6 = PlaceObjectSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);"
-    ],
-    "Pug.Other:438964": [
-      "flag6 = WaterCanSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);"
-    ],
-    "Pug.Other:438976": [
-      "flag6 = PaintToolSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);"
-    ],
-    "Pug.Other:438985": [
-      "flag6 = BucketSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);"
-    ],
-    "Pug.Other:439628": [
-      "public void OnUpdate(ref SystemState state)"
-    ],
-    "Pug.Other:439736": [
-      "return __TypeHandle.__PlayerEquipment_EquipmentUpdateSystem_UpdateJob_WithDefaultQuery_JobEntityTypeHandle.Schedule(ref job, query, dependency);"
     ],
     "Pug.Other:447018": [
       "private struct EquippedSlotChangeJob : IJobEntity, IJobChunk"
@@ -3778,14 +3082,737 @@
     "Pug.Other:459708": [
       "ghost.PredictedSpawnEntity = dynamicBuffer[num].entity;"
     ],
-    "Pug.Other:90696": [
-      "private struct DropSelfJob : IJobEntity, IJobChunk"
-    ],
     "Pug.Other:90860": [
       "amount = math.max(1, alwaysDropOneLookup.HasComponent(entity) ? 1 : objectData.amount),"
     ],
-    "Pug.Other:94944": [
+    "Pug.Other:BucketSlot:1": [
+      "public class BucketSlot : PlaceObjectSlot"
+    ],
+    "Pug.Other:BucketSlot:PlaceItem:1": [
+      "private static void PlaceItem(in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)"
+    ],
+    "Pug.Other:BucketSlot:UpdateEquipment:1": [
+      "public new static bool UpdateEquipment(bool interactHeld, bool secondInteractHeld, in ClientInput clientInput, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData, bool hasItemInMouse)"
+    ],
+    "Pug.Other:CharacterData:2": [
+      "public class CharacterData : ISerializationCallbackReceiver"
+    ],
+    "Pug.Other:CharacterData:OnAfterDeserialize:1-3": [
+      "public void OnAfterDeserialize()",
+      "{",
+      "}"
+    ],
+    "Pug.Other:CharacterData:UpgradeIfOutdated:1": [
+      "public void UpgradeIfOutdated()"
+    ],
+    "Pug.Other:CharacterData:UpgradeIfOutdated:99-103": [
+      "nonSerialized.discoveredObjects.Clear();",
+      "foreach (DiscoveredObjectData item in discoveredObjects2)",
+      "{",
+      "nonSerialized.discoveredObjects.Add(item);",
+      "}"
+    ],
+    "Pug.Other:DropSelfJob:22": [
+      "private struct DropSelfJob : IJobEntity, IJobChunk"
+    ],
+    "Pug.Other:ECSManager:ConvertAuthoringDataRoutine:50": [
+      "callback?.Invoke();"
+    ],
+    "Pug.Other:ECSManager:StartEcs:14-20": [
+      "if (startClient && requestedPlayType != ClientServerBootstrap.PlayType.Server)",
+      "{",
+      "for (int i = 0; i < num; i++)",
+      "{",
+      "_allWorlds.Add(CreateClientWorld(\"ClientWorld\" + i));",
+      "}",
+      "}"
+    ],
+    "Pug.Other:ECSManager:StartEcs:21": [
+      "if (worldId != -1 && requestedPlayType != ClientServerBootstrap.PlayType.Client)"
+    ],
+    "Pug.Other:ECSManager:StartEcs:23": [
+      "_allWorlds.Add(CreateServerWorld(\"ServerWorld\", worldId));"
+    ],
+    "Pug.Other:ECSManager:StartEcs:35": [
+      "BurstDisabler.ResetWorlds();"
+    ],
+    "Pug.Other:ECSManager:StartEcs:36-38": [
+      "foreach (World allWorld in _allWorlds)",
+      "{",
+      "BurstDisabler.AddWorld(allWorld);"
+    ],
+    "Pug.Other:ECSManager:StartEcs:38": [
+      "BurstDisabler.AddWorld(allWorld);"
+    ],
+    "Pug.Other:ECSManager:StartEcs:46": [
+      "StartCoroutine(ConvertAuthoringDataRoutine(worldId, frameWorkloadTimer, callback));"
+    ],
+    "Pug.Other:ECSManager:UnloadWorldsInternal:25": [
+      "BurstDisabler.ResetWorlds();"
+    ],
+    "Pug.Other:EntityUtility:AddTile:16-26": [
+      "if (tile.tileType == PugTilemap.TileType.wall)",
+      "{",
+      "tileUpdateBuffer.Add(new TileUpdateBuffer",
+      "{",
+      "command = TileUpdateBuffer.Command.Remove,",
+      "position = position,",
+      "tile = new TileCD",
+      "{",
+      "tileType = PugTilemap.TileType.roofHole",
+      "}",
+      "});"
+    ],
+    "Pug.Other:EntityUtility:AddTile:28-47": [
+      "else if (tile.tileType == PugTilemap.TileType.ground)",
+      "{",
+      "tileUpdateBuffer.Add(new TileUpdateBuffer",
+      "{",
+      "command = TileUpdateBuffer.Command.Remove,",
+      "position = position,",
+      "tile = new TileCD",
+      "{",
+      "tileType = PugTilemap.TileType.pit",
+      "}",
+      "});",
+      "tileUpdateBuffer.Add(new TileUpdateBuffer",
+      "{",
+      "command = TileUpdateBuffer.Command.Remove,",
+      "position = position,",
+      "tile = new TileCD",
+      "{",
+      "tileType = PugTilemap.TileType.water",
+      "}",
+      "});"
+    ],
+    "Pug.Other:EntityUtility:AddTile:8": [
+      "if (isWorldModeCreative || (tile.tileset != 2 && ((!math.all(position == new int2(0, 0)) && !math.all(position == new int2(0, 1)) && !math.all(position == new int2(-1, 1)) && !math.all(position == new int2(1, 1))) || tile.tileType == PugTilemap.TileType.roofHole)))"
+    ],
+    "Pug.Other:EquipmentUpdateAspect:1": [
+      "public readonly struct EquipmentUpdateAspect(DynamicBuffer<AnimationBuffer> equipmentupdateaspect_animationbufferDb, RefRW<AnimationBufferPointer> equipmentupdateaspect_animationbufferpointerRef, RefRO<AnimationOrientationCD> equipmentupdateaspect_animationorientationcdRef, RefRO<CharacterTypeCD> equipmentupdateaspect_charactertypeRef, RefRO<ClientInput> equipmentupdateaspect_clientinputRef, DynamicBuffer<DealDamageToEntityBuffer> equipmentupdateaspect_dealdamagetoentitybufferDb, RefRO<EquipmentCD> equipmentupdateaspect_equipmentcdRef, RefRO<EquippedObjectCD> equipmentupdateaspect_equippedobjectcdRef, DynamicBuffer<GhostEffectEventBuffer> equipmentupdateaspect_ghosteffecteventbufferDb, RefRW<GhostEffectEventBufferPointerCD> equipmentupdateaspect_ghosteffecteventbufferpointercdRef, RefRW<HungerCD> equipmentupdateaspect_hungercdRef, RefRO<ManaCD> equipmentupdateaspect_manacdRef, RefRO<PetOwnerCD> equipmentupdateaspect_petownercdRef, RefRW<PlacementCD> equipmentupdateaspect_placementcdRef, DynamicBuffer<PlacementSizeByEquipmentTypeBuffer> equipmentupdateaspect_placementsizebyequipmenttypebufferDb, RefRW<PlayerAimPositionCD> equipmentupdateaspect_playeraimpositioncdRef, RefRW<PlayerAttackCooldownCD> equipmentupdateaspect_playerattackcooldowncdRef, RefRW<EquipmentSlotCD> equipmentupdateaspect_equipmentslotcdRef, RefRO<EquipmentSlotConstantCD> equipmentupdateaspect_equipmentslotconstantcdRef, RefRO<PlayerGhost> equipmentupdateaspect_playerghostRef, RefRW<DigStateCD> equipmentupdateaspect_digstatecdRef, RefRW<FishingMiniGameStateCD> equipmentupdateaspect_fishingminigamestatecdRef, RefRW<FishingStateCD> equipmentupdateaspect_fishingstatecdRef, RefRW<FlattenStateCD> equipmentupdateaspect_flattenstatecdRef, RefRW<PlaceObjectPlayerStateCD> equipmentupdateaspect_placeobjectstatecdRef, RefRW<PlaceWaterStateCD> equipmentupdateaspect_placewaterstatecdRef, RefRO<PlayerSleepStateCD> equipmentupdateaspect_playersleepstatecdRef, RefRW<PlayerStateCD> equipmentupdateaspect_playerstatecdRef, RefRW<RefillWaterStateCD> equipmentupdateaspect_refillwaterstatecdRef, RefRW<RandomCD> equipmentupdateaspect_randomcdRef, DynamicBuffer<SyncedPlayerSharedCooldownTimersCD> equipmentupdateaspect_syncedsharedcooldowntimersDb, Entity equipmentupdateaspect_entityE) : IAspect, IQueryTypeParameter, IAspectCreate<EquipmentUpdateAspect>"
+    ],
+    "Pug.Other:EquipmentUpdateSystem.UpdateJob:1": [
+      "[BurstCompile]"
+    ],
+    "Pug.Other:EquipmentUpdateSystem.UpdateJob:Execute(EquipmentUpdateAspect, \u2026):20": [
+      "switch (equipmentUpdateAspect.equipmentSlotCD.ValueRO.slotType)"
+    ],
+    "Pug.Other:EquipmentUpdateSystem.UpdateJob:Execute(EquipmentUpdateAspect, \u2026):26": [
+      "flag6 = PlaceObjectSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);"
+    ],
+    "Pug.Other:EquipmentUpdateSystem.UpdateJob:Execute(EquipmentUpdateAspect, \u2026):32": [
+      "flag6 = WaterCanSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);"
+    ],
+    "Pug.Other:EquipmentUpdateSystem.UpdateJob:Execute(EquipmentUpdateAspect, \u2026):44": [
+      "flag6 = PaintToolSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);"
+    ],
+    "Pug.Other:EquipmentUpdateSystem.UpdateJob:Execute(EquipmentUpdateAspect, \u2026):53": [
+      "flag6 = BucketSlot.UpdateEquipment(flag4, flag5, in clientInput, in equipmentUpdateAspect, in equipmentUpdateSharedData, in lookupEquipmentUpdateData, flag3);"
+    ],
+    "Pug.Other:EquipmentUpdateSystem:5": [
+      "public struct EquipmentUpdateSystem : ISystem, ISystemStartStop, ISystemCompilerGenerated"
+    ],
+    "Pug.Other:EquipmentUpdateSystem:OnUpdate:2": [
+      "public void OnUpdate(ref SystemState state)"
+    ],
+    "Pug.Other:EquipmentUpdateSystem:__ScheduleViaJobChunkExtension_0:7": [
+      "return __TypeHandle.__PlayerEquipment_EquipmentUpdateSystem_UpdateJob_WithDefaultQuery_JobEntityTypeHandle.Schedule(ref job, query, dependency);"
+    ],
+    "Pug.Other:EvaluateConsumeResultJob:Execute(Entity, \u2026):14": [
       "PlayerController.IncreasePetXp(entity, xpIncrease, in petOwnerCD, in playerGhost, in containedObjectsBuffer, inventoryChangeBufferLookup, inventoryChangeResultBufferEntity);"
+    ],
+    "Pug.Other:FishingRodSlot:PlaceItem:1": [
+      "private static void PlaceItem(in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData)"
+    ],
+    "Pug.Other:Helper:CheckForHit:475": [
+      "ecb.AppendToBuffer(entity6, new AddPetExperienceBuffer"
+    ],
+    "Pug.Other:Helper:CheckForHit:477": [
+      "amount = PetExtensions.GetExperienceFromDamage(num2)"
+    ],
+    "Pug.Other:HoeSlot:Dig:82": [
+      "if (diggableEntityAndInfo2.objectID == ObjectID.DiggingSpot && top.tileset == 0)"
+    ],
+    "Pug.Other:Manager:EarlyInit:1": [
+      "[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]"
+    ],
+    "Pug.Other:Manager:EarlyInit:92": [
+      "Integration.Instance.Update();"
+    ],
+    "Pug.Other:ModManager:Update:8": [
+      "Integration.Instance.Update();"
+    ],
+    "Pug.Other:PaintToolSlot:1": [
+      "public class PaintToolSlot : PlaceObjectSlot"
+    ],
+    "Pug.Other:PaintToolSlot:PlaceItem:1": [
+      "private static void PlaceItem(ref NativeList<PlacementHandler.EntityAndInfoFromPlacement> diggableEntityAndInfos, in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)"
+    ],
+    "Pug.Other:PaintToolSlot:UpdateEquipment:1": [
+      "public new static bool UpdateEquipment(bool interactHeld, bool secondInteractHeld, in ClientInput clientInput, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData, bool hasItemInMouse)"
+    ],
+    "Pug.Other:PlaceObjectSlot:1-351": [
+      "public class PlaceObjectSlot : EquipmentSlot",
+      "{",
+      "public const float SLOT_COOLDOWN = 0.25f;",
+      "",
+      "public const float PLACE_STOP_DURATION = 0.05f;",
+      "",
+      "public PlacementHandler placementHandler;",
+      "",
+      "protected override EquipmentSlotType slotType => EquipmentSlotType.PlaceObjectSlot;",
+      "",
+      "public static bool UpdateEquipment(bool interactHeld, bool secondInteractHeld, in ClientInput clientInput, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData, bool hasItemInMouse)",
+      "{",
+      "if (clientInput.IsButtonStateSet(CommandInputButtonStateNames.Rotate_Pressed))",
+      "{",
+      "Rotate(in equipmentUpdateAspect, in equipmentUpdateSharedData, in equipmentUpdateLookupData);",
+      "}",
+      "Entity equipmentPrefab = equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab;",
+      "if (equipmentUpdateLookupData.objectPropertiesLookup.TryGetComponent(equipmentPrefab, out var componentData) && componentData.Has(1718179513))",
+      "{",
+      "AlignWithPlayer(in equipmentUpdateAspect, in equipmentUpdateSharedData, in equipmentUpdateLookupData);",
+      "}",
+      "NativeList<PlacementHandler.EntityAndInfoFromPlacement> diggableEntityAndInfos = new NativeList<PlacementHandler.EntityAndInfoFromPlacement>(Allocator.Temp);",
+      "PlacementHandler.UpdatePlaceablePosition(equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab, ref diggableEntityAndInfos, in equipmentUpdateAspect, in equipmentUpdateSharedData, in equipmentUpdateLookupData);",
+      "diggableEntityAndInfos.Dispose();",
+      "if (!secondInteractHeld)",
+      "{",
+      "return false;",
+      "}",
+      "if (hasItemInMouse)",
+      "{",
+      "return false;",
+      "}",
+      "PlaceItem(in equipmentUpdateAspect, equipmentUpdateSharedData, equipmentUpdateLookupData);",
+      "return true;",
+      "}",
+      "",
+      "private static void PlaceItem(in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)",
+      "{",
+      "ref PlacementCD valueRW = ref equipmentUpdateAspect.placementCD.ValueRW;",
+      "if (!valueRW.canPlaceObject)",
+      "{",
+      "return;",
+      "}",
+      "ObjectDataCD objectDataCD = equipmentUpdateAspect.equippedObjectCD.ValueRO.containedObject.objectData;",
+      "ref PugDatabase.EntityObjectInfo entityObjectInfo = ref PugDatabase.GetEntityObjectInfo(objectDataCD.objectID, equipmentUpdateSharedData.databaseBank.databaseBankBlob, objectDataCD.variation);",
+      "bool flag = entityObjectInfo.objectType == ObjectType.Critter;",
+      "int2 prefabCornerOffset = entityObjectInfo.prefabCornerOffset;",
+      "int3 int5 = valueRW.bestPositionToPlaceAt - new int3(prefabCornerOffset.x, 0, prefabCornerOffset.y);",
+      "Entity equipmentPrefab = equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab;",
+      "if (!CanPlaceItem(equipmentPrefab, ref entityObjectInfo, int5, in equipmentUpdateAspect, in equipmentUpdateSharedData, in equipmentUpdateLookupData))",
+      "{",
+      "return;",
+      "}",
+      "int3 int6 = int5;",
+      "if (valueRW.timeSincePlaced.isRunning && valueRW.timeSincePlaced.GetElapsedSeconds(equipmentUpdateSharedData.currentTick, equipmentUpdateSharedData.tickRate) < 1f && math.all(int6 == valueRW.positionLastPlacedAt) && !IsPlacingWallAfterPreviouslyPlacedGround(in valueRW, ref entityObjectInfo))",
+      "{",
+      "UnityEngine.Debug.LogWarning(\"Trying to place in same spot or the same entity too quick, gotta wait for server.\");",
+      "return;",
+      "}",
+      "if (!flag)",
+      "{",
+      "valueRW.timeSincePlaced.Start(equipmentUpdateSharedData.currentTick);",
+      "}",
+      "float3 float5 = float3.zero;",
+      "ObjectDataCD objectDataCD2 = equipmentUpdateAspect.equippedObjectCD.ValueRO.containedObject.objectData;",
+      "valueRW.positionLastPlacedAt = int6;",
+      "if (!PlayerController.CanConsumeEntityInSlot(equipmentPrefab, objectDataCD2, 1, equipmentUpdateLookupData.cattleLookup))",
+      "{",
+      "return;",
+      "}",
+      "if (!equipmentUpdateSharedData.worldInfoCD.IsWorldModeEnabled(WorldMode.Creative) && entityObjectInfo.objectType != ObjectType.PlaceablePrefab && entityObjectInfo.objectType != ObjectType.Critter && entityObjectInfo.objectType != ObjectType.TrainingDummy && !equipmentUpdateLookupData.cattleLookup.HasComponent(equipmentPrefab) && !equipmentUpdateLookupData.mountLookup.HasComponent(equipmentPrefab))",
+      "{",
+      "UnityEngine.Debug.LogError(\"Tried to consume an item that is not a placeable prefab or critter or training dummy and we're not a creative mode character, aborting\");",
+      "return;",
+      "}",
+      "ref PugDatabase.EntityObjectInfo entityObjectInfo2 = ref PugDatabase.GetEntityObjectInfo(objectDataCD2.objectID, equipmentUpdateSharedData.databaseBank.databaseBankBlob, objectDataCD2.variation);",
+      "float2 float6 = (float2)entityObjectInfo2.prefabTileSize / 2f;",
+      "float3 float7 = new float3(float6.x - 0.5f, 0f, float6.y - 0.5f);",
+      "float3 positionToPlaceAt = valueRW.bestPositionToPlaceAt + float7;",
+      "if (valueRW.rotationVariationToPlace > 0)",
+      "{",
+      "DirectionCD.RotateTransform(quaternion.identity, float7, valueRW.rotationVariationToPlace, entityObjectInfo2.prefabCornerOffset, entityObjectInfo2.prefabTileSize, out var _, out var newTranslation);",
+      "positionToPlaceAt = valueRW.bestPositionToPlaceAt + newTranslation;",
+      "}",
+      "equipmentUpdateAspect.placeObjectStateCD.ValueRW.positionToPlaceAt = positionToPlaceAt;",
+      "equipmentUpdateAspect.playerStateCD.ValueRW.PushState(PlayerStateEnum.PlaceObject);",
+      "float cooldown = (equipmentUpdateLookupData.godModeLookup.IsComponentEnabled(equipmentUpdateAspect.entity) ? 0.15f : 0.25f);",
+      "EquipmentSlot.StartCooldownForItem(in equipmentUpdateAspect, equipmentUpdateSharedData, equipmentUpdateLookupData, cooldown);",
+      "float3 float8 = valueRW.bestPositionToPlaceAt;",
+      "bool critterDamageKillEvenIfSquashBugsIsOff = true;",
+      "float3 position = equipmentUpdateLookupData.localTransformLookup[equipmentUpdateAspect.entity].Position;",
+      "TileAccessor tileAccessor = equipmentUpdateSharedData.tileAccessor;",
+      "if (equipmentUpdateLookupData.tileLookup.HasComponent(equipmentPrefab))",
+      "{",
+      "PugTilemap.TileType tileTypeToPlace = GetTileTypeToPlace(int5, ref entityObjectInfo, in equipmentUpdateSharedData.tileAccessor, in equipmentUpdateSharedData.tileWithTilesetToObjectDataMapCD);",
+      "DynamicBuffer<TileUpdateBuffer> tileUpdateBuffer = equipmentUpdateLookupData.tileUpdateBufferLookup[equipmentUpdateSharedData.tileUpdateBufferEntity];",
+      "EntityUtility.AddTile(entityObjectInfo.tileset, tileTypeToPlace, new int2(int5.x, int5.z), equipmentUpdateSharedData.worldInfoCD.IsWorldModeEnabled(WorldMode.Creative), tileUpdateBuffer);",
+      "equipmentUpdateLookupData.inventoryUpdateBuffer[equipmentUpdateSharedData.inventoryUpdateBufferEntity].Add(new InventoryChangeBuffer",
+      "{",
+      "inventoryChangeData = Create.ConsumeEntityAt(equipmentUpdateAspect.entity, equipmentUpdateAspect.equippedObjectCD.ValueRO.equippedSlotIndex, 1, destroy: true, equipmentUpdateLookupData.godModeLookup.IsComponentEnabled(equipmentUpdateAspect.entity), position, objectDataCD2.variation),",
+      "playerEntity = equipmentUpdateAspect.entity",
+      "});",
+      "valueRW.previouslyPlacedTileType = tileTypeToPlace;",
+      "}",
+      "else",
+      "{",
+      "float3 float9 = new float3(int5.x, 0f, int5.z);",
+      "if (!equipmentUpdateLookupData.objectPropertiesLookup.TryGetComponent(equipmentPrefab, out var componentData))",
+      "{",
+      "UnityEngine.Debug.LogError(\"tried to place an item without object properties\");",
+      "return;",
+      "}",
+      "componentData.TryGet<int>(245919617, out valueRW.currentPrefabVariation);",
+      "DynamicBuffer<AdaptiveEntityBuffer> bufferData;",
+      "ObjectPropertiesCD componentData2;",
+      "int value;",
+      "if (flag)",
+      "{",
+      "valueRW.currentPrefabVariation = 1;",
+      "}",
+      "else if (equipmentUpdateLookupData.adaptiveEntityBufferLookup.TryGetBuffer(equipmentPrefab, out bufferData))",
+      "{",
+      "if (bufferData.IsCreated && bufferData.Length > 0)",
+      "{",
+      "int2 int7 = float9.RoundToInt2();",
+      "TileCD top = tileAccessor.GetTop(int7 + AdjacentDir.GetInt2(1));",
+      "TileCD top2 = tileAccessor.GetTop(int7 + AdjacentDir.GetInt2(16));",
+      "TileCD top3 = tileAccessor.GetTop(int7 + AdjacentDir.GetInt2(64));",
+      "TileCD top4 = tileAccessor.GetTop(int7 + AdjacentDir.GetInt2(4));",
+      "PlacementHandler.AdaptiveVariationCanBePlaced(valueRW.currentPrefabVariation, out valueRW.currentPrefabVariation, bufferData, top, top2, top3, top4);",
+      "}",
+      "}",
+      "else if (valueRW.placeObjectOnWall)",
+      "{",
+      "bool variationZeroIsNoDirection = componentData.IsValid && componentData.Has(-377237680);",
+      "valueRW.currentPrefabVariation = DirectionBasedOnVariationCD.GetVariationFromDirection(valueRW.wallSideToPlaceObject, variationZeroIsNoDirection);",
+      "float9 += valueRW.wallSideToPlaceObject.ToFloat3();",
+      "}",
+      "else if (equipmentUpdateLookupData.directionBasedOnVariationLookup.HasComponent(equipmentPrefab))",
+      "{",
+      "valueRW.currentPrefabVariation = valueRW.rotationVariationToPlace;",
+      "}",
+      "else if (equipmentUpdateLookupData.objectPropertiesLookup.TryGetComponent(equipmentPrefab, out componentData2) && componentData2.TryGet<int>(1273594437, out value))",
+      "{",
+      "critterDamageKillEvenIfSquashBugsIsOff = false;",
+      "if (value > 0)",
+      "{",
+      "float num = 3f + (float)equipmentUpdateLookupData.summarizedConditionsBufferLookup[equipmentUpdateAspect.entity][126].value;",
+      "if (num > 0f)",
+      "{",
+      "float num2 = equipmentUpdateAspect.randomCD.ValueRW.Value.NextFloat();",
+      "float num3 = num / 100f;",
+      "if (num2 < num3)",
+      "{",
+      "valueRW.currentPrefabVariation = value;",
+      "}",
+      "}",
+      "}",
+      "}",
+      "if (PlacementHandler.ObjectCanBeRotated(equipmentPrefab, equipmentUpdateLookupData.directionBasedOnVariationLookup, equipmentUpdateLookupData.objectPropertiesLookup, equipmentUpdateLookupData.directionLookup) && PlacementHandler.ShouldRotatePhysics(equipmentPrefab, equipmentUpdateLookupData.directionLookup))",
+      "{",
+      "float5 = DirectionBasedOnVariationCD.GetDirectionFromVariation(valueRW.rotationVariationToPlace).ToFloat3();",
+      "}",
+      "else if (PlacementHandler.ObjectCanBeToggledToNewNonRotationOption(equipmentPrefab, equipmentUpdateLookupData.objectPropertiesLookup))",
+      "{",
+      "valueRW.currentPrefabVariation = valueRW.nonRotationVariationToPlace;",
+      "}",
+      "int amount = 1;",
+      "if (entityObjectInfo2.objectType == ObjectType.Creature)",
+      "{",
+      "amount = objectDataCD2.amount;",
+      "valueRW.currentPrefabVariation = objectDataCD2.variation;",
+      "}",
+      "bool flag2 = equipmentUpdateLookupData.godModeLookup.IsComponentEnabled(equipmentUpdateAspect.entity);",
+      "if (!flag2 && equipmentUpdateLookupData.hasExplodedLookup.HasComponent(equipmentPrefab) && !equipmentUpdateLookupData.proximityTriggerLookup.HasComponent(equipmentPrefab) && !equipmentUpdateLookupData.electricityLookup.HasComponent(equipmentPrefab))",
+      "{",
+      "float num4 = equipmentUpdateAspect.randomCD.ValueRW.Value.NextFloat();",
+      "int value2 = equipmentUpdateLookupData.summarizedConditionsBufferLookup[equipmentUpdateAspect.entity][305].value;",
+      "flag2 = num4 < (float)value2 / 100f;",
+      "}",
+      "equipmentUpdateLookupData.inventoryUpdateBuffer[equipmentUpdateSharedData.inventoryUpdateBufferEntity].Add(new InventoryChangeBuffer",
+      "{",
+      "inventoryChangeData = Create.ConsumeEntityAt(equipmentUpdateAspect.entity, equipmentUpdateAspect.equippedObjectCD.ValueRO.equippedSlotIndex, amount, destroy: false, flag2, float9, valueRW.currentPrefabVariation, float5),",
+      "playerEntity = equipmentUpdateAspect.entity",
+      "});",
+      "}",
+      "if (!flag)",
+      "{",
+      "int2 prefabTileSize = entityObjectInfo.prefabTileSize;",
+      "float3 float10 = valueRW.bestPositionToPlaceAt + new float3(prefabTileSize.x, 0f, prefabTileSize.y) / 2f - new float3(0.5f, 0f, 0.5f);",
+      "float3 critterDamageSize = new float3(prefabTileSize.x, 1f, prefabTileSize.y);",
+      "equipmentUpdateAspect.dealDamageToEntityBuffer.Add(new DealDamageToEntityBuffer",
+      "{",
+      "attackType = DealDamageToEntityBuffer.AttackType.CritterDamage,",
+      "hitPosition = float10,",
+      "optionalFromPosition = float10,",
+      "critterDamageSize = critterDamageSize,",
+      "critterDamageCanDamageFlying = true,",
+      "critterDamageKillEvenIfSquashBugsIsOff = critterDamageKillEvenIfSquashBugsIsOff",
+      "});",
+      "}",
+      "if (entityObjectInfo.tileType != PugTilemap.TileType.none)",
+      "{",
+      "DynamicBuffer<GhostEffectEventBuffer> ghostEffectEventBuffer = equipmentUpdateAspect.ghostEffectEventBuffer;",
+      "ref GhostEffectEventBufferPointerCD valueRW2 = ref equipmentUpdateAspect.ghostEffectEventBufferPointerCD.ValueRW;",
+      "GhostEffectEventBuffer item = new GhostEffectEventBuffer",
+      "{",
+      "Tick = equipmentUpdateSharedData.currentTick,",
+      "value = new EffectEventCD",
+      "{",
+      "effectID = EffectID.PlaceTile,",
+      "position1 = float8,",
+      "value1 = (int)entityObjectInfo.tileType",
+      "}",
+      "};",
+      "ghostEffectEventBuffer.AddToRingBuffer(ref valueRW2, in item);",
+      "}",
+      "else if (flag)",
+      "{",
+      "DynamicBuffer<GhostEffectEventBuffer> ghostEffectEventBuffer2 = equipmentUpdateAspect.ghostEffectEventBuffer;",
+      "ref GhostEffectEventBufferPointerCD valueRW3 = ref equipmentUpdateAspect.ghostEffectEventBufferPointerCD.ValueRW;",
+      "GhostEffectEventBuffer item = new GhostEffectEventBuffer",
+      "{",
+      "Tick = equipmentUpdateSharedData.currentTick,",
+      "value = new EffectEventCD",
+      "{",
+      "effectID = EffectID.PlaceCritter,",
+      "position1 = float8 - new float3(0f, 0.5f, 0f)",
+      "}",
+      "};",
+      "ghostEffectEventBuffer2.AddToRingBuffer(ref valueRW3, in item);",
+      "}",
+      "else",
+      "{",
+      "DynamicBuffer<GhostEffectEventBuffer> ghostEffectEventBuffer3 = equipmentUpdateAspect.ghostEffectEventBuffer;",
+      "ref GhostEffectEventBufferPointerCD valueRW4 = ref equipmentUpdateAspect.ghostEffectEventBufferPointerCD.ValueRW;",
+      "GhostEffectEventBuffer item = new GhostEffectEventBuffer",
+      "{",
+      "Tick = equipmentUpdateSharedData.currentTick,",
+      "value = new EffectEventCD",
+      "{",
+      "effectID = EffectID.PlaceObject,",
+      "position1 = float8,",
+      "value1 = (int)entityObjectInfo.objectID,",
+      "vector1 = float5",
+      "}",
+      "};",
+      "ghostEffectEventBuffer3.AddToRingBuffer(ref valueRW4, in item);",
+      "}",
+      "}",
+      "",
+      "private static bool CanPlaceItem(Entity placementPrefab, ref PugDatabase.EntityObjectInfo objectToPlaceInfo, int3 pos, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData)",
+      "{",
+      "ref PlacementCD valueRW = ref equipmentUpdateAspect.placementCD.ValueRW;",
+      "if (!equipmentUpdateLookupData.tileLookup.HasComponent(placementPrefab))",
+      "{",
+      "valueRW.tilePlacementTimer.Stop(equipmentUpdateSharedData.currentTick);",
+      "return true;",
+      "}",
+      "PugTilemap.TileType tileTypeToPlace = GetTileTypeToPlace(pos, ref objectToPlaceInfo, in equipmentUpdateSharedData.tileAccessor, in equipmentUpdateSharedData.tileWithTilesetToObjectDataMapCD);",
+      "int num;",
+      "if (!equipmentUpdateAspect.clientInput.ValueRO.IsButtonStateSet(CommandInputButtonStateNames.SecondInteract_Pressed) && (tileTypeToPlace == PugTilemap.TileType.wall || tileTypeToPlace == PugTilemap.TileType.ground) && (tileTypeToPlace != PugTilemap.TileType.wall || valueRW.previouslyPlacedTileType != PugTilemap.TileType.wall) && (tileTypeToPlace != PugTilemap.TileType.ground || valueRW.previouslyPlacedTileType != PugTilemap.TileType.ground) && valueRW.tilePlacementTimer.isRunning)",
+      "{",
+      "num = (valueRW.tilePlacementTimer.IsTimerElapsed(equipmentUpdateSharedData.currentTick) ? 1 : 0);",
+      "if (num == 0)",
+      "{",
+      "goto IL_00ca;",
+      "}",
+      "}",
+      "else",
+      "{",
+      "num = 1;",
+      "}",
+      "valueRW.tilePlacementTimer.Start(equipmentUpdateSharedData.currentTick, 0.65f, equipmentUpdateSharedData.tickRate);",
+      "goto IL_00ca;",
+      "IL_00ca:",
+      "return (byte)num != 0;",
+      "}",
+      "",
+      "private static PugTilemap.TileType GetTileTypeToPlace(int3 pos, ref PugDatabase.EntityObjectInfo objectToPlaceInfo, in TileAccessor tileAccessor, in TileWithTilesetToObjectDataMapCD tileWithTilesetToObjectDataMapCD)",
+      "{",
+      "int2 worldPosition = pos.ToInt2();",
+      "if (objectToPlaceInfo.tileType == PugTilemap.TileType.wall && !tileAccessor.HasType(worldPosition, PugTilemap.TileType.ground) && !tileAccessor.HasType(worldPosition, PugTilemap.TileType.bridge) && PugDatabase.TryGetTileItemInfo(PugTilemap.TileType.ground, (Tileset)objectToPlaceInfo.tileset, in tileWithTilesetToObjectDataMapCD).objectID != ObjectID.None)",
+      "{",
+      "return PugTilemap.TileType.ground;",
+      "}",
+      "return objectToPlaceInfo.tileType;",
+      "}",
+      "",
+      "private static bool IsPlacingWallAfterPreviouslyPlacedGround(in PlacementCD placementCD, ref PugDatabase.EntityObjectInfo objectToPlaceInfo)",
+      "{",
+      "if (placementCD.previouslyPlacedTileType == PugTilemap.TileType.ground)",
+      "{",
+      "return objectToPlaceInfo.tileType == PugTilemap.TileType.wall;",
+      "}",
+      "return false;",
+      "}",
+      "",
+      "public static void Rotate(in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData)",
+      "{",
+      "if (PlacementHandler.ObjectCanBeRotated(equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab, equipmentUpdateLookupData.directionBasedOnVariationLookup, equipmentUpdateLookupData.objectPropertiesLookup, equipmentUpdateLookupData.directionLookup))",
+      "{",
+      "ref PlacementCD valueRW = ref equipmentUpdateAspect.placementCD.ValueRW;",
+      "valueRW.rotationVariationToPlace = (valueRW.rotationVariationToPlace + 1) % 4;",
+      "}",
+      "else if (PlacementHandler.ObjectCanBeToggledToNewNonRotationOption(equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab, equipmentUpdateLookupData.objectPropertiesLookup))",
+      "{",
+      "int value = 0;",
+      "if (equipmentUpdateLookupData.objectPropertiesLookup.TryGetComponent(equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab, out var componentData))",
+      "{",
+      "componentData.TryGet<int>(-1876849774, out value);",
+      "}",
+      "ref PlacementCD valueRW2 = ref equipmentUpdateAspect.placementCD.ValueRW;",
+      "valueRW2.nonRotationVariationToPlace = (valueRW2.nonRotationVariationToPlace + 1) % value;",
+      "}",
+      "}",
+      "",
+      "public static void AlignWithPlayer(in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData)",
+      "{",
+      "if (PlacementHandler.ObjectCanBeRotated(equipmentUpdateAspect.equippedObjectCD.ValueRO.equipmentPrefab, equipmentUpdateLookupData.directionBasedOnVariationLookup, equipmentUpdateLookupData.objectPropertiesLookup, equipmentUpdateLookupData.directionLookup))",
+      "{",
+      "ref PlacementCD valueRW = ref equipmentUpdateAspect.placementCD.ValueRW;",
+      "Direction facingDirection = equipmentUpdateAspect.animationOrientationCD.ValueRO.facingDirection;",
+      "valueRW.rotationVariationToPlace = DirectionBasedOnVariationCD.GetVariationFromDirection(new int2((int)facingDirection.vec2.x, (int)facingDirection.vec2.y));",
+      "}",
+      "}",
+      "",
+      "public override void OnFree()",
+      "{",
+      "placementHandler.Disable();",
+      "base.OnFree();",
+      "}",
+      "",
+      "public override void OnEquip(PlayerController player)",
+      "{",
+      "placementHandler.Enable();",
+      "base.OnEquip(player);",
+      "}",
+      "",
+      "public override void OnUnequip(PlayerController player)",
+      "{",
+      "placementHandler.Disable();",
+      "base.OnUnequip(player);",
+      "}",
+      "",
+      "public override void OnPickUp(PlayerController player, bool fireSceneEvent)",
+      "{",
+      "base.OnPickUp(player, fireSceneEvent);",
+      "placementHandler.Disable();",
+      "}",
+      "}"
+    ],
+    "Pug.Other:PlaceObjectSlot:CanPlaceItem:1": [
+      "private static bool CanPlaceItem(Entity placementPrefab, ref PugDatabase.EntityObjectInfo objectToPlaceInfo, int3 pos, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData)"
+    ],
+    "Pug.Other:PlaceObjectSlot:CanPlaceItem:23": [
+      "valueRW.tilePlacementTimer.Start(equipmentUpdateSharedData.currentTick, 0.65f, equipmentUpdateSharedData.tickRate);"
+    ],
+    "Pug.Other:PlaceObjectSlot:CanPlaceItem:6": [
+      "valueRW.tilePlacementTimer.Stop(equipmentUpdateSharedData.currentTick);"
+    ],
+    "Pug.Other:PlaceObjectSlot:CanPlaceItem:6-23": [
+      "valueRW.tilePlacementTimer.Stop(equipmentUpdateSharedData.currentTick);",
+      "return true;",
+      "}",
+      "PugTilemap.TileType tileTypeToPlace = GetTileTypeToPlace(pos, ref objectToPlaceInfo, in equipmentUpdateSharedData.tileAccessor, in equipmentUpdateSharedData.tileWithTilesetToObjectDataMapCD);",
+      "int num;",
+      "if (!equipmentUpdateAspect.clientInput.ValueRO.IsButtonStateSet(CommandInputButtonStateNames.SecondInteract_Pressed) && (tileTypeToPlace == PugTilemap.TileType.wall || tileTypeToPlace == PugTilemap.TileType.ground) && (tileTypeToPlace != PugTilemap.TileType.wall || valueRW.previouslyPlacedTileType != PugTilemap.TileType.wall) && (tileTypeToPlace != PugTilemap.TileType.ground || valueRW.previouslyPlacedTileType != PugTilemap.TileType.ground) && valueRW.tilePlacementTimer.isRunning)",
+      "{",
+      "num = (valueRW.tilePlacementTimer.IsTimerElapsed(equipmentUpdateSharedData.currentTick) ? 1 : 0);",
+      "if (num == 0)",
+      "{",
+      "goto IL_00ca;",
+      "}",
+      "}",
+      "else",
+      "{",
+      "num = 1;",
+      "}",
+      "valueRW.tilePlacementTimer.Start(equipmentUpdateSharedData.currentTick, 0.65f, equipmentUpdateSharedData.tickRate);"
+    ],
+    "Pug.Other:PlaceObjectSlot:PlaceItem:1": [
+      "private static void PlaceItem(in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)"
+    ],
+    "Pug.Other:PlaceObjectSlot:PlaceItem:14": [
+      "if (!CanPlaceItem(equipmentPrefab, ref entityObjectInfo, int5, in equipmentUpdateAspect, in equipmentUpdateSharedData, in equipmentUpdateLookupData))"
+    ],
+    "Pug.Other:PlaceObjectSlot:PlaceItem:19": [
+      "if (valueRW.timeSincePlaced.isRunning && valueRW.timeSincePlaced.GetElapsedSeconds(equipmentUpdateSharedData.currentTick, equipmentUpdateSharedData.tickRate) < 1f && math.all(int6 == valueRW.positionLastPlacedAt) && !IsPlacingWallAfterPreviouslyPlacedGround(in valueRW, ref entityObjectInfo))"
+    ],
+    "Pug.Other:PlaceObjectSlot:PlaceItem:26": [
+      "valueRW.timeSincePlaced.Start(equipmentUpdateSharedData.currentTick);"
+    ],
+    "Pug.Other:PlaceObjectSlot:PlaceItem:30": [
+      "valueRW.positionLastPlacedAt = int6;"
+    ],
+    "Pug.Other:PlaceObjectSlot:PlaceItem:31": [
+      "if (!PlayerController.CanConsumeEntityInSlot(equipmentPrefab, objectDataCD2, 1, equipmentUpdateLookupData.cattleLookup))"
+    ],
+    "Pug.Other:PlaceObjectSlot:PlaceItem:35": [
+      "if (!equipmentUpdateSharedData.worldInfoCD.IsWorldModeEnabled(WorldMode.Creative) && entityObjectInfo.objectType != ObjectType.PlaceablePrefab && entityObjectInfo.objectType != ObjectType.Critter && entityObjectInfo.objectType != ObjectType.TrainingDummy && !equipmentUpdateLookupData.cattleLookup.HasComponent(equipmentPrefab) && !equipmentUpdateLookupData.mountLookup.HasComponent(equipmentPrefab))"
+    ],
+    "Pug.Other:PlaceObjectSlot:PlaceItem:4": [
+      "if (!valueRW.canPlaceObject)"
+    ],
+    "Pug.Other:PlaceObjectSlot:PlaceItem:49": [
+      "equipmentUpdateAspect.placeObjectStateCD.ValueRW.positionToPlaceAt = positionToPlaceAt;"
+    ],
+    "Pug.Other:PlaceObjectSlot:PlaceItem:50": [
+      "equipmentUpdateAspect.playerStateCD.ValueRW.PushState(PlayerStateEnum.PlaceObject);"
+    ],
+    "Pug.Other:PlaceObjectSlot:PlaceItem:52": [
+      "EquipmentSlot.StartCooldownForItem(in equipmentUpdateAspect, equipmentUpdateSharedData, equipmentUpdateLookupData, cooldown);"
+    ],
+    "Pug.Other:PlaceObjectSlot:PlaceItem:61": [
+      "EntityUtility.AddTile(entityObjectInfo.tileset, tileTypeToPlace, new int2(int5.x, int5.z), equipmentUpdateSharedData.worldInfoCD.IsWorldModeEnabled(WorldMode.Creative), tileUpdateBuffer);"
+    ],
+    "Pug.Other:PlaceObjectSlot:UpdateEquipment:15": [
+      "if (!secondInteractHeld)"
+    ],
+    "Pug.Other:PlaceObjectSlot:UpdateEquipment:19": [
+      "if (hasItemInMouse)"
+    ],
+    "Pug.Other:PlacementHandler:ShouldCheckPlaceObjectOnTile:16": [
+      "bool flag5 = placementCD.canPlaceOnPit && tileData.tileType == PugTilemap.TileType.pit;"
+    ],
+    "Pug.Other:PlacementHandlerDigging:CanPlaceObjectAtPosition:131": [
+      "bool flag9 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
+    ],
+    "Pug.Other:PlacementHandlerSeeder:CanPlaceObjectAtPosition:116": [
+      "bool flag4 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
+    ],
+    "Pug.Other:PlayerController:AddCombatSkillByCooldown:1": [
+      "public static void AddCombatSkillByCooldown(Entity playerOwner, Entity attacker, bool isMagic, bool isRanged, EntityCommandBuffer ecb, bool isServer, ComponentLookup<EquipmentSlotCD> equipmentSlotLookup, ComponentLookup<EquippedObjectCD> equippedObjectLookup, ComponentLookup<ProjectileSourceCD> projectileSourceLookup, ComponentLookup<DamageSourceCD> damageSourceLookup, ComponentLookup<CooldownCD> cooldownLookup, ComponentLookup<HasWeaponDamageCD> hasWeaponDamageLookup, BufferLookup<SummarizedConditionEffectsBuffer> summarizedConditionEffectsBufferLookup, PugDatabase.DatabaseBankCD databaseBank)"
+    ],
+    "Pug.Other:PlayerController:AddCombatSkillByCooldown:11": [
+      "amount = ((!(componentData.weaponCooldown > 0f)) ? 0.25f : (componentData.weaponCooldown * 2.5f));"
+    ],
+    "Pug.Other:PlayerController:AddCombatSkillByCooldown:15": [
+      "amount = componentData2.weaponCooldown * componentData2.inheritedSkillFraction * 2.5f;"
+    ],
+    "Pug.Other:PlayerController:AddSkill:1": [
+      "public static void AddSkill(Entity entity, SkillID skillID, float amount, EntityCommandBuffer ecb, bool isServer)"
+    ],
+    "Pug.Other:PlayerController:AttemptToDealDamageToEnemy:1": [
+      "private static bool AttemptToDealDamageToEnemy(in PlayerAttackAspect playerAttackAspect, in PlayerAttackShared playerAttackShared, in PlayerAttackLookups playerAttackLookups, Entity entityToTakeDamage, float3 entityToTakeDamagePosition, NativeArray<SummarizedConditionsBuffer> conditionsAtHit, NativeArray<SummarizedConditionEffectsBuffer> conditionEffectsAtHit, int damage, bool isRanged, bool isMagic, int manaCost, bool isBeam, bool isExplosive, bool isWoundup, float windupMult, bool shouldKnockback, Vector3 projectileDirection, bool shouldShowHitFeedbackOnHitEntityPart, bool shouldHandleImmuneToDamageOnEntityPart, Entity hitEntityPart, out int attackerHealthChange, out int ownerHealthChange, out int attackerManaChange, out bool gainSkill)"
+    ],
+    "Pug.Other:PlayerController:AttemptToDealDamageToEnemy:132": [
+      "int experienceFromDamage = PetExtensions.GetExperienceFromDamage(damageAfterReduction);"
+    ],
+    "Pug.Other:PlayerController:AttemptToDealDamageToEnemy:133": [
+      "IncreasePetXp(playerAttackAspect.entity, experienceFromDamage, in playerAttackAspect.petOwnerCD.ValueRO, in playerAttackAspect.playerGhost.ValueRO, playerAttackLookups.containedObjectsBufferLookup[playerAttackAspect.entity], playerAttackLookups.inventoryChangeBufferLookup, playerAttackShared.inventoryChangeBufferEntity);"
+    ],
+    "Pug.Other:PlayerController:IncreasePetXp:1": [
+      "public static void IncreasePetXp(Entity playerEntity, int xpIncrease, in PetOwnerCD petOwnerCD, in PlayerGhost playerGhost, in DynamicBuffer<ContainedObjectsBuffer> containedObjectsBuffer, BufferLookup<InventoryChangeBuffer> inventoryChangeBufferLookup, Entity inventoryChangeBufferEntity)"
+    ],
+    "Pug.Other:RadicalJoinGameMenu:Join:10": [
+      "Manager.ecs.StartEcs(startClient: true, -1, frameWorkloadTimer, delegate(bool result)"
+    ],
+    "Pug.Other:RadicalMainMenuOption_OpenMods:Awake:10": [
+      "Mods.OnModManagementEvent = (ModManagementEventDelegate)Delegate.Combine(Mods.OnModManagementEvent, new ModManagementEventDelegate(ModManagementEventCallback));"
+    ],
+    "Pug.Other:SaveManager:DecodeJson:1-5": [
+      "private static bool DecodeJson<T>(byte[] data, T characterData) where T : class",
+      "{",
+      "try",
+      "{",
+      "JsonUtility.FromJsonOverwrite(Encoding.UTF8.GetString(data), characterData);"
+    ],
+    "Pug.Other:SaveManager:GetCharacterDataFromSerialized:1-9": [
+      "public static CharacterData GetCharacterDataFromSerialized(byte[] data)",
+      "{",
+      "CharacterData characterData = new CharacterData();",
+      "if (!DecodeJson(data, characterData))",
+      "{",
+      "return null;",
+      "}",
+      "characterData.UpgradeIfOutdated();",
+      "return characterData;"
+    ],
+    "Pug.Other:SaveManager:GetCharacterDataFromSerialized:8": [
+      "characterData.UpgradeIfOutdated();"
+    ],
+    "Pug.Other:SaveManager:Init:15": [
+      "characterData[i].UpgradeIfOutdated();"
+    ],
+    "Pug.Other:SaveManager:SetCharacterId:1-9": [
+      "public void SetCharacterId(int id)",
+      "{",
+      "if (!IsCompatibleWithCurrentGameVersion(id))",
+      "{",
+      "UnityEngine.Debug.LogWarning(\"Activating a character that is not compatible with the current game version.\");",
+      "}",
+      "_characterDead = false;",
+      "_characterId = id;",
+      "}"
+    ],
+    "Pug.Other:SaveManager:UseCustomCharacterDataProvider:5": [
+      "characterData[_characterId].UpgradeIfOutdated();"
+    ],
+    "Pug.Other:SaveManager:WriteCharacter():1": [
+      "public void WriteCharacter()"
+    ],
+    "Pug.Other:SaveManager:WriteCharacter(int):1": [
+      "public void WriteCharacter(int saveId)"
+    ],
+    "Pug.Other:SaveManager:_ClearCharacter:27": [
+      "characterData[i].UpgradeIfOutdated();"
+    ],
+    "Pug.Other:SaveSlotPlayOption:GoToCharacterTypeSelection:1-5": [
+      "private void GoToCharacterTypeSelection()",
+      "{",
+      "Manager.saves.SetCharacterId(saveFileId);",
+      "Manager.menu.PushMenu(RadicalMenu.MenuType.CHARACTER_TYPE_SELECTION);",
+      "}"
+    ],
+    "Pug.Other:SaveSlotPlayOption:StartGame:1-13": [
+      "public static void StartGame(int characterID)",
+      "{",
+      "Manager.saves.SetCharacterId(characterID);",
+      "Manager.menu.isStartingGame = true;",
+      "if (Manager.saves.IsFirstTimePlayingOnAnyServer() && !Manager.saves.IsCreativeModeWorld())",
+      "{",
+      "Manager.load.LoadIntroScene();",
+      "}",
+      "else",
+      "{",
+      "Manager.load.LoadMainScene();",
+      "}",
+      "}"
+    ],
+    "Pug.Other:SceneHandler:Awake:1": [
+      "private void Awake()"
+    ],
+    "Pug.Other:SceneHandler:Awake:32-33": [
+      "Manager.saves.SetCharacterId(60);",
+      "Manager.saves.UseCustomCharacterDataProvider(() => File.ReadAllBytes(Application.streamingAssetsPath + \"/BenchmarkData/character.json\"));"
+    ],
+    "Pug.Other:SceneHandler:Awake:38": [
+      "Manager.ecs.StartEcs(startClient: true, Manager.saves.GetWorldId(), frameWorkloadTimer, delegate(bool result)"
+    ],
+    "Pug.Other:SeederSlot:PlaceItem:1": [
+      "private static void PlaceItem(ref NativeList<PlacementHandler.EntityAndInfoFromPlacement> entitiesToSeed, in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)"
+    ],
+    "Pug.Other:ServerSystem:OnUpdate:282": [
+      "PlayerController.AddSkill(component.entity0, (SkillID)component.int0, component.int1, ecb, isServer: true);"
+    ],
+    "Pug.Other:StartGameRPCSystem:1": [
+      "[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation, WorldSystemFilterFlags.Default)]"
+    ],
+    "Pug.Other:StartGameRPCSystem_2FE3D5A9_LambdaJob_3_Job:OriginalLambdaBody:15": [
+      "CharacterData characterDataFromSerialized = SaveManager.GetCharacterDataFromSerialized(characterDataEntry.data);"
+    ],
+    "Pug.Other:WaterCanSlot:1": [
+      "public class WaterCanSlot : PlaceObjectSlot"
+    ],
+    "Pug.Other:WaterCanSlot:PlaceItem:1": [
+      "private static void PlaceItem(ref NativeList<PlacementHandler.EntityAndInfoFromPlacement> entitiesToRemoveByWater, in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)"
+    ],
+    "Pug.Other:WaterCanSlot:UpdateEquipment:1": [
+      "public new static bool UpdateEquipment(bool interactHeld, bool secondInteractHeld, in ClientInput clientInput, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData, bool hasItemInMouse)"
     ],
     "Pug.UnityExtensions:5344": [
       "public static int Clamp(int x, int low, int high)"
@@ -3949,14 +3976,8 @@
     "PugMod.Loader:1013": [
       "UnityEngine.Debug.LogWarning(\"skipping mod \" + mod.Metadata.name + \" because of missing dependency: \" + dependency.modName);"
     ],
-    "PugMod.Loader:1089": [
-      "DynamicMethod dynamicMethod = new DynamicMethod(\"_forwardingFunc_\" + methodInfo.Name, null, new Type[2]"
-    ],
     "PugMod.Loader:1111": [
       "public List<string> unsupportedModsToLoad = new List<string>();"
-    ],
-    "PugMod.Loader:1214": [
-      "public void Update()"
     ],
     "PugMod.Loader:1216": [
       "_modHandlers.Call.Init();"
@@ -3966,9 +3987,6 @@
     ],
     "PugMod.Loader:1232": [
       "UnityEngine.Debug.Log(\"not loading incompatible mod \" + metadata.name);"
-    ],
-    "PugMod.Loader:1301": [
-      "scriptAssembly = scriptDomain.LoadAssembly(text, mod.Metadata.skipSafetyChecks ? ScriptSecurityMode.EnsureLoad : ScriptSecurityMode.EnsureSecurity);"
     ],
     "PugMod.Loader:1353-1386": [
       "List<string> list2 = new List<string>(scriptFiles.Count);",
@@ -4006,40 +4024,8 @@
       "}",
       "ScriptAssembly scriptAssembly = scriptDomain.CompileAndLoadFiles(array, mod.Metadata.skipSafetyChecks ? ScriptSecurityMode.EnsureLoad : ScriptSecurityMode.UseSettings, list.ToArray());"
     ],
-    "PugMod.Loader:1358": [
-      "list2.Add(File.ReadAllText(Path.Combine(mod.Directory, scriptFile.path)));"
-    ],
-    "PugMod.Loader:1367": [
-      "if (!SourceGenPatch.Patch(mod.Metadata.name, list2, !mod.Metadata.skipSafetyChecks))"
-    ],
     "PugMod.Loader:1373": [
       "scriptDomain.RoslynCompilerService.OutputName = mod.Metadata.name + \".dll\";"
-    ],
-    "PugMod.Loader:1386": [
-      "ScriptAssembly scriptAssembly = scriptDomain.CompileAndLoadFiles(array, mod.Metadata.skipSafetyChecks ? ScriptSecurityMode.EnsureLoad : ScriptSecurityMode.UseSettings, list.ToArray());"
-    ],
-    "PugMod.Loader:1403": [
-      "if (!JobsPatch.Patch(scriptAssembly.SystemAssembly))"
-    ],
-    "PugMod.Loader:1452": [
-      "SystemBaseRegistry.AddUnmanagedSystemType(item.SystemType, BurstRuntime.GetHashCode64(item.SystemType), array[0], array[1], array[2], array[3], array[4], array[5], item.FullName, 0);"
-    ],
-    "PugMod.Loader:1471-1485": [
-      "private static void HarmonyPatchAssembly(Mod mod, ScriptAssembly assembly, HarmonyBootstrap harmony, InvokeChecker checker)",
-      "{",
-      "try",
-      "{",
-      "if (!harmony.Patch(mod.Metadata.name, assembly.SystemAssembly, !mod.Metadata.skipSafetyChecks, checker))",
-      "{",
-      "UnityEngine.Debug.Log(\"mod \" + mod.Metadata.name + \": patching failed\");",
-      "}",
-      "}",
-      "catch (Exception exception)",
-      "{",
-      "UnityEngine.Debug.Log(\"failed to patch mod \" + mod.Metadata.name + \", got exception\");",
-      "UnityEngine.Debug.LogException(exception);",
-      "}",
-      "}"
     ],
     "PugMod.Loader:1475-1484": [
       "if (!harmony.Patch(mod.Metadata.name, assembly.SystemAssembly, !mod.Metadata.skipSafetyChecks, checker))",
@@ -4096,22 +4082,8 @@
     "PugMod.Loader:1724": [
       "Assets = mod.LoadedAssets,"
     ],
-    "PugMod.Loader:1752": [
-      "loadedMod3.ModObjectLoaded(loadedAsset);"
-    ],
     "PugMod.Loader:179": [
       "if (!Integration.Instance.AddMod(metadata, entry.Directory, (long)entry.Id.Value, flag2))"
-    ],
-    "PugMod.Loader:1798": [
-      "List<ModFile> list2 = mod.Metadata.files.FindAll((ModFile x) => x.path.EndsWith(\".cs\"));"
-    ],
-    "PugMod.Loader:1803": [
-      "text = Path.Combine(Application.temporaryCachePath, \"ModLoader\", mod.Metadata.name);"
-    ],
-    "PugMod.Loader:1804-1806": [
-      "if (Directory.Exists(text))",
-      "{",
-      "Directory.Delete(text, recursive: true);"
     ],
     "PugMod.Loader:2207": [
       "ScriptableData.AddDataBlocksLoader(runtimeLoader.name, runtimeLoader);"
@@ -4206,9 +4178,6 @@
     "PugMod.Loader:2417": [
       "UnityEngine.Debug.Log(\"loaded mod \" + metadata.name + \" at \" + text2);"
     ],
-    "PugMod.Loader:2532": [
-      "PropertyDeclarationSyntax newNode2 = propertyDeclarationSyntax2.WithAccessorList(propertyDeclarationSyntax.AccessorList).WithInitializer(propertyDeclarationSyntax.Initializer);"
-    ],
     "PugMod.Loader:481": [
       "value.PatchAll(assembly);"
     ],
@@ -4236,6 +4205,67 @@
     ],
     "PugMod.Loader:844": [
       "for (int i = 0; i < _mods.Count; i++)"
+    ],
+    "PugMod.Loader:Loader:AddEntitySystems:28": [
+      "SystemBaseRegistry.AddUnmanagedSystemType(item.SystemType, BurstRuntime.GetHashCode64(item.SystemType), array[0], array[1], array[2], array[3], array[4], array[5], item.FullName, 0);"
+    ],
+    "PugMod.Loader:Loader:HarmonyPatchAssembly:1-15": [
+      "private static void HarmonyPatchAssembly(Mod mod, ScriptAssembly assembly, HarmonyBootstrap harmony, InvokeChecker checker)",
+      "{",
+      "try",
+      "{",
+      "if (!harmony.Patch(mod.Metadata.name, assembly.SystemAssembly, !mod.Metadata.skipSafetyChecks, checker))",
+      "{",
+      "UnityEngine.Debug.Log(\"mod \" + mod.Metadata.name + \": patching failed\");",
+      "}",
+      "}",
+      "catch (Exception exception)",
+      "{",
+      "UnityEngine.Debug.Log(\"failed to patch mod \" + mod.Metadata.name + \", got exception\");",
+      "UnityEngine.Debug.LogException(exception);",
+      "}",
+      "}"
+    ],
+    "PugMod.Loader:Loader:Load:11": [
+      "text = Path.Combine(Application.temporaryCachePath, \"ModLoader\", mod.Metadata.name);"
+    ],
+    "PugMod.Loader:Loader:Load:12-14": [
+      "if (Directory.Exists(text))",
+      "{",
+      "Directory.Delete(text, recursive: true);"
+    ],
+    "PugMod.Loader:Loader:Load:6": [
+      "List<ModFile> list2 = mod.Metadata.files.FindAll((ModFile x) => x.path.EndsWith(\".cs\"));"
+    ],
+    "PugMod.Loader:Loader:LoadDll:29": [
+      "scriptAssembly = scriptDomain.LoadAssembly(text, mod.Metadata.skipSafetyChecks ? ScriptSecurityMode.EnsureLoad : ScriptSecurityMode.EnsureSecurity);"
+    ],
+    "PugMod.Loader:Loader:LoadScripts:33": [
+      "list2.Add(File.ReadAllText(Path.Combine(mod.Directory, scriptFile.path)));"
+    ],
+    "PugMod.Loader:Loader:LoadScripts:42": [
+      "if (!SourceGenPatch.Patch(mod.Metadata.name, list2, !mod.Metadata.skipSafetyChecks))"
+    ],
+    "PugMod.Loader:Loader:LoadScripts:61": [
+      "ScriptAssembly scriptAssembly = scriptDomain.CompileAndLoadFiles(array, mod.Metadata.skipSafetyChecks ? ScriptSecurityMode.EnsureLoad : ScriptSecurityMode.UseSettings, list.ToArray());"
+    ],
+    "PugMod.Loader:Loader:LoadScripts:78": [
+      "if (!JobsPatch.Patch(scriptAssembly.SystemAssembly))"
+    ],
+    "PugMod.Loader:Loader:Reload:124": [
+      "loadedMod3.ModObjectLoaded(loadedAsset);"
+    ],
+    "PugMod.Loader:Loader:Update:1": [
+      "public void Update()"
+    ],
+    "PugMod.Loader:Loader:Update:3": [
+      "_modHandlers.Call.Init();"
+    ],
+    "PugMod.Loader:SourceGenPatch:Patch:91": [
+      "PropertyDeclarationSyntax newNode2 = propertyDeclarationSyntax2.WithAccessorList(propertyDeclarationSyntax.AccessorList).WithInitializer(propertyDeclarationSyntax.Initializer);"
+    ],
+    "PugMod.Loader:SystemMethodWrapper:SystemMethodWrapper:3": [
+      "DynamicMethod dynamicMethod = new DynamicMethod(\"_forwardingFunc_\" + methodInfo.Name, null, new Type[2]"
     ],
     "PugMod.Platform:70": [
       "bool flag2 = ModVersion.IsCompatible(Application.version, subscribedMod.modProfile.tags);"
@@ -4267,10 +4297,35 @@
     "PugMod.SDK.Runtime:647": [
       "public static implicit operator MemberInfo(System.Reflection.MemberInfo o)"
     ],
-    "PugMod.SDK.Runtime:657": [
-      "internal static readonly HashSet<Type> SystemTypesToDisableBurstFor = new HashSet<Type>();"
+    "PugMod.SDK.Runtime:709": [
+      "public static void DisableBurstForSystemAndJobs<T>(bool burstEnabled = false)"
     ],
-    "PugMod.SDK.Runtime:665-676": [
+    "PugMod.SDK.Runtime:BurstDisabler:CreateCompleteDependencyPatch:1": [
+      "private static void CreateCompleteDependencyPatch(Type systemType, Harmony harmony, List<MethodInfo> patchedMethods, bool isManaged)"
+    ],
+    "PugMod.SDK.Runtime:BurstDisabler:DisableBurstForSystem(bool):3": [
+      "DisableBurstForSystemInternal(typeof(T), burstEnabled, addCompleteDependencyPatch: false);"
+    ],
+    "PugMod.SDK.Runtime:BurstDisabler:DisableBurstForSystemAndJobs(bool):1": [
+      "public static void DisableBurstForSystemAndJobs<T>(bool burstEnabled = false)"
+    ],
+    "PugMod.SDK.Runtime:BurstDisabler:DisableBurstForSystemAndJobs(bool):3": [
+      "DisableBurstForSystemInternal(typeof(T), burstEnabled, addCompleteDependencyPatch: true);"
+    ],
+    "PugMod.SDK.Runtime:BurstDisabler:DisableBurstForSystemInternal:1": [
+      "internal static void DisableBurstForSystemInternal(Type systemType, bool burstEnabled, bool addCompleteDependencyPatch)"
+    ],
+    "PugMod.SDK.Runtime:BurstDisabler:DisableBurstForSystemInternal:38": [
+      "UnityEngine.Debug.LogWarning(\"BurstDisabler: system \" + systemType.Name + \" is already registered\");"
+    ],
+    "PugMod.SDK.Runtime:BurstDisabler:DisableBurstForSystemInternal:8-12": [
+      "if (_harmony == null)",
+      "{",
+      "_harmony = new Harmony(\"Pug.BurstDisabler\");",
+      "_harmony.PatchAll(typeof(DisableBurstForSystemPatch));",
+      "}"
+    ],
+    "PugMod.SDK.Runtime:BurstDisabler:Init:1-12": [
       "[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]",
       "private static void Init()",
       "{",
@@ -4284,32 +4339,13 @@
       "SystemHandlesToDisableBurstFor.Clear();",
       "}"
     ],
-    "PugMod.SDK.Runtime:706": [
-      "DisableBurstForSystemInternal(typeof(T), burstEnabled, addCompleteDependencyPatch: false);"
+    "PugMod.SDK.Runtime:BurstDisabler:PatchManagedSystem:14": [
+      "CreateCompleteDependencyPatch(systemType, harmony, patchedMethods, isManaged: true);"
     ],
-    "PugMod.SDK.Runtime:709": [
-      "public static void DisableBurstForSystemAndJobs<T>(bool burstEnabled = false)"
+    "PugMod.SDK.Runtime:BurstDisabler:PatchManagedSystem:20": [
+      "MethodInfo method = systemType.GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);"
     ],
-    "PugMod.SDK.Runtime:711": [
-      "DisableBurstForSystemInternal(typeof(T), burstEnabled, addCompleteDependencyPatch: true);"
-    ],
-    "PugMod.SDK.Runtime:724": [
-      "internal static void DisableBurstForSystemInternal(Type systemType, bool burstEnabled, bool addCompleteDependencyPatch)"
-    ],
-    "PugMod.SDK.Runtime:731-735": [
-      "if (_harmony == null)",
-      "{",
-      "_harmony = new Harmony(\"Pug.BurstDisabler\");",
-      "_harmony.PatchAll(typeof(DisableBurstForSystemPatch));",
-      "}"
-    ],
-    "PugMod.SDK.Runtime:761": [
-      "UnityEngine.Debug.LogWarning(\"BurstDisabler: system \" + systemType.Name + \" is already registered\");"
-    ],
-    "PugMod.SDK.Runtime:767": [
-      "public static void ResetWorlds()"
-    ],
-    "PugMod.SDK.Runtime:788-796": [
+    "PugMod.SDK.Runtime:BurstDisabler:PatchSystem:1-9": [
       "internal static void PatchSystem(Type systemType, Harmony harmony, bool addCompleteDependencyPatch)",
       "{",
       "List<MethodInfo> list = new List<MethodInfo>();",
@@ -4320,25 +4356,22 @@
       "_patchedMethods[systemType] = list;",
       "}"
     ],
-    "PugMod.SDK.Runtime:793": [
+    "PugMod.SDK.Runtime:BurstDisabler:PatchSystem:6": [
       "CreateCompleteDependencyPatch(systemType, harmony, list, isManaged: false);"
     ],
-    "PugMod.SDK.Runtime:795": [
+    "PugMod.SDK.Runtime:BurstDisabler:PatchSystem:8": [
       "_patchedMethods[systemType] = list;"
     ],
-    "PugMod.SDK.Runtime:811": [
-      "CreateCompleteDependencyPatch(systemType, harmony, patchedMethods, isManaged: true);"
+    "PugMod.SDK.Runtime:BurstDisabler:ResetWorlds:1": [
+      "public static void ResetWorlds()"
     ],
-    "PugMod.SDK.Runtime:817": [
-      "MethodInfo method = systemType.GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);"
+    "PugMod.SDK.Runtime:BurstDisabler:SystemTypesToDisableBurstFor:1": [
+      "internal static readonly HashSet<Type> SystemTypesToDisableBurstFor = new HashSet<Type>();"
     ],
-    "PugMod.SDK.Runtime:850": [
-      "private static void CreateCompleteDependencyPatch(Type systemType, Harmony harmony, List<MethodInfo> patchedMethods, bool isManaged)"
-    ],
-    "PugMod.SDK.Runtime:876": [
+    "PugMod.SDK.Runtime:CompleteDependencyAfterUpdateManagedPatch:1": [
       "internal static class CompleteDependencyAfterUpdateManagedPatch"
     ],
-    "PugMod.SDK.Runtime:889-897": [
+    "PugMod.SDK.Runtime:DisableBurstForSystemPatch:Prefix:1-9": [
       "public static void Prefix(SystemHandle sh, out bool? __state)",
       "{",
       "__state = null;",
@@ -4533,13 +4566,13 @@
     "Unity.Entities:67551": [
       "SystemBaseRegistry.CallOnCreate(statePtr);"
     ],
-    "WorldGen.EnvironmentalObjects:257-260": [
+    "WorldGen.EnvironmentalObjects:SpawnEnvironmentObjectsInNewAreaSystem:2-5": [
       "[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation, WorldSystemFilterFlags.Default)]",
       "[UpdateInGroup(typeof(RunSimulationSystemGroup))]",
       "[CompilerGenerated]",
       "public struct SpawnEnvironmentObjectsInNewAreaSystem : ISystem, ISystemStartStop, ISystemCompilerGenerated"
     ],
-    "modio.UI:2906": [
+    "modio.UI:Mods:OnModManagementEvent:1": [
       "public static ModManagementEventDelegate OnModManagementEvent;"
     ],
     "modio.UnityPlugin:29014": [
@@ -4558,6 +4591,9 @@
       "ModCollectionManager.Registry.mods.Remove(uninstalledModsWithNoUserSubscription);"
     ],
     "modio.UnityPlugin:34712": [
+      "public HashSet<ModId> disabledMods = new HashSet<ModId>();"
+    ],
+    "modio.UnityPlugin:UserModCollectionData:disabledMods:1": [
       "public HashSet<ModId> disabledMods = new HashSet<ModId>();"
     ]
   },
