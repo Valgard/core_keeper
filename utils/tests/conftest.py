@@ -89,33 +89,65 @@ def decompile():
     return path
 
 
-@pytest.fixture(scope="session")
-def corpus():
-    """Every unique `(assembly, first line)` the handbook cites.
-
-    Unique by assembly and line, which is the base the design spec's figures
-    use; the occurrence count is higher and the two must not be mixed.
+def _absolute_lines(decompile):
+    """`(assembly, first, last)` in absolute lines for every citation in docs/ck.
 
     Collected with `citation_notation.find` rather than the old `CITATION`
     regex, which matters from the first migrated chapter onward: that regex
     cannot see a symbol-anchored citation, so a corpus built on it would
     quietly shrink as the migration progressed and every suite resting on it
     would test less without saying so.
+
+    **And an anchored citation's own `first` is relative to its element, so it
+    is resolved rather than taken at face value.** Reading `:38` of a member as
+    line 38 of the file is not a small error: at the first migrated chapters it
+    made the tier census report 79 absolute-tier citations against a bound of
+    10, because a relative offset lands near the top of a 460,000-line file
+    where no type encloses anything. Every suite here rests on these lines
+    meaning what the handbook points at.
+
+    A citation that no longer resolves is left out. That is the drift gate's
+    finding to report, with the recorded text to say what changed; a fixture
+    that invented a line for it would hide the one thing worth knowing.
     """
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from check_citation_drift import source_for
     from citation_notation import find
+    from citation_notation import tier
+    from decompile_structure import locate
+    from decompile_structure import structure_of
 
     root = pathlib.Path(__file__).resolve().parents[2] / "docs" / "ck"
-    cited = {
-        (citation.assembly, citation.first)
-        for chapter in sorted(root.glob("*.md"))
-        for _, citation in find(chapter.read_text())
-    }
-    return sorted(cited)
+    structures, spans = {}, set()
+    for chapter in sorted(root.glob("*.md")):
+        for _, citation in find(chapter.read_text()):
+            if tier(citation) == "absolute":
+                spans.add((citation.assembly, citation.first, citation.last))
+                continue
+            if citation.assembly not in structures:
+                path = source_for(citation.assembly, decompile)
+                structures[citation.assembly] = structure_of(path) if path else None
+            structure = structures[citation.assembly]
+            start = locate(structure, citation) if structure else None
+            if start is not None:
+                spans.add((citation.assembly, start, start + citation.last - citation.first))
+    return spans
 
 
 @pytest.fixture(scope="session")
-def range_citations():
+def corpus(decompile):
+    """Every unique `(assembly, absolute line)` the handbook cites.
+
+    Unique by assembly and line, which is the base the design spec's figures
+    use; the occurrence count is higher and the two must not be mixed. How the
+    lines are arrived at, and why an anchored citation cannot be read at face
+    value, is `_absolute_lines`.
+    """
+    return sorted({(assembly, first) for assembly, first, _ in _absolute_lines(decompile)})
+
+
+@pytest.fixture(scope="session")
+def range_citations(decompile):
     """Every unique range citation the handbook carries, as (assembly, first, last).
 
     Shared rather than local to one suite because dropping the span is how a
@@ -124,18 +156,13 @@ def range_citations():
     range differently from a single line — and the style checker's structural
     half had exactly such a path, judging every range against the description
     of its first line.
-    """
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from citation_notation import find
 
-    root = pathlib.Path(__file__).resolve().parents[2] / "docs" / "ck"
-    spans = {
-        (citation.assembly, citation.first, citation.last)
-        for chapter in sorted(root.glob("*.md"))
-        for _, citation in find(chapter.read_text())
-        if citation.first != citation.last
-    }
-    return sorted(spans)
+    Absolute lines, for the reason `_absolute_lines` gives. The span's *length*
+    survives either way, which is what makes this the quieter half of that
+    defect: a suite resting on relative offsets would go on comparing spans
+    correctly while measuring code nobody cites.
+    """
+    return sorted({span for span in _absolute_lines(decompile) if span[1] != span[2]})
 
 
 PIXAKI_FORMS = ("zip", "directory")
