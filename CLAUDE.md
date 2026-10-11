@@ -479,12 +479,34 @@ human-facing setup; what matters when editing code here:
   repo's hook passes, where its sibling has always taken a root. Wiring it in
   cost a rewrap of about 700 lines across twelve repos first, because of the
   next bullet.
-- **Both gates check the whole repository, not the staged files.** Each hook is
-  configured `pass_filenames: false` and a staged `.md` merely triggers it — so
-  a defect anywhere blocks a commit that touches documentation nowhere near it.
-  Deliberate for the link gate, whose targets cross files; the consequence for
-  wrapping is that a backlog is never latent, which is why one had to be cleared
-  before the hook could go in anywhere.
+- **A staged `.md` also runs the two citation gates** (`core_keeper` only, so
+  far): `utils/check_citation_drift.py` resolves every citation in `docs/ck/`
+  against the decompile and compares the line's text with
+  `utils/ck-citation-snapshot.json`, and `utils/check_citation_style.py` checks
+  the citations' form. Practical consequence: **a citation inserted without
+  `--capture` blocks the next documentation commit**, in the shape "not in the
+  snapshot", and the commit it blocks is usually somebody else's.
+- **The style checker's two halves fail differently, and only one blocks.** The
+  syntactic half asks whether a citation is well-formed at all, needs nothing
+  but the text, and rejects — a malformed citation is checkable by nobody. The
+  structural half asks whether a well-formed citation is the *best* form
+  available (a bare number where an element could be named, an ambiguous or
+  needlessly long member spelling), which takes the decompile and
+  `tree-sitter`; it **reports and never blocks**, and where they are absent it
+  says so rather than passing quietly. Reporting is deliberate: the hook runs
+  over the whole repository, so a blocking structural half would let one
+  overload added by a game update stop every documentation commit here —
+  including commits nowhere near `docs/ck/` — until somebody rewrote a citation
+  that still resolves to the right line. The count it prints is in the hundreds
+  while the chapter migration runs, because it names every citation still
+  written as an absolute line; a number there is not a finding, a line naming
+  the file you are editing is.
+- **Both documentation gates check the whole repository, not the staged
+  files.** Each hook is configured `pass_filenames: false` and a staged `.md`
+  merely triggers it — so a defect anywhere blocks a commit that touches
+  documentation nowhere near it. Deliberate for the link gate, whose targets
+  cross files; the consequence for wrapping is that a backlog is never latent,
+  which is why one had to be cleared before the hook could go in anywhere.
 - **`--fix` repeats itself, because fixing a file changes the width it is
   measured against.** Each pass takes that width from the lines it finds on
   entry, and then rewrites them — rewrapping long paragraphs adds a short tail

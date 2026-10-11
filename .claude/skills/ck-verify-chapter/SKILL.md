@@ -44,11 +44,15 @@ touched.** The version string is read as `major.minor.patch.hotfix`:
   `1.2.1.5` against `1.3.0.5`): the chapter is unverified, even with not one
   line changed. Run the full procedure against the current build.
 - **Only the fourth part differs:** the verdict stands, except for the claims
-  whose cited code the hotfix changed. `utils/relocate_citations.py` names them
-  — every citation whose recorded line text it cannot find again in the new
-  decompile. Re-verify those claims, and say plainly in the commit body what was
-  not re-checked: a claim with no citation, and one whose cited line survived
-  while the code around it changed, are both invisible to that report.
+  whose cited code the hotfix changed. For an anchored chapter
+  `utils/check_citation_drift.py` names them on its own — a citation that no
+  longer resolves lost its member, and one that resolves to different text sits
+  on code that changed. For a chapter still carrying absolute lines,
+  `utils/relocate_citations.py` names them: every citation whose recorded line
+  text it cannot find again in the new decompile. Re-verify those claims, and
+  say plainly in the commit body what was not re-checked: a claim with no
+  citation, and one whose cited line survived while the code around it changed,
+  are both invisible to either report.
 
 The reason for this boundary, and against treating an update as a mere prompt to
 re-read: two chapters were verified against 1.3.0.5 on 2026-10-08, after the 1.3
@@ -81,13 +85,22 @@ Run the gates once before dispatching too, not only at commit time:
     uv run utils/check_citation_drift.py
     uv run utils/check_citation_style.py .
 
-The last one is a commit gate like the first two, and it rejects a citation form
-rather than a wrong target: an assembly inherited from an earlier sentence (``
-`:419767` ``) and a number outside the backticks (`` `Pug.Other` ~355773 ``) are
-both refused. Write every citation in full (`` `Pug.Other:419767` ``) and the
-gate never fires. It matters more than it looks: the short forms are invisible
-to `check_citation_drift.py` too, so a chapter full of them passes a drift check
-that never examined them.
+The last one is a commit gate like the first two, and it has two halves that
+fail differently. The **syntactic** half rejects a citation form rather than a
+wrong target: an assembly inherited from an earlier sentence (`` `:419767` ``)
+and a number outside the backticks (`` `Pug.Other` ~355773 ``) are both refused,
+and that one blocks. It matters more than it looks — the short forms are
+invisible to `check_citation_drift.py` too, so a chapter full of them passes a
+drift check that never examined them.
+
+The **structural** half asks whether a well-formed citation is the best form
+available: a bare number where an element could be named, an ambiguous member
+spelling, a form longer than it needs to be. It **reports and does not block**,
+and the count it prints is large while the migration runs — it names every
+citation in every chapter that is still absolute. So a number there is not a
+finding against this pass; what is, is a line naming the chapter being worked.
+It needs the decompile and `tree-sitter`, and says so when it skips instead of
+passing quietly.
 
 Thirty seconds, and what it buys is the chapter's starting state — a gate
 failure found later is either something this pass introduced or something
@@ -508,10 +521,37 @@ snapshot records the cited line's *text*, not its number, so capturing a
 citation sitting two lines off its claim writes the wrong line in as the truth,
 and the drift check then confirms it on every later run.
 
+**Write a new citation in the anchored form** — `Assembly:Class:member:7`, the
+line counted from the element's first line. The grammar and the three tiers are [reverse-engineering](../../../docs/ck/reverse-engineering.md#line-citations-carry-their-assembly).
+Reading the element out of the decompile by hand is not necessary: `uv run
+utils/anchor_citations.py docs/ck/<chapter>.md` reports the anchored form of
+every absolute citation in the file, so writing the absolute number and
+converting it is the shorter path.
+
+**Anchoring the chapter is part of its pass, and it is one step for the whole
+file.** Add `--apply` to that same command: it rewrites every citation, moves
+each snapshot record to its new key, and leaves the recorded text alone, which
+is what proves the new form points at the line the claim was weighed against.
+Then rewrap the file by name. Two things to know about it:
+
+- **It refuses the whole file rather than part of it**, and a refusal is a
+  finding about the chapter rather than about the tool: a recorded text that no
+  longer matches its line, a citation missing from the snapshot, an assembly the
+  decompile has no file for. Each names the command that resolves it. Resolve
+  those first — a chapter written half in each notation is worse than one
+  written wholly in the old one.
+- **Six citations keep an absolute line permanently** (five at namespace level
+  in `Unity.Entities`, one `.prefab` that is not C#), so "every citation
+  changed" is the wrong success test. The report names each and says why.
+
 **A game update is the other case, and `--capture` is the wrong tool for it.**
 When the decompile has been regenerated, the recorded text has not changed but
 its line has moved, often by thousands — `utils/relocate_citations.py` finds
-each recorded snippet again in the new tree and rewrites the number.
+each recorded snippet again in the new tree and rewrites the number. It does
+nothing to an anchored citation and does not need to: nothing stored carries the
+line any more, so the symbol stays valid and the line is recomputed on every
+run. What the tool still has to do is the chapters that are not anchored yet,
+and those six.
 **Capture only once nothing is left open:** a `--capture` run while cases are
 unresolved writes their wrong state in as the new truth, and the drift check
 then agrees with itself about something nobody checked.
@@ -520,7 +560,11 @@ That also bounds what a verification commit's version string promises. It says
 which build the chapter's *claims* were weighed against — relocating its
 citations to a later build moves the numbers, not the verdict, so a chapter
 whose citations are current can still rest on behaviour measured two updates
-ago.
+ago. The same sentence is what lets anchoring keep a tick: the claim was weighed
+against a line, the anchored citation provably resolves to that same line, so
+the verdict stands. It is the round trip that establishes that, not trust in the
+tool — and `verify_status.py` counts words, so neither the re-spelling nor the
+rewrap it forces reads as prose written after the pass.
 
 ## Red flags
 

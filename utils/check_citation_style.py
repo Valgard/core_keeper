@@ -15,8 +15,13 @@ they appeared is a good one and will recur: `(`:263245` client, `:263187`
 server)` reads better than the full form, right up to the moment someone needs
 to know whether it is still true.
 
-The rule: every line reference carries its assembly, as `` `Assembly:line` `` or
-`` `Assembly:first-last` ``.
+The rule: a citation names an element and a line counted from that element's
+first line, and its first field is always present. Five forms and no others --
+`` `Assembly:Class:member:7` ``, the same with a `7-12` range, the element or
+the type alone, and `` `Assembly:7` `` as the escape hatch for a line no type
+encloses. The grammar lives in `citation_notation`; the handbook's own
+statement of it is `docs/ck/reverse-engineering.md`, section "Line citations
+carry their assembly".
 
 **Two halves, because they need different things and run in different places.**
 The syntactic half asks whether a reference is well-formed at all and needs

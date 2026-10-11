@@ -175,38 +175,93 @@ unchanged is not thereby correct — it is merely undisturbed.
 
 ### Line citations carry their assembly
 
-A citation is only as useful as the tooling that can follow it, and the shape
-that reads best is the one nothing can check. Written out, the rule is dull:
-every line reference is `` `Assembly:line` `` or `` `Assembly:first-last` ``,
-with `DedicatedServer/` in front when it means the server build.
+A citation says what it means and where that stands, and the two are separate
+fields. The anchor is an element — a type, or a member of one — and the location
+is a line counted from that element's first line, 1-based. Five forms, and no
+others:
 
-It is worth stating because the alternative is so natural. A paragraph citing
-the same assembly four times wants to drop it from the last three, and a passage
-unsure of an exact offset wants to mark that with a tilde:
+```text
+`Assembly:Class:member:N`       the Nth line of the element
+`Assembly:Class:member:N-M`     a range inside the element
+`Assembly:Class:member`         the element as a whole
+`Assembly:Class`                the type as a whole
+`Assembly:N`                    the escape hatch
+```
+
+The `N` stands for a line number on purpose, and not only for readability: a
+schematic written with a real digit *is* a citation to every tool here, and the
+drift gate blocks on it for naming an assembly that does not exist. Write
+examples with `N`.
+
+`DedicatedServer/` goes in front of the assembly when the citation means the
+server build. The member is spelled as the decompile spells it, shortened to the
+shortest form that is unique within its type — a bare name where that suffices,
+and a prefix of the parameter type list where it does not, with `…` marking what
+was left out: `GetRecipeInfo(PugDatabase.DatabaseBankCD, ObjectID, …)`.
+
+**The point is what a game update does to it.** An anchored citation survives
+every change outside the element it names, which is most of what an update is: a
+hotfix that renumbered 161 citations here moved none of the elements they sit
+in. The old form was a line number and nothing else, so every citation below an
+edit moved — one hotfix rewrote some 320 lines across nine chapters and cost a
+chapter its verification tick, for a diff in which not one word of prose had
+changed.
+
+**Three tiers, and which one a citation lands in decides what it is exposed
+to.** A line is anchored to the innermost thing that names it: the member that
+contains it, else the type, else nothing. The type tier is a real fallback
+rather than a second choice — `PlayerController` is some 7,600 lines, so a
+type-anchored line is exposed to a great deal — and the bare form is the escape
+hatch, permitted only where no type encloses the line at all. In this handbook
+that is five citations, all at namespace level in `Unity.Entities`, plus one
+`.prefab` reference that is not C# and has no elements to name.
+
+**The first field names an assembly or a file.** Mostly it is
+`<Assembly>.decompiled.cs` in the checkout, but a citation can name a Unity
+asset by file name — `ControlMappingMenu.prefab`, found under
+`Resources/Assets/` — or a source file in an open-source dependency's own
+clone, such as CoreLib's `LocalizationModule.cs`, which sits beside the
+decompiled assemblies rather than inside them. Thirty-odd distinct names are in
+use. The rule is not "an assembly" but "whatever the tooling can resolve to a
+file", and a reader who expects only assemblies will read the other two as
+mistakes.
+
+Two abbreviations are still banned, and for the original reason. A paragraph
+citing the same assembly four times wants to drop it from the last three, and a
+passage unsure of an exact offset wants to mark that with a tilde:
 
 ```text
 `:419767`              assembly inherited from an earlier sentence
 `Pug.Other` ~355773    number outside the backticks
 ```
 
-Both read better than the full form. Neither matches the pattern a checker looks
-for, so both sit outside every verification — and that is invisible precisely
-because the citations themselves look fine.
+Both read better. Neither matches the pattern a checker looks for, so both sit
+outside every verification — invisible precisely because the citations
+themselves look fine. Several hundred references were once written that way,
+and an update invalidated them exactly as it did the checked ones, with nothing
+reporting it. A gate rejects them now, which is the only thing that keeps them
+from coming back, because the reason they appear is a good one and recurs with
+every paragraph that cites the same assembly twice.
 
-The cost is not theoretical. Of roughly 500 line references in this handbook,
-178 were in the checkable form and the rest were not; the `1.3` update
-invalidated all of them equally and only the checked third reported it. A gate
-now rejects the short forms, which is the only thing that keeps them from
-returning, because the reason they appeared is a good one and recurs with every
-paragraph that cites the same assembly twice.
+**Some chapters still carry the old form, and the way to find out is to ask.**
+The migration runs chapter by chapter inside each one's verification pass, so at
+any moment part of the handbook is anchored and part is not. `uv run
+utils/anchor_citations.py docs/ck/<chapter>.md` reports what a chapter still has
+in the absolute form; a list here would be wrong by the next pass. The escape
+hatch is spelled in that same old grammar and stays legal — what the gate stops
+accepting is a bare number where a type encloses the line, and it reports that
+rather than blocking on it.
 
-Two habits follow from the same reasoning. **Cite a declaration, not a line
-inside a body** — `_ClearCharacter(int i)` once pointed at a statement in its
-own body, which is harder to notice than being wrong, because the surrounding
-prose still reads correctly. And **spell out approximate offsets rather than
-marking them with a tilde**: three such references here sat one to six lines
-from what their sentence claimed, and expanding them was the occasion to find
-out.
+**Cite a declaration, not a line inside a body.** The notation now says this for
+you: a citation names its member, so a line that drifted away from the claim
+reads as "line 17 of this member" on a sentence about the declaration. It was
+invisible before — `_ClearCharacter(int i)` once pointed at a statement in its
+own body, and the surrounding prose still read correctly. Two such mismatches
+turned up in `docs/roadmap.md` the day its citations were anchored, having been
+unnoticeable for as long as they were bare numbers. And **spell out approximate
+offsets rather than marking them with a tilde**: three such references here sat
+one to six lines from what their sentence claimed, and expanding them was the
+occasion to find out.
 
 **Trap: decompile from stock DLLs.** If the installation carries locally applied
 IL patches — on macOS/CrossOver hosts it does, see [platforms and hosts](platforms.md)
