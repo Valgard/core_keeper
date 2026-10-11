@@ -29,6 +29,7 @@ Always exits 0 -- this is a report, not a gate.
 
 import argparse
 import difflib
+import itertools
 import json
 import re
 import subprocess
@@ -153,11 +154,18 @@ def changed_lines(root, commit, chapter):
     diff = difflib.unified_diff(
         normalise(before).splitlines(), normalise(after).splitlines(), n=0, lineterm=""
     )
+    # The two file headers are skipped by position, not by prefix. `---` is
+    # ordinary Markdown, and with the diff's own marker in front such a line
+    # reads as `----` -- a prefix test discards it as a header and the change
+    # vanishes. The direction is the dangerous one: it *under*-counts, and
+    # `classify` has no threshold, so a chapter with real prose edits would
+    # read as verified. `unified_diff` emits those two lines only when there is
+    # a hunk at all, so slicing an empty diff is still empty.
     added = deleted = 0
-    for line in diff:
-        if line.startswith("+") and not line.startswith("+++"):
+    for line in itertools.islice(diff, 2, None):
+        if line.startswith("+"):
             added += 1
-        elif line.startswith("-") and not line.startswith("---"):
+        elif line.startswith("-"):
             deleted += 1
     return (added, deleted)
 

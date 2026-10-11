@@ -228,6 +228,28 @@ class TestChangedLines:
 
         assert changed_lines(repo, commit, "a") == (1, 1)
 
+    def test_a_deleted_line_whose_text_begins_like_a_diff_header_is_counted(self, repo):
+        """`---` is ordinary Markdown, and the marker makes the diff line `----`.
+
+        Checking the prefix against every line discards that as a header, so
+        the deletion vanishes. The direction is the dangerous one: it
+        *under*-counts, and `classify` has no threshold, so a chapter with real
+        prose changes would read as verified.
+        """
+        _commit(repo, "docs/ck/a.md", "one\n---\nthree\n", "docs(ck): add a")
+        commit = self._head(repo)
+        (repo / "docs/ck/a.md").write_text("one\nthree\n")
+
+        assert changed_lines(repo, commit, "a") == (0, 1)
+
+    def test_an_added_line_whose_text_begins_like_a_diff_header_is_counted(self, repo):
+        """The same for `+++`, which a chapter could write in a diff example."""
+        _commit(repo, "docs/ck/a.md", "one\n", "docs(ck): add a")
+        commit = self._head(repo)
+        (repo / "docs/ck/a.md").write_text("one\n++added\n")
+
+        assert changed_lines(repo, commit, "a") == (1, 0)
+
     def test_a_chapter_absent_at_that_commit_counts_as_nothing(self, repo):
         """Today's behaviour for a chapter the verification predates."""
         _commit(repo, "docs/ck/a.md", "one\n", "docs(ck): add a")

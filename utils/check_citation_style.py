@@ -171,23 +171,30 @@ def structural_problems(path, decompile):
     from decompile_structure import locate
     from decompile_structure import structure_of
 
-    found, structures = [], {}
+    found, sources, structures = [], {}, {}
     for number, line in unfenced_lines(path):
         for token, citation in find(line):
             assembly = citation.assembly
-            if assembly not in structures:
-                source = source_for(assembly, decompile)
-                structures[assembly] = structure_of(source) if source is not None else None
+            if assembly not in sources:
+                sources[assembly] = source_for(assembly, decompile)
+                structures[assembly] = (
+                    structure_of(sources[assembly]) if sources[assembly] is not None else None
+                )
             structure = structures[assembly]
             if structure is None:
-                found.append(
-                    (
-                        number,
-                        f"`{token}`",
-                        f"not checked: no decompiled source for {assembly}",
-                        "nothing to do unless the name is wrong",
-                    )
-                )
+                # Two facts, not one, and only the second occurs in the real
+                # corpus: both prefab citations resolve to a file that is right
+                # there and simply is not C#. Collapsing them printed a message
+                # about a missing source that was false every time, with advice
+                # that sent the reader looking for the file. Same None-versus-()
+                # rule the structure layer keeps, one level up.
+                if sources[assembly] is None:
+                    why = f"not checked: nothing named {assembly} in the decompile"
+                    fix = "check the name, or add the assembly to the decompile"
+                else:
+                    why = f"not checked: {assembly} is not C#, so it has no elements to name"
+                    fix = "nothing to do — a line is the only anchor such a file has"
+                found.append((number, f"`{token}`", why, fix))
                 continue
 
             resolved = locate(structure, citation)
@@ -214,7 +221,17 @@ def structural_problems(path, decompile):
             if best is None or render(best) == token:
                 continue
             if tier(citation) == "absolute":
-                named = best.type_name if best.member is None else f"{best.type_name}:{best.member}"
+                # `best` is a member or type citation here -- an absolute one
+                # renders identically to the token and was filtered above -- but
+                # guard anyway: writing the word "None" into a finding tells a
+                # reader nothing and happened once already, from the range
+                # defect this same function used to have.
+                if best.type_name is None:
+                    named = "an element the structure layer could not name"
+                elif best.member is None:
+                    named = best.type_name
+                else:
+                    named = f"{best.type_name}:{best.member}"
                 found.append(
                     (
                         number,

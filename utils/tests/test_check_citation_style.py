@@ -254,7 +254,25 @@ def test_an_assembly_missing_from_the_checkout_is_skipped_with_its_reason(tmp_pa
     """One unresolvable assembly does not fail the file, and says why it was skipped."""
     path = write(tmp_path, "see `Absent.Assembly:Foo:Bar:1` here\n")
     assert whys(mod.structural_problems(path, fake_decompile)) == [
-        "not checked: no decompiled source for Absent.Assembly"
+        "not checked: nothing named Absent.Assembly in the decompile"
+    ]
+
+
+def test_a_file_that_is_found_but_not_csharp_says_that_instead(tmp_path, fake_decompile):
+    """Two facts, not one: the file is missing, or it is there and has no elements.
+
+    The only case that occurs in the real corpus is the second -- both prefab
+    citations resolve to a file that exists -- so a message about a missing
+    source was false every time it was printed, and its advice sent the reader
+    looking for a file that is right there. The spec's None-versus-() rule,
+    given up one level higher.
+    """
+    assets = fake_decompile / "Resources" / "Assets" / "GameObject"
+    assets.mkdir(parents=True)
+    (assets / "Thing.prefab").write_text("m_Name: Thing\n")
+    path = write(tmp_path, "see `Thing.prefab:1` here\n")
+    assert whys(mod.structural_problems(path, fake_decompile)) == [
+        "not checked: Thing.prefab is not C#, so it has no elements to name"
     ]
 
 
