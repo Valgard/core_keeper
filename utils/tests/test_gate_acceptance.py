@@ -36,6 +36,59 @@ from decompile_structure import structure_of
 
 
 @pytest.fixture(scope="module")
+def generated_ranges(tmp_path_factory, decompile, range_citations):
+    """The same path for the handbook's 127 range citations, which have their own.
+
+    Separate because the gap that let a real defect through was precisely this:
+    the `corpus` fixture keys on a citation's first line, so a chapter
+    generated from it contains no ranges, and the style checker's structural
+    half -- which judged every range against the description of its first line,
+    naming a different element for 133 of the corpus's findings -- could not be
+    reached by any test in this file.
+    """
+    structures = {}
+    lines, written = [], []
+    for assembly, first, last in range_citations:
+        if assembly not in structures:
+            source = source_for(assembly, decompile)
+            structures[assembly] = structure_of(source) if source is not None else None
+        structure = structures[assembly]
+        if structure is None:
+            continue
+        citation = describe(structure, first, assembly, last=last)
+        if citation is None:
+            continue
+        token = render(citation)
+        written.append((assembly, first, token))
+        lines.append(f"the span `{token}` covers it")
+
+    chapter = tmp_path_factory.mktemp("ranges") / "docs" / "ck" / "ranges.md"
+    chapter.parent.mkdir(parents=True, exist_ok=True)
+    chapter.write_text("\n".join(lines) + "\n")
+    return chapter, written
+
+
+def test_the_style_checker_accepts_every_range_describe_writes(generated_ranges, decompile):
+    """A migrated range must not be reported for ever as longer than necessary."""
+    chapter, written = generated_ranges
+    assert len(written) >= 100, f"only {len(written)} ranges — the fixture or corpus moved"
+
+    assert syntactic_problems(chapter) == []
+    assert structural_problems(chapter, decompile) == []
+
+
+def test_every_generated_range_keeps_its_span(generated_ranges):
+    """`describe` must not collapse a span, which is how the defect first showed."""
+    _, written = generated_ranges
+    collapsed = []
+    for _assembly, _first, token in written:
+        citation = parse(token)
+        if citation is None or citation.first == citation.last:
+            collapsed.append(token)
+    assert collapsed == [], f"{len(collapsed)} range(s) lost their span: {collapsed[:5]}"
+
+
+@pytest.fixture(scope="module")
 def generated(tmp_path_factory, decompile, corpus):
     """(chapter path, [(assembly, line, token)]) for the whole corpus, built once.
 

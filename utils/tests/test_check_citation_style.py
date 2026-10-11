@@ -5,6 +5,7 @@ a quantity, so that is what these test. A checker that also rejected `~143 MB`
 would be turned off within a week, and then the short form comes back.
 """
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -158,13 +159,22 @@ class Foo
     {
         x();
     }
+
+    void Baz()
+    {
+        y();
+    }
 }
 """
 
 
+def _git(cwd, *args):
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
+
+
 @pytest.fixture
 def fake_decompile(tmp_path):
-    """A decompile tree holding one assembly, `A`, with one member.
+    """A decompile tree holding one assembly, `A`, with two members.
 
     Line 4 is inside `Bar`, and `Bar` is the type's only member -- so `Bar` is
     already the minimal form while `Bar()` is a longer one that still resolves.
@@ -276,6 +286,55 @@ def test_every_markdown_file_is_checked_not_only_docs_ck(tmp_path):
     """The reach decision: the syntactic half runs in the mod repositories."""
     (tmp_path / "README.md").write_text("see `:419767` here\n")
     assert mod.main([str(tmp_path)]) == 1
+
+
+def test_a_range_is_judged_against_the_element_holding_the_whole_span(tmp_path, fake_decompile):
+    """Describing only the first line names the wrong element and drops the range.
+
+    Measured on the real corpus before this was fixed: 133 of 894 findings
+    suggested a citation that threw the span away, and some named a different
+    element entirely -- `ScriptableData:34-45` spans three field declarations
+    and the checker advised `...:m_guid:1`, where describing the whole span
+    gives `ScriptableData:DataBlockAddress:5-16`.
+    """
+    path = write(tmp_path, "see `A:4-9` here\n")
+    whats = [why for _, _, why, _ in mod.structural_problems(path, fake_decompile)]
+    assert whats == ["line is inside Foo, which the citation could name"]
+
+
+def test_a_range_already_anchored_on_its_element_is_no_problem(tmp_path, fake_decompile):
+    """A migrated range must not be reported for ever as longer than necessary."""
+    path = write(tmp_path, "see `A:Foo:3-8` here\n")
+    assert mod.structural_problems(path, fake_decompile) == []
+
+
+def test_the_structural_half_is_skipped_when_the_parser_is_missing(monkeypatch, tmp_path):
+    """Tied to tree-sitter being importable, not only to the decompile existing.
+
+    With a decompile present and the parser absent the run used to die with an
+    ImportError traceback and a non-zero exit -- a blocking structural half,
+    which is exactly what the design forbids.
+    """
+    monkeypatch.setitem(sys.modules, "decompile_structure", None)
+    ready, reason = mod.structural_available(tmp_path)
+    assert not ready
+    assert "tree-sitter" in reason
+
+
+def test_a_frozen_path_stays_unchecked_when_a_subdirectory_is_the_root(tmp_path):
+    """`UNCHECKED` is repo-relative, so it has to be matched against the repo.
+
+    The same defect `CLAUDE.md` records for `check_docs_wrapping --fix docs/`:
+    passing an intermediate directory made the exclusion miss, and here that
+    turns a *blocking* gate red on files it is meant to leave alone.
+    """
+    _git(tmp_path, "init", "-q")
+    spec = tmp_path / "docs" / "specs" / "a-design.md"
+    spec.parent.mkdir(parents=True)
+    spec.write_text("see `:419767` here\n")
+
+    assert mod.markdown_files(tmp_path / "docs") == []
+    assert mod.main([str(tmp_path / "docs")]) == 0
 
 
 @pytest.mark.parametrize(

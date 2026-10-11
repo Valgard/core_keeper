@@ -202,7 +202,15 @@ def structural_problems(path, decompile):
                 )
                 continue
 
-            best = describe(structure, resolved, assembly)
+            # The whole span, not just its first line. Describing one end names
+            # whatever element holds that line, which for a range crossing out
+            # of it is a different element entirely: `ScriptableData:34-45`
+            # spans three field declarations, and describing line 34 alone
+            # advised `...:m_guid:1` -- a field, with the range thrown away.
+            # 133 of the corpus's 894 findings were that mistake.
+            best = describe(
+                structure, resolved, assembly, last=resolved + citation.last - citation.first
+            )
             if best is None or render(best) == token:
                 continue
             if tier(citation) == "absolute":
@@ -227,6 +235,52 @@ def structural_problems(path, decompile):
     return found
 
 
+def structural_available(decompile):
+    """(ready, reason) — whether the structural half can run in this checkout.
+
+    Two conditions, not one. The decompile has to be there, and `tree-sitter`
+    has to be importable: a mod repository can have the first without the
+    second, and a bare `import` would then end the run with a traceback and a
+    non-zero exit — a blocking structural half, which is the one thing this
+    design rules out. Checked once in `main` rather than per file, so the
+    reason is stated once too.
+    """
+    if not Path(decompile).is_dir():
+        return False, f"no decompile tree at {decompile}"
+    try:
+        import decompile_structure  # noqa: F401
+    except ImportError as exc:
+        return False, f"tree-sitter is not installed here ({exc})"
+    return True, ""
+
+
+def _repo_relative(root):
+    """A function turning a path into one relative to the repository, if there is one.
+
+    `UNCHECKED` lists repository-relative prefixes, and `git ls-files -C root`
+    reports paths relative to `root` — so the two only agree when `root` *is*
+    the repository. Pass a subdirectory and every exclusion silently misses,
+    which for a blocking gate means turning red on the files it exists to leave
+    alone. `CLAUDE.md` records the same defect in `check_docs_wrapping --fix
+    docs/`, where it rewrote eight frozen specs; here it is cheaper to fix than
+    to document.
+    """
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    try:
+        top = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
+        ).stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return lambda path: str(Path(path).relative_to(root))
+
+    toplevel = Path(top).resolve()
+    return lambda path: str(Path(path).resolve().relative_to(toplevel))
+
+
 def markdown_files(root):
     """Every `*.md` under `root` that git would show, or a plain walk without git.
 
@@ -240,6 +294,7 @@ def markdown_files(root):
     tests run and how a bare directory of documentation would.
     """
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    relative = _repo_relative(root)
     try:
         result = subprocess.run(
             [
@@ -257,15 +312,10 @@ def markdown_files(root):
             check=True,
             env=env,
         )
+        found = [Path(root) / line for line in dict.fromkeys(result.stdout.splitlines()) if line]
     except (subprocess.CalledProcessError, FileNotFoundError):
-        found = sorted(p for p in Path(root).rglob("*.md") if p.is_file())
-        return [p for p in found if not str(p.relative_to(root)).startswith(UNCHECKED)]
-    seen = dict.fromkeys(result.stdout.splitlines())
-    return [
-        Path(root) / line
-        for line in seen
-        if line and (Path(root) / line).is_file() and not line.startswith(UNCHECKED)
-    ]
+        found = sorted(Path(root).rglob("*.md"))
+    return [p for p in found if p.is_file() and not relative(p).startswith(UNCHECKED)]
 
 
 def main(argv=None):
@@ -291,7 +341,7 @@ def main(argv=None):
         return 0
 
     decompile = Path(args.decompile).expanduser()
-    structural_ready = decompile.is_dir()
+    structural_ready, skip_reason = structural_available(decompile)
 
     blocking = structural = 0
     for path in files:
@@ -304,7 +354,7 @@ def main(argv=None):
                 print(f"{path}:{number}: {text}  — {why}; {fix}")
 
     if not structural_ready:
-        print(f"structural checks skipped — no decompile tree at {decompile}")
+        print(f"structural checks skipped — {skip_reason}")
 
     if blocking:
         print(f"\n{blocking} unverifiable line reference(s).")

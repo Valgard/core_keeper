@@ -114,6 +114,30 @@ def corpus():
     return sorted(cited)
 
 
+@pytest.fixture(scope="session")
+def range_citations():
+    """Every unique range citation the handbook carries, as (assembly, first, last).
+
+    Shared rather than local to one suite because dropping the span is how a
+    real defect got through: the `corpus` fixture keys on the first line alone,
+    so a suite resting only on it cannot reach any code path that treats a
+    range differently from a single line — and the style checker's structural
+    half had exactly such a path, judging every range against the description
+    of its first line.
+    """
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from citation_notation import find
+
+    root = pathlib.Path(__file__).resolve().parents[2] / "docs" / "ck"
+    spans = {
+        (citation.assembly, citation.first, citation.last)
+        for chapter in sorted(root.glob("*.md"))
+        for _, citation in find(chapter.read_text())
+        if citation.first != citation.last
+    }
+    return sorted(spans)
+
+
 PIXAKI_FORMS = ("zip", "directory")
 
 # What a real Pixaki export carries besides its files. A ZIP stores these as

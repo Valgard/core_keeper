@@ -36,10 +36,7 @@ It needs the decompile checkout and skips loudly without one. A skip here means
 the suite proved nothing about the handbook, which is different from passing.
 """
 
-from pathlib import Path
-
 import pytest
-from check_citation_drift import CITATION
 from check_citation_drift import source_for
 from citation_notation import parse
 from citation_notation import render
@@ -164,19 +161,6 @@ def test_every_citation_is_accounted_for_in_exactly_one_tier(corpus, structures)
     """
     assert sum(_census(corpus, structures).values()) == len(corpus)
     assert corpus, "the corpus is empty -- the citation regex or docs/ck moved"
-
-
-@pytest.fixture(scope="module")
-def range_citations():
-    """Every unique range citation the handbook carries, as (assembly, first, last)."""
-    root = Path(__file__).resolve().parents[2] / "docs" / "ck"
-    spans = set()
-    for chapter in sorted(root.glob("*.md")):
-        for match in CITATION.finditer(chapter.read_text()):
-            citation = parse(match.group(0).strip("`"))
-            if citation is not None and citation.first != citation.last:
-                spans.add((citation.assembly, citation.first, citation.last))
-    return sorted(spans)
 
 
 def test_every_citation_survives_being_written_and_read_back(corpus, structures):
