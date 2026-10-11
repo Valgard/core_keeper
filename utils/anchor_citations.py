@@ -5,7 +5,7 @@
 `Pug.Other:SmallTitleUIBackground:UpdateTextAndBackground:29`: the same line,
 named by the element that contains it, so that a game update which does not
 touch that element leaves the citation alone. The design and its reasoning are
-`docs/specs/2026-10-10-symbol-anchored-citations-design.md`.
+`docs/adrs/004-symbol-anchored-handbook-citations.md`.
 
 **One file at a time, and all of it or none of it.** A chapter written half in
 one notation and half in the other has one snapshot key per citation either
