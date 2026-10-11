@@ -144,13 +144,17 @@ def changed_words(root, commit, chapter):
     **Words rather than lines, because anchoring a chapter's citations forces
     a rewrap.** An anchored citation runs some 40 characters longer than the
     absolute number it replaces, so every paragraph holding one overflows the
-    width its file is written at and the wrapping gate rewraps it. Measured
-    on `harmony-and-ecs` against `4bad12e`: the migration plus that rewrap
-    reads as 427 added and 300 deleted lines, against 557/0 for the prose
-    actually written since the pass -- seven times the real figure, from a
-    change in which no word moved. Word-wise the migration is 0/0, a single
-    changed word is still counted, and the comparison no longer has an
-    opinion about where the breaks fall.
+    width its file is written at and the wrapping gate rewraps it. Measured on
+    `harmony-and-ecs` against its verification commit `4bad12e`, in both units
+    so that neither figure is compared with the other's:
+
+        prose written since the pass      61/0 lines      557/0 words
+        the anchoring and its rewrap     370/301 lines      0/0 words
+        what the tool would report       429/299 lines    557/0 words
+
+    Seven times the real figure, line-wise, from a change in which no word
+    moved. Word-wise a single changed word is still counted and the comparison
+    has no opinion about where the breaks fall.
 
     It also retires a hazard rather than fixing it. The line version parsed
     unified-diff output and had to skip the two file headers by position,
@@ -268,12 +272,15 @@ def main(argv=None):
     partial = [n for n in chapters if statuses[n].state == "partial"]
     if partial:
         # Names the raw diff deliberately, with a word about why its numbers
-        # will not match: the counts above are words, taken after normalising
-        # the citations away, and a reader who ran the plain command and saw
-        # +92/-31 lines against a reported +61/-0 would reasonably think one
-        # of them lying. Two things are now folded away rather than one --
-        # renumbered or re-anchored citations, and the rewrap that anchoring
-        # forces, in which no word moves at all.
+        # will not match. The counts above are words, taken after normalising
+        # the citations away; the plain command counts lines of the text as
+        # written. For `harmony-and-ecs` against its verification commit that
+        # is 452/322 lines raw against a reported 557/0 words, and the
+        # asymmetry runs the way a reader does not expect: the reported figure
+        # is the *larger* one, because a line holds several words. Two things
+        # are folded away rather than one -- renumbered or re-anchored
+        # citations, and the rewrap that anchoring forces, in which no word
+        # moves at all.
         print("\nunverified hunks: git diff <commit> -- docs/ck/<chapter>.md")
         print("(that diff counts lines, citations and rewrapping; the figures above count words)")
     return 0

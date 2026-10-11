@@ -43,13 +43,15 @@ update or on installing a mod that registers replicated types.
 The commands worth sending are public on `NetworkingManager` and are thin — each
 creates one entity carrying `NetworkCommandRpc` + `SendRpcCommandRequest`:
 `RemoveAdmin(PlayerController, World)`, `AddAdmin(…)`, `SetGuestMode(bool,
-World)` (`Pug.Other:NetworkingManager:583-625`). **The server admits them only from a sender
-holding admin privileges above zero** — one gate in front of the whole command
-switch, with `ChangePvPTeam` answered before it as the sole exception
-(`DedicatedServer/Pug.Other:NetworkCommandServerSystem_59CC188E_LambdaJob_2_Job:OriginalLambdaBody:6`, gate at
-`DedicatedServer/Pug.Other:NetworkCommandServerSystem_59CC188E_LambdaJob_2_Job:OriginalLambdaBody:19`). So the tool needs an identity that the
-server's `Admins.json` lists, and a connection holding no rights can send
-nothing but a PvP-team change.
+World)` (`Pug.Other:NetworkingManager:583-625`). **The server admits them only
+from a sender holding admin privileges above zero** — one gate in front of the
+whole command switch, with `ChangePvPTeam` answered before it as the sole
+exception
+(`DedicatedServer/Pug.Other:NetworkCommandServerSystem_59CC188E_LambdaJob_2_Job:OriginalLambdaBody:6`,
+gate at
+`DedicatedServer/Pug.Other:NetworkCommandServerSystem_59CC188E_LambdaJob_2_Job:OriginalLambdaBody:19`).
+So the tool needs an identity that the server's `Admins.json` lists, and a
+connection holding no rights can send nothing but a PvP-team change.
 
 An earlier version of this point claimed the opposite — that `SetGuestMode` and
 `RemoveAdmin` go unchecked — from having found `AddOrUpdateAdmin`'s own,
@@ -58,8 +60,9 @@ running server refused a `SetGuestMode` with `Ignoring admin command from
 non-admin player`. The gate is a property of the game, not of this workspace.
 
 A server-side mod is not an alternative: the same operations are `internal`
-there (`DedicatedServer/Pug.Other:NetworkingManager:RemoveAdminInternal(Entity, …):1`), and the Roslyn sandbox forbids the
-reflection that would reach them.
+there
+(`DedicatedServer/Pug.Other:NetworkingManager:RemoveAdminInternal(Entity, …):1`),
+and the Roslyn sandbox forbids the reflection that would reach them.
 
 **Still to decide.**
 

@@ -90,7 +90,10 @@ def decompile():
 
 
 def _absolute_lines(decompile):
-    """`(assembly, first, last)` in absolute lines for every citation in docs/ck.
+    """Absolute `(assembly, first, last)` per citation in docs/ck, and the misses.
+
+    Returns `(spans, unresolved)`: the lines every citation points at, and the
+    tokens no line could be found for.
 
     Collected with `citation_notation.find` rather than the old `CITATION`
     regex, which matters from the first migrated chapter onward: that regex
@@ -106,9 +109,13 @@ def _absolute_lines(decompile):
     where no type encloses anything. Every suite here rests on these lines
     meaning what the handbook points at.
 
-    A citation that no longer resolves is left out. That is the drift gate's
-    finding to report, with the recorded text to say what changed; a fixture
-    that invented a line for it would hide the one thing worth knowing.
+    A citation that no longer resolves is left out and **returned alongside**.
+    Leaving it out is right -- there is no line to measure, and the drift gate
+    has the recorded text to say what changed, where a fixture inventing a
+    line would hide the only thing worth knowing. Returning it is what keeps
+    that from being a silent shrink, which is the defect the paragraph above
+    warns about for a different cause: the only other guard is a floor of 500
+    on a corpus of 790, so every anchored citation could vanish and pass.
     """
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from check_citation_drift import source_for
@@ -118,9 +125,9 @@ def _absolute_lines(decompile):
     from decompile_structure import structure_of
 
     root = pathlib.Path(__file__).resolve().parents[2] / "docs" / "ck"
-    structures, spans = {}, set()
+    structures, spans, unresolved = {}, set(), set()
     for chapter in sorted(root.glob("*.md")):
-        for _, citation in find(chapter.read_text()):
+        for token, citation in find(chapter.read_text()):
             if tier(citation) == "absolute":
                 spans.add((citation.assembly, citation.first, citation.last))
                 continue
@@ -129,9 +136,22 @@ def _absolute_lines(decompile):
                 structures[citation.assembly] = structure_of(path) if path else None
             structure = structures[citation.assembly]
             start = locate(structure, citation) if structure else None
-            if start is not None:
+            if start is None:
+                unresolved.add(token)
+            else:
                 spans.add((citation.assembly, start, start + citation.last - citation.first))
-    return spans
+    return spans, tuple(sorted(unresolved))
+
+
+@pytest.fixture(scope="session")
+def unresolved(decompile):
+    """Every citation in `docs/ck/` that no longer resolves to a line.
+
+    Empty today, and a test asserts that rather than leaving it implied --
+    the corpus fixtures drop these, and a drop nobody counts is how a suite
+    comes to test less than it claims.
+    """
+    return _absolute_lines(decompile)[1]
 
 
 @pytest.fixture(scope="session")
@@ -143,7 +163,7 @@ def corpus(decompile):
     lines are arrived at, and why an anchored citation cannot be read at face
     value, is `_absolute_lines`.
     """
-    return sorted({(assembly, first) for assembly, first, _ in _absolute_lines(decompile)})
+    return sorted({(assembly, first) for assembly, first, _ in _absolute_lines(decompile)[0]})
 
 
 @pytest.fixture(scope="session")
@@ -162,7 +182,7 @@ def range_citations(decompile):
     defect: a suite resting on relative offsets would go on comparing spans
     correctly while measuring code nobody cites.
     """
-    return sorted({span for span in _absolute_lines(decompile) if span[1] != span[2]})
+    return sorted({span for span in _absolute_lines(decompile)[0] if span[1] != span[2]})
 
 
 PIXAKI_FORMS = ("zip", "directory")

@@ -194,6 +194,11 @@ class TestRefusals:
         The same empty mapping that stops a chapter is the normal state here,
         so the difference has to be visible: one proof was available instead
         of two, and a reader of the report is told which.
+
+        It rides on the rewrite rather than in the notes, because the citation
+        *is* rewritten -- a note would be counted as "kept as written", which
+        is how the report once claimed two kept citations out of four, none of
+        which was kept.
         """
         tree = make_decompile(tmp_path)
         path = make_file(tmp_path, "the call `Pug.Other:8`\n", name="docs/roadmap.md")
@@ -201,8 +206,8 @@ class TestRefusals:
         rewrites, notes, refusals = mod.plan_file(path, tree, {})
 
         assert refusals == ()
-        assert [r.anchored for r in rewrites] == ["Pug.Other:Foo:Bar:3"]
-        assert any("the round trip is the only proof" in note for note in notes)
+        assert notes == ()
+        assert [(r.anchored, r.recorded) for r in rewrites] == [("Pug.Other:Foo:Bar:3", False)]
 
     def test_a_citation_naming_no_decompiled_file_is_refused(self, tmp_path, recorded):
         """An assembly the decompile has nothing by is a broken citation, not a tier."""
@@ -318,6 +323,26 @@ class TestCli:
         assert "0 citation(s) to anchor" in out
         assert "1 already anchored" in out
 
+    def test_a_citation_with_no_recorded_text_is_not_counted_as_kept(self, tmp_path, capsys):
+        """It is rewritten, so counting it as kept contradicts the line above it.
+
+        Measured on the file the plan chose to exercise this path --
+        `docs/roadmap.md`, 2 of whose 4 citations have no snapshot record --
+        the run printed "4 citation(s) to anchor, 2 kept as written" from four
+        citations of which none was kept. The summary exists so that "nothing
+        to do" is distinguishable from "not looked at"; two citations counted
+        twice under contradictory labels is the same defect one layer in.
+        """
+        tree = make_decompile(tmp_path)
+        path = make_file(tmp_path, "the call `Pug.Other:8` and `Pug.Other:4`\n")
+
+        code = mod.main([str(path), "--decompile", str(tree), "--snapshot", str(tmp_path / "none")])
+
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "2 citation(s) to anchor, 0 kept as written" in out
+        assert "the round trip is the only proof" in out
+
     def test_a_missing_decompile_tree_is_reported_rather_than_traced(self, tmp_path, capsys):
         """The same shape as the sibling checkers: a missing tree is exit 1 with a sentence."""
         path = make_file(tmp_path, "the call `Pug.Other:8`\n")
@@ -343,8 +368,8 @@ class TestApply:
             tmp_path, "see `Pug.Other:37085`, `Pug.Other:370859` and `Pug.Other:37085`\n"
         )
         rewrites = (
-            mod.Rewrite("Pug.Other:37085", "Pug.Other:Foo:Bar:1", 37085, 2),
-            mod.Rewrite("Pug.Other:370859", "Pug.Other:Foo:Baz:9", 370859, 1),
+            mod.Rewrite("Pug.Other:37085", "Pug.Other:Foo:Bar:1", 37085, 2, True),
+            mod.Rewrite("Pug.Other:370859", "Pug.Other:Foo:Baz:9", 370859, 1, True),
         )
 
         replaced = mod.apply_rewrites(path, rewrites)
@@ -353,6 +378,23 @@ class TestApply:
         assert path.read_text() == (
             "see `Pug.Other:Foo:Bar:1`, `Pug.Other:Foo:Baz:9` and `Pug.Other:Foo:Bar:1`\n"
         )
+
+    def test_a_count_that_does_not_match_the_plan_is_an_error(self, tmp_path):
+        """What `occurrences` is documented to catch, now actually compared.
+
+        The field's docstring says it makes a partial rewrite "visible as a
+        mismatch", and nothing compared it: `apply_rewrites` returned the
+        count, `main` printed it, and the post-condition only asked whether
+        each anchored token was findable at least once. A plan built against
+        one revision of a file and applied to another is the case that
+        produces it.
+        """
+        path = make_file(tmp_path, "the call `Pug.Other:8` once\n")
+
+        with pytest.raises(RuntimeError, match="the plan counted 3"):
+            mod.apply_rewrites(
+                path, (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 3, True),)
+            )
 
     def test_a_token_that_does_not_land_in_the_file_is_an_error(self, tmp_path, monkeypatch):
         """The post-condition for the hazard the wrapping gate now prevents.
@@ -367,7 +409,9 @@ class TestApply:
         monkeypatch.setattr(mod, "find", lambda line: [])
 
         with pytest.raises(RuntimeError, match=re.escape("Pug.Other:Foo:Bar:3")):
-            mod.apply_rewrites(path, (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1),))
+            mod.apply_rewrites(
+                path, (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1, True),)
+            )
 
 
 class TestRekey:
@@ -382,7 +426,7 @@ class TestRekey:
         is the check that the new form points at the claim that was read.
         """
         snapshot = {"citations": {"Pug.Other:8": ["int x = 1;"]}, "game_version": "1.3.0.6-6e73"}
-        rewrites = (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1),)
+        rewrites = (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1, True),)
 
         after = mod.rekey_snapshot(snapshot, rewrites, {"Pug.Other:Foo:Bar:3"})
 
@@ -397,7 +441,7 @@ class TestRekey:
         reads as an instruction to capture what is already recorded.
         """
         snapshot = {"citations": {"Pug.Other:8": ["int x = 1;"]}}
-        rewrites = (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1),)
+        rewrites = (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1, True),)
 
         after = mod.rekey_snapshot(snapshot, rewrites, {"Pug.Other:8", "Pug.Other:Foo:Bar:3"})
 
@@ -416,7 +460,7 @@ class TestRekey:
         side -- the chapter that still cites it would read as uncaptured.
         """
         snapshot = {"citations": {"Pug.Other:8": ["int x = 1;"]}}
-        rewrites = (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1),)
+        rewrites = (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1, True),)
 
         after = mod.rekey_snapshot(snapshot, rewrites, {"Pug.Other:8"})
 
@@ -425,7 +469,7 @@ class TestRekey:
     def test_the_game_version_survives_the_rekey(self):
         """`verify_status` reads it to name the current build when no decompile is present."""
         snapshot = {"citations": {"Pug.Other:8": ["int x = 1;"]}, "game_version": "1.3.0.6-6e73"}
-        rewrites = (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1),)
+        rewrites = (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1, True),)
 
         after = mod.rekey_snapshot(snapshot, rewrites, {"Pug.Other:Foo:Bar:3"})
 
@@ -489,16 +533,7 @@ class TestApplyIsAtomic:
         snapshot = make_snapshot(tmp_path, recorded)
 
         code = mod.main(
-            [
-                str(path),
-                "--apply",
-                "--root",
-                str(tmp_path),
-                "--decompile",
-                str(tree),
-                "--snapshot",
-                str(snapshot),
-            ]
+            [str(path), "--apply", "--decompile", str(tree), "--snapshot", str(snapshot)]
         )
 
         assert code == 0
@@ -506,6 +541,59 @@ class TestApplyIsAtomic:
         citations = json.loads(snapshot.read_text())["citations"]
         assert citations["Pug.Other:Foo:Bar:3"] == ["int x = 1;"]
         assert "Pug.Other:8" not in citations
+
+    def test_a_rekey_reads_the_chapters_of_the_file_s_own_repository(
+        self, tmp_path, recorded, monkeypatch
+    ):
+        """Not the ones under the working directory, which is how records were lost.
+
+        `--root` defaulted to `.`, so the documented command run from any
+        other directory globbed `./docs/ck/*.md`, found nothing, and handed
+        `rekey_snapshot` an empty census as the authoritative answer: nothing
+        is cited, therefore every record this file touched is stale. Measured
+        on a copy of the real corpus before the fix -- 809 records in, 807
+        out, prose rewritten, exit 0, and the message said "re-keyed".
+
+        Worse than a red gate. The recorded text is the only proof that the
+        anchored form points at the line the claim was weighed against, and
+        once it is gone the repair a reader reaches for is `--capture`, which
+        writes what the line says now. An empty census is the house example
+        of a silent zero and must not be a legitimate answer on a write path.
+        """
+        tree = make_decompile(tmp_path)
+        path = make_file(tmp_path, "the call `Pug.Other:8`\n", name="docs/ck/a.md")
+        snapshot = make_snapshot(tmp_path, recorded)
+        monkeypatch.chdir(tmp_path / "docs")
+
+        code = mod.main(
+            [str(path), "--apply", "--decompile", str(tree), "--snapshot", str(snapshot)]
+        )
+
+        assert code == 0
+        citations = json.loads(snapshot.read_text())["citations"]
+        assert citations["Pug.Other:Foo:Bar:3"] == ["int x = 1;"]
+
+    def test_a_file_with_no_repository_above_it_is_refused_rather_than_rekeyed(
+        self, tmp_path, recorded, capsys
+    ):
+        """No `docs/ck/` above the file means no census can be taken.
+
+        The alternative is to take one anyway and get an empty answer, which
+        is the defect above. A refusal costs a message; guessing costs the
+        snapshot.
+        """
+        tree = make_decompile(tmp_path)
+        path = make_file(tmp_path, "the call `Pug.Other:8`\n", name="loose/a.md")
+        snapshot = make_snapshot(tmp_path, recorded)
+        before = snapshot.read_text()
+
+        code = mod.main(
+            [str(path), "--apply", "--decompile", str(tree), "--snapshot", str(snapshot)]
+        )
+
+        assert code == 1
+        assert "no docs/ck" in capsys.readouterr().out
+        assert snapshot.read_text() == before
 
     def test_nothing_is_written_without_apply(self, tmp_path, recorded):
         """The default is a report: the flag is what authorises a write."""

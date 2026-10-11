@@ -40,6 +40,8 @@ from check_citation_drift import DEFAULT_DECOMPILE
 from check_citation_drift import DEFAULT_SNAPSHOT
 from check_citation_drift import key_of
 from check_citation_drift import source_for
+from citation_notation import find
+from citation_notation import tier
 
 
 def find_sequence(haystack, needle):
@@ -176,11 +178,20 @@ def main():
 
     # Which citations are actually in the handbook, and where.
     cited = {}
+    anchored = 0
     for chapter in sorted((Path(args.root) / "docs" / "ck").glob("*.md")):
-        for m in CITATION.finditer(chapter.read_text()):
+        text = chapter.read_text()
+        for m in CITATION.finditer(text):
             assembly, first = m.group(1), int(m.group(2))
             last = int(m.group(3) or m.group(2))
             cited.setdefault(key_of(assembly, first, last), []).append(chapter.name)
+        # Counted so the report can say what it did not look at. `CITATION`
+        # matches an absolute line and nothing else, so an anchored citation is
+        # invisible here -- which is correct, nothing stored carries its line
+        # any more -- but a bare "N citations examined" would then read as the
+        # handbook, and the spec warns that this tool's workload must not be
+        # mistaken for a migration-progress counter.
+        anchored += sum(1 for _, citation in find(text) if tier(citation) != "absolute")
 
     # Two passes. The first settles every citation whose recorded text occurs
     # exactly once; the second reuses those as anchors, which is what makes a
@@ -230,7 +241,7 @@ def main():
         by_verdict.setdefault(r[3], []).append(r)
 
     order = ["unchanged", "moved", "ambiguous", "gone", "unresolvable", "unrecorded"]
-    print(f"{len(results)} citations examined\n")
+    print(f"{len(results)} citations examined, {anchored} anchored on a symbol and skipped\n")
     for verdict in order:
         rows = by_verdict.get(verdict, [])
         if rows:

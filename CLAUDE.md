@@ -479,13 +479,21 @@ human-facing setup; what matters when editing code here:
   repo's hook passes, where its sibling has always taken a root. Wiring it in
   cost a rewrap of about 700 lines across twelve repos first, because of the
   next bullet.
-- **A staged `.md` also runs the two citation gates** (`core_keeper` only, so
-  far): `utils/check_citation_drift.py` resolves every citation in `docs/ck/`
-  against the decompile and compares the line's text with
-  `utils/ck-citation-snapshot.json`, and `utils/check_citation_style.py` checks
-  the citations' form. Practical consequence: **a citation inserted without
-  `--capture` blocks the next documentation commit**, in the shape "not in the
-  snapshot", and the commit it blocks is usually somebody else's.
+- **A staged `.md` also runs the citation *style* checker**
+  (`utils/check_citation_style.py`, `core_keeper` only so far), and that is the
+  only citation gate a commit runs. **`utils/check_citation_drift.py` is not
+  wired into any hook** — it resolves every citation in `docs/ck/` against the
+  decompile and compares the line's text with `utils/ck-citation-snapshot.json`,
+  and it is run by hand: the `ck-verify-chapter` skill calls for it before and
+  after a pass, and `utils/anchor_citations.py` refuses a chapter whose records
+  disagree. Practical consequence, and the reason this is spelled out: **a
+  citation inserted without `--capture` blocks nothing and is reported by
+  nothing at commit time.** It surfaces whenever somebody next runs the drift
+  check, as a citation "not in the snapshot" — which has already cost one later
+  pass fifteen false positives it had no part in creating. Nothing mechanical
+  stands behind that `--capture`; wiring it would need deciding first what the
+  hook does on a checkout with no decompile, where today the script exits 1 and
+  would block every documentation commit.
 - **The style checker's two halves fail differently, and only one blocks.** The
   syntactic half asks whether a citation is well-formed at all, needs nothing
   but the text, and rejects — a malformed citation is checkable by nobody. The

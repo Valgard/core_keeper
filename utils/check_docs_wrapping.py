@@ -75,7 +75,9 @@ def glue_citations(text):
     The counterpart to `glue_links` for the other reference this handbook
     writes that carries a space: a member specification's parameter list, as
     in `Pug.Other:RuntimeDataBlocks:CreateRuntimeInstance(Type, long, …):16`.
-    41 of the 820 citations the handbook can anchor have one.
+    41 of the handbook's 809 distinct citations carry one, whether already
+    anchored or still to be -- a count of the hazard, not of the migration's
+    progress, so it does not move as chapters are anchored.
 
     A split citation is worse than a split link, which is the reason this
     exists rather than a preference. A broken link survives as visible
@@ -356,12 +358,20 @@ def defects(para, width):
         if visible_len(line) > width + OVERSHOOT and not LINK_TOKEN.search(line):
             # Glued first, so a space inside a citation is not mistaken for a
             # break opportunity. Gluing does not change the length, so the
-            # slice still names the same columns. Without it, the anchored
+            # slices still name the same columns. Without it, the anchored
             # `platforms.md` reports a 103-column line nothing can shorten --
             # it is `(`, a 99-column citation and `;` -- and the fixer and the
             # checker then disagree until FIX_PASSES runs out.
-            head = glue_citations(line)[: width + 1].rstrip()
-            if " " in head[20:]:
+            #
+            # Looked for past the window as well, because a citation can fill
+            # the window on its own and hide every break behind it. That cost
+            # seven lines on the branch that introduced the glue, the longest
+            # 142 columns in a file wrapped at 80 -- a line of one citation
+            # plus a trailing clause, where moving the clause down shortens it
+            # to 103. What stays exempt is a line with no space at all outside
+            # its citations: there, nothing can move anywhere.
+            glued = glue_citations(line)
+            if " " in glued[: width + 1].rstrip()[20:] or " " in glued[width + 1 :]:
                 found.append((offset, f"{visible_len(line)} visible columns, target {width}"))
     for offset, (line, nxt) in enumerate(pairwise(para)):
         # a link belongs on the line it started on, however long that makes

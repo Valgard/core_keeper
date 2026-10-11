@@ -167,6 +167,24 @@ def test_every_citation_is_accounted_for_in_exactly_one_tier(corpus, structures)
     assert len(corpus) >= 500, f"only {len(corpus)} citations — the fixture or docs/ck moved"
 
 
+def test_the_corpus_leaves_no_citation_out_without_saying_so(unresolved):
+    """Every citation in `docs/ck/` reached the corpus, or this test names the ones that did not.
+
+    An anchored citation is resolved through `locate` to the line it points
+    at, and one that no longer resolves cannot be. Dropping it is right --
+    there is no line to measure, and the drift gate has the recorded text to
+    say what changed -- but dropping it *silently* is the defect the fixture's
+    own opening paragraph warns about: a corpus that "would quietly shrink as
+    the migration progressed and every suite resting on it would test less
+    without saying so".
+
+    The floor below is not that guard. The corpus is 790 unique lines of which
+    243 are anchored today, so losing every anchored citation still leaves 547
+    and passes, and the slack grows with each chapter migrated.
+    """
+    assert unresolved == (), f"{len(unresolved)} citation(s) left out: {unresolved[:5]}"
+
+
 def test_every_citation_survives_being_written_and_read_back(corpus, structures):
     """Describe -> render -> parse returns the same citation, for all of them.
 

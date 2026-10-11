@@ -420,17 +420,17 @@ admin in a guest-mode world is not a guest.
 
 **And it does not survive a server restart.** The only write to `guestMode` in
 the whole server assembly is the RPC handler (`NetworkCommand.SetGuestMode`,
-`DedicatedServer/Pug.Other:NetworkCommandServerSystem_59CC188E_LambdaJob_2_Job:OriginalLambdaBody:125`). No read of it was found in the save
-serialization assemblies or in the server's preferences parsing — a negative
-over a search, not over a located loader, and a whole-struct `WorldInfoCD` write
-would escape a field-level search — and the restart measurement below agrees: it
-lives in the running server's `WorldInfoCD` singleton and is gone the moment
-that process ends. So a check that enables guest mode as an admin and then
-restarts the server to come back without rights loses the very condition it set
-up, and loses it silently — the role change has to happen within the one
-session, which is what the revocable stage 1 above is for. Measured this way
-round: the restart produced a run indistinguishable from one where guest mode
-had never been touched.
+`DedicatedServer/Pug.Other:NetworkCommandServerSystem_59CC188E_LambdaJob_2_Job:OriginalLambdaBody:125`).
+No read of it was found in the save serialization assemblies or in the server's
+preferences parsing — a negative over a search, not over a located loader, and a
+whole-struct `WorldInfoCD` write would escape a field-level search — and the
+restart measurement below agrees: it lives in the running server's `WorldInfoCD`
+singleton and is gone the moment that process ends. So a check that enables
+guest mode as an admin and then restarts the server to come back without rights
+loses the very condition it set up, and loses it silently — the role change has
+to happen within the one session, which is what the revocable stage 1 above is
+for. Measured this way round: the restart produced a run indistinguishable from
+one where guest mode had never been touched.
 
 **Both change during a session.** `NetworkCommand` carries `AddOrUpdateAdmin`,
 `RemoveAdmin` and `SetGuestMode`, handled by `NetworkCommandServerSystem` behind
@@ -462,13 +462,14 @@ else, while `ChangePvPTeam`, answered before the gate, still goes through.
 Measured 2026-10-07 against a running 1.3.0.5 server — `RemoveAdmin` went
 through, the `SetGuestMode` sent after it did not.
 
-The available mistake is to find `AddOrUpdateAdmin`'s own extra check and read it
-as the permission one, which costs a walked test — and it is wrong twice over.
-That check asks the privileges of the command's **target**
-(`DedicatedServer/Pug.Other:NetworkCommandServerSystem_59CC188E_LambdaJob_2_Job:OriginalLambdaBody:78`, reached through `rpc.entity0`'s own
-connection), so all it does is decline to re-add somebody who is an admin
-already: an idempotence guard, not a permission one. The check that asks about
-the *sender* is the gate, about fifty lines above the branch.
+The available mistake is to find `AddOrUpdateAdmin`'s own extra check and read
+it as the permission one, which costs a walked test — and it is wrong twice
+over. That check asks the privileges of the command's **target**
+(`DedicatedServer/Pug.Other:NetworkCommandServerSystem_59CC188E_LambdaJob_2_Job:OriginalLambdaBody:78`,
+reached through `rpc.entity0`'s own connection), so all it does is decline to
+re-add somebody who is an admin already: an idempotence guard, not a permission
+one. The check that asks about the *sender* is the gate, about fifty lines above
+the branch.
 
 **The per-command bodies are what make that mistake easy, and there is a second
 one shaped like it.** `RemoveAdmin`

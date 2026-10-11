@@ -199,22 +199,31 @@ shortest form that is unique within its type — a bare name where that suffices
 and a prefix of the parameter type list where it does not, with `…` marking what
 was left out: `GetRecipeInfo(PugDatabase.DatabaseBankCD, ObjectID, …)`.
 
-**The point is what a game update does to it.** An anchored citation survives
-every change outside the element it names, which is most of what an update is: a
-hotfix that renumbered 161 citations here moved none of the elements they sit
-in. The old form was a line number and nothing else, so every citation below an
-edit moved — one hotfix rewrote some 320 lines across nine chapters and cost a
-chapter its verification tick, for a diff in which not one word of prose had
-changed.
+**The point is what a game update does to it.** The location is counted from
+the element, so an edit anywhere else in the file moves the element and the
+citation together and the citation still resolves — which is most of what an
+update is. The old form was a line number and nothing else, so every citation
+below an edit pointed somewhere new: one hotfix rewrote some 320 lines across
+nine chapters and cost a chapter its verification tick, for a diff in which not
+one word of prose had changed. Of the 161 citations that hotfix renumbered,
+every one could be anchored and none needed the escape hatch.
+
+What the form cannot survive is a change *inside* the element — and that is the
+point rather than a limitation. A citation whose element changed is a claim
+worth re-reading, which is exactly what the drift check reports; a citation that
+merely moved is not, and it no longer says anything.
 
 **Three tiers, and which one a citation lands in decides what it is exposed
 to.** A line is anchored to the innermost thing that names it: the member that
 contains it, else the type, else nothing. The type tier is a real fallback
 rather than a second choice — `PlayerController` is some 7,600 lines, so a
 type-anchored line is exposed to a great deal — and the bare form is the escape
-hatch, permitted only where no type encloses the line at all. In this handbook
-that is five citations, all at namespace level in `Unity.Entities`, plus one
-`.prefab` reference that is not C# and has no elements to name.
+hatch, permitted only where no type encloses the line at all. Five citations
+here are genuinely that case, all at namespace level in `Unity.Entities`, plus
+one `.prefab` reference that is not C# and has no elements to name. Every other
+bare citation in the handbook — and most of them still are bare, because the
+migration runs chapter by chapter — is one the escape hatch does not cover and
+the next pass over that chapter will anchor.
 
 **The first field names an assembly or a file.** Mostly it is
 `<Assembly>.decompiled.cs` in the checkout, but a citation can name a Unity

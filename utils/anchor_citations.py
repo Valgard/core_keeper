@@ -60,16 +60,20 @@ class Rewrite:
     anchored: str  # what it becomes
     line: int  # the absolute line both forms resolve to
     occurrences: int  # how often `token` appears in this file
+    recorded: bool  # the snapshot holds this citation's line text, so two proofs exist
 
 
 def is_chapter(path):
     """Whether this file is a handbook chapter, which decides what proof is required.
 
-    Inside `docs/ck/` the drift gate guarantees a snapshot entry for every
-    citation, so a missing one means the file is already in a state somebody
-    has to look at. Outside it -- `docs/roadmap.md`, `CLAUDE.md` -- there was
-    never going to be one, and the round trip is all there is. Both are
-    legitimate; treating them alike is what would not be.
+    Inside `docs/ck/` every citation is required to have a snapshot entry, so
+    a missing one means the file is already in a state somebody has to look
+    at. Required by the procedure rather than by a hook: `check_citation_drift`
+    is not wired into pre-commit, so the requirement rests on the verification
+    skill calling for a `--capture` and on this refusal. Outside `docs/ck/` --
+    `docs/roadmap.md`, `CLAUDE.md` -- there was never going to be an entry,
+    and the round trip is all there is. Both are legitimate; treating them
+    alike is what would not be.
 
     Read off the two directory names rather than by comparing a repo-relative
     prefix against the path. That comparison is the bug `check_docs_wrapping`
@@ -144,8 +148,6 @@ def plan_file(path, decompile, recorded, structures=None):
                 "capture it first (uv run utils/check_citation_drift.py --capture)"
             )
             continue
-        else:
-            notes.append(f"{where}  no recorded text; the round trip is the only proof")
 
         if source.suffix != ".cs":
             notes.append(
@@ -171,7 +173,9 @@ def plan_file(path, decompile, recorded, structures=None):
             notes.append(f"{where}  stays absolute: no type encloses line {citation.first}")
             continue
 
-        rewrites.append(Rewrite(token, render(proposed), citation.first, counts[token]))
+        rewrites.append(
+            Rewrite(token, render(proposed), citation.first, counts[token], token in recorded)
+        )
 
     return tuple(rewrites), tuple(notes), tuple(refusals)
 
@@ -200,6 +204,17 @@ def apply_rewrites(path, rewrites):
         text = text.replace(old, new)
     path.write_text(text)
 
+    expected = sum(rewrite.occurrences for rewrite in rewrites)
+    if replaced != expected:
+        # What `occurrences` is for. A plan built against one revision of the
+        # file and applied to another leaves some occurrences behind, and the
+        # result is a file written half in each notation with one snapshot key
+        # per citation -- the state this tool refuses a file to avoid.
+        raise RuntimeError(
+            f"{path}: replaced {replaced} occurrence(s) where the plan counted "
+            f"{expected} — the file changed under the plan; re-run it"
+        )
+
     written = {token for line in path.read_text().splitlines() for token, _ in find(line)}
     missing = [rewrite.anchored for rewrite in rewrites if rewrite.anchored not in written]
     if missing:
@@ -208,6 +223,27 @@ def apply_rewrites(path, rewrites):
             f"starting with `{missing[0]}` — the file holds a form no checker can read"
         )
     return replaced
+
+
+def repository_root(path):
+    """The directory whose `docs/ck/` the snapshot describes, or None.
+
+    Found by walking up from the file rather than taken from a flag. A
+    `--root` defaulting to `.` was the first version of this, and the failure
+    it produced is silent: run the documented command from any directory but
+    the repository root and the chapter census comes back empty,
+    `rekey_snapshot` reads that as "no chapter cites anything", and every
+    record the file touched is deleted while the run prints "re-keyed".
+    Measured on a copy of the real corpus -- 809 records in, 807 out, exit 0.
+
+    An empty census is the house example of a silent zero, so it must not be
+    reachable on a write path at all. None here is the caller's cue to refuse.
+    """
+    resolved = Path(path).resolve()
+    for candidate in (resolved.parent, *resolved.parents):
+        if (candidate / "docs" / "ck").is_dir():
+            return candidate
+    return None
 
 
 def cited_tokens(root):
@@ -287,7 +323,6 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=(__doc__ or "").partition("\n")[0])
     ap.add_argument("path")
     ap.add_argument("--apply", action="store_true", help="write the file and the snapshot")
-    ap.add_argument("--root", default=".", help="repository root, for reading the chapters")
     ap.add_argument("--decompile", default=str(DEFAULT_DECOMPILE))
     ap.add_argument("--snapshot", default=str(DEFAULT_SNAPSHOT))
     args = ap.parse_args(argv)
@@ -302,7 +337,10 @@ def main(argv=None):
 
     for rewrite in rewrites:
         repeated = "" if rewrite.occurrences == 1 else f"  ({rewrite.occurrences} occurrences)"
-        print(f"  `{rewrite.token}` -> `{rewrite.anchored}`{repeated}")
+        unproven = (
+            "" if rewrite.recorded else "  — no recorded text; the round trip is the only proof"
+        )
+        print(f"  `{rewrite.token}` -> `{rewrite.anchored}`{repeated}{unproven}")
     for line in notes + refusals:
         print(f"  {line}")
 
@@ -311,13 +349,34 @@ def main(argv=None):
         return 1
 
     if args.apply and rewrites:
+        root = repository_root(args.path)
+        if root is None:
+            print(f"\nno docs/ck/ directory above {args.path} — cannot read the chapters")
+            return 1
+        snapshot = Path(args.snapshot)
+        if not snapshot.is_file():
+            # Absent is an ordinary answer when reading (a file outside
+            # docs/ck has no records to find) and never one when writing: a
+            # mistyped path would otherwise create a second snapshot and
+            # report success, leaving the real one short of every record this
+            # run should have moved into it.
+            print(f"\nno snapshot at {snapshot} — a rekey needs the one the gate compares against")
+            return 1
+
         # The prose first, then the snapshot. A prose write whose snapshot
         # write failed is reported by the drift gate on the next run, in both
         # of its directions; the reverse order leaves a snapshot naming
         # citations no file carries, which reads as a handbook that lost them.
-        replaced = apply_rewrites(args.path, rewrites)
-        snapshot = Path(args.snapshot)
-        rekeyed = rekey_snapshot(read_snapshot(snapshot), rewrites, cited_tokens(args.root))
+        try:
+            replaced = apply_rewrites(args.path, rewrites)
+        except RuntimeError as problem:
+            # A sentence and an exit code, as every sibling checker reports a
+            # failure. The prose is already written at this point, which the
+            # message has to say, because the repair is a rewrap rather than
+            # a re-run.
+            print(f"\n{problem}")
+            return 1
+        rekeyed = rekey_snapshot(read_snapshot(snapshot), rewrites, cited_tokens(root))
         snapshot.write_text(json.dumps(rekeyed, indent=2, sort_keys=True) + "\n")
         print(f"\nanchored {len(rewrites)} citation(s) in {replaced} place(s) in {args.path}")
         print(f"re-keyed {snapshot}: {len(rekeyed['citations'])} record(s)")

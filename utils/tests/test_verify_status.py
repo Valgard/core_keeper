@@ -213,9 +213,11 @@ class TestChangedWords:
     rewrap: an anchored citation is some 40 characters longer than the number
     it replaces, so every paragraph holding one overflows the width the file
     is written at. Measured on `harmony-and-ecs` against its verification
-    commit `4bad12e`: the migration plus that rewrap reads as 427 added and
-    300 deleted lines, against 557/0 for the prose actually written since the
-    pass. Word-wise the migration is 0/0 and the prose is still 557/0.
+    commit `4bad12e`, in both units -- 61/0 lines of prose written since the
+    pass, 370/301 lines for the anchoring and its rewrap, 429/299 lines for
+    the two together, against 557/0 words of prose and 0/0 words for the
+    anchoring. Seven times the real figure, line-wise, for a change in which
+    no word moved.
 
     `normalise` already folds both citation notations onto one placeholder,
     which is why the rewrite alone cost nothing even line-wise. What it

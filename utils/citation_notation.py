@@ -44,10 +44,13 @@ _LOCATION = re.compile(r"^(\d+)(?:-(\d+))?$")
 # a member-tier citation. No rule over the text can tell those from a real
 # citation, because there is no difference to see.
 #
-# Requiring the last field to be a location removes both and loses nothing: all
-# 796 citations in the handbook are still found, and `describe` never writes a
-# citation without one. So `Assembly:Class` and `Assembly:Class:member` stay in
-# the grammar, parseable and renderable, but are not discovered in prose.
+# Requiring the last field to be a location removes both and loses nothing:
+# every citation in the handbook is still found -- 809 distinct ones as this is
+# written, a figure that moves with every chapter anchored, since a token cited
+# by a migrated chapter and an unmigrated one counts twice -- and `describe`
+# never writes a citation without a location. So `Assembly:Class` and
+# `Assembly:Class:member` stay in the grammar, parseable and renderable, but
+# are not discovered in prose.
 _ASSEMBLY = r"(?:DedicatedServer/)?[A-Za-z][A-Za-z0-9_.]*"
 
 # A name field is anything but a backtick, a colon, a brace or a slash, after a

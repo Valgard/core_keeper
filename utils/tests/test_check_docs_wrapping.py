@@ -378,6 +378,23 @@ class TestCitations:
         para = [f"({self.CITATION};"]
         assert mod.defects(para, 80) == []
 
+    def test_prose_after_a_long_citation_is_still_a_break_the_gate_asks_for(self):
+        """A citation filling the first width+1 columns must not hide the breaks past it.
+
+        The glue that keeps a citation whole also removes every space inside
+        it, and the long-line rule looked only at that window -- so a line of
+        one 103-column citation plus a trailing clause read as "nowhere to
+        break" and was exempt. Measured: the chapter migration left seven such
+        lines, the longest 142 columns in a file wrapped at 80, which is the
+        very defect `CLAUDE.md` names as the reason this gate exists ("one
+        substitution left a 142-column line in a file wrapped at 80"). All
+        seven shrink under a plain rewrap, so the break was real.
+        """
+        citation = "`Pug.Other:" + "A" * 60 + ":" + "B" * 30 + ":1`"
+        para = [f"{citation} and a trailing clause that could move down a line."]
+
+        assert any("visible columns" in why for _, why in mod.defects(para, 80))
+
     def test_a_citation_the_next_line_begins_with_counts_as_one_word(self):
         """`first_token` of a line starting with a citation is the whole citation.
 

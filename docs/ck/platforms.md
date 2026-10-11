@@ -60,11 +60,12 @@ on the next update.
 The dedicated server keeps its own tree (`…/DedicatedServer/`) beside the
 client's — `StandaloneFilesystem` has two constructors, and each reads
 `-datapath` off the command line first and only falls back to that suffix when
-the flag is absent (`DedicatedServer/Pug.Other:StandaloneFilesystem:StandaloneFilesystem(string, PlatformInterface):1-17`; the second
-constructor repeats the same read and fallback at
-`DedicatedServer/Pug.Other:StandaloneFilesystem:StandaloneFilesystem(string, string, …):1`, then layers a subfolder argument on top) —
-which is why a server and a client on one machine do not share a world by
-default.
+the flag is absent
+(`DedicatedServer/Pug.Other:StandaloneFilesystem:StandaloneFilesystem(string, PlatformInterface):1-17`;
+the second constructor repeats the same read and fallback at
+`DedicatedServer/Pug.Other:StandaloneFilesystem:StandaloneFilesystem(string, string, …):1`,
+then layers a subfolder argument on top) — which is why a server and a client on
+one machine do not share a world by default.
 
 ## What Wine breaks, and how it looks
 
