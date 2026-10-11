@@ -323,9 +323,9 @@ def test_no_real_entry_leaves_markdown_in_the_note():
     above, and every one of them would be published permanently.
     """
     left = [
-        f"{mod} {version}: {LEFTOVER.search(steam_changenote.render(version, body)).group(0)!r}"
+        f"{mod} {version}: {hit.group(0)!r}"
         for mod, version, body in _entries()
-        if LEFTOVER.search(steam_changenote.render(version, body))
+        if (hit := LEFTOVER.search(steam_changenote.render(version, body)))
     ]
 
     assert left == []

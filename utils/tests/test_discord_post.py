@@ -260,6 +260,7 @@ def test_render_repo_reads_the_post_beside_the_mod(tmp_path):
     body and the parsed tags.
     """
     result = dp.render_repo(_repo(tmp_path), _ENV, ["1.2.1.5"])
+    assert result is not None
 
     assert "Body." in result["body"]
     assert result["tags"] == ["Tweaks", "Equipment"]
@@ -283,6 +284,7 @@ def test_the_h1_becomes_the_thread_title_rather_than_being_discarded(tmp_path):
     So the title is authored, not derived from a directory name.
     """
     result = dp.render_repo(_repo(tmp_path, "# Probe Mod\n\nBody.\n"), _ENV, ["1.2.1.5"])
+    assert result is not None
 
     assert result["title"] == "Probe Mod"
 
@@ -426,6 +428,7 @@ def test_spaces_around_the_tag_separator_are_not_part_of_the_tag(tmp_path):
     env = dict(_ENV, CK_DISCORD_TAGS="Tweaks | Equipment")
 
     result = dp.render_repo(_repo(tmp_path), env, ["1.2.1.5"])
+    assert result is not None
 
     assert result["tags"] == ["Tweaks", "Equipment"]
 

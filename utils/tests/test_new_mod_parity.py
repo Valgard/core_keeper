@@ -266,7 +266,9 @@ def test_corelib_flag_wires_both_halves_the_family_wires():
     and could not compile against it.
     """
     for repo, pascal in MODS:
-        if "modName: CoreLib" not in _asset(repo, pascal):
+        asset = _asset(repo, pascal)
+        assert asset is not None, f"{repo.name} carries no unity/{pascal}.asset at HEAD"
+        if "modName: CoreLib" not in asset:
             continue
         refs = _runtime_refs(repo, pascal)
         assert refs and "CoreLib" in refs, (

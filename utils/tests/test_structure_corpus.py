@@ -98,6 +98,7 @@ def test_calibration_against_known_citations(structures, line, type_name, member
     """Each hand-resolved citation gets the type and member it really sits in."""
     citation = describe(structures["Pug.Other"], line, "Pug.Other")
     assert citation.type_name == type_name
+    assert citation.member is not None
     assert citation.member.split("(")[0] == member
 
 
@@ -204,7 +205,12 @@ def test_every_range_citation_keeps_its_span(range_citations, structures):
         if structure is None:
             continue
         citation = describe(structure, first, assembly, last=last)
-        if locate(structure, citation) != first or citation.last - citation.first != last - first:
+        if (
+            citation.first is None
+            or citation.last is None
+            or locate(structure, citation) != first
+            or citation.last - citation.first != last - first
+        ):
             broken.append(f"{assembly}:{first}-{last} -> {render(citation)}")
     assert broken == [], f"{len(broken)} range(s) do not round trip: {broken[:5]}"
 

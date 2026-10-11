@@ -224,7 +224,7 @@ def test_an_unsubscribed_install_says_the_game_will_not_load_it(tmp_path):
         unsubscribed=[9999986],
     )
 
-    result = ws.resolve("GeneralConfigMenu")
+    result = _resolve_one(ws, "GeneralConfigMenu")
 
     assert any("not in subscribedMods" in n for n in result.notes)
 
@@ -241,7 +241,7 @@ def test_an_unsubscribed_dev_build_says_the_game_will_not_load_it(tmp_path):
         unsubscribed=[9999999],
     )
 
-    result = ws.resolve("DisableDurability")
+    result = _resolve_one(ws, "DisableDurability")
 
     assert any("dev build" in n and "not in subscribedMods" in n for n in result.notes)
 
@@ -253,7 +253,7 @@ def test_a_subscribed_install_carries_no_subscription_note(tmp_path):
         installed=[(9999986, 1, "GeneralConfigMenu", ["Scripts/G.cs"])],
     )
 
-    result = ws.resolve("GeneralConfigMenu")
+    result = _resolve_one(ws, "GeneralConfigMenu")
 
     assert not any("subscribedMods" in n for n in result.notes)
 
@@ -581,6 +581,24 @@ def _workspace(tmp_path, installed=(), own=(), catalogue=(), unsubscribed=()):
     return mod_source.Workspace.build(cache_dir=cache, workspace=repos, catalogue_path=mirror)
 
 
+def _resolve_one(ws, query) -> mod_source.Resolution:
+    """Resolve a query the test expects to be unambiguous, failing if it comes back as candidates.
+
+    resolve returns a list when the query is genuinely ambiguous, so a test that reads fields off
+    the result has to rule that out first -- otherwise a regression into ambiguity would surface
+    as an AttributeError on a list rather than as the failed expectation it is.
+    """
+    result = ws.resolve(query)
+    assert isinstance(result, mod_source.Resolution), f"{query!r} resolved to candidates: {result}"
+    return result
+
+
+def _source_path(resolution) -> Path:
+    """The resolution's source_path, failing if it has none (a catalogue-only hit)."""
+    assert resolution.source_path is not None, f"{resolution.kind} resolution has no source_path"
+    return resolution.source_path
+
+
 def test_an_own_mod_resolves_to_its_repository(tmp_path):
     """A mod that is both installed and a local repo resolves as KIND_OWN, pointing at the repo.
 
@@ -593,10 +611,10 @@ def test_an_own_mod_resolves_to_its_repository(tmp_path):
         catalogue=[(6211950, "Mod Settings Menu", "mod-settings-menu", 7958010)],
     )
 
-    result = ws.resolve("Mod Settings Menu")
+    result = _resolve_one(ws, "Mod Settings Menu")
 
     assert result.kind == mod_source.KIND_OWN
-    assert result.source_path.name == "ModSettingsMenu"
+    assert _source_path(result).name == "ModSettingsMenu"
     assert result.internal_name == "ModSettingsMenu"
 
 
@@ -660,7 +678,7 @@ def test_a_foreign_fake_id_is_flagged_temporary(tmp_path):
         installed=[(9999986, 1, "GeneralConfigMenu", ["Scripts/G.cs"])],
     )
 
-    result = ws.resolve("GeneralConfigMenu")
+    result = _resolve_one(ws, "GeneralConfigMenu")
 
     assert result.kind == mod_source.KIND_PARKED
     assert any("temporary" in n.lower() for n in result.notes)
@@ -676,7 +694,7 @@ def test_a_catalogue_only_hit_is_provisional(tmp_path):
         catalogue=[(4584153, "General Mod Config Menu", "generalconfigmenu", 7840263)],
     )
 
-    result = ws.resolve("General Mod Config Menu")
+    result = _resolve_one(ws, "General Mod Config Menu")
 
     assert result.kind == mod_source.KIND_CATALOGUE
     assert result.identity == mod_source.IDENTITY_UNCHECKED
@@ -711,7 +729,7 @@ def test_a_resolution_carries_the_modfile_id_from_the_catalogue(tmp_path):
         catalogue=[(4584153, "General Mod Config Menu", "generalconfigmenu", 7840263)],
     )
 
-    result = ws.resolve("General Mod Config Menu")
+    result = _resolve_one(ws, "General Mod Config Menu")
 
     assert result.modfile_id == 7840263
 
@@ -730,7 +748,7 @@ def test_an_own_mod_with_no_catalogue_entry_has_no_modfile_id(tmp_path):
         own=[("faster-talents", "FasterTalents", 6065498, None)],
     )
 
-    result = ws.resolve("FasterTalents")
+    result = _resolve_one(ws, "FasterTalents")
 
     assert result.kind == mod_source.KIND_OWN
     assert result.modfile_id is None
@@ -766,7 +784,7 @@ def test_an_unpublished_own_mod_is_still_findable_by_name(tmp_path):
         own=[("brand-new-mod", "BrandNewMod", 0, None)],
     )
 
-    result = ws.resolve("BrandNewMod")
+    result = _resolve_one(ws, "BrandNewMod")
 
     assert result.kind == mod_source.KIND_OWN
     assert result.mod_id is None
@@ -853,13 +871,13 @@ def test_two_unpublished_mods_in_one_repo_stay_distinct(tmp_path):
         ],
     )
 
-    alpha = ws.resolve("ModAlpha")
-    beta = ws.resolve("ModBeta")
+    alpha = _resolve_one(ws, "ModAlpha")
+    beta = _resolve_one(ws, "ModBeta")
 
     assert alpha.kind == mod_source.KIND_OWN
     assert beta.kind == mod_source.KIND_OWN
-    assert alpha.source_path.name == "ModAlpha"
-    assert beta.source_path.name == "ModBeta"
+    assert _source_path(alpha).name == "ModAlpha"
+    assert _source_path(beta).name == "ModBeta"
     assert alpha.source_path != beta.source_path
 
 
@@ -889,7 +907,7 @@ def test_two_same_normalised_mods_in_one_repo_stay_separate_candidates(tmp_path)
 
     assert isinstance(result, list)
     assert len(result) == 2
-    assert {r.source_path.name for r in result} == {"ToolResizer", "Tool-Resizer"}
+    assert {_source_path(r).name for r in result} == {"ToolResizer", "Tool-Resizer"}
 
 
 def test_a_dev_build_still_collapses_with_its_subscription_after_source_path_keying(
@@ -947,9 +965,10 @@ def test_file_mode_answers_an_installed_mod_from_the_manifest(tmp_path):
             )
         ],
     )
-    result = ws.resolve("CoreLib")
+    result = _resolve_one(ws, "CoreLib")
 
     found = mod_source.find_file(result, "ConfigScope")
+    assert isinstance(found, Path)
 
     # Assert the FULL path to catch a regressed join base (source_path instead of parent).
     # Manifest paths are relative to Scripts/, so ConfigScope.cs joins to source_path.parent.
@@ -971,7 +990,7 @@ def test_file_mode_returns_candidates_when_several_match(tmp_path):
         tmp_path,
         installed=[(1, 2, "X", ["Scripts/ConfigFile.cs", "Scripts/ConfigScope.cs"])],
     )
-    result = ws.resolve("X")
+    result = _resolve_one(ws, "X")
 
     found = mod_source.find_file(result, "Config")
 
@@ -993,9 +1012,10 @@ def test_file_mode_walks_an_own_mods_repository(tmp_path):
     # An own mod resolves to its repo, and no repo contains a ModManifest.json
     # -- that file is build-generated.
     ws = _workspace(tmp_path, own=[("faster-talents", "FasterTalents", 6065498, None)])
-    result = ws.resolve("FasterTalents")
+    result = _resolve_one(ws, "FasterTalents")
 
     found = mod_source.find_file(result, "FasterTalentsMod")
+    assert isinstance(found, Path)
 
     assert found.name == "FasterTalentsMod.cs"
 
@@ -1006,7 +1026,7 @@ def test_file_mode_raises_when_mod_not_installed(tmp_path):
         tmp_path,
         catalogue=[(4584153, "General Mod Config Menu", "generalconfigmenu", 7840263)],
     )
-    result = ws.resolve("General Mod Config Menu")
+    result = _resolve_one(ws, "General Mod Config Menu")
 
     with pytest.raises(LookupError, match="not installed"):
         mod_source.find_file(result, "ConfigScope")
@@ -1021,7 +1041,7 @@ def test_file_mode_raises_when_no_file_matches(tmp_path):
         tmp_path,
         installed=[(3177992, 7845185, "CoreLib", ["Scripts/CoreLibMod.cs"])],
     )
-    result = ws.resolve("CoreLib")
+    result = _resolve_one(ws, "CoreLib")
 
     with pytest.raises(LookupError, match=re.escape("no .cs file matching")):
         mod_source.find_file(result, "NonExistentFile")
@@ -1390,7 +1410,7 @@ def test_render_names_every_known_name_and_an_absolute_path(tmp_path):
         tmp_path,
         installed=[(3177992, 7845185, "CoreLib", ["Scripts/CoreLibMod.cs"])],
     )
-    text = mod_source.render(ws.resolve("CoreLib"))
+    text = mod_source.render(_resolve_one(ws, "CoreLib"))
 
     assert "CoreLib" in text
     assert "3177992" in text
@@ -1409,7 +1429,7 @@ def test_render_says_when_the_internal_name_is_unknown(tmp_path):
     _names_line renders the field as "internal <value>".
     """
     ws = _workspace(tmp_path, catalogue=[(4584153, "General Mod Config Menu", "gcm", 7840263)])
-    text = mod_source.render(ws.resolve("General Mod Config Menu"))
+    text = mod_source.render(_resolve_one(ws, "General Mod Config Menu"))
 
     # Specifically the INTERNAL name. Searching the whole render for the word
     # passes on any line that happens to carry it -- the slug or the title
@@ -1438,7 +1458,7 @@ def test_render_reports_an_own_mods_file_count_by_walking_its_directory(tmp_path
     # only ever reads source_files would print no Size line at all here.
     ws = _workspace(tmp_path, own=[("faster-talents", "FasterTalents", 6065498, None)])
 
-    text = mod_source.render(ws.resolve("FasterTalents"))
+    text = mod_source.render(_resolve_one(ws, "FasterTalents"))
 
     assert "own mod" in text.lower()
     assert "1 .cs file" in text
@@ -1457,7 +1477,7 @@ def test_render_states_an_asset_only_installed_mod_ships_no_source(tmp_path):
     ws = _workspace(tmp_path, installed=[(1, 2, "AssetPack", [])])
     (tmp_path / "bottle" / "mods" / "1_2" / "Scripts").rmdir()
 
-    text = mod_source.render(ws.resolve("AssetPack"))
+    text = mod_source.render(_resolve_one(ws, "AssetPack"))
 
     assert "no source shipped" in text.lower()
     assert "ships no scripts" in text.lower()
@@ -1466,7 +1486,7 @@ def test_render_states_an_asset_only_installed_mod_ships_no_source(tmp_path):
 def test_json_output_is_machine_readable(tmp_path):
     """render_json() produces valid JSON with the right mod_id and kind fields."""
     ws = _workspace(tmp_path, installed=[(1, 2, "X", ["Scripts/X.cs"])])
-    payload = json.loads(mod_source.render_json(ws.resolve("X")))
+    payload = json.loads(mod_source.render_json(_resolve_one(ws, "X")))
 
     assert payload["mod_id"] == 1
     assert payload["kind"] == mod_source.KIND_INSTALLED
@@ -1487,7 +1507,7 @@ def test_json_output_stringifies_the_source_path(tmp_path):
     # absolute folder rather than e.g. repr()'d Path("...").
     ws = _workspace(tmp_path, installed=[(1, 2, "X", ["Scripts/X.cs"])])
 
-    payload = json.loads(mod_source.render_json(ws.resolve("X")))
+    payload = json.loads(mod_source.render_json(_resolve_one(ws, "X")))
 
     assert payload["source_path"] == str(tmp_path / "bottle" / "mods" / "1_2" / "Scripts")
 
@@ -1863,7 +1883,7 @@ def test_render_json_includes_an_own_mods_walked_cs_files(tmp_path):
     # (e.g. adds a separate "source_count" field) still fails this.
     ws = _workspace(tmp_path, own=[("faster-talents", "FasterTalents", 6065498, None)])
 
-    payload = json.loads(mod_source.render_json(ws.resolve("FasterTalents")))
+    payload = json.loads(mod_source.render_json(_resolve_one(ws, "FasterTalents")))
 
     assert payload["source_files"] == ["FasterTalentsMod.cs"]
 
@@ -2322,7 +2342,7 @@ def test_a_resolution_carries_the_modfile_md5_from_the_catalogue(tmp_path):
         catalogue=[(4584153, "General Mod Config Menu", "generalconfigmenu", 7840263, "b" * 32)],
     )
 
-    result = ws.resolve("General Mod Config Menu")
+    result = _resolve_one(ws, "General Mod Config Menu")
 
     assert result.modfile_md5 == "b" * 32
 
@@ -2395,12 +2415,12 @@ def test_two_mod_directories_claiming_one_id_are_reported_not_merged(tmp_path):
     assert any("6065498" in w for w in ws.warnings)
     assert any("ModAlpha" in w and "ModBeta" in w for w in ws.warnings)
 
-    alpha = ws.resolve("ModAlpha")
-    beta = ws.resolve("ModBeta")
+    alpha = _resolve_one(ws, "ModAlpha")
+    beta = _resolve_one(ws, "ModBeta")
 
-    assert alpha.source_path.name == "ModAlpha"
+    assert _source_path(alpha).name == "ModAlpha"
     assert alpha.internal_name == "ModAlpha"
-    assert beta.source_path.name == "ModBeta"
+    assert _source_path(beta).name == "ModBeta"
     assert beta.internal_name == "ModBeta"
 
 
@@ -2424,8 +2444,8 @@ def test_a_shared_dev_build_id_is_contested_the_same_way(tmp_path):
     )
 
     assert any("9999991" in w for w in ws.warnings)
-    assert ws.resolve("ModAlpha").source_path.name == "ModAlpha"
-    assert ws.resolve("ModBeta").source_path.name == "ModBeta"
+    assert _source_path(_resolve_one(ws, "ModAlpha")).name == "ModAlpha"
+    assert _source_path(_resolve_one(ws, "ModBeta")).name == "ModBeta"
 
 
 def test_a_current_folder_without_a_manifest_is_reported(tmp_path):
@@ -2514,7 +2534,7 @@ def test_an_installed_mod_resolves_by_its_internal_name(tmp_path):
     # The name the mod calls itself, readable only from its ModManifest.json.
     ws = _three_name_workspace(tmp_path)
 
-    result = ws.resolve("NameChests")
+    result = _resolve_one(ws, "NameChests")
 
     assert result.mod_id == 7146470
     assert result.internal_name == "NameChests"
@@ -2533,11 +2553,11 @@ def test_an_installed_mod_resolves_by_its_modio_title(tmp_path):
     # or on the mod.io page.
     ws = _three_name_workspace(tmp_path)
 
-    result = ws.resolve("More Labels")
+    result = _resolve_one(ws, "More Labels")
 
     assert result.mod_id == 7146470
     assert result.internal_name == "NameChests"
-    assert result.source_path.name == "Scripts"
+    assert _source_path(result).name == "Scripts"
 
 
 def test_an_installed_mod_resolves_by_its_slug(tmp_path):
@@ -2551,7 +2571,7 @@ def test_an_installed_mod_resolves_by_its_slug(tmp_path):
     # what gets pasted from a browser.
     ws = _three_name_workspace(tmp_path)
 
-    result = ws.resolve("chest-labels")
+    result = _resolve_one(ws, "chest-labels")
 
     assert result.mod_id == 7146470
     assert result.internal_name == "NameChests"
@@ -2574,7 +2594,7 @@ def test_render_tells_an_uninstalled_mod_how_to_obtain_it(tmp_path):
         catalogue=[(4584153, "General Mod Config Menu", "generalconfigmenu", 7840263)],
     )
 
-    text = mod_source.render(ws.resolve("General Mod Config Menu"))
+    text = mod_source.render(_resolve_one(ws, "General Mod Config Menu"))
 
     source = next(line for line in text.splitlines() if "Source" in line)
     assert "--download" in source
@@ -2628,8 +2648,8 @@ def test_display_name_falls_back_to_the_mod_id_but_not_past_it(tmp_path):
     )
     assert mod_source._display_name(nameless) == "mod 77"
 
-    unpublished = _workspace(tmp_path, own=[("brand-new-mod", "BrandNewMod", 0, None)]).resolve(
-        "BrandNewMod"
+    unpublished = _resolve_one(
+        _workspace(tmp_path, own=[("brand-new-mod", "BrandNewMod", 0, None)]), "BrandNewMod"
     )
     assert unpublished.mod_id is None
     assert mod_source._display_name(unpublished) == "BrandNewMod"
@@ -2663,7 +2683,7 @@ def test_a_contested_id_is_admitted_in_the_resolution_itself(tmp_path):
         ],
     )
 
-    alpha = ws.resolve("ModAlpha")
+    alpha = _resolve_one(ws, "ModAlpha")
 
     assert alpha.mod_id == 6065498
     assert any("6065498" in note and "ModBeta" in note for note in alpha.notes)
@@ -2692,7 +2712,7 @@ def test_a_contested_dev_build_id_is_admitted_too(tmp_path):
         ],
     )
 
-    alpha = ws.resolve("ModAlpha")
+    alpha = _resolve_one(ws, "ModAlpha")
 
     assert alpha.mod_id == 6065498
     assert any("9999991" in note and "ModBeta" in note for note in alpha.notes)
@@ -2707,7 +2727,7 @@ def test_an_uncontested_own_mod_says_nothing_about_ids(tmp_path):
     # not on every own mod. A note that is always there says nothing.
     ws = _workspace(tmp_path, own=[("faster-talents", "FasterTalents", 6065498, None)])
 
-    result = ws.resolve("FasterTalents")
+    result = _resolve_one(ws, "FasterTalents")
 
     assert result.notes == []
 

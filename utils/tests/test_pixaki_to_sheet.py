@@ -156,8 +156,10 @@ def test_pad_bottom_anchor():
     line = Image.new("RGBA", (8, 1), (255, 255, 255, 255))
     out = p._pad(line, 8, 8, "bottom")
     assert out.size == (8, 8)
-    assert out.getpixel((0, 7))[3] == 255
-    assert out.getpixel((0, 0))[3] == 0
+    bottom, top = out.getpixel((0, 7)), out.getpixel((0, 0))
+    assert isinstance(bottom, tuple) and isinstance(top, tuple)
+    assert bottom[3] == 255
+    assert top[3] == 0
 
 
 def test_render_meta_replaces_guid_and_sprites(tmp_path):

@@ -91,6 +91,7 @@ def test_every_written_post_renders_within_discords_limits(repo, env):
     count, missing heading -- so rendering it *is* the assertion.
     """
     result = dp.render_repo(repo, env, dp.known_versions())
+    assert result is not None
 
     assert result["body"] and result["tags"] and result["title"]
 

@@ -57,6 +57,7 @@ def write(tmp_path, text, name="A.decompiled.cs"):
 def test_a_type_and_its_members_are_all_elements(tmp_path):
     """One element per type and one per member, so both anchor tiers exist."""
     s = structure_of(write(tmp_path, SIMPLE))
+    assert s is not None
     named = [(e.type_name, e.member) for e in s.elements]
     assert ("Foo", None) in named
     assert ("Foo", "bar") in named
@@ -66,6 +67,7 @@ def test_a_type_and_its_members_are_all_elements(tmp_path):
 def test_members_carry_parameter_types_and_types_carry_none(tmp_path):
     """A nullary method's params are (), a field's and a type's are None."""
     s = structure_of(write(tmp_path, SIMPLE))
+    assert s is not None
     by_name = {(e.member, e.params) for e in s.elements}
     assert ("Baz", ("int", "string")) in by_name
     assert ("Baz", ()) in by_name
@@ -76,6 +78,7 @@ def test_members_carry_parameter_types_and_types_carry_none(tmp_path):
 def test_elements_are_ordered_and_members_nest_inside_their_type(tmp_path):
     """describe() picks the innermost element, which needs both to hold."""
     s = structure_of(write(tmp_path, SIMPLE))
+    assert s is not None
     assert [e.start for e in s.elements] == sorted(e.start for e in s.elements)
     foo = next(e for e in s.elements if e.member is None)
     for member in (e for e in s.elements if e.member):
@@ -98,6 +101,7 @@ class RpcSerializer : IRpcCommandSerializer<Rpc>
 }
 """
     s = structure_of(write(tmp_path, text))
+    assert s is not None
     assert {e.member for e in s.elements if e.member} == {
         "Serialize",
         "IRpcCommandSerializer<Rpc>.Serialize",
@@ -148,6 +152,7 @@ def test_a_changed_mtime_reparses(tmp_path):
     structure_of(path, cache_dir=cache)
     path.write_text(SIMPLE.replace("Baz", "Qux"))
     s = structure_of(path, cache_dir=cache)
+    assert s is not None
     assert "Qux" in {e.member for e in s.elements if e.member}
 
 
@@ -364,6 +369,7 @@ class Wrapper
 }
 """
     s = structure_of(write(tmp_path, text))
+    assert s is not None
     assert {e.member for e in s.elements if e.member} == {
         "operator Wrapper",
         "operator ==",
@@ -402,6 +408,7 @@ class Foo
 """
     s = structure_of(write(tmp_path, text))
     citation = describe(s, 3, "A")
+    assert citation.member is not None
     assert ":" not in citation.member
     assert parse(render(citation)) == citation
 
@@ -477,8 +484,11 @@ def test_a_cache_entry_in_the_wrong_order_does_not_misplace_an_anchor(tmp_path):
     path = write(tmp_path, SIMPLE)
     cache = tmp_path / "cache"
     expected = structure_of(path, cache_dir=cache)
+    assert expected is not None
     entry = next(cache.iterdir())
     stored = json.loads(entry.read_text())
     stored["elements"] = list(reversed(stored["elements"]))
     entry.write_text(json.dumps(stored))
-    assert structure_of(path, cache_dir=cache).elements == expected.elements
+    reloaded = structure_of(path, cache_dir=cache)
+    assert reloaded is not None
+    assert reloaded.elements == expected.elements

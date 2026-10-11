@@ -72,7 +72,9 @@ def test_committed_sheet_is_reproduced_byte_for_byte(repo, master, sheet, config
             f"{repo}'s main checkout does not hold {sheet} yet (for map-markers-enhanced: "
             "the icon-rework branch is not merged) or the repo is not checked out beside this one"
         )
-    guid = re.search(r"^guid: ([0-9a-f]{32})", committed_meta.read_text(), re.M).group(1)
+    guid_line = re.search(r"^guid: ([0-9a-f]{32})", committed_meta.read_text(), re.M)
+    assert guid_line is not None, f"{committed_meta} carries no guid line"
+    guid = guid_line.group(1)
     out = tmp_path / committed.name
     config_path = str(ROOT / repo / config) if config else None
     p.build_sheet(str(pixaki), str(out), str(committed_meta), guid=guid, config_path=config_path)

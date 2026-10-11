@@ -107,7 +107,7 @@ def test_grid_marks_transparent_pixels_with_a_dot():
 
 def test_opaque_corners_reports_only_the_painted_ones():
     """opaque_corners() reports only the corners that are actually non-transparent, not all four."""
-    px = [CLEAR] * 9
+    px: list[tuple[int, int, int, int]] = [CLEAR] * 9
     px[0] = OPAQUE  # top-left
     px[8] = OPAQUE  # bottom-right
     assert p.opaque_corners(_img(px, 3, 3)) == [(0, 0), (2, 2)]

@@ -160,4 +160,5 @@ def test_widths_constant_is_exactly_one_digit_per_cell(regenerated):
     catch that constant itself being wrong.
     """
     constant = re.search(r"Widths\s*=\s*(.*?);", PATCH.read_text(), re.S)
+    assert constant is not None, "no Widths constant in the patch"
     assert len(_digit_rows(constant.group(1))) == 384

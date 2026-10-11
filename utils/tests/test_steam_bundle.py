@@ -81,7 +81,7 @@ Some preamble that is not an entry.
 """
 
 
-def _repo(tmp_path, asset=ASSET, changelog=CHANGELOG, description="[b]Bold[/b]"):
+def _repo(tmp_path, asset=ASSET, changelog=CHANGELOG, description: str | None = "[b]Bold[/b]"):
     (tmp_path / "unity").mkdir()
     (tmp_path / "unity" / "DisableDurability.asset").write_text(asset)
     (tmp_path / "CHANGELOG.md").write_text(changelog)

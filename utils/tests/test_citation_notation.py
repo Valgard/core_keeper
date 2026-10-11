@@ -51,8 +51,10 @@ def test_a_parameter_list_keeps_a_comma_inside_a_generic_argument():
     cost the disambiguation the parameter list exists for.
     """
     form = "Pug.Other:Foo:Bar(Dictionary<int, string>, …):7"
-    assert render(parse(form)) == form
-    assert parse(form).member == "Bar(Dictionary<int, string>, …)"
+    citation = parse(form)
+    assert citation is not None
+    assert render(citation) == form
+    assert citation.member == "Bar(Dictionary<int, string>, …)"
 
 
 def test_an_explicit_interface_qualifier_survives_the_round_trip():

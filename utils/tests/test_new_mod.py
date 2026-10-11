@@ -296,7 +296,8 @@ def test_asset_refuses_to_guess_required_on():
     # needlessly blocked joining unmodded servers, and it also hid that
     # build_plan never passed the argument through at all.
     with pytest.raises(TypeError):
-        nm.build_asset_yaml("Mod", "Mod", metadata_guid="a" * 32)
+        # The missing argument IS the test, so the checker's complaint is the point.
+        nm.build_asset_yaml("Mod", "Mod", metadata_guid="a" * 32)  # pyright: ignore[reportCallIssue]
 
 
 # --- _modio.asset YAML (internal cross-reference) ---------------------------
@@ -759,7 +760,9 @@ def test_plan_contains_the_expected_file_set():
 
 
 def _guid(text):
-    return _re.search(r"guid: ([0-9a-f]{32})", text).group(1)
+    match = _re.search(r"guid: ([0-9a-f]{32})", text)
+    assert match is not None, f"no guid line in:\n{text}"
+    return match.group(1)
 
 
 def test_plan_modio_cross_references_the_asset_meta_guid():
@@ -770,8 +773,9 @@ def test_plan_modio_cross_references_the_asset_meta_guid():
     plan = _plan_dict()
     asset_meta_guid = _guid(plan["unity/FasterPetTalents.asset.meta"])
     modio = plan["unity/FasterPetTalents/Editor/FasterPetTalents_modio.asset"]
-    ref = _re.search(r"modSettings: \{fileID: 11400000, guid: ([0-9a-f]{32})", modio).group(1)
-    assert ref == asset_meta_guid
+    ref = _re.search(r"modSettings: \{fileID: 11400000, guid: ([0-9a-f]{32})", modio)
+    assert ref is not None, "no modSettings reference in the _modio.asset"
+    assert ref.group(1) == asset_meta_guid
 
 
 def test_plan_all_meta_guids_are_unique():
@@ -792,7 +796,9 @@ def test_plan_asset_metadata_guid_differs_from_asset_file_guid():
     # the internal metadata.guid must not equal the .asset.meta file guid
     plan = _plan_dict()
     asset = plan["unity/FasterPetTalents.asset"]
-    metadata_guid = _re.search(r"metadata:\n    guid: ([0-9a-f]{32})", asset).group(1)
+    match = _re.search(r"metadata:\n    guid: ([0-9a-f]{32})", asset)
+    assert match is not None, "no metadata.guid in the .asset"
+    metadata_guid = match.group(1)
     asset_meta_guid = _guid(plan["unity/FasterPetTalents.asset.meta"])
     assert metadata_guid != asset_meta_guid
 

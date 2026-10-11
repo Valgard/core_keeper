@@ -43,7 +43,9 @@ def test_sprite_crop_flips_bottom_left_rect_into_png_rows(tmp_path):
     assets = _sprite_tree(tmp_path, x=2, y=1, w=3, h=2)
     img = Exporter(assets, tmp_path / "out").sprite("probe")
     assert img.size == (3, 2)
-    assert [img.getpixel((c, r))[:2] for r in range(2) for c in range(3)] == [
+    pixels = [img.getpixel((c, r)) for r in range(2) for c in range(3)]
+    assert all(isinstance(px, tuple) for px in pixels), pixels
+    assert [px[:2] for px in pixels if isinstance(px, tuple)] == [
         (2, 5), (3, 5), (4, 5),
         (2, 6), (3, 6), (4, 6),
     ]  # fmt: skip

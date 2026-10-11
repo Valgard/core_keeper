@@ -170,7 +170,7 @@ class _Response(io.BytesIO):
         return self
 
     def __exit__(self, *exc):
-        return False
+        pass
 
 
 @pytest.mark.parametrize(

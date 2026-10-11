@@ -113,7 +113,8 @@ def test_the_ladder_yields_the_largest_rung_that_fits(tmp_path):
     next_up = min(bigger)
     original = Image.open(src).convert("RGBA")
     probe = tmp_path / "probe.png"
-    original.resize((next_up, next_up), Image.LANCZOS).save(probe, optimize=True, compress_level=9)
+    resized = original.resize((next_up, next_up), Image.Resampling.LANCZOS)
+    resized.save(probe, optimize=True, compress_level=9)
     assert probe.stat().st_size > steam_preview.LIMIT, (
         f"{next_up}² also fits, so {chosen}² was not the largest that does"
     )
@@ -177,7 +178,9 @@ def test_transparency_survives(tmp_path):
 
     steam_preview.derive_preview(src, dest)
 
-    assert Image.open(dest).convert("RGBA").getpixel((0, 0))[3] == 0
+    corner = Image.open(dest).convert("RGBA").getpixel((0, 0))
+    assert isinstance(corner, tuple)
+    assert corner[3] == 0
 
 
 def test_quantisation_is_the_last_resort_not_the_first(tmp_path):
