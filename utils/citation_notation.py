@@ -63,11 +63,24 @@ _ASSEMBLY = r"(?:DedicatedServer/)?[A-Za-z][A-Za-z0-9_.]*"
 # went silent on them and the snapshot then read "no longer cited anywhere".
 # 45 members in the cited assemblies carry such a character.
 #
-# The four exclusions each earn their place: a backtick ends the token, a colon
-# separates fields, `{` keeps Unity's `{fileID: 2456}` out, and `/` keeps
+# The five exclusions each earn their place: a backtick ends the token, a colon
+# separates fields, `{` keeps Unity's `{fileID: 2456}` out, `/` keeps
 # `docs/ck/index.md:12` out while the `DedicatedServer/` prefix above is
-# matched before this applies.
-_NAME_FIELD = r"[^\s`:{/][^`:{/]*"
+# matched before this applies, and a newline keeps a citation broken across
+# two lines from matching at all.
+#
+# That last one decides whether the checkers agree. A member specification can
+# carry a space, so a rewrap can break a citation at one, and without the
+# exclusion `find` answered differently depending on how the caller read the
+# file: over a whole text it matched the broken token, line by line it did not.
+# Nine callers are split between the two readings, and the consequence was a
+# chain -- a broken citation is absent from the chapter census, so
+# `anchor_citations` deletes its snapshot record, which is the only proof that
+# the anchored form points at the line the claim was weighed against. `locate`
+# cannot place such a token anyway, so nothing is lost by refusing it here; the
+# one place that may see a broken citation is `check_docs_wrapping`'s own
+# detector, which exists to report it.
+_NAME_FIELD = r"[^\s`:{/][^`:{/\n]*"
 
 # The location must be a real line, so `1-9` rather than `0-9` for its first
 # digit. Not cosmetic: `` `modId:0` `` is a manifest field, and with `\d+` it

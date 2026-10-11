@@ -78,7 +78,7 @@ class TestTiers:
     """Which tier a line lands in, and what the file then says instead."""
 
     def test_an_absolute_citation_becomes_its_member_anchor(self, tmp_path, recorded):
-        """The ordinary case, 93 % of the corpus: a line inside a member."""
+        """The ordinary case: a line inside a member, 92 % of the corpus today."""
         tree = make_decompile(tmp_path)
         path = make_file(tmp_path, "the call `Pug.Other:8` does it\n")
 
@@ -91,7 +91,7 @@ class TestTiers:
         ]
 
     def test_a_line_inside_a_type_but_no_member_becomes_the_type_anchor(self, tmp_path, recorded):
-        """56 citations in the corpus have no member to name. The type is the fallback."""
+        """57 citations in the corpus have no member to name. The type is the fallback."""
         tree = make_decompile(tmp_path)
         path = make_file(tmp_path, "declared at `Pug.Other:4`\n")
 
@@ -119,8 +119,31 @@ class TestTiers:
         assert "Pug.Other:3" in notes[0]
         assert "no type encloses" in notes[0]
 
+    def test_a_citation_into_a_file_that_is_not_csharp_stays_absolute(self, tmp_path):
+        """A `.prefab` has no elements to name, so the line is the only anchor it has.
+
+        Reported, never refused -- and the distinction is not academic:
+        `ui-framework.md` carries the handbook's one prefab citation among its
+        222, so a branch that refused this case would refuse that whole
+        chapter, with a reason that names the wrong thing.
+        """
+        tree = make_decompile(tmp_path)
+        asset = tree / "Resources" / "Assets" / "UI" / "ControlMappingMenu.prefab"
+        asset.parent.mkdir(parents=True)
+        asset.write_text("a\nb\nm_Name: ControlMappingMenu\n")
+        path = make_file(tmp_path, "the prefab `ControlMappingMenu.prefab:3`\n")
+
+        rewrites, notes, refusals = mod.plan_file(
+            path, tree, {"ControlMappingMenu.prefab:3": ["m_Name: ControlMappingMenu"]}
+        )
+
+        assert refusals == ()
+        assert rewrites == ()
+        assert len(notes) == 1
+        assert "is not C#" in notes[0]
+
     def test_a_range_keeps_both_ends_relative_to_its_element(self, tmp_path, recorded):
-        """132 citations in the corpus are ranges; an end dropped here is silent."""
+        """127 of the corpus's citations are ranges; an end dropped here is silent."""
         tree = make_decompile(tmp_path)
         path = make_file(tmp_path, "both lines `Pug.Other:8-9`\n")
 
@@ -372,12 +395,14 @@ class TestApply:
             mod.Rewrite("Pug.Other:370859", "Pug.Other:Foo:Baz:9", 370859, 1, True),
         )
 
-        replaced = mod.apply_rewrites(path, rewrites)
+        before = path.read_text()
+        text, replaced = mod.rewritten_text(path, rewrites)
 
         assert replaced == 3
-        assert path.read_text() == (
+        assert text == (
             "see `Pug.Other:Foo:Bar:1`, `Pug.Other:Foo:Baz:9` and `Pug.Other:Foo:Bar:1`\n"
         )
+        assert path.read_text() == before, "it returns the text; the caller writes it"
 
     def test_a_count_that_does_not_match_the_plan_is_an_error(self, tmp_path):
         """What `occurrences` is documented to catch, now actually compared.
@@ -392,26 +417,51 @@ class TestApply:
         path = make_file(tmp_path, "the call `Pug.Other:8` once\n")
 
         with pytest.raises(RuntimeError, match="the plan counted 3"):
-            mod.apply_rewrites(
+            mod.rewritten_text(
                 path, (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 3, True),)
             )
 
-    def test_a_token_that_does_not_land_in_the_file_is_an_error(self, tmp_path, monkeypatch):
+    def test_a_token_that_does_not_land_in_the_file_is_an_error(self, tmp_path):
         """The post-condition for the hazard the wrapping gate now prevents.
 
         This is the step that would carry a citation the file cannot express
-        into a commit, so what was written is read back and checked rather
-        than assumed. Exercised by making the written token unfindable, since
-        no input can produce that state once `check_docs_wrapping` keeps a
-        citation whole.
+        into a commit, so what would be written is read back and checked
+        rather than assumed.
+
+        Exercised with a form that really is unfindable rather than with a
+        patched `find`: a citation carrying no location is legal in the
+        grammar and deliberately not discovered in prose, so writing one
+        produces exactly the state this check exists for. The earlier version
+        patched `find` to return nothing, which measured the check against a
+        stub instead of against the grammar.
         """
         path = make_file(tmp_path, "see `Pug.Other:8`\n")
-        monkeypatch.setattr(mod, "find", lambda line: [])
 
-        with pytest.raises(RuntimeError, match=re.escape("Pug.Other:Foo:Bar:3")):
-            mod.apply_rewrites(
-                path, (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1, True),)
-            )
+        with pytest.raises(RuntimeError, match=re.escape("Pug.Other:Foo:Bar")):
+            mod.rewritten_text(path, (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar", 8, 1, True),))
+
+
+class TestRewriteValidation:
+    """What a plan entry cannot be, refused where the sibling type refuses too."""
+
+    @pytest.mark.parametrize(
+        ("fields", "reason"),
+        [
+            (("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 0, True), "no place at all"),
+            (("Pug.Other:8", "Pug.Other:Foo:Bar:3", 0, 1, True), "1-based"),
+            (("Pug.Other:8", "Pug.Other:8", 8, 1, True), "not a rewrite"),
+        ],
+    )
+    def test_a_plan_entry_that_describes_no_rewrite_is_refused(self, fields, reason):
+        """`occurrences = 0` is the one with teeth.
+
+        It makes the count check compare nothing against nothing and pass, so
+        a rewrite that touched no line would read as applied. The other two
+        are the same bar the sibling `Citation` sets for itself: a state the
+        grammar cannot spell raises at construction rather than lying later.
+        """
+        with pytest.raises(ValueError, match=reason):
+            mod.Rewrite(*fields)
 
 
 class TestRekey:
@@ -428,7 +478,7 @@ class TestRekey:
         snapshot = {"citations": {"Pug.Other:8": ["int x = 1;"]}, "game_version": "1.3.0.6-6e73"}
         rewrites = (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1, True),)
 
-        after = mod.rekey_snapshot(snapshot, rewrites, {"Pug.Other:Foo:Bar:3"})
+        after, _added, _removed = mod.rekey_snapshot(snapshot, rewrites, {"Pug.Other:Foo:Bar:3"})
 
         assert after["citations"] == {"Pug.Other:Foo:Bar:3": ["int x = 1;"]}
 
@@ -443,7 +493,9 @@ class TestRekey:
         snapshot = {"citations": {"Pug.Other:8": ["int x = 1;"]}}
         rewrites = (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1, True),)
 
-        after = mod.rekey_snapshot(snapshot, rewrites, {"Pug.Other:8", "Pug.Other:Foo:Bar:3"})
+        after, _added, _removed = mod.rekey_snapshot(
+            snapshot, rewrites, {"Pug.Other:8", "Pug.Other:Foo:Bar:3"}
+        )
 
         assert after["citations"] == {
             "Pug.Other:8": ["int x = 1;"],
@@ -462,7 +514,7 @@ class TestRekey:
         snapshot = {"citations": {"Pug.Other:8": ["int x = 1;"]}}
         rewrites = (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1, True),)
 
-        after = mod.rekey_snapshot(snapshot, rewrites, {"Pug.Other:8"})
+        after, _added, _removed = mod.rekey_snapshot(snapshot, rewrites, {"Pug.Other:8"})
 
         assert after["citations"] == {"Pug.Other:8": ["int x = 1;"]}
 
@@ -471,7 +523,7 @@ class TestRekey:
         snapshot = {"citations": {"Pug.Other:8": ["int x = 1;"]}, "game_version": "1.3.0.6-6e73"}
         rewrites = (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1, True),)
 
-        after = mod.rekey_snapshot(snapshot, rewrites, {"Pug.Other:Foo:Bar:3"})
+        after, _added, _removed = mod.rekey_snapshot(snapshot, rewrites, {"Pug.Other:Foo:Bar:3"})
 
         assert after["game_version"] == "1.3.0.6-6e73"
 
@@ -573,6 +625,76 @@ class TestApplyIsAtomic:
         citations = json.loads(snapshot.read_text())["citations"]
         assert citations["Pug.Other:Foo:Bar:3"] == ["int x = 1;"]
 
+    def test_a_rekey_that_would_drop_a_record_entirely_is_refused(self, tmp_path, recorded, capsys):
+        """A record that ends up under neither key is a census that does not fit.
+
+        `rekey_snapshot` adds the new key under one condition and drops the old
+        one under another, and nothing paired them: there is no state in which
+        the drop is right while the add did not happen -- a record whose
+        replacement was never written is a record that ceased to exist.
+        Reproduced before this guard with two real records and an empty
+        chapter directory: 2 in, 0 out, exit 0, "re-keyed … 0 record(s)".
+
+        The guard is what closes the whole class rather than one route into
+        it. The previous fix removed a cause (a census taken from the wrong
+        working directory) and left the deletion unreported, where an
+        absolute total makes 809 and 808 read alike.
+        """
+        tree = make_decompile(tmp_path)
+        # A chapter that cites something else: the census is non-empty, so the
+        # empty-census guard does not fire and the pairing guard is what has
+        # to catch this.
+        make_file(tmp_path, "elsewhere `Pug.Other:4`\n", name="docs/ck/other.md")
+        path = make_file(tmp_path, "the call `Pug.Other:8`\n", name="docs/roadmap.md")
+        snapshot = make_snapshot(tmp_path, recorded)
+        before = snapshot.read_text()
+        prose = path.read_text()
+
+        code = mod.main(
+            [str(path), "--apply", "--decompile", str(tree), "--snapshot", str(snapshot)]
+        )
+
+        assert code == 1
+        assert snapshot.read_text() == before
+        assert path.read_text() == prose, "neither file is written when a record would be lost"
+        assert "no chapter cites" in capsys.readouterr().out
+
+    def test_a_chapter_directory_with_no_chapters_is_refused(self, tmp_path, recorded, capsys):
+        """`docs/ck/` exists is not the same question as the census is non-empty.
+
+        The previous fix checked that the directory was there, which an empty
+        or partially checked-out one satisfies while still handing the
+        re-keying the empty set it reads as "no chapter cites anything".
+        Reproduced with two real records: 2 in, 0 out, exit 0.
+        """
+        tree = make_decompile(tmp_path)
+        (tmp_path / "docs" / "ck").mkdir(parents=True)  # present, and empty
+        path = make_file(tmp_path, "the call `Pug.Other:8`\n", name="docs/roadmap.md")
+        snapshot = make_snapshot(tmp_path, recorded)
+        before = snapshot.read_text()
+
+        code = mod.main(
+            [str(path), "--apply", "--decompile", str(tree), "--snapshot", str(snapshot)]
+        )
+
+        assert code == 1
+        assert snapshot.read_text() == before
+        assert "holds no chapters" in capsys.readouterr().out
+
+    def test_a_rekey_reports_what_moved_rather_than_what_remains(self, tmp_path, recorded, capsys):
+        """A delta, because a total cannot show a loss.
+
+        809 and 808 read alike, which is how the first version of this path
+        reported deleting two records as success.
+        """
+        tree = make_decompile(tmp_path)
+        path = make_file(tmp_path, "the call `Pug.Other:8`\n", name="docs/ck/a.md")
+        snapshot = make_snapshot(tmp_path, recorded)
+
+        mod.main([str(path), "--apply", "--decompile", str(tree), "--snapshot", str(snapshot)])
+
+        assert "+1/-1" in capsys.readouterr().out
+
     def test_a_file_with_no_repository_above_it_is_refused_rather_than_rekeyed(
         self, tmp_path, recorded, capsys
     ):
@@ -596,15 +718,52 @@ class TestApplyIsAtomic:
         assert snapshot.read_text() == before
 
     def test_nothing_is_written_without_apply(self, tmp_path, recorded):
-        """The default is a report: the flag is what authorises a write."""
+        """The default is a report: the flag is what authorises a write.
+
+        The file is a chapter on purpose. An earlier version put it outside
+        `docs/ck/` with no repository above it, where the refusal fires before
+        the write path is reached at all -- so the test passed with the
+        `--apply` gate removed entirely and proved nothing. Measured by
+        removing it.
+        """
         tree = make_decompile(tmp_path)
-        path = make_file(tmp_path, "the call `Pug.Other:8`\n")
+        path = make_file(tmp_path, "the call `Pug.Other:8`\n", name="docs/ck/a.md")
         before = path.read_text()
         snapshot = make_snapshot(tmp_path, recorded)
+        snapshot_before = snapshot.read_text()
 
         mod.main([str(path), "--decompile", str(tree), "--snapshot", str(snapshot)])
 
         assert path.read_text() == before
+        assert snapshot.read_text() == snapshot_before
+
+    def test_a_token_another_chapter_still_cites_survives_a_real_migration(
+        self, tmp_path, recorded
+    ):
+        """Review Focus #2, through the wiring rather than a hand-made census.
+
+        13 of the citations in the chapters migrated here are also cited by
+        chapters that stay unmigrated, so a shared token is the normal case.
+        `rekey_snapshot` was only ever tested with a census passed in by hand;
+        mutating `main` to the one-sided rule the plan first wrote --
+        `cited_tokens(root) - {r.token for r in rewrites}` -- left all tests
+        green, and against the real corpus that same run deleted two records
+        other chapters still cite, at exit 0.
+        """
+        tree = make_decompile(tmp_path)
+        shared = make_file(tmp_path, "also `Pug.Other:8` here\n", name="docs/ck/other.md")
+        path = make_file(tmp_path, "the call `Pug.Other:8`\n", name="docs/ck/a.md")
+        snapshot = make_snapshot(tmp_path, recorded)
+
+        code = mod.main(
+            [str(path), "--apply", "--decompile", str(tree), "--snapshot", str(snapshot)]
+        )
+
+        assert code == 0
+        citations = json.loads(snapshot.read_text())["citations"]
+        assert citations["Pug.Other:8"] == ["int x = 1;"], "the other chapter still cites it"
+        assert citations["Pug.Other:Foo:Bar:3"] == ["int x = 1;"]
+        assert "`Pug.Other:8`" in shared.read_text(), "the other chapter is untouched"
 
 
 class TestRelocateCoexistence:

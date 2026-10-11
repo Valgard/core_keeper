@@ -17,13 +17,15 @@ dependencies = [
     # anchored on them. A grammar release that re-shaped one node would move
     # every citation inside it -- silently, because the citation would still
     # resolve, just to a different line. A normal dependency rather than an
-    # extra, because the consumers are pre-commit hooks: check_citation_style.py
-    # calls `describe` in its structural half, check_citation_drift.py calls
-    # `locate` on every run, and anchor_citations.py calls both. An extra would
-    # make a gate's behaviour depend on how the environment was installed.
-    # Those callers are named because two earlier versions of this comment each
-    # named one that did not exist, and a third said nothing imported either
-    # module -- true when written, false from the moment the hooks were wired.
+    # extra, because one of the consumers is a pre-commit hook:
+    # check_citation_style.py calls `describe` in its structural half, and an
+    # extra would make that gate's behaviour depend on how the environment was
+    # installed. The other two callers are run by hand, not wired --
+    # check_citation_drift.py calls `locate` on every run and
+    # anchor_citations.py calls both.
+    # Each caller is named because three earlier versions of this comment got
+    # it wrong in three different ways: two named a caller that did not exist,
+    # one said nothing imported either module, and one called all three hooks.
     "tree-sitter==0.26.0",
     "tree-sitter-c-sharp==0.23.5",
 ]

@@ -178,7 +178,7 @@ def main():
 
     # Which citations are actually in the handbook, and where.
     cited = {}
-    anchored = 0
+    anchored = set()
     for chapter in sorted((Path(args.root) / "docs" / "ck").glob("*.md")):
         text = chapter.read_text()
         for m in CITATION.finditer(text):
@@ -191,7 +191,12 @@ def main():
         # any more -- but a bare "N citations examined" would then read as the
         # handbook, and the spec warns that this tool's workload must not be
         # mistaken for a migration-progress counter.
-        anchored += sum(1 for _, citation in find(text) if tier(citation) != "absolute")
+        #
+        # Distinct tokens, the same basis `cited` uses, so the two halves of
+        # that sentence add up to the handbook. Counting occurrences here
+        # instead gave 566 + 263 against a corpus of 809 -- the unique/
+        # occurrence conflation the spec names in its own voice.
+        anchored |= {token for token, citation in find(text) if tier(citation) != "absolute"}
 
     # Two passes. The first settles every citation whose recorded text occurs
     # exactly once; the second reuses those as anchors, which is what makes a
@@ -241,7 +246,7 @@ def main():
         by_verdict.setdefault(r[3], []).append(r)
 
     order = ["unchanged", "moved", "ambiguous", "gone", "unresolvable", "unrecorded"]
-    print(f"{len(results)} citations examined, {anchored} anchored on a symbol and skipped\n")
+    print(f"{len(results)} citations examined, {len(anchored)} anchored on a symbol and skipped\n")
     for verdict in order:
         rows = by_verdict.get(verdict, [])
         if rows:

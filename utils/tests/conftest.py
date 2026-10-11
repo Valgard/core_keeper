@@ -89,6 +89,9 @@ def decompile():
     return path
 
 
+_ABSOLUTE_LINES = {}
+
+
 def _absolute_lines(decompile):
     """Absolute `(assembly, first, last)` per citation in docs/ck, and the misses.
 
@@ -117,7 +120,13 @@ def _absolute_lines(decompile):
     warns about for a different cause: the only other guard is a floor of 500
     on a corpus of 790, so every anchored citation could vanish and pass.
     """
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    if decompile in _ABSOLUTE_LINES:
+        # Three session fixtures ask for this, and parsing the cited
+        # assemblies to resolve 243 anchored citations costs about 14 s each
+        # time. Keyed on the tree, so a suite that ever measured two of them
+        # would still get the right answer rather than the first one's.
+        return _ABSOLUTE_LINES[decompile]
+
     from check_citation_drift import source_for
     from citation_notation import find
     from citation_notation import tier
@@ -140,7 +149,8 @@ def _absolute_lines(decompile):
                 unresolved.add(token)
             else:
                 spans.add((citation.assembly, start, start + citation.last - citation.first))
-    return spans, tuple(sorted(unresolved))
+    _ABSOLUTE_LINES[decompile] = (spans, tuple(sorted(unresolved)))
+    return _ABSOLUTE_LINES[decompile]
 
 
 @pytest.fixture(scope="session")

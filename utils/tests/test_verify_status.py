@@ -340,6 +340,20 @@ class TestChangedWords:
 
         assert changed_words(repo, commit, "b") == (5, 0)
 
+    def test_a_commit_that_cannot_be_read_is_an_error_rather_than_new_prose(self, repo):
+        """Only an absent *path* counts as "all of this was written since".
+
+        `git show` exits non-zero for several reasons and the `except` could
+        not tell them apart, so a mistyped or garbage-collected commit read as
+        a chapter wholly written after its verification -- a large figure with
+        a confident label and no relation to any prose. The one cause the
+        comment names is checked for on its own now; everything else raises.
+        """
+        _commit(repo, "docs/ck/a.md", "one\n", "docs(ck): add a")
+
+        with pytest.raises(subprocess.CalledProcessError):
+            changed_words(repo, "0" * 40, "a")
+
     def test_a_chapter_that_exists_nowhere_counts_as_nothing(self, repo):
         """Absent from the commit and absent now is the one case that is really zero."""
         _commit(repo, "docs/ck/a.md", "one\n", "docs(ck): add a")

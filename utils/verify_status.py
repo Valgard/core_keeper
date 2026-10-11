@@ -166,17 +166,25 @@ def changed_words(root, commit, chapter):
     what the numstat call did for that case.
     """
     path = f"docs/ck/{chapter}.md"
-    try:
-        before = _git(root, "show", f"{commit}:{path}")
-    except subprocess.CalledProcessError:
-        # Absent from that commit, so every line it has now was written after
-        # the verification. NOT (0, 0): an earlier version returned that and
-        # claimed parity with `git diff --numstat`, which is false in exactly
-        # this case -- numstat reported the file as wholly added and printed
-        # `partial`, while (0, 0) prints `verified`. The two fail on different
-        # things: numstat cannot see an untracked file, `git show` cannot see a
-        # path the commit did not have.
-        before = ""
+    # Two questions, asked separately, because only one of the answers is
+    # harmless. Is the commit readable at all -- a mistyped or
+    # garbage-collected one raises here -- and then, does it carry this path.
+    # A single `except` around `git show` could not tell them apart, so an
+    # unreadable commit read as a chapter wholly written since its
+    # verification: a large figure under a confident label, with no relation
+    # to any prose.
+    _git(root, "rev-parse", "--verify", "--quiet", f"{commit}^{{commit}}")
+    absent = subprocess.run(
+        ["git", "cat-file", "-e", f"{commit}:{path}"], cwd=root, capture_output=True
+    ).returncode
+    # A path the commit did not carry counts as "" -- every word the chapter
+    # has now was written after the verification. NOT (0, 0): an earlier
+    # version returned that and claimed parity with `git diff --numstat`,
+    # which is false in exactly this case -- numstat reported the file as
+    # wholly added and printed `partial`, while (0, 0) prints `verified`. The
+    # two fail on different things: numstat cannot see an untracked file,
+    # `git show` cannot see a path the commit did not have.
+    before = "" if absent else _git(root, "show", f"{commit}:{path}")
     current = Path(root, path)
     after = current.read_text() if current.is_file() else ""
 
@@ -188,7 +196,8 @@ def changed_words(root, commit, chapter):
     # (0, 0) either way, so the migration's own zero was never at risk -- the
     # figure a reader judges by was, and an ordinary edit reading as a
     # rewrite is the quiet version of the defect this all exists to remove.
-    # It costs 227 ms against 52 ms on the largest chapter.
+    # It costs about 215 ms against about 37 ms on the largest chapter,
+    # medians over repeated runs rather than one reading of each.
     matcher = difflib.SequenceMatcher(
         None, normalise(before).split(), normalise(after).split(), autojunk=False
     )

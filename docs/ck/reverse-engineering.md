@@ -205,8 +205,10 @@ citation together and the citation still resolves — which is most of what an
 update is. The old form was a line number and nothing else, so every citation
 below an edit pointed somewhere new: one hotfix rewrote some 320 lines across
 nine chapters and cost a chapter its verification tick, for a diff in which not
-one word of prose had changed. Of the 161 citations that hotfix renumbered,
-every one could be anchored and none needed the escape hatch.
+one word of prose had changed. Of the 159 citations whose numbers that hotfix
+rewrote — counted as distinct citations, which is not the 171 occurrences the
+same change touched — every one could be anchored and none needed the escape
+hatch.
 
 What the form cannot survive is a change *inside* the element — and that is the
 point rather than a limitation. A citation whose element changed is a claim

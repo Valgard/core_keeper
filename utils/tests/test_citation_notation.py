@@ -140,6 +140,34 @@ def test_finds_both_grammars_on_one_line_in_order():
     assert [c.first for _, c in find(text)] == [1, 9, 2]
 
 
+def test_a_citation_broken_across_lines_is_found_by_nobody():
+    """One answer whether the caller passes a line or a whole file.
+
+    A member specification can carry a space, so the wrapping fixer can break
+    a citation at one -- and the tail of a name field excluded a backtick, a
+    colon, a brace and a slash, but not a newline. So `find` over a whole
+    text matched the broken token while `find` per line did not, and nine
+    callers on this path are split between the two readings: the drift
+    checker, both halves of the style checker and the migration tool read
+    lines; `verify_status.normalise` and the corpus fixture read whole files.
+
+    Four docstrings claimed that sharing this function made those callers
+    agree by construction. Sharing the function is not what decides it -- the
+    granularity of the input was -- and the consequence was a chain: a broken
+    citation is absent from the chapter census, so the migration tool deletes
+    its snapshot record, which is the only proof that the anchored form
+    points at the line the claim was weighed against.
+
+    `locate` cannot place such a token anyway, so excluding the newline loses
+    nothing. The one place that may see a broken citation is the wrapping
+    gate's own detector, which is written for exactly that and reports it.
+    """
+    broken = "reads the platform (`DedicatedServer/Pug.Other:Foo:Bar(string,\nstring):1`)."
+
+    assert find(broken) == []
+    assert [token for line in broken.splitlines() for token, _ in find(line)] == []
+
+
 def test_a_unity_fileid_is_not_a_citation():
     """`{fileID: 123456}` is Unity's own reference syntax, not a line reference."""
     assert find("the prefab points at `{fileID: 2456}`") == []

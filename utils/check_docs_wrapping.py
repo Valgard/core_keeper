@@ -152,16 +152,31 @@ def split_links(lines):
 # on the last line of a broken citation, because it is the final field and no
 # space follows it -- the break can only fall inside the parameter list.
 #
+# Any number of breaks, not one. A member specification has as many break
+# opportunities as it has parameters, and the handbook's longest citation --
+# `StandaloneFilesystem(string, string, …)`, 90 columns in a file measured at
+# 80 -- has two. A pattern with a single `\n` detected it broken once and
+# missed it broken twice, measured against that exact token.
+#
 # A citation with no location (`Assembly:Class:member`) is therefore not
 # reported, which matches `FINDER` not discovering those in prose either.
 SPLIT_CITATION = re.compile(
-    r"`(?:DedicatedServer/)?[A-Za-z][A-Za-z0-9_.]*:[^\s`][^`\n]*\n[^`\n]*:[1-9]\d*(?:-[1-9]\d*)?`"
+    r"`(?:DedicatedServer/)?[A-Za-z][A-Za-z0-9_.]*:[^\s`][^`]*\n[^`]*:[1-9]\d*(?:-[1-9]\d*)?`"
 )
 
 
 def split_citations(lines):
-    """Citations in these lines that straddle a break — invisible to every other check."""
-    return [m.group(0) for m in SPLIT_CITATION.finditer("\n".join(lines))]
+    """`(line number, token)` per citation straddling a break — invisible to every other check.
+
+    1-based, counted in `lines`, so a report can name where to look. The whole
+    file at once rather than a paragraph at a time: these are the only defects
+    this module reports outside the prose and list passes, because they are
+    the only ones that are defects in a blockquote, a table or a heading too.
+    """
+    joined = "\n".join(lines)
+    return [
+        (joined.count("\n", 0, m.start()) + 1, m.group(0)) for m in SPLIT_CITATION.finditer(joined)
+    ]
 
 
 def wrap_tokens(text, width, initial_indent="", subsequent_indent=""):
@@ -219,7 +234,7 @@ def first_token(line):
 
     A citation's parameter list is the same hazard at a smaller size: for
     `Pug.Other:Foo:Bar(int, longlonglonglong):3`, the fragment up to the
-    space is 24 columns against the whole token's 43, which is the difference
+    space is 23 columns against the whole token's 44, which is the difference
     between "would have fit" and "would not" -- and the line before it is
     then reported as broken too early, with nothing the fixer can do about it.
     """
@@ -346,11 +361,10 @@ def defects(para, width):
     found = []
     for link in split_links(para):
         found.append((0, f"link split across lines: {' '.join(link.split())[:60]}"))
-    # Printed whole, unlike the link above: a link's text is arbitrary prose,
-    # while a citation is bounded by its grammar — 100 columns at the longest
-    # in this corpus — and which citation it is *is* the finding.
-    for citation in split_citations(para):
-        found.append((0, f"citation split across lines: {' '.join(citation.split())}"))
+    # A split citation is deliberately *not* reported here. `process` scans the
+    # whole file for those, once, because they are defects in a blockquote and
+    # a table too — regions this function is never called on. Reporting them
+    # in both places would print one defect twice.
     for offset, line in enumerate(para):
         # long only counts when a break was actually available before the target
         # a line that overshoots because it ends on a link is correct by
@@ -405,6 +419,19 @@ def process(path, fix):
     lines = path.read_text().splitlines()
     width = target_width(lines)
     problems, rewrapped, out, last = [], 0, [], 0
+
+    # Over the whole file, before either pass and independently of both: a
+    # citation no checker can read is a defect wherever it sits, and the two
+    # passes below deliberately do not enter a blockquote, a table or a
+    # heading. `docs/ck/` carries 56 blockquote lines across five chapters,
+    # three of them with citations, and anchoring lengthens every citation by
+    # some 40 characters -- which moves them into the class that wraps, in the
+    # one region nothing was looking at. Reported without a line number and
+    # without `--fix` claiming it can reach them, which is the honest split.
+    for number, citation in split_citations(lines):
+        problems.append(
+            f"{display(path)}:{number}  citation split across lines: {' '.join(citation.split())}"
+        )
 
     for start, end in paragraphs(lines):
         para = lines[start:end]

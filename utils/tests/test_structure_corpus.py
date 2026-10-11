@@ -178,9 +178,29 @@ def test_the_corpus_leaves_no_citation_out_without_saying_so(unresolved):
     the migration progressed and every suite resting on it would test less
     without saying so".
 
-    The floor below is not that guard. The corpus is 790 unique lines of which
-    243 are anchored today, so losing every anchored citation still leaves 547
-    and passes, and the slack grows with each chapter migrated.
+    The floor below is not that guard. Measured: the corpus holds 790 unique
+    lines, and the 566 spans reachable through a still-absolute citation leave
+    561 of them — so losing every anchored citation passes a floor of 500, and
+    the slack grows with each chapter migrated.
+
+    **And it covers one of the two ways a citation can go missing, not both.**
+    What `unresolved` holds is a citation `FINDER` discovered and `locate`
+    could not place. One the pattern stops matching at all -- a grammar
+    change, a character nobody anticipated in a member name -- is in neither
+    set and this test says nothing about it.
+
+    A second, rougher census was tried for that and does not work: a pattern
+    loose enough to catch what the grammar might reject finds 950 tokens
+    against `find`'s 893, and the 57 it adds are YAML keys and exception
+    messages. Asserting a gap would pin two corpus figures, which is the thing
+    this file does not do. What does detect that case is
+    `check_citation_drift`: a citation the pattern stops matching leaves its
+    snapshot record cited by nothing, which `compare` reports and exits 1 on.
+    It **fails** rather than *blocks* -- that checker is in no pre-commit hook,
+    so it catches this whenever somebody runs it, which the verification
+    procedure requires and no machine enforces. Saying "blocks" here would be
+    the third instance on this branch alone of claiming a gate that is not
+    wired.
     """
     assert unresolved == (), f"{len(unresolved)} citation(s) left out: {unresolved[:5]}"
 

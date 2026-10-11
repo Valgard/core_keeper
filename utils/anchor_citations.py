@@ -62,6 +62,40 @@ class Rewrite:
     occurrences: int  # how often `token` appears in this file
     recorded: bool  # the snapshot holds this citation's line text, so two proofs exist
 
+    def __post_init__(self):
+        """Refuse a plan entry that cannot describe a rewrite.
+
+        The sibling `Citation` refuses every state its grammar cannot spell,
+        and records why: each of them used to lie rather than fail. The same
+        reasoning applies one level up, and for the same reason it did there
+        -- `plan_file` is the only producer today, and the chapters still to
+        migrate will be worked by callers that do not exist yet.
+
+        `occurrences = 0` is the one with teeth: it makes the count check in
+        `rewritten_text` compare nothing against nothing and pass, so a
+        rewrite that touches no line reads as applied.
+        """
+        if self.occurrences < 1:
+            raise ValueError(f"{self.token!r} would be rewritten in no place at all")
+        if self.line < 1:
+            raise ValueError(f"lines are 1-based, got {self.line} for {self.token!r}")
+        if self.token == self.anchored:
+            raise ValueError(f"{self.token!r} is not a rewrite; a citation that stays is a note")
+
+
+def citations_in(text):
+    """`(token, citation, line number)` for every citation, in the order written.
+
+    The one walk over a text in this module, shared by four callers that each
+    kept their own copy. It reads line by line, and that is the half of
+    "agree by construction" that is easy to lose: `find` once answered
+    differently for a whole file than for its lines, and the callers were
+    split between the two readings.
+    """
+    for number, line in enumerate(text.splitlines(), start=1):
+        for token, citation in find(line):
+            yield token, citation, number
+
 
 def is_chapter(path):
     """Whether this file is a handbook chapter, which decides what proof is required.
@@ -105,10 +139,9 @@ def plan_file(path, decompile, recorded, structures=None):
 
     counts = Counter()
     first_seen = {}
-    for number, line in enumerate(path.read_text().splitlines(), start=1):
-        for token, citation in find(line):
-            counts[token] += 1
-            first_seen.setdefault(token, (citation, number))
+    for token, citation, number in citations_in(path.read_text()):
+        counts[token] += 1
+        first_seen.setdefault(token, (citation, number))
 
     rewrites, notes, refusals = [], [], []
     for token, (citation, number) in first_seen.items():
@@ -180,8 +213,8 @@ def plan_file(path, decompile, recorded, structures=None):
     return tuple(rewrites), tuple(notes), tuple(refusals)
 
 
-def apply_rewrites(path, rewrites):
-    """Rewrite every occurrence of each token in `path`; return how many were replaced.
+def rewritten_text(path, rewrites):
+    """`(text, occurrences)` for `path` with every citation re-spelled. Writes nothing.
 
     Matched with its backticks, which is what keeps one token from matching
     inside another: `Pug.Other:37085` is a prefix of `Pug.Other:370859`, and
@@ -202,8 +235,12 @@ def apply_rewrites(path, rewrites):
         old, new = f"`{rewrite.token}`", f"`{rewrite.anchored}`"
         replaced += text.count(old)
         text = text.replace(old, new)
-    path.write_text(text)
 
+    # Nothing is written here, and both checks run on the text in memory. They
+    # used to run on the file after the write, so a failure left a
+    # half-migrated chapter on disk -- documented damage where none was
+    # necessary, since nothing either check asks needs the file to exist. The
+    # caller writes once every check, including the snapshot's, has passed.
     expected = sum(rewrite.occurrences for rewrite in rewrites)
     if replaced != expected:
         # What `occurrences` is for. A plan built against one revision of the
@@ -215,14 +252,20 @@ def apply_rewrites(path, rewrites):
             f"{expected} — the file changed under the plan; re-run it"
         )
 
-    written = {token for line in path.read_text().splitlines() for token, _ in find(line)}
+    # Read line by line, which is how every checker reads: the question this
+    # asks is "will they see these citations", so it has to be asked the way
+    # they ask it. The grammar forbids a citation spanning a line break, and
+    # this does not rely on that -- it would still be the right question if a
+    # later grammar allowed one.
+    written = {token for token, _, _ in citations_in(text)}
     missing = [rewrite.anchored for rewrite in rewrites if rewrite.anchored not in written]
     if missing:
         raise RuntimeError(
-            f"{path}: {len(missing)} citation(s) were written but cannot be found again, "
-            f"starting with `{missing[0]}` — the file holds a form no checker can read"
+            f"{path}: {len(missing)} citation(s) would be written but cannot be found again, "
+            f"starting with `{missing[0]}` — the file would hold a form no checker can read"
         )
-    return replaced
+
+    return text, replaced
 
 
 def repository_root(path):
@@ -241,37 +284,59 @@ def repository_root(path):
     """
     resolved = Path(path).resolve()
     for candidate in (resolved.parent, *resolved.parents):
-        if (candidate / "docs" / "ck").is_dir():
+        if candidate.joinpath(*CHAPTER_DIR).is_dir():
             return candidate
     return None
 
 
-def cited_tokens(root):
-    """Every citation token the handbook's chapters still write.
+def cited_tokens(root, instead=None):
+    """Every citation token the handbook's chapters write.
 
     `docs/ck/` only, because that is what the snapshot records: a token cited
     solely in `docs/roadmap.md` has no entry to keep alive, and counting it
-    here would keep a stale record indefinitely. Read with the same `find`
-    that `check_citation_drift.collect` uses, so the two agree on what a
-    citation is by construction rather than by two patterns kept in step.
+    here would keep a stale record indefinitely.
+
+    `instead` is `(path, text)`: that file is read from the text given rather
+    than from disk. The re-keying has to be decided against the chapters as
+    they stand *after* the rewrite, and the rewrite must not reach disk before
+    every check has passed — so the text exists only in memory at the moment
+    this census is needed. Deriving the census arithmetically instead (drop
+    each old token, add each new one) is the shortcut that looks equivalent
+    and is not: a token another chapter still writes would be dropped from the
+    census and its record deleted, which a mutation of exactly that shape
+    confirmed on the real corpus.
+
+    Read line by line with the same `find` the checkers use. Both halves
+    matter: the function, and the granularity -- `find` over a whole file once
+    answered differently from `find` per line, and this census is what decides
+    a deletion.
     """
-    return {
-        token
-        for chapter in sorted((Path(root) / "docs" / "ck").glob("*.md"))
-        for line in chapter.read_text().splitlines()
-        for token, _ in find(line)
-    }
+    chapters = sorted(Path(root).joinpath(*CHAPTER_DIR).glob("*.md"))
+    override = Path(instead[0]).resolve() if instead else None
+    tokens = set()
+    for chapter in chapters:
+        text = instead[1] if override == chapter.resolve() else chapter.read_text()
+        tokens |= {token for token, _, _ in citations_in(text)}
+    return tokens
 
 
 def rekey_snapshot(snapshot, rewrites, still_cited):
     """The snapshot with each rewritten citation's record under its new key.
+
+    Returns `(snapshot, added, removed)`: a delta rather than a total, because
+    a total cannot show a loss -- 809 records and 808 read alike, and that is
+    how the first version of this path reported deleting two records as
+    success.
 
     Both halves are decided against `still_cited` -- the chapters' citations
     as they stand *after* the prose was rewritten -- because the snapshot
     records the handbook and `check_citation_drift.compare` reports in both
     directions: a key no chapter cites is stale, and a cited citation with no
     key is uncaptured. So a record is added only once a chapter writes the
-    anchored form, and removed only once no chapter writes the old one.
+    anchored form, and removed only once no chapter writes the old one. The
+    two conditions are paired by the refusal below rather than by their
+    phrasing: a drop with no matching add would leave the record under no key
+    at all.
 
     The two cases that makes right are worth naming. 13 of the citations in
     the chapters migrated here are also cited in chapters that stay
@@ -285,12 +350,41 @@ def rekey_snapshot(snapshot, rewrites, still_cited):
     would hide a mis-anchoring behind fresh evidence.
     """
     citations = dict(snapshot.get("citations", {}))
+    added, removed = [], []
     for rewrite in rewrites:
         if rewrite.token in citations and rewrite.anchored in still_cited:
+            if (
+                citations.get(rewrite.anchored, citations[rewrite.token])
+                != citations[rewrite.token]
+            ):
+                raise RuntimeError(
+                    f"`{rewrite.anchored}` is already recorded with different text than "
+                    f"`{rewrite.token}` — two citations cannot share one key and one line"
+                )
             citations[rewrite.anchored] = citations[rewrite.token]
+            added.append(rewrite.anchored)
         if rewrite.token not in still_cited:
+            if rewrite.token in citations and rewrite.anchored not in citations:
+                # The two halves above are independent conditions, and there is
+                # no state in which this one may fire while the other did not:
+                # a record whose replacement key was never written is a record
+                # that ceased to exist. Nothing said so, and it was reachable --
+                # measured, two records in and none out, exit 0, from a
+                # `docs/ck/` that existed and held no chapter.
+                #
+                # The recorded text is the only proof that the anchored form
+                # points at the line the claim was weighed against, and the
+                # repair a reader reaches for once it is gone is `--capture`,
+                # which writes what the line says now. So this is a census that
+                # does not describe this snapshot rather than a stale entry.
+                raise RuntimeError(
+                    f"re-keying would drop the only record of `{rewrite.token}` — "
+                    f"no chapter cites it and none cites `{rewrite.anchored}`; "
+                    "check that the snapshot and the chapters belong to one checkout"
+                )
+            removed.append(rewrite.token)
             citations.pop(rewrite.token, None)
-    return {**snapshot, "citations": citations}
+    return {**snapshot, "citations": citations}, tuple(added), tuple(removed)
 
 
 def anchored_already(path):
@@ -301,10 +395,7 @@ def anchored_already(path):
     that a migration landed say nothing at all.
     """
     return sum(
-        1
-        for line in Path(path).read_text().splitlines()
-        for _, citation in find(line)
-        if tier(citation) != "absolute"
+        1 for _, citation, _ in citations_in(Path(path).read_text()) if tier(citation) != "absolute"
     )
 
 
@@ -362,24 +453,37 @@ def main(argv=None):
             # run should have moved into it.
             print(f"\nno snapshot at {snapshot} — a rekey needs the one the gate compares against")
             return 1
-
-        # The prose first, then the snapshot. A prose write whose snapshot
-        # write failed is reported by the drift gate on the next run, in both
-        # of its directions; the reverse order leaves a snapshot naming
-        # citations no file carries, which reads as a handbook that lost them.
+        # Everything is computed and checked before either file is written, so
+        # a failure leaves both as they were. The prose used to be written
+        # first, and a failed post-condition then left a half-migrated chapter
+        # on disk -- the state this tool refuses a whole file to avoid.
         try:
-            replaced = apply_rewrites(args.path, rewrites)
+            text, replaced = rewritten_text(args.path, rewrites)
+            census = cited_tokens(root, instead=(args.path, text))
+            if not census:
+                # The directory exists and holds no chapter. `repository_root`
+                # checks that `docs/ck/` is there, which is not the same
+                # question, and an empty census is read downstream as "no
+                # chapter cites anything" -- the authoritative answer that
+                # deletes records. A silent zero means "not looked at"; on a
+                # write path it must not be an answer at all.
+                raise RuntimeError(
+                    f"{root.joinpath(*CHAPTER_DIR)} holds no chapters — no census to re-key against"
+                )
+            rekeyed, added, removed = rekey_snapshot(read_snapshot(snapshot), rewrites, census)
         except RuntimeError as problem:
             # A sentence and an exit code, as every sibling checker reports a
-            # failure. The prose is already written at this point, which the
-            # message has to say, because the repair is a rewrap rather than
-            # a re-run.
+            # failure. Nothing has been written at this point.
             print(f"\n{problem}")
             return 1
-        rekeyed = rekey_snapshot(read_snapshot(snapshot), rewrites, cited_tokens(root))
+
+        Path(args.path).write_text(text)
         snapshot.write_text(json.dumps(rekeyed, indent=2, sort_keys=True) + "\n")
         print(f"\nanchored {len(rewrites)} citation(s) in {replaced} place(s) in {args.path}")
-        print(f"re-keyed {snapshot}: {len(rekeyed['citations'])} record(s)")
+        print(
+            f"re-keyed {snapshot}: +{len(added)}/-{len(removed)}, "
+            f"{len(rekeyed['citations'])} record(s)"
+        )
         return 0
 
     print(
