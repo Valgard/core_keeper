@@ -64,6 +64,7 @@ import io
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -496,15 +497,33 @@ def run_ck_workshop(
         stderr=subprocess.STDOUT,
         env=child,
         text=True,
+        # A session of its own, so the tool can be stopped as a group: `dotnet
+        # run` is only a launcher, and the tool it starts outlives a kill aimed
+        # at the launcher alone -- uploading on with no time limit.
+        start_new_session=True,
     )
-    killer = threading.Timer(CK_WORKSHOP_TIMEOUT, process.kill)
+
+    def stop():
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:  # the whole group already exited
+            pass
+        except PermissionError:
+            # What macOS answers when the group's only member is the launcher,
+            # exited but not yet reaped: gone, too, unless it is still running.
+            if process.poll() is None:
+                raise
+
+    killer = threading.Timer(CK_WORKSHOP_TIMEOUT, stop)
     killer.start()
+    # Its own session also keeps the tool out of reach of a closed terminal's
+    # SIGHUP and a SIGTERM, which used to take it down with this process. Both
+    # are turned into an exit through the cleanup below for as long as it runs.
+    previous = _exit_on_termination_signals()
     try:
         if stdin is not None:
             pipe_in = process.stdin
             if pipe_in is None:  # asked for as PIPE above; Popen only types it Optional
-                process.kill()
-                process.wait()
                 raise RuntimeError("ck-workshop was started without the stdin pipe asked for")
             # From a thread, so that reading the child's output and feeding it
             # cannot wait on each other. A bundle is well under a pipe buffer
@@ -518,24 +537,49 @@ def run_ck_workshop(
             feeder.start()
         pipe_out = process.stdout
         if pipe_out is None:  # the same: PIPE was asked for, Popen types it Optional
-            process.kill()
-            process.wait()
             raise RuntimeError("ck-workshop was started without the stdout pipe asked for")
         lines = []
         sink = tee_to.open("w") if tee_to else None
         try:
             for line in pipe_out:
                 lines.append(line)
-                sys.stderr.write(line)
+                # The file first: it is what has to keep a new item's id if
+                # writing to the terminal is what fails.
                 if sink:
                     sink.write(line)
                     sink.flush()
+                sys.stderr.write(line)
         finally:
             if sink:
                 sink.close()
         return process.wait(), "".join(lines)
+    except BaseException:
+        # Leaving early cancels the timeout below, and nothing reads the child's
+        # output any more -- an unopenable `tee_to`, say, or a Ctrl-C, which
+        # therefore stops the tool too. It must not outlive this call, running
+        # unbounded with a pipe nobody drains.
+        stop()
+        process.wait()
+        raise
     finally:
         killer.cancel()
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+
+
+def _exit_on_termination_signals() -> dict:
+    """Make SIGHUP and SIGTERM raise SystemExit; return the handlers they replace.
+
+    Only the main thread may install handlers, and elsewhere there is nothing
+    to replace: the caller then simply keeps the default behaviour.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        return {}
+
+    def exit_with(signum, frame):
+        raise SystemExit(128 + signum)
+
+    return {signum: signal.signal(signum, exit_with) for signum in (signal.SIGHUP, signal.SIGTERM)}
 
 
 def read_item(utils_dir: Path, env: dict, file_id: int) -> dict | None:

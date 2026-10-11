@@ -8,8 +8,13 @@ to guess — far more than about what it produces.
 """
 
 import json
+import os
 import pathlib
 import re
+import signal
+import subprocess
+import threading
+import time
 
 import pytest
 import steam_backfill
@@ -457,3 +462,108 @@ def test_the_plan_shows_the_bbcode_note_that_will_be_submitted(capsys):
     assert "       | [h2]1.0.0[/h2]" in printed
     assert "       | [list]" in printed
     assert "- The first thing." not in printed
+
+
+# --- running ck-workshop -----------------------------------------------------
+
+
+def _launcher_with_a_tool(real_popen, pid_file, script='sleep 60 & echo $! > "{pid}"; wait'):
+    """A stand-in for `dotnet run`: a real launcher whose own child is the "tool".
+
+    Only real processes show an orphaned tool, which is the failure under test.
+    The launcher is handed over once the tool's pid is on disk.
+    """
+
+    def launcher(args, **kwargs):
+        process = real_popen(["sh", "-c", script.format(pid=pid_file)], **kwargs)
+        for _ in range(300):
+            if pid_file.is_file() and pid_file.read_text().strip():
+                break
+            time.sleep(0.01)
+        else:
+            process.kill()
+            pytest.fail("the stand-in launcher never started its tool")
+        return process
+
+    return launcher
+
+
+def _assert_gone(pid):
+    """Wait for `pid` to disappear -- an orphan is reaped by init, not by us."""
+    for _ in range(300):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return
+        time.sleep(0.01)
+    os.kill(pid, signal.SIGKILL)  # do not leak it into the rest of the run
+    pytest.fail(f"process {pid} outlived run_ck_workshop")
+
+
+def test_a_failure_while_reading_ck_workshop_stops_the_tool_it_launched(monkeypatch, tmp_path):
+    """Leaving run_ck_workshop early cancels its timeout, so the tool must go with it.
+
+    `dotnet run` is a launcher: killing it alone leaves the tool running, with
+    no time limit and nobody reading its output. An unopenable `tee_to` is the
+    realistic way to leave early.
+    """
+    pid_file = tmp_path / "tool.pid"
+    monkeypatch.setattr(
+        steam_backfill.subprocess, "Popen", _launcher_with_a_tool(subprocess.Popen, pid_file)
+    )
+    monkeypatch.setattr(steam_backfill, "_steam_app_id", lambda utils_dir: "1621690")
+
+    try:
+        with pytest.raises(FileNotFoundError):
+            steam_backfill.run_ck_workshop(
+                tmp_path, {}, [], stdin=None, tee_to=tmp_path / "missing-dir" / "result.txt"
+            )
+    finally:
+        _assert_gone(int(pid_file.read_text()))
+
+
+def test_a_sigterm_during_ck_workshop_stops_the_tool_too(monkeypatch, tmp_path):
+    """The tool's own session keeps SIGTERM and a closed terminal's SIGHUP away from it.
+
+    Both have to arrive anyway, as an exit through the same cleanup -- before,
+    they reached the tool directly, and the session must not turn that into
+    an orphan uploading on after this process died.
+    """
+    pid_file = tmp_path / "tool.pid"
+    monkeypatch.setattr(
+        steam_backfill.subprocess, "Popen", _launcher_with_a_tool(subprocess.Popen, pid_file)
+    )
+    monkeypatch.setattr(steam_backfill, "_steam_app_id", lambda utils_dir: "1621690")
+    threading.Timer(0.3, os.kill, (os.getpid(), signal.SIGTERM)).start()
+
+    try:
+        with pytest.raises(SystemExit) as exited:
+            steam_backfill.run_ck_workshop(tmp_path, {}, [], stdin=None, tee_to=None)
+    finally:
+        _assert_gone(int(pid_file.read_text()))
+    assert exited.value.code == 128 + signal.SIGTERM
+    assert signal.getsignal(signal.SIGTERM) is not None  # the previous handler is back
+
+
+def test_stopping_a_launcher_that_already_exited_keeps_the_real_error(monkeypatch, tmp_path):
+    """With only the exited, unreaped launcher left, macOS refuses killpg with EPERM.
+
+    That refusal means "already gone" and must not replace the error that made
+    the run leave early.
+    """
+    pid_file = tmp_path / "tool.pid"
+    launcher = _launcher_with_a_tool(subprocess.Popen, pid_file, script='echo $$ > "{pid}"')
+    monkeypatch.setattr(steam_backfill.subprocess, "Popen", launcher)
+    monkeypatch.setattr(steam_backfill, "_steam_app_id", lambda utils_dir: "1621690")
+    real_open = pathlib.Path.open
+
+    def open_after_the_launcher_exits(self, *args, **kwargs):
+        time.sleep(0.2)
+        return real_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(pathlib.Path, "open", open_after_the_launcher_exits)
+
+    with pytest.raises(FileNotFoundError):
+        steam_backfill.run_ck_workshop(
+            tmp_path, {}, [], stdin=None, tee_to=tmp_path / "missing-dir" / "result.txt"
+        )
