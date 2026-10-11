@@ -379,10 +379,11 @@ _SPRITE_COLOURS = [
 ]
 
 
-def _write_sprite_pixaki(tmp_path, cfg_json, form="zip", count=2):
+def _write_sprite_pixaki(tmp_path, cfg_json, form="zip", count=2, nameless=()):
     """A .pixaki with `count` DISTINCT sprites, plus a sibling s.json holding cfg_json.
 
-    Sprites are named 'Icon', 'Icon2', … Returns the .pixaki path.
+    Sprites are named 'Icon', 'Icon2', … except the indices in `nameless`, whose
+    layers carry no name at all. Returns the .pixaki path.
 
     `form` selects the packaging (see conftest.write_pixaki) and defaults to the
     ZIP that Pixaki's Export produces. It also carries the directory members a
@@ -401,7 +402,7 @@ def _write_sprite_pixaki(tmp_path, cfg_json, form="zip", count=2):
                 ],
                 "layers": [
                     {
-                        "name": name,
+                        **({} if i in nameless else {"name": name}),
                         "clips": [{"itemIdentifier": f"D{i + 1}"}],
                         "isVisible": True,
                     }
@@ -432,6 +433,35 @@ def test_validate_pins_rejects_collision(tmp_path):
     with pytest.raises(ValueError, match="duplicate internalID"):
         p.build_sheet(str(pixaki), str(tmp_path / "s.png"))
     assert not (tmp_path / "s.png").exists()
+
+
+def test_build_sheet_refuses_a_nameless_layer(tmp_path):
+    """A layer without a name must stop the build, not ship as a sprite called "None 4x4".
+
+    Two of them would also merge under that one name, so the refusal names the
+    cels and writes nothing.
+    """
+    import pytest
+
+    pixaki = _write_sprite_pixaki(tmp_path, "{}", count=3, nameless={1, 2})
+    with pytest.raises(ValueError, match=r"without a name.*\['D2', 'D3'\]"):
+        p.build_sheet(str(pixaki), str(tmp_path / "s.png"))
+    assert not (tmp_path / "s.png").exists()
+
+
+def test_collect_layers_keeps_a_nameless_layer_for_the_inspector():
+    """collect_layers() reports a visible nameless layer as None instead of refusing it.
+
+    The inspector is how such a layer gets found, so it must be listed; a
+    hidden one stays skipped like any other hidden layer.
+    """
+    doc = _doc()
+    window, _, clear = doc["sprites"][0]["layers"]
+    del window["name"]
+    del clear["name"]
+    clear["isVisible"] = False
+    layers = p.collect_layers(doc, EXCLUDE_TOP)
+    assert [(layer.name, layer.drawing_id) for layer in layers] == [(None, "D1")]
 
 
 def test_build_sheet_reads_a_directory_package_exactly_like_a_zip(tmp_path):

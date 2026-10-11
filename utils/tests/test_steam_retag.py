@@ -157,6 +157,14 @@ def test_verify_never_turns_unreadable_into_confirmed(monkeypatch):
         steam_retag.verify(1, ["1.3.0"])
 
 
+def test_verify_with_no_attempt_allowed_names_the_missing_read(monkeypatch):
+    """Zero attempts leave no stored error; that must still raise, and not as `raise None`."""
+    monkeypatch.setattr(steam_retag, "VERIFY_ATTEMPTS", 0)
+    monkeypatch.setattr(steam_retag, "live_tags", lambda file_id: pytest.fail("read attempted"))
+    with pytest.raises(RuntimeError, match="never read"):
+        steam_retag.verify(1, ["1.3.0"])
+
+
 class _Response(io.BytesIO):
     def __enter__(self):
         return self

@@ -117,9 +117,11 @@ def _parse_cells(cells):
 
 @dataclass
 class Layer:
-    """One visible, named layer collect_layers() found: its drawing and declared size."""
+    """One visible layer collect_layers() found: its drawing and declared size."""
 
-    name: str
+    # None for a layer saved without a name. The inspector lists it as such,
+    # since finding it is the point; build() refuses it before naming sprites.
+    name: str | None
     drawing_id: str
     w: int
     h: int
@@ -128,7 +130,7 @@ class Layer:
 
 
 def collect_layers(doc, exclude_top, exclude_nested=frozenset()):
-    """Return the visible, named, drawing-bearing layers.
+    """Return the visible, drawing-bearing layers, named or not.
 
     Skips the excluded top-level groups, any hidden layer, and every node --
     group (with its whole subtree) or layer -- whose name is in exclude_nested,
@@ -482,6 +484,11 @@ def build_sheet(pixaki_path, out_png, template_meta=None, guid=None, config_path
             f"'excludeNested' names match no group or layer in {pixaki_path}: {missing}"
         )
     layers = collect_layers(doc, cfg["exclude"], frozenset(cfg["excludeNested"]))
+    nameless = [layer.drawing_id for layer in layers if layer.name is None]
+    if nameless:
+        # Each sprite is named after its layer, so these would ship as
+        # "None <w>x<h>" -- or merge with each other under that one name.
+        raise ValueError(f"layers without a name in {pixaki_path}, holding cels {nameless}")
     distinct, _name_to_key = dedup(layers, drawings, cfg["cells"])
     # base name per key = first layer that produced it (recompute the key per
     # layer; name_to_key is lossy when one name maps to several distinct keys,

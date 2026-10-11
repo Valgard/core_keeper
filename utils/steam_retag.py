@@ -92,7 +92,9 @@ def verify(file_id: int, wanted: list[str]) -> list[str]:
 
     A failed read is retried like a mismatch, since both can be a moment of lag.
     If no read succeeded at all, the last error is raised: that is "unknown",
-    and must not come back as the empty list that means "confirmed".
+    and must not come back as the empty list that means "confirmed". With no
+    attempt allowed (VERIFY_ATTEMPTS < 1) there is no error to raise, so that
+    raises RuntimeError instead.
     """
     missing: list[str] | None = None
     error: Exception | None = None
@@ -107,6 +109,13 @@ def verify(file_id: int, wanted: list[str]) -> list[str]:
         if attempt + 1 < VERIFY_ATTEMPTS:
             time.sleep(VERIFY_INTERVAL)
     if missing is None:
+        # No read succeeded, so every attempt stored its error — unless there
+        # was no attempt at all, and `raise None` would surface as a TypeError
+        # about the raise itself rather than as the read that never happened.
+        if error is None:
+            raise RuntimeError(
+                f"item {file_id} was never read: VERIFY_ATTEMPTS is {VERIFY_ATTEMPTS}"
+            )
         raise error
     return missing
 
