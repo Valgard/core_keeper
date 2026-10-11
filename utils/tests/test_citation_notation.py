@@ -13,6 +13,7 @@ carrying a dot. Both are real shapes from the decompile, not invented ones.
 
 import pytest
 from citation_notation import Citation
+from citation_notation import find
 from citation_notation import parse
 from citation_notation import render
 from citation_notation import tier
@@ -122,3 +123,41 @@ def test_a_line_number_below_one_is_not_a_citation():
     """`A:0` is well-formed and names nothing; a 1-based grammar has no line 0."""
     assert parse("Pug.Other:0") is None
     assert parse("Pug.Other:Foo:Bar:0") is None
+
+
+def test_finds_a_citation_in_either_grammar():
+    """Both notations are live during the migration, so both must be found."""
+    text = "see `Pug.Other:441234` and `Pug.Other:Foo:Bar:7` for the call"
+    assert [token for token, _ in find(text)] == ["Pug.Other:441234", "Pug.Other:Foo:Bar:7"]
+
+
+def test_finds_both_grammars_on_one_line_in_order():
+    """A migrating chapter carries both, and the order is the report's order."""
+    text = "`A:Foo:Bar:1` then `A:9` then `A:Baz:2-4`"
+    assert [c.member for _, c in find(text)] == ["Bar", None, None]
+    assert [c.first for _, c in find(text)] == [1, 9, 2]
+
+
+def test_a_unity_fileid_is_not_a_citation():
+    """`{fileID: 123456}` is Unity's own reference syntax, not a line reference."""
+    assert find("the prefab points at `{fileID: 2456}`") == []
+
+
+def test_a_doc_to_doc_line_reference_is_not_a_citation():
+    """`docs/ck/index.md:12` names a file in this repository, not an assembly."""
+    assert find("see `docs/ck/index.md:12`") == []
+
+
+def test_a_malformed_token_is_dropped_not_returned():
+    """`parse` is the judge; a candidate it refuses never reaches the caller.
+
+    Reporting a malformed token is the style checker's job, and it reads
+    `FINDER` directly for exactly that -- this function answers only with
+    citations.
+    """
+    assert find("`Pug.Other:Foo:Bar:12-7`") == []
+
+
+def test_text_with_no_citations_finds_nothing():
+    """A backticked word and a bare number are prose, not references."""
+    assert find("ordinary prose with a `backticked` word and a number 441234") == []

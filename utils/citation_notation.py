@@ -31,6 +31,27 @@ from dataclasses import dataclass
 # A location field: one line, or a range. Anchored, so nothing else matches.
 _LOCATION = re.compile(r"^(\d+)(?:-(\d+))?$")
 
+# Finding a citation in prose is a narrower question than parsing one, and
+# `FINDER` is deliberately stricter than the grammar: it requires a location.
+#
+# Measured over `docs/ck/`, where 193 backticked tokens carry a colon without
+# being citations -- YAML keys (`skipSafetyChecks: true`), exception messages,
+# C# named arguments (`recursive: true`). Rejecting a space after the colon
+# removes all but two, and those two are the instructive ones:
+# `Mod:WorkbenchChestExtra`, a CoreLib workbench id, and
+# `PugMod.Loader:LoadScripts (..., RoslynCSharp.ScriptDomain, ...)`, which is
+# the handbook writing a signature after an assembly name -- the exact shape of
+# a member-tier citation. No rule over the text can tell those from a real
+# citation, because there is no difference to see.
+#
+# Requiring the last field to be a location removes both and loses nothing: all
+# 796 citations in the handbook are still found, and `describe` never writes a
+# citation without one. So `Assembly:Class` and `Assembly:Class:member` stay in
+# the grammar, parseable and renderable, but are not discovered in prose.
+_ASSEMBLY = r"(?:DedicatedServer/)?[A-Za-z][A-Za-z0-9_.]*"
+_NAME_FIELD = r"[A-Za-z0-9_][A-Za-z0-9_.()<>,… \t-]*"
+FINDER = re.compile(rf"`({_ASSEMBLY}(?::{_NAME_FIELD})*:\d+(?:-\d+)?)`")
+
 
 @dataclass(frozen=True)
 class Citation:
@@ -136,3 +157,20 @@ def tier(c):
     if c.type_name is not None:
         return "type"
     return "absolute"
+
+
+def find(text):
+    """Every citation in `text`, as (token as written, Citation), in order.
+
+    The token comes back without its backticks, so a caller can report it or
+    substitute it. A candidate `FINDER` matches but `parse` refuses is dropped
+    rather than returned: this function answers with citations. Reporting a
+    malformed one is the style checker's job and needs the raw text, which is
+    why `FINDER` is exported beside this.
+    """
+    found = []
+    for match in FINDER.finditer(text):
+        token = match.group(1)
+        if (citation := parse(token)) is not None:
+            found.append((token, citation))
+    return found
