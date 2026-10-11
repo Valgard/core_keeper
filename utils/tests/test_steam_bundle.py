@@ -639,6 +639,57 @@ def test_a_malformed_dependency_cache_is_reported_by_name(tmp_path):
         steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        *("true", "1.5", "1e3", "-5", '"-5"', '" 12 "', '"+12"', '"1_000"', '"12.0"'),
+        *("0", '"0"', '""', "false", str(2**64)),
+    ],
+    ids=[
+        "bool",
+        "float",
+        "exponent",
+        "negative",
+        "negative-str",
+        "padded",
+        "signed",
+        "underscored",
+        "decimal-str",
+        "zero",
+        "zero-str",
+        "empty",
+        "false",
+        "above-uint64",
+    ],
+)
+def test_a_cached_id_that_is_not_a_workshop_id_is_refused(tmp_path, value):
+    """Anything but a positive uint64 is refused, not bent into one or skipped as "no id yet".
+
+    int() would take `true` as 1 or truncate 1.5, and a falsy 0, "" or false
+    used to be read as a missing entry -- sending a required dependency down
+    the "add it to the cache" path and quietly skipping an optional one.
+    """
+    repo = _repo(tmp_path, asset=_asset_with_dependencies(("CoreLib", True)))
+    cache = tmp_path / "deps.json"
+    cache.write_text(f'{{"CoreLib": {value}}}')
+    env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
+
+    with pytest.raises(ValueError, match=r"invalid Workshop id for 'CoreLib'"):
+        steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
+
+
+def test_a_cached_id_written_as_a_digit_string_is_accepted(tmp_path):
+    """A hand-edited cache may quote the id; a string of digits is the same id as the number."""
+    repo = _repo(tmp_path, asset=_asset_with_dependencies(("CoreLib", True)))
+    cache = tmp_path / "deps.json"
+    cache.write_text('{"CoreLib": "3000000001"}')
+    env = _env(tmp_path, STEAM_DEPS_MAP=str(cache))
+
+    bundle = steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
+
+    assert bundle["dependencies"] == [{"name": "CoreLib", "fileId": 3000000001, "required": True}]
+
+
 def test_a_non_numeric_cached_id_is_reported_by_mod_and_file(tmp_path):
     """A cached id that is not a number is reported naming both the dependency and the cache."""
     repo = _repo(tmp_path, asset=_asset_with_dependencies(("CoreLib", True)))

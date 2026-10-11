@@ -136,15 +136,21 @@ def resolve_dependencies(
     unresolved = []
     for name, required in declared:
         file_id = cache.get(name)
-        if file_id:
-            non_numeric = f"{cache_path} has a non-numeric Workshop id for {name!r}: {file_id!r}"
-            # A JSON value can be a list or an object too, which int() refuses.
-            if not isinstance(file_id, (int, float, str)):
-                raise ValueError(non_numeric)
-            try:
+        # Only a missing entry (or JSON null) counts as "no id yet". A present
+        # but falsy one -- 0, "", false -- is a broken entry and is refused
+        # below, rather than sent down the "add it to the cache" path.
+        if file_id is not None:
+            # A Workshop id is a positive integer that fits Steam's uint64,
+            # written as a JSON number or a string of ASCII digits. int() alone
+            # takes far more -- `true` as 1, a float truncated, "-5", " 12 ",
+            # "1_000" -- and each would ship a dependency on an item nobody chose.
+            if isinstance(file_id, str) and file_id.isascii() and file_id.isdigit():
                 file_id = int(file_id)
-            except ValueError as err:
-                raise ValueError(non_numeric) from err
+            if isinstance(file_id, bool) or not isinstance(file_id, int) or not 0 < file_id < 2**64:
+                raise ValueError(
+                    f"{cache_path} has an invalid Workshop id for {name!r}: {file_id!r} "
+                    "(expected a positive integer)"
+                )
             resolved.append({"name": name, "fileId": file_id, "required": required})
             continue
         if required:
