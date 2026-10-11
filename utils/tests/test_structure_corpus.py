@@ -40,7 +40,6 @@ from pathlib import Path
 
 import pytest
 from check_citation_drift import CITATION
-from check_citation_drift import DEFAULT_DECOMPILE
 from check_citation_drift import source_for
 from citation_notation import parse
 from citation_notation import render
@@ -79,33 +78,6 @@ CALIBRATION = [
 MAX_ABSOLUTE = 10
 MIN_TYPE = 20
 MIN_MEMBER_SHARE = 0.85
-
-
-@pytest.fixture(scope="module")
-def decompile():
-    """The decompile checkout, or a loud skip."""
-    path = Path(str(DEFAULT_DECOMPILE)).expanduser()
-    if not path.is_dir():
-        pytest.skip(f"no decompile tree at {path} — this suite checks the real corpus")
-    return path
-
-
-@pytest.fixture(scope="module")
-def corpus():
-    """Every unique `(assembly, first line)` the handbook cites.
-
-    Unique by assembly and line, which is the base the spec's figures use. The
-    occurrence count is higher and the two must not be mixed.
-    """
-    root = Path(__file__).resolve().parents[2] / "docs" / "ck"
-    cited = set()
-    for chapter in sorted(root.glob("*.md")):
-        for match in CITATION.finditer(chapter.read_text()):
-            assembly, _, tail = match.group(0).strip("`").rpartition(":")
-            first = tail.split("-")[0]
-            if first.isdigit():
-                cited.add((assembly, int(first)))
-    return sorted(cited)
 
 
 @pytest.fixture(scope="module")

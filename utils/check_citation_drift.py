@@ -33,6 +33,7 @@ Usage:
 """
 
 import argparse
+import functools
 import json
 import re
 import sys
@@ -76,14 +77,39 @@ SOURCE_EXTENSIONS = {".cs"}
 SOURCE_CLONES = ("CoreLib-source-*",)
 
 
+@functools.lru_cache(maxsize=4)
+def _read_lines(path, size, mtime_ns):
+    """Split one file, memoised on its identity. Call through `_lines_of`."""
+    return Path(path).read_text(errors="replace").splitlines()
+
+
+def _lines_of(path):
+    """Every line of `path`, split once per file state rather than per citation.
+
+    Measured, not guessed: without this, resolving the corpus read and split a
+    16 MB file 914 times and spent 25 of its 29 seconds doing it -- 11 s in
+    `read_text` and 14 s in `splitlines`. That cost predates symbol anchoring;
+    the old resolver read the file per citation too, and nobody had profiled it.
+
+    Keyed on size and mtime so a rewritten file is re-read, which is the same
+    key `decompile_structure`'s disk cache uses and for the same reason: a
+    stale answer about a file that moved is the one failure a cache here must
+    not have. Bounded at four files, because `Pug.Other` alone is 460,000 lines
+    and an unbounded store over 27 assemblies would hold hundreds of megabytes
+    -- four is enough that the two copies of `Pug.Other`, which carry most of
+    the corpus, stay resident while chapters interleave the rest.
+    """
+    stat = path.stat()
+    return _read_lines(str(path), stat.st_size, stat.st_mtime_ns)
+
+
 def _stripped_lines(path, first, last):
     """Read lines first..last from path, stripped.
 
     The shared tail of every resolution path below, once each has found which
     file to read.
     """
-    lines = path.read_text(errors="replace").splitlines()
-    return [line.strip() for line in lines[first - 1 : last]]
+    return [line.strip() for line in _lines_of(path)[first - 1 : last]]
 
 
 def source_for(assembly, decompile):
@@ -148,8 +174,16 @@ def key_of(assembly, first, last):
     return f"{assembly}:{first}" if first == last else f"{assembly}:{first}-{last}"
 
 
-def resolve_citation(citation, decompile):
+def resolve_citation(citation, decompile, structures=None):
     """The stripped text a Citation points at, or None when it no longer resolves.
+
+    `structures` is a caller-owned `{assembly: Structure | None}` cache. Pass
+    one when resolving many citations: `structure_of` keeps a cache on disk, but
+    it still decodes a 62,000-element entry on every call, and doing that once
+    per citation took this checker from near-instant to 29 s over the corpus.
+    The cache belongs to the caller rather than to `structure_of` on purpose --
+    memoising inside it would make three of its own tests unable to fail, since
+    they corrupt the entry on disk and call it again to prove it re-parses.
 
     None is the outcome absolute line numbers cannot produce and the reason for
     the whole change: a renamed or removed member stops resolving and says so,
@@ -175,7 +209,11 @@ def resolve_citation(citation, decompile):
     if tier(citation) == "absolute":
         return _stripped_lines(source, citation.first, citation.last)
 
-    structure = structure_of(source)
+    if structures is None:
+        structures = {}
+    if citation.assembly not in structures:
+        structures[citation.assembly] = structure_of(source)
+    structure = structures[citation.assembly]
     if structure is None:
         return None
     line = locate(structure, citation)
@@ -198,6 +236,7 @@ def collect(root, decompile):
     a repository to run at all.
     """
     corpus, problems, seen = {}, [], set()
+    structures = {}  # one decode per assembly, not one per citation
     for chapter in sorted((Path(root) / "docs" / "ck").glob("*.md")):
         for number, line in enumerate(chapter.read_text().splitlines(), start=1):
             for token, citation in find(line):
@@ -211,7 +250,7 @@ def collect(root, decompile):
                 if source_for(citation.assembly, decompile) is None:
                     problems.append(f"{chapter.name}:{number}  {token}  no decompiled assembly")
                     continue
-                corpus[token] = resolve_citation(citation, decompile)
+                corpus[token] = resolve_citation(citation, decompile, structures)
     return corpus, sorted(problems), seen
 
 

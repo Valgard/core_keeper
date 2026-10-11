@@ -73,6 +73,47 @@ def _isolate_structure_cache(tmp_path_factory):
         yield
 
 
+@pytest.fixture(scope="session")
+def decompile():
+    """The decompile checkout, or a loud skip.
+
+    Shared by every suite that checks a claim against the real decompile, so
+    there is one answer to "where is it" and one place that skips.
+    """
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from check_citation_drift import DEFAULT_DECOMPILE
+
+    path = pathlib.Path(str(DEFAULT_DECOMPILE)).expanduser()
+    if not path.is_dir():
+        pytest.skip(f"no decompile tree at {path} — this suite checks the real corpus")
+    return path
+
+
+@pytest.fixture(scope="session")
+def corpus():
+    """Every unique `(assembly, first line)` the handbook cites.
+
+    Unique by assembly and line, which is the base the design spec's figures
+    use; the occurrence count is higher and the two must not be mixed.
+
+    Collected with `citation_notation.find` rather than the old `CITATION`
+    regex, which matters from the first migrated chapter onward: that regex
+    cannot see a symbol-anchored citation, so a corpus built on it would
+    quietly shrink as the migration progressed and every suite resting on it
+    would test less without saying so.
+    """
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from citation_notation import find
+
+    root = pathlib.Path(__file__).resolve().parents[2] / "docs" / "ck"
+    cited = {
+        (citation.assembly, citation.first)
+        for chapter in sorted(root.glob("*.md"))
+        for _, citation in find(chapter.read_text())
+    }
+    return sorted(cited)
+
+
 PIXAKI_FORMS = ("zip", "directory")
 
 # What a real Pixaki export carries besides its files. A ZIP stores these as
