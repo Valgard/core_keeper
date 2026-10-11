@@ -3010,6 +3010,12 @@
     "Pug.Other:ModManager:Init:23": [
       "UnityEngine.Debug.Log($\"Loading mod with ID {loadedMod.ModId}\");"
     ],
+    "Pug.Other:ModManager:Init:24-27": [
+      "string text = Path.Combine(directory, \"Conf\");",
+      "if (Directory.Exists(text))",
+      "{",
+      "Config.ConfFolders.Add(text);"
+    ],
     "Pug.Other:ModManager:Update:8": [
       "Integration.Instance.Update();"
     ],
@@ -4168,6 +4174,14 @@
     "PugMod.Loader:DependencySorter:SortMods:23": [
       "UnityEngine.Debug.LogWarning(\"skipping mod \" + mod.Metadata.name + \" because of missing dependency: \" + dependency.modName);"
     ],
+    "PugMod.Loader:DependencySorter:SortMods:38-43": [
+      "foreach (ModMetadata.Dependency dependency2 in mod3.Metadata.dependencies)",
+      "{",
+      "if (dictionary.TryGetValue(dependency2.modName, out var value))",
+      "{",
+      "node.Dependencies.Add(value);",
+      "}"
+    ],
     "PugMod.Loader:Loader:AddEntitySystems:28": [
       "SystemBaseRegistry.AddUnmanagedSystemType(item.SystemType, BurstRuntime.GetHashCode64(item.SystemType), array[0], array[1], array[2], array[3], array[4], array[5], item.FullName, 0);"
     ],
@@ -4211,11 +4225,19 @@
     "PugMod.Loader:Loader:LoadScripts:42": [
       "if (!SourceGenPatch.Patch(mod.Metadata.name, list2, !mod.Metadata.skipSafetyChecks))"
     ],
+    "PugMod.Loader:Loader:LoadScripts:5-7": [
+      "foreach (Mod mod2 in _mods)",
+      "{",
+      "list.AddRange(mod2.LoadedAssemblies);"
+    ],
     "PugMod.Loader:Loader:LoadScripts:61": [
       "ScriptAssembly scriptAssembly = scriptDomain.CompileAndLoadFiles(array, mod.Metadata.skipSafetyChecks ? ScriptSecurityMode.EnsureLoad : ScriptSecurityMode.UseSettings, list.ToArray());"
     ],
     "PugMod.Loader:Loader:LoadScripts:78": [
       "if (!JobsPatch.Patch(scriptAssembly.SystemAssembly))"
+    ],
+    "PugMod.Loader:Loader:Reload:109": [
+      "loadedMod2.EarlyInit();"
     ],
     "PugMod.Loader:Loader:Reload:124": [
       "loadedMod3.ModObjectLoaded(loadedAsset);"
@@ -4239,6 +4261,41 @@
       "if (flag)",
       "{",
       "WriteConfig();"
+    ],
+    "PugMod.Loader:Loader:Reload:56": [
+      "_mods = _sorter.SortMods(_mods, _config.preferredLoadOrder);"
+    ],
+    "PugMod.Loader:Loader:Reload:62-91": [
+      "if (!Load(mod, out var loadError))",
+      "{",
+      "_notLoadedMods.Add(new NotLoadedMod",
+      "{",
+      "ModId = mod.ModId,",
+      "Metadata = mod.Metadata,",
+      "CanForceLoad = false,",
+      "Reason = loadError.ToString()",
+      "});",
+      "Reset(mod);",
+      "_mods.RemoveAt(j);",
+      "j--;",
+      "result = false;",
+      "continue;",
+      "}",
+      "if (!_hasSavesMod)",
+      "{",
+      "try",
+      "{",
+      "if (Directory.Exists(Path.Combine(mod.Directory, \"Saves\")))",
+      "{",
+      "_hasSavesMod = true;",
+      "}",
+      "}",
+      "catch (Exception exception)",
+      "{",
+      "UnityEngine.Debug.LogException(exception);",
+      "}",
+      "}",
+      "_loadedMods.Add(new LoadedMod"
     ],
     "PugMod.Loader:Loader:Update:1": [
       "public void Update()"

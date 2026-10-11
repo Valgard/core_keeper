@@ -215,9 +215,10 @@ preference:
 
 - **`API.ConfigFilesystem`** (`PugMod`) — the loader's own file API, and the
   right answer for anything a `config.json` would hold. `FileExists`, `Read` /
-  `Write` (both `byte[]`), `CreateDirectory`, rooted at
-  `…/LocalLow/Pugstorm/Core Keeper/<platform>/<user-id>/mods/<ModName>/` and
-  initialised before any mod's `EarlyInit`. No dependency, sandbox-clean.
+  `Write` (both `byte[]`), `CreateDirectory`, rooted at the `mods/` folder
+  `…/LocalLow/Pugstorm/Core Keeper/<platform>/<user-id>/mods/` that every mod
+  shares — your own files go under `<ModName>/` by convention, not by
+  confinement — and initialised before any mod's `EarlyInit`. No dependency, sandbox-clean.
   Used by `mod-settings-menu`'s `ConfigStore` — and by CoreLib, which is
   itself a sandboxed source mod (`skipSafetyChecks: false`) with zero
   `System.IO` references.

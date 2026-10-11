@@ -384,6 +384,39 @@ through the bundle handle above, or reference them from an asset that ships in
 the bundle — a prefab or a data block — which is how a map-marker icon block
 carries a sprite sheet's slices.
 
+### Reaching another mod without a dependency
+
+The same list answers questions about other mods, and nothing in it is limited
+to your own entry. What one mod can reach of another without declaring it:
+
+- **Whether it is there.** The load pass adds a mod to `LoadedMods` only after
+  its `Load` succeeded, and records a failure in a separate not-loaded list
+  instead (`PugMod.Loader:Loader:Reload:62-91`); a mod the sorter dropped before
+  that — a missing required dependency, a second mod of the same name — is in
+  neither. The pass runs over every mod before the first `EarlyInit`
+  (`PugMod.Loader:Loader:Reload:109`), so matching another mod's `metadata.name`
+  is reliable from `EarlyInit` on, and that name becomes an interface the moment
+  a second mod matches on it. Being listed means compiled and loaded, not
+  working: an exception in its `EarlyInit` is logged and the mod stays.
+- **Its content.** `Assets` and `AssetBundles` on its `LoadedMod` are its loaded
+  objects, and `GetFile` reads its install directory exactly as on your own; see [reading a file your mod ships](persistence.md#reading-a-file-your-mod-ships).
+- **The files it writes through the API.** `API.ConfigFilesystem` is rooted at the
+  shared `mods/` folder, so another mod's folder is one path segment away, for reading
+  and writing alike ([persistence](persistence.md#1-apiconfigfilesystem--the-default-answer)), and `API.Config` takes the mod's name as a plain
+  parameter. A file written past the API — `System.IO` under `skipSafetyChecks` — is
+  outside this.
+- **Its code, narrowly.** `Handlers` holds its live `IMod` objects, so its lifecycle
+  methods can be called, and `API.ModLoader`'s `ApplyHarmonyPatches` /
+  `UnloadHarmonyPatches` take any mod's id. Its own types are another matter: a call
+  needs a compile-time reference, and `API.Reflection` admits an assembly by name prefix
+  only ([the permission gate](sandbox.md#reaching-a-private-member-resolving-it-is-only-half-the-job)), which a mod's assembly — named after its `metadata.name` —
+  passes only if that name happens to begin with one of the admitted prefixes. What does
+  work is a call through a type both sides compile against: CoreLib lists its consumers'
+  types with `API.Reflection.GetTypes`, instantiates them and calls them through its own
+  interfaces — which takes a dependency in one direction, theirs on it. With none in
+  either direction two mods share data rather than calls, and the file API reports no
+  change: the side that reads polls, and `GetFileTime` is the cheap check.
+
 ### Ordering details that matter
 
 `EarlyInit` and `ModObjectLoaded` are **interleaved per mod**, not run as two global
@@ -704,6 +737,23 @@ They are independent, and setting only the platform one produces a contradiction
 looks impossible: CoreLib is installed, visibly loaded, and your mod still fails with
 `CS0246`/`CS0103` on every CoreLib type. The reason is that your mod was compiled *before*
 CoreLib, so CoreLib's assembly was not yet among the metadata references.
+
+**Every mod loaded earlier is a reference, not only the declared ones.**
+`LoadScripts` hands the compiler the assemblies of every mod in the load list
+(`PugMod.Loader:Loader:LoadScripts:5-7`), and only those already loaded have any.
+Two consequences, read from the loader rather than measured. A mod that uses
+another mod's types without declaring it compiles exactly when the other one is
+loaded first, and with no dependency between them that order is not the mod's
+to choose: the sorter ranks unrelated mods by the loader's `preferredLoadOrder`
+list and otherwise keeps the order it found them in
+(`PugMod.Loader:Loader:Reload:56`). A dependency with `required: 0` is the
+controlled form — the sorter orders by every declared dependency that is
+present, required or not (`PugMod.Loader:DependencySorter:SortMods:38-43`) — but
+it orders only; the types still have to exist, so the mod fails to compile
+whenever the other one is missing. And a type two mods both define, such as a
+helper copied into each, is visible to every mod compiled after them; code meant
+to be duplicated across mods belongs in `internal` types, or at least in a
+namespace of each mod's own.
 
 The loader's `DependencySorter.SortMods` does the work:
 

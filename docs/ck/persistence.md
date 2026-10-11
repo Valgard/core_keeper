@@ -108,6 +108,19 @@ triple — `Get<T>` / `TryGet<T>` / `Set<T>` / `Register<T>`, the last with a
 mandatory `description` — for simple scalar settings such as a tunable radius,
 when you do not want to own a file format at all.
 
+**Trap: an `API.Config` value is a file read, not a field.** Every entry of
+`ModAPIConfig` (`Pug.Other:ModAPIConfig`) is a JSON file of its own at
+`<mod>/<section>-<key>.json` (`Pug.Other:ModAPIConfig:GetPath`), and the `Value`
+getter of the entry `Register` hands back reads and parses that file on every
+access — it keeps the last read, but never answers from it. There is no change
+event. Read it once and keep the result: the published mod Rail Network
+(mod.io `6434348`) records in its source that two reads a frame were its whole
+7 ms UI-update cost, even on the title screen. Two more things follow from the
+getter. A missing or unparsable file reads as `default(T)`, not as the default
+you registered. And because a failed read also clears the entry's cached copy,
+the next assignment to `Value` dereferences nothing — so a hand-deleted or
+corrupted file turns the following write into an exception rather than a repair.
+
 ### 2. CoreLib's `ConfigFile` — typed entries, at a price
 
 CoreLib's `ConfigFile` sits on top of the same `API.ConfigFilesystem` and adds
@@ -323,6 +336,31 @@ method on the trusted `LoadedMod` wrapper, not a shipped `.dll`. See [mod anatom
 for `GetFile`'s other documented use — deriving a build identifier from the
 install directory's name, since no version field exists anywhere in the loader's
 view of a mod.
+
+**It works on any loaded mod, not only your own.** Nothing in `GetFile`
+(`PugMod.SDK.Runtime:LoadedMod:GetFile`) ties it to the caller: it returns null
+when the loader knows no directory for that mod, and otherwise refuses only a
+path that leaves the directory of the mod it is called on. So the `LoadedMod` of
+another mod reads that mod's shipped files the same way, and a payload one mod
+ships for another to find needs no dependency in either direction. That
+containment test compares string prefixes with no trailing separator, so a
+sibling directory whose name merely starts with the same characters passes it.
+This is read from the source, not yet exercised across mods.
+
+**`Conf/` is shared with the game's own data loaders.** At startup the game adds
+every loaded mod's `Conf/` folder that exists to `Config.ConfFolders`
+(`Pug.Other:ModManager:Init:24-27`), and five loaders in `Pug.Mods` read `*.json`
+from fixed subfolders of each (`Pug.Mods:Factions`, `Pug.Mods:Fishing`,
+`Pug.Mods:LootTable`, `Pug.Mods:SpawnTable`, `Pug.Mods:Talents`):
+
+| Subfolder | Depth read |
+|---|---|
+| `Factions`, `Fishing`, `Loot`, `Loot/Fishing/Biome`, `Loot/Fishing/Water`, `Talents` | top level only |
+| `Spawn/Initial`, `Spawn/Respawn` | every level below |
+
+A `.json` the table covers is game data, and the game parses it as such. Any
+other file — directly in `Conf/`, in a subfolder of another name, one level
+deeper than a top-level-only folder, or not `.json` at all — is left to you.
 
 ## What the rest of the catalogue does
 
