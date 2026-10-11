@@ -22,7 +22,7 @@ name in the client decompile (`Pug.Other:441234`); the same shape prefixed
 build kept separately, not a duplicate of the client's
 (`DedicatedServer/Pug.Other:430189`); and a name ending in a recognised Unity
 asset extension against `Resources/Assets/`, searched recursively
-(`ControlMappingMenu.prefab:2456-2457`). A citation naming anything else is
+(`ControlMappingMenu.prefab:2459-2460`). A citation naming anything else is
 reported rather than guessed at — and so is an asset name that matches more
 than one file, rather than picking between them.
 
@@ -64,7 +64,7 @@ def extract(text):
 
 # Unity asset extensions the handbook has actually cited by name-and-line so
 # far. `.prefab` is the only one in use today
-# (`ControlMappingMenu.prefab:2456-2457` in ui-framework.md) — extend this set
+# (`ControlMappingMenu.prefab:2459-2460` in ui-framework.md) — extend this set
 # the day a citation needs a second one, rather than pre-guessing which.
 ASSET_EXTENSIONS = {".prefab"}
 
@@ -77,7 +77,7 @@ SOURCE_EXTENSIONS = {".cs"}
 SOURCE_CLONES = ("CoreLib-source-*",)
 
 
-@functools.lru_cache(maxsize=4)
+@functools.lru_cache(maxsize=8)
 def _read_lines(path, size, mtime_ns):
     """Split one file, memoised on its identity. Call through `_lines_of`."""
     return Path(path).read_text(errors="replace").splitlines()
@@ -86,18 +86,28 @@ def _read_lines(path, size, mtime_ns):
 def _lines_of(path):
     """Every line of `path`, split once per file state rather than per citation.
 
-    Measured, not guessed: without this, resolving the corpus read and split a
-    16 MB file 914 times and spent 25 of its 29 seconds doing it -- 11 s in
-    `read_text` and 14 s in `splitlines`. That cost predates symbol anchoring;
-    the old resolver read the file per citation too, and nobody had profiled it.
+    Measured with `cProfile`, not guessed: without this, resolving the corpus
+    read and split a 16 MB file 914 times -- once per citation, at the corpus
+    size of that day -- and spent 25 of that run's 29 seconds doing it, 11 s in
+    `read_text` and 14 s in `splitlines`. Two guesses at the cause came first
+    and were both wrong, which is why the figures are a profile rather than a
+    reading of the code. That cost predates symbol anchoring; the old resolver
+    read the file per citation too, and nobody had profiled it.
 
     Keyed on size and mtime so a rewritten file is re-read, which is the same
     key `decompile_structure`'s disk cache uses and for the same reason: a
     stale answer about a file that moved is the one failure a cache here must
-    not have. Bounded at four files, because `Pug.Other` alone is 460,000 lines
-    and an unbounded store over 27 assemblies would hold hundreds of megabytes
-    -- four is enough that the two copies of `Pug.Other`, which carry most of
-    the corpus, stay resident while chapters interleave the rest.
+    not have.
+
+    Bounded at eight files, measured rather than reasoned about. Holding all 30
+    cited sources at once costs 97 MB (peak 131 MB), so an unbounded store is
+    not the hazard an earlier version of this comment claimed -- it said
+    "hundreds of megabytes", which overstates it threefold, and then justified a
+    bound of four on the strength of it. Four also did not do what it was
+    claimed to: the corpus reads `Pug.Other` seven separate times at that size,
+    because chapters interleave the other assemblies and evict it. Eight keeps
+    it resident and costs 0.66 s against 1.11 s; 32 gets to 0.54 s for a bound
+    that no longer bounds anything.
     """
     stat = path.stat()
     return _read_lines(str(path), stat.st_size, stat.st_mtime_ns)
@@ -198,11 +208,17 @@ def resolve_citation(citation, decompile, structures=None):
 
     `structures` is a caller-owned `{assembly: Structure | None}` cache. Pass
     one when resolving many citations: `structure_of` keeps a cache on disk, but
-    it still decodes a 62,000-element entry on every call, and doing that once
-    per citation took this checker from near-instant to 29 s over the corpus.
-    The cache belongs to the caller rather than to `structure_of` on purpose --
-    memoising inside it would make three of its own tests unable to fail, since
-    they corrupt the entry on disk and call it again to prove it re-parses.
+    it still decodes a 62,000-element entry on every call. Measured against a
+    fully anchored corpus -- the state the chapter migration leaves behind, not
+    today's mostly-absolute one, which barely touches this layer at all --
+    decoding once per citation costs 149 s against 1.3 s with the cache.
+
+    The cache belongs to the caller rather than to `structure_of` on purpose:
+    memoising inside it leaves four of that module's cache tests unable to fail,
+    because they corrupt the entry on disk and call again to prove it re-parses,
+    and a memo answers before the corruption is ever read. Measured by adding
+    one: the two tests that assert `_parse` actually ran go red, and the four
+    that check only the returned Structure stay green.
 
     None is the outcome absolute line numbers cannot produce and the reason for
     the whole change: a renamed or removed member stops resolving and says so,

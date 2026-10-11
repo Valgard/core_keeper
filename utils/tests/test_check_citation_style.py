@@ -329,11 +329,11 @@ def test_a_citation_into_an_operator_or_an_array_parameter_is_checkable(
 def test_a_file_that_is_found_but_not_csharp_says_that_instead(tmp_path, fake_decompile):
     """Two facts, not one: the file is missing, or it is there and has no elements.
 
-    The only case that occurs in the real corpus is the second -- both prefab
-    citations resolve to a file that exists -- so a message about a missing
-    source was false every time it was printed, and its advice sent the reader
-    looking for a file that is right there. The spec's None-versus-() rule,
-    given up one level higher.
+    The only case that occurs in the real corpus is the second -- the
+    handbook's one prefab citation resolves to a file that exists -- so a
+    message about a missing source was false every time it was printed, and its
+    advice sent the reader looking for a file that is right there. The spec's
+    None-versus-() rule, given up one level higher.
     """
     assets = fake_decompile / "Resources" / "Assets" / "GameObject"
     assets.mkdir(parents=True)
@@ -377,9 +377,11 @@ def test_every_markdown_file_is_checked_not_only_docs_ck(tmp_path):
 def test_a_range_is_judged_against_the_element_holding_the_whole_span(tmp_path, fake_decompile):
     """Describing only the first line names the wrong element and drops the range.
 
-    Measured on the real corpus before this was fixed: 133 of 894 findings
-    suggested a citation that threw the span away, and some named a different
-    element entirely -- `ScriptableData:34-45` spans three field declarations
+    Measured on the real corpus before this was fixed: every range citation in
+    it -- around 130 of roughly 890 findings, and both counts move with every
+    chapter anyone writes -- suggested a citation that threw the span away, and
+    some named a different element
+    entirely -- `ScriptableData:34-45` spans three field declarations
     and the checker advised `...:m_guid:1`, where describing the whole span
     gives `ScriptableData:DataBlockAddress:5-16`.
     """
@@ -432,7 +434,7 @@ def test_a_frozen_path_stays_unchecked_when_a_subdirectory_is_the_root(tmp_path)
     ],
 )
 def test_a_record_or_a_description_of_the_notation_is_not_checked(tmp_path, relative):
-    """Widening the reach surfaced 67 references in files that are not defects.
+    """Widening the reach surfaced 68 references in files that are not defects.
 
     A spec is a record of a decision and quotes the banned forms to argue about
     them; a scoring fixture contains planted bad citations on purpose and is

@@ -38,14 +38,15 @@ from decompile_structure import structure_of
 
 @pytest.fixture(scope="module")
 def generated_ranges(tmp_path_factory, decompile, range_citations):
-    """The same path for the handbook's 127 range citations, which have their own.
+    """The same path for the handbook's range citations, which have their own.
 
     Separate because the gap that let a real defect through was precisely this:
     the `corpus` fixture keys on a citation's first line, so a chapter
     generated from it contains no ranges, and the style checker's structural
-    half -- which judged every range against the description of its first line,
-    naming a different element for 133 of the corpus's findings -- could not be
-    reached by any test in this file.
+    half -- which judged every range against the description of its first line
+    and so named a different element for every one of them -- could not be
+    reached by any test in this file. There are around 130; the count is not
+    written down here, because it rises whenever somebody cites a span.
     """
     structures = {}
     lines, written = [], []

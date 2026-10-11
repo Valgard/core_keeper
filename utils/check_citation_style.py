@@ -19,13 +19,16 @@ The rule: every line reference carries its assembly, as `` `Assembly:line` `` or
 `` `Assembly:first-last` ``.
 
 **Two halves, because they need different things and run in different places.**
-The syntactic half asks whether a reference is well-formed at all, needs
-nothing but the text, and runs in every repository -- including the mod repos,
-where decompile citations have sat unchecked because this script could not be
-wired there. The structural half asks whether a well-formed citation is the
-*best* form available, which takes the decompiled source and `tree-sitter`, and
-runs wherever those are reachable. Where they are not, it says so and is
-skipped.
+The syntactic half asks whether a reference is well-formed at all and needs
+nothing but the text, so it *can* run in a mod repository, where neither a
+decompile nor `tree-sitter` is installed. That was the point of the split and
+is not yet the state of things: only this repository's `.pre-commit-config.yaml`
+wires the hook, and the mod repos' decompile citations still sit unchecked.
+Wiring one needs its short-form citations resolved first -- `complete-tools`
+alone has 22 the syntactic half reports. The structural half asks whether a
+well-formed citation is the *best* form available, which takes the decompiled
+source and `tree-sitter`, and runs wherever those are reachable. Where they are
+not, it says so and is skipped.
 
 **The structural findings report; they do not block.** This script runs over
 the whole repository whenever any `.md` is staged, so a blocking structural
@@ -83,8 +86,11 @@ CHECKS = (
 FENCE = re.compile(r"^\s*(```|~~~)")
 
 # Paths this does not check, and why each is here. Found by widening the reach
-# from `docs/ck/` to every markdown file, which surfaced 67 references in files
-# that had never been in scope -- none of them a defect.
+# from `docs/ck/` to every markdown file, which surfaced 68 references in files
+# that had never been in scope -- none of them a defect. The count is a
+# measurement of the 27 files these two prefixes exclude, taken with the filter
+# in `markdown_files` bypassed; measuring it any other way returns 0, because
+# that function drops them before a caller can count them.
 #
 # `docs/specs/` is a record of what was decided, and a spec arguing about the
 # notation quotes the banned forms to do it. The wrapping gate freezes the same
@@ -192,8 +198,10 @@ def structural_problems(path, decompile):
             structure = structures[assembly]
             if structure is None:
                 # Two facts, not one, and only the second occurs in the real
-                # corpus: both prefab citations resolve to a file that is right
-                # there and simply is not C#. Collapsing them printed a message
+                # corpus: the handbook's one prefab citation
+                # (`ControlMappingMenu.prefab:2459-2460`) resolves to a file
+                # that is right there and simply is not C#. Collapsing them
+                # printed a message
                 # about a missing source that was false every time, with advice
                 # that sent the reader looking for the file. Same None-versus-()
                 # rule the structure layer keeps, one level up.
@@ -229,7 +237,10 @@ def structural_problems(path, decompile):
             # of it is a different element entirely: `ScriptableData:34-45`
             # spans three field declarations, and describing line 34 alone
             # advised `...:m_guid:1` -- a field, with the range thrown away.
-            # 133 of the corpus's 894 findings were that mistake.
+            # It was every range citation in the handbook, not a subset of
+            # them: around 130 of its roughly 890 findings, both figures moving
+            # with every chapter anyone writes, which is why the number is not
+            # pinned here or in the suite.
             best = describe(
                 structure, resolved, assembly, last=resolved + citation.last - citation.first
             )

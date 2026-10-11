@@ -160,6 +160,12 @@ class TestNormalise:
     lost its verification tick to a diff of 31 changed lines of which 31 were
     citation numbers and none was prose. Counting raw lines cannot tell those
     apart; normalising the citations away can.
+
+    That figure is a measurement of hotfix commit `7788522`, where `normalise`
+    reduces the chapter's 31/31 diff to 0/0 -- not of the chapter's distance
+    from its verification commit today, which has moved with every ordinary
+    edit since and is mostly prose. Checking the claim against the working tree
+    gives a different number and makes this read like a lie.
     """
 
     def test_a_citation_renumbered_in_place_is_not_a_change(self):
