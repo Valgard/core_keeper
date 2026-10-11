@@ -29,7 +29,6 @@ Always exits 0 -- this is a report, not a gate.
 
 import argparse
 import difflib
-import itertools
 import json
 import re
 import subprocess
@@ -92,7 +91,7 @@ def classify(verification, current):
         return Status("unverified", f"verified against {v.build}, current build is {current}")
     hotfix = v.build != current
     if v.added or v.deleted:
-        detail = f"+{v.added}/-{v.deleted} lines since {v.commit}"
+        detail = f"+{v.added}/-{v.deleted} words since {v.commit}"
         if hotfix:
             detail += f"; also a hotfix since ({v.build} -> {current})"
         return Status("partial", detail)
@@ -135,13 +134,32 @@ def normalise(text):
     return text
 
 
-def changed_lines(root, commit, chapter):
-    """(added, deleted) between the chapter at `commit` and in the working tree.
+def changed_words(root, commit, chapter):
+    """(added, deleted) words between the chapter at `commit` and in the working tree.
 
-    Normalised on both sides, which is why this cannot be `git diff --numstat`:
-    that counts lines of the text as written, and the whole point is to compare
-    something else. A chapter that did not exist at `commit` counts as nothing,
-    which is the behaviour the numstat call had for the same case.
+    Normalised on both sides, which is why this cannot be `git diff
+    --numstat`: that counts lines of the text as written, and the whole point
+    is to compare something else.
+
+    **Words rather than lines, because anchoring a chapter's citations forces
+    a rewrap.** An anchored citation runs some 40 characters longer than the
+    absolute number it replaces, so every paragraph holding one overflows the
+    width its file is written at and the wrapping gate rewraps it. Measured
+    on `harmony-and-ecs` against `4bad12e`: the migration plus that rewrap
+    reads as 427 added and 300 deleted lines, against 557/0 for the prose
+    actually written since the pass -- seven times the real figure, from a
+    change in which no word moved. Word-wise the migration is 0/0, a single
+    changed word is still counted, and the comparison no longer has an
+    opinion about where the breaks fall.
+
+    It also retires a hazard rather than fixing it. The line version parsed
+    unified-diff output and had to skip the two file headers by position,
+    because a Markdown `---` with a diff marker in front reads as `----` and
+    a prefix test discarded it -- undercounting, in a function whose caller
+    has no threshold. There is no diff text here to mistake anything in.
+
+    A chapter that did not exist at `commit` counts as wholly added, which is
+    what the numstat call did for that case.
     """
     path = f"docs/ck/{chapter}.md"
     try:
@@ -158,22 +176,24 @@ def changed_lines(root, commit, chapter):
     current = Path(root, path)
     after = current.read_text() if current.is_file() else ""
 
-    diff = difflib.unified_diff(
-        normalise(before).splitlines(), normalise(after).splitlines(), n=0, lineterm=""
+    # autojunk off, which is load-bearing rather than cautious. It discards
+    # elements appearing in over 1 % of a sequence longer than 200, and a
+    # chapter is 13,000 words of which "the" is far more than 1 %. Measured:
+    # a one-word insertion between 400 occurrences of one word reports
+    # (201, 200) with the default and (1, 0) with it off. Identical input is
+    # (0, 0) either way, so the migration's own zero was never at risk -- the
+    # figure a reader judges by was, and an ordinary edit reading as a
+    # rewrite is the quiet version of the defect this all exists to remove.
+    # It costs 227 ms against 52 ms on the largest chapter.
+    matcher = difflib.SequenceMatcher(
+        None, normalise(before).split(), normalise(after).split(), autojunk=False
     )
-    # The two file headers are skipped by position, not by prefix. `---` is
-    # ordinary Markdown, and with the diff's own marker in front such a line
-    # reads as `----` -- a prefix test discards it as a header and the change
-    # vanishes. The direction is the dangerous one: it *under*-counts, and
-    # `classify` has no threshold, so a chapter with real prose edits would
-    # read as verified. `unified_diff` emits those two lines only when there is
-    # a hunk at all, so slicing an empty diff is still empty.
     added = deleted = 0
-    for line in itertools.islice(diff, 2, None):
-        if line.startswith("+"):
-            added += 1
-        elif line.startswith("-"):
-            deleted += 1
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag in ("replace", "delete"):
+            deleted += i2 - i1
+        if tag in ("replace", "insert"):
+            added += j2 - j1
     return (added, deleted)
 
 
@@ -188,7 +208,7 @@ def latest_verifications(root):
             continue
         chapter, build = parsed
         # Against the working tree, not HEAD: an uncommitted edit is unverified too.
-        added, deleted = changed_lines(root, commit, chapter)
+        added, deleted = changed_words(root, commit, chapter)
         found[chapter] = Verification(chapter, commit, build, added, deleted)
     return found
 
@@ -248,11 +268,14 @@ def main(argv=None):
     partial = [n for n in chapters if statuses[n].state == "partial"]
     if partial:
         # Names the raw diff deliberately, with a word about why its numbers
-        # will be larger: the counts above are taken after normalising the
-        # citations away, and a reader who ran the plain command and saw +92/-31
-        # against a reported +61/-0 would reasonably think one of them lying.
+        # will not match: the counts above are words, taken after normalising
+        # the citations away, and a reader who ran the plain command and saw
+        # +92/-31 lines against a reported +61/-0 would reasonably think one
+        # of them lying. Two things are now folded away rather than one --
+        # renumbered or re-anchored citations, and the rewrap that anchoring
+        # forces, in which no word moves at all.
         print("\nunverified hunks: git diff <commit> -- docs/ck/<chapter>.md")
-        print("(that diff counts renumbered citations too; the figures above do not)")
+        print("(that diff counts lines, citations and rewrapping; the figures above count words)")
     return 0
 
 

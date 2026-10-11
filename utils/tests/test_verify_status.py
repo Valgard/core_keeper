@@ -11,7 +11,7 @@ import subprocess
 
 import pytest
 from verify_status import Verification
-from verify_status import changed_lines
+from verify_status import changed_words
 from verify_status import classify
 from verify_status import latest_verifications
 from verify_status import normalise
@@ -161,11 +161,16 @@ class TestNormalise:
     citation numbers and none was prose. Counting raw lines cannot tell those
     apart; normalising the citations away can.
 
-    That figure is a measurement of hotfix commit `7788522`, where `normalise`
-    reduces the chapter's 31/31 diff to 0/0 -- not of the chapter's distance
-    from its verification commit today, which has moved with every ordinary
-    edit since and is mostly prose. Checking the claim against the working tree
-    gives a different number and makes this read like a lie.
+    That figure is a measurement of hotfix commit `7788522`, which changed 31
+    lines and 36 words of that chapter and nothing else; `normalise` reduces
+    it to 0/0 in either unit. It is not a measurement of the chapter's
+    distance from its verification commit today, which has moved with every
+    ordinary edit since and is mostly prose -- checking the claim against the
+    working tree gives a different number and makes this read like a lie.
+
+    The two units are both named because the comparison moved from one to the
+    other: `changed_words` counts words now, so the figure this docstring
+    would be checked against is 36 rather than 31.
     """
 
     def test_a_citation_renumbered_in_place_is_not_a_change(self):
@@ -201,8 +206,22 @@ class TestNormalise:
         assert normalise(before) == normalise(after)
 
 
-class TestChangedLines:
-    """Coverage for changed_lines() -- the numbers latest_verifications judges by."""
+class TestChangedWords:
+    """Coverage for changed_words() -- the numbers latest_verifications judges by.
+
+    Words rather than lines, because anchoring a chapter's citations forces a
+    rewrap: an anchored citation is some 40 characters longer than the number
+    it replaces, so every paragraph holding one overflows the width the file
+    is written at. Measured on `harmony-and-ecs` against its verification
+    commit `4bad12e`: the migration plus that rewrap reads as 427 added and
+    300 deleted lines, against 557/0 for the prose actually written since the
+    pass. Word-wise the migration is 0/0 and the prose is still 557/0.
+
+    `normalise` already folds both citation notations onto one placeholder,
+    which is why the rewrite alone cost nothing even line-wise. What it
+    cannot fold is prose moving between lines, and that is what this measures
+    instead.
+    """
 
     @pytest.fixture
     def repo(self, tmp_path):
@@ -224,37 +243,84 @@ class TestChangedLines:
         commit = self._head(repo)
         (repo / "docs/ck/a.md").write_text("the call `A:200` does it\n")
 
-        assert changed_lines(repo, commit, "a") == (0, 0)
+        assert changed_words(repo, commit, "a") == (0, 0)
+
+    def test_a_rewrapped_paragraph_counts_as_nothing(self, repo):
+        """The defect this change exists to remove, at its smallest reproducible size.
+
+        Not one word of the paragraph changed; only where the breaks fall.
+        Line-wise that is every line of it, which is how anchoring a
+        chapter's citations would have cost the chapter its verdict -- the
+        step meant to carry the programme reintroducing the failure it exists
+        to remove.
+        """
+        _commit(repo, "docs/ck/a.md", "one two three\nfour five six\n", "docs(ck): add a")
+        commit = self._head(repo)
+        (repo / "docs/ck/a.md").write_text("one two\nthree four\nfive six\n")
+
+        assert changed_words(repo, commit, "a") == (0, 0)
+
+    def test_a_single_edit_among_common_words_is_not_inflated(self, repo):
+        """One added word counts as one, in a paragraph full of repeated words.
+
+        `difflib`'s `autojunk` drops any element appearing in over 1 % of a
+        sequence longer than 200, and a chapter is 13,000 words of which the
+        commonest are far more than 1 %. Measured on this very input: (201,
+        200) with the heuristic on, (1, 0) with it off. Identical input is
+        (0, 0) either way, so what this pins is the figure and not the
+        verdict -- but the figure is what a reader uses to decide whether a
+        chapter needs re-reading, and a one-word edit that reads as a rewrite
+        is the quiet form of the problem this file exists to solve.
+        """
+        before = " ".join(["the"] * 200 + ["anchor"] + ["the"] * 200) + "\n"
+        after = " ".join(["the"] * 200 + ["anchor", "added"] + ["the"] * 200) + "\n"
+        _commit(repo, "docs/ck/a.md", before, "docs(ck): add a")
+        commit = self._head(repo)
+        (repo / "docs/ck/a.md").write_text(after)
+
+        assert changed_words(repo, commit, "a") == (1, 0)
 
     def test_a_prose_edit_is_counted(self, repo):
-        """A real change still counts, or the normaliser would hide everything."""
+        """A real change still counts, or the normaliser would hide everything.
+
+        Two words become one, which is why this is (1, 2) and not the (1, 1)
+        the line comparison reported: the unit is the word now, and a
+        replacement is counted on both sides.
+        """
         _commit(repo, "docs/ck/a.md", "the call `A:100` does it\n", "docs(ck): add a")
         commit = self._head(repo)
         (repo / "docs/ck/a.md").write_text("the call `A:100` fails\n")
 
-        assert changed_lines(repo, commit, "a") == (1, 1)
+        assert changed_words(repo, commit, "a") == (1, 2)
 
     def test_a_deleted_line_whose_text_begins_like_a_diff_header_is_counted(self, repo):
-        """`---` is ordinary Markdown, and the marker makes the diff line `----`.
+        """`---` is ordinary Markdown, and the marker made the diff line `----`.
 
-        Checking the prefix against every line discards that as a header, so
-        the deletion vanishes. The direction is the dangerous one: it
-        *under*-counts, and `classify` has no threshold, so a chapter with real
-        prose changes would read as verified.
+        Kept as a regression guard although the mechanism is gone: the line
+        version read unified-diff output and had to skip two file headers by
+        position, so a prefix test discarded this deletion -- *under*-counting,
+        in a function whose caller has no threshold, which would have printed a
+        chapter with real prose changes as verified. Comparing word sequences
+        has no diff text to mistake anything in, so the defect is now absent
+        rather than fixed, and this says what would have to come back for it
+        to return.
         """
         _commit(repo, "docs/ck/a.md", "one\n---\nthree\n", "docs(ck): add a")
         commit = self._head(repo)
         (repo / "docs/ck/a.md").write_text("one\nthree\n")
 
-        assert changed_lines(repo, commit, "a") == (0, 1)
+        assert changed_words(repo, commit, "a") == (0, 1)
 
     def test_an_added_line_whose_text_begins_like_a_diff_header_is_counted(self, repo):
-        """The same for `+++`, which a chapter could write in a diff example."""
+        """The same for `+++`, which a chapter could write in a diff example.
+
+        Also structurally absent now, and kept for the same reason.
+        """
         _commit(repo, "docs/ck/a.md", "one\n", "docs(ck): add a")
         commit = self._head(repo)
         (repo / "docs/ck/a.md").write_text("one\n++added\n")
 
-        assert changed_lines(repo, commit, "a") == (1, 0)
+        assert changed_words(repo, commit, "a") == (1, 0)
 
     def test_a_chapter_that_did_not_exist_at_that_commit_counts_as_all_added(self, repo):
         """`git show` and `git diff --numstat` fail on different things.
@@ -270,14 +336,14 @@ class TestChangedLines:
         commit = self._head(repo)
         _commit(repo, "docs/ck/b.md", "one\ntwo\nthree\nfour\nfive\n", "docs(ck): add b")
 
-        assert changed_lines(repo, commit, "b") == (5, 0)
+        assert changed_words(repo, commit, "b") == (5, 0)
 
     def test_a_chapter_that_exists_nowhere_counts_as_nothing(self, repo):
         """Absent from the commit and absent now is the one case that is really zero."""
         _commit(repo, "docs/ck/a.md", "one\n", "docs(ck): add a")
         commit = self._head(repo)
 
-        assert changed_lines(repo, commit, "gone") == (0, 0)
+        assert changed_words(repo, commit, "gone") == (0, 0)
 
     def test_a_renumbering_does_not_cost_a_chapter_its_tick(self, repo):
         """The whole point, through latest_verifications rather than in isolation."""
