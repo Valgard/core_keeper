@@ -38,6 +38,11 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from citation_notation import find
+from citation_notation import tier
+
 # Backtick-delimited, because that is how every real citation is written and it
 # is what separates `Pug.Other:441234` from prose like "roughly 124940". The
 # assembly part allows dots (Pug.ECS.Components) but not spaces or colons.
@@ -143,6 +148,42 @@ def key_of(assembly, first, last):
     return f"{assembly}:{first}" if first == last else f"{assembly}:{first}-{last}"
 
 
+def resolve_citation(citation, decompile):
+    """The stripped text a Citation points at, or None when it no longer resolves.
+
+    None is the outcome absolute line numbers cannot produce and the reason for
+    the whole change: a renamed or removed member stops resolving and says so,
+    where a line number goes on pointing at whatever moved into its place.
+
+    An absolute-tier citation reads its lines directly and needs no structure at
+    all, which is what keeps the escape hatch and every unmigrated chapter
+    working -- and what makes a `.prefab` citation resolvable, since it has no
+    elements to name.
+
+    `decompile_structure` is imported here rather than at module level on
+    purpose: `check_citation_style` imports `DEFAULT_DECOMPILE` from this
+    module, and its syntactic half has to run in a mod repository where neither
+    `tree-sitter` nor a decompile exists. A module-level import would drag the
+    parser into every one of those checkouts.
+    """
+    from decompile_structure import locate
+    from decompile_structure import structure_of
+
+    source = source_for(citation.assembly, decompile)
+    if source is None:
+        return None
+    if tier(citation) == "absolute":
+        return _stripped_lines(source, citation.first, citation.last)
+
+    structure = structure_of(source)
+    if structure is None:
+        return None
+    line = locate(structure, citation)
+    if line is None:
+        return None
+    return _stripped_lines(source, line, line + citation.last - citation.first)
+
+
 def collect(root, decompile):
     """Resolve every citation in docs/ck/: the corpus, the failures, and every key seen.
 
@@ -159,14 +200,18 @@ def collect(root, decompile):
     corpus, problems, seen = {}, [], set()
     for chapter in sorted((Path(root) / "docs" / "ck").glob("*.md")):
         for number, line in enumerate(chapter.read_text().splitlines(), start=1):
-            for assembly, first, last in extract(line):
-                key = key_of(assembly, first, last)
-                seen.add(key)
-                lines = resolve(assembly, first, last, decompile)
-                if lines is None:
-                    problems.append(f"{chapter.name}:{number}  {key}  no decompiled assembly")
-                else:
-                    corpus[key] = lines
+            for token, citation in find(line):
+                seen.add(token)
+                # Two ways a citation can fail to resolve, and they are not the
+                # same thing. A name the decompile has no file for is a broken
+                # citation and goes in `problems`, as it always has. A file that
+                # exists but no longer holds the named symbol is the new third
+                # outcome: it belongs in the corpus as None, so that compare()
+                # can tell "stopped resolving" from "never recorded".
+                if source_for(citation.assembly, decompile) is None:
+                    problems.append(f"{chapter.name}:{number}  {token}  no decompiled assembly")
+                    continue
+                corpus[token] = resolve_citation(citation, decompile)
     return corpus, sorted(problems), seen
 
 
@@ -191,7 +236,14 @@ def compare(corpus, snapshot, cited):
     """
     problems = []
     for key, lines in corpus.items():
-        if key not in snapshot:
+        if lines is None:
+            # The outcome that does not exist under absolute line numbers.
+            # Deliberately not "not in the snapshot": the two prescribe
+            # opposite actions, and reporting a rename as a missing capture
+            # would invite writing the vanished symbol in as though it were
+            # fine.
+            problems.append(f"{key}  no longer resolves — the class or member was renamed")
+        elif key not in snapshot:
             problems.append(f"{key}  not in the snapshot — run --capture")
         elif snapshot[key] != lines:
             problems.append(f"{key}  was: {render(snapshot[key])}  now: {render(lines)}")
@@ -236,16 +288,25 @@ def main(argv):
     corpus, problems, cited = collect(Path(args.root), decompile)
 
     if args.capture:
+        # A citation that does not resolve is left out rather than recorded as
+        # null. Written in, it would compare equal to itself on every later run
+        # and so be confirmed forever -- the snapshot records what a line says,
+        # and "nothing" is not something a line can say. They are reported
+        # below with the rest.
+        resolved = {key: lines for key, lines in corpus.items() if lines is not None}
+        problems += [
+            f"{key}  no longer resolves — not captured" for key in corpus if corpus[key] is None
+        ]
         Path(args.snapshot).write_text(
             json.dumps(
-                {"citations": corpus, "game_version": args.game_version},
+                {"citations": resolved, "game_version": args.game_version},
                 indent=2,
                 sort_keys=True,
             )
             + "\n"
         )
         print(
-            f"captured {len(corpus)} citation(s) at game version "
+            f"captured {len(resolved)} citation(s) at game version "
             f"{args.game_version} to {args.snapshot}"
         )
         # Unresolvable citations are still reported, but capture succeeds: they

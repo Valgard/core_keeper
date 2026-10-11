@@ -18,6 +18,7 @@ import json
 
 import check_citation_drift as mod
 import pytest
+from citation_notation import parse
 
 
 def test_extracts_a_single_line_citation():
@@ -651,3 +652,117 @@ class TestSourceCloneResolution:
         """
         (tmp_path / "Pug.Other.decompiled.cs").write_text("real\n")
         assert mod.resolve("Pug.Other", 1, 1, tmp_path) == ["real"]
+
+
+# --- resolving through a symbol ----------------------------------------------
+
+SOURCE = ["class Foo", "{", "  void Bar()", "  {", "    x();", "  }", "}"]
+
+
+def test_resolves_a_symbol_anchored_citation(tmp_path):
+    """The point of the change: the line comes from the member, not from a count."""
+    tree = make_decompile(tmp_path, "A", SOURCE)
+    assert mod.resolve_citation(parse("A:Foo:Bar:3"), tree) == ["x();"]
+
+
+def test_an_old_form_citation_still_resolves(tmp_path):
+    """Both grammars coexist until the last chapter is migrated."""
+    tree = make_decompile(tmp_path, "A", ["one", "two"])
+    assert mod.resolve_citation(parse("A:2"), tree) == ["two"]
+
+
+def test_an_absolute_citation_resolves_without_a_structure(tmp_path):
+    """A `.prefab` has no elements, and the escape hatch has to keep working."""
+    assets = tmp_path / "decompile" / "Resources" / "Assets" / "GameObject"
+    assets.mkdir(parents=True)
+    (assets / "Thing.prefab").write_text("a\nb\nc\n")
+    assert mod.resolve_citation(parse("Thing.prefab:2"), tmp_path / "decompile") == ["b"]
+
+
+def test_a_range_resolves_to_every_line_it_spans(tmp_path):
+    """127 of the handbook's citations are ranges."""
+    tree = make_decompile(tmp_path, "A", SOURCE)
+    assert mod.resolve_citation(parse("A:Foo:Bar:1-3"), tree) == ["void Bar()", "{", "x();"]
+
+
+def test_a_renamed_member_does_not_resolve(tmp_path):
+    """The third outcome, and the reason for the whole change.
+
+    Under absolute line numbers the citation would still point somewhere, and
+    the checker would report a text change that reads like a code edit -- or
+    nothing at all, if the text happened to match.
+    """
+    tree = make_decompile(tmp_path, "A", ["class Foo", "{", "  void Renamed()", "  {", "    x();"])
+    assert mod.resolve_citation(parse("A:Foo:Bar:3"), tree) is None
+
+
+def test_an_unresolvable_assembly_does_not_resolve(tmp_path):
+    """Distinct from a renamed member only in the message the caller writes."""
+    tree = make_decompile(tmp_path, "A", SOURCE)
+    assert mod.resolve_citation(parse("Absent:Foo:Bar:1"), tree) is None
+
+
+def test_collect_keys_the_corpus_on_the_citation_as_written(tmp_path):
+    """One chapter, both grammars, two keys -- the coexistence the migration needs."""
+    tree = make_decompile(tmp_path, "A", SOURCE)
+    write_chapter(tmp_path, "a.md", "see `A:Foo:Bar:3` and `A:2` here\n")
+    corpus, problems, _ = mod.collect(tmp_path, tree)
+    assert set(corpus) == {"A:Foo:Bar:3", "A:2"}
+    assert problems == []
+
+
+def test_collect_records_an_unresolved_citation_rather_than_dropping_it(tmp_path):
+    """compare() has to tell "stopped resolving" from "never seen"."""
+    tree = make_decompile(tmp_path, "A", SOURCE)
+    write_chapter(tmp_path, "a.md", "see `A:Foo:Gone:1` here\n")
+    corpus, _, seen = mod.collect(tmp_path, tree)
+    assert corpus == {"A:Foo:Gone:1": None}
+    assert seen == {"A:Foo:Gone:1"}
+
+
+def test_a_citation_that_stopped_resolving_is_reported_as_such():
+    """The third drift outcome, distinct from "not in the snapshot".
+
+    The two prescribe opposite actions: one says re-anchor the citation, the
+    other says capture it. Reporting a rename as the latter would write the
+    missing symbol into the snapshot as though it were fine.
+    """
+    problems = mod.compare({"A:Foo:Bar:3": None}, {"A:Foo:Bar:3": ["x();"]}, {"A:Foo:Bar:3"})
+    assert problems == ["A:Foo:Bar:3  no longer resolves — the class or member was renamed"]
+
+
+def test_an_unresolved_citation_is_not_also_reported_as_stale():
+    """The existing rule, extended to the new outcome: never say "delete this"."""
+    problems = mod.compare({"A:Foo:Bar:3": None}, {"A:Foo:Bar:3": ["x();"]}, {"A:Foo:Bar:3"})
+    assert not any("no longer cited" in p for p in problems)
+
+
+def test_capture_leaves_out_a_citation_that_does_not_resolve(tmp_path, capsys):
+    """Recorded as null it would compare equal to itself and be confirmed forever.
+
+    The snapshot records what a cited line says, and "nothing" is not something
+    a line can say. So the entry is omitted and reported, which keeps capture's
+    promise -- record what resolved -- without writing a vanished symbol in as
+    though it were fine.
+    """
+    tree = make_decompile(tmp_path, "A", SOURCE)
+    write_chapter(tmp_path, "a.md", "see `A:Foo:Bar:3` and `A:Foo:Gone:1` here\n")
+    snapshot = tmp_path / "snap.json"
+
+    code = mod.main(
+        [
+            "prog",
+            str(tmp_path),
+            "--capture",
+            "--game-version",
+            "1.3.0.6-6e73",
+            "--decompile",
+            str(tree),
+            "--snapshot",
+            str(snapshot),
+        ]
+    )
+
+    assert code == 0
+    assert set(json.loads(snapshot.read_text())["citations"]) == {"A:Foo:Bar:3"}
+    assert "A:Foo:Gone:1  no longer resolves — not captured" in capsys.readouterr().out
