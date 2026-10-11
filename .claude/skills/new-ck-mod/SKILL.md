@@ -115,5 +115,7 @@ despite correct `.meta`s), clear the SDK's `Library/SourceAssetDB` (plus
 `Bee`/`ScriptAssemblies`/`ArtifactDB`/`Artifacts`) and rebuild — a known
 first-build-of-a-newly-linked-mod quirk. Do not wipe caches preemptively.
 
-Full design + the GUID rules it enforces:
-`docs/specs/2026-06-28-new-mod-scaffold-generator-design.md`.
+Why the generator exists instead of the Editor wizard, and why it constructs
+each file rather than copying a sibling mod:
+`docs/adrs/006-construct-new-mod-scaffolds-instead-of-the-editor-wizard.md`.
+The GUID rules it enforces are in `utils/new_mod.py` beside the constants.

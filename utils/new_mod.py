@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Deterministic new-mod scaffold generator.
 
-See docs/specs/2026-06-28-new-mod-scaffold-generator-design.md.
+Why this exists rather than the Editor wizard, and why it constructs each file
+instead of copying a sibling mod:
+docs/adrs/006-construct-new-mod-scaffolds-instead-of-the-editor-wizard.md.
 """
 
 import argparse
