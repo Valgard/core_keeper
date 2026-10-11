@@ -147,11 +147,13 @@ do **not** keep one. So edit manifest fields directly in the `.asset` YAML's
   `ModExistsOn { None = 0, Client = 1, Server = 2, ClientAndServer = 3 }`
   (`PugMod.SDK`). The checks are **crossed**, which is the counter-intuitive part:
   the **Server** flag makes the *client* demand the mod on the server
-  (`NetworkClientStartSystem`, Pug.Other ~124928), and the **Client** flag makes
-  the *server* demand it on the client (`ModInfoRpcSystem`, ~125929).
+  (`Pug.Other:NetworkClientStartSystem:OnUpdate:5`), and the **Client** flag
+  makes the *server* demand it on the client
+  (`Pug.Other:ModInfoRpcSystem:OnCreate:7`).
   - The cost of an over-broad value is real: joining a server that lacks a
     `Server`-flagged mod raises `Menu/ModMissingServerDialogue` offering only
-    "disable the mod (+ restart)" or "cancel the connection" (~124940-124978) —
+    "disable the mod (+ restart)" or "cancel the connection"
+    (`Pug.Other:NetworkClientStartSystem:OnUpdate:51`) —
     a hard block, not a warning. With a side-loaded mod (`modId <= 0`, negated by
     the loader's own side-loader as `ModId = -Mathf.Abs(metadata.name.GetHashCode())`
     — a fake-ID dev build carries a positive id and is not this case) the

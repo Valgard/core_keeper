@@ -12,9 +12,10 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import check_citation_style as mod
 from check_citation_style import BARE
 from check_citation_style import TILDE_AFTER_ASSEMBLY
-from check_citation_style import problems_in
+from check_citation_style import syntactic_problems
 
 
 def flagged(text):
@@ -83,14 +84,14 @@ class TestAccepts:
         assert not flagged("the id is this:419767, and that colon is not an assembly")
 
 
-class TestProblemsIn:
-    """Coverage for problems_in() -- unverifiable citations in one file, with line numbers."""
+class TestSyntacticProblems:
+    """Unverifiable citations in one file, with the line numbers to find them by."""
 
     def test_reports_line_numbers_and_text(self, tmp_path):
         """A problem's line number is where it occurs; its text is the exact matched citation."""
         p = tmp_path / "c.md"
         p.write_text("fine `Pug.Other:1`\nbroken `:419767`\n")
-        found = problems_in(p)
+        found = syntactic_problems(p)
         assert len(found) == 1
         number, text, _why, _fix = found[0]
         assert number == 2
@@ -100,17 +101,17 @@ class TestProblemsIn:
         """A file where every citation is already checkable reports no problems at all."""
         p = tmp_path / "c.md"
         p.write_text("all good `Pug.Other:1` and `DedicatedServer/Pug.Other:2-9`\n")
-        assert problems_in(p) == []
+        assert syntactic_problems(p) == []
 
     def test_several_offenders_on_one_line_are_all_reported(self, tmp_path):
         """Multiple violations on one line are each reported, not collapsed into one problem."""
         p = tmp_path / "c.md"
         p.write_text("(`:1` client, `:2` server)\n")
-        assert len(problems_in(p)) == 2
+        assert len(syntactic_problems(p)) == 2
 
 
 class TestCodeFences:
-    """Coverage for problems_in()'s fenced-code-block exclusion."""
+    """Coverage for syntactic_problems()'s fenced-code-block exclusion."""
 
     def test_a_short_form_inside_a_fence_is_an_example_not_a_violation(self, tmp_path):
         """A short form shown as an example inside a fenced code block is not flagged.
@@ -119,7 +120,7 @@ class TestCodeFences:
         """
         p = tmp_path / "c.md"
         p.write_text("prose\n\n```text\n`:419767`\n`Pug.Other` ~355773\n```\n\nmore prose\n")
-        assert problems_in(p) == []
+        assert syntactic_problems(p) == []
 
     def test_the_same_text_outside_a_fence_still_fails(self, tmp_path):
         """The same unverifiable text outside any fence is still caught.
@@ -129,13 +130,13 @@ class TestCodeFences:
         """
         p = tmp_path / "c.md"
         p.write_text("prose `:419767` here\n")
-        assert len(problems_in(p)) == 1
+        assert len(syntactic_problems(p)) == 1
 
     def test_a_tilde_fence_also_opens_a_block(self, tmp_path):
         """A `~~~`-delimited fence opens and closes a block exactly like a backtick fence."""
         p = tmp_path / "c.md"
         p.write_text("~~~\n`:1`\n~~~\n")
-        assert problems_in(p) == []
+        assert syntactic_problems(p) == []
 
     def test_violations_after_a_closed_fence_are_caught(self, tmp_path):
         """A fence that has already closed no longer suppresses detection.
@@ -144,8 +145,161 @@ class TestCodeFences:
         """
         p = tmp_path / "c.md"
         p.write_text("```\n`:1`\n```\nand then `:2` in prose\n")
-        found = problems_in(p)
+        found = syntactic_problems(p)
         assert len(found) == 1 and found[0][1] == "`:2`"
+
+
+# --- the two halves ----------------------------------------------------------
+
+FAKE_SOURCE = """\
+class Foo
+{
+    void Bar()
+    {
+        x();
+    }
+}
+"""
+
+
+@pytest.fixture
+def fake_decompile(tmp_path):
+    """A decompile tree holding one assembly, `A`, with one member.
+
+    Line 4 is inside `Bar`, and `Bar` is the type's only member -- so `Bar` is
+    already the minimal form while `Bar()` is a longer one that still resolves.
+    """
+    tree = tmp_path / "decompile"
+    tree.mkdir()
+    (tree / "A.decompiled.cs").write_text(FAKE_SOURCE)
+    return tree
+
+
+def write(tmp_path, text, name="a.md"):
+    """Write a markdown file at `tmp_path/name` and return its path."""
+    path = tmp_path / name
+    path.write_text(text)
+    return path
+
+
+def write_chapter(root, name, text):
+    """Write a handbook chapter at `root/docs/ck/<name>`."""
+    docs = root / "docs" / "ck"
+    docs.mkdir(parents=True, exist_ok=True)
+    (docs / name).write_text(text)
+
+
+def whys(problems):
+    """Just the reasons, which is what these tests are about."""
+    return [why for _, _, why, _ in problems]
+
+
+def test_a_malformed_citation_token_is_a_syntactic_problem(tmp_path):
+    """A reversed range is unparseable, so no checker can follow it."""
+    path = write(tmp_path, "see `Pug.Other:Foo:Bar:12-7` here\n")
+    assert whys(mod.syntactic_problems(path)) == ["citation token does not parse"]
+
+
+def test_the_two_banned_short_forms_are_still_syntactic_problems(tmp_path):
+    """The rule that existed before this change keeps working."""
+    path = write(tmp_path, "see `:419767` and `Pug.Other` ~355773\n")
+    assert len(mod.syntactic_problems(path)) == 2
+
+
+def test_a_fenced_citation_is_not_reported_anywhere(tmp_path):
+    """A README showing the notation is not using it."""
+    path = write(tmp_path, "```\n`:419767`\n```\n", name="README.md")
+    assert mod.syntactic_problems(path) == []
+
+
+def test_a_bare_line_where_a_name_exists_is_a_structural_problem(tmp_path, fake_decompile):
+    """The finding that drives the migration: this line is inside a named member."""
+    path = write(tmp_path, "see `A:4` here\n")
+    assert whys(mod.structural_problems(path, fake_decompile)) == [
+        "line is inside Foo:Bar, which the citation could name"
+    ]
+
+
+def test_a_longer_than_necessary_member_form_is_a_structural_problem(tmp_path, fake_decompile):
+    """`Bar()` resolves, but `Bar` is already unique and shorter."""
+    path = write(tmp_path, "see `A:Foo:Bar():1` here\n")
+    assert whys(mod.structural_problems(path, fake_decompile)) == [
+        "longer than necessary; `A:Foo:Bar:1` says the same"
+    ]
+
+
+def test_a_citation_already_minimal_is_no_problem(tmp_path, fake_decompile):
+    """The form `describe` would write is the form that passes."""
+    path = write(tmp_path, "see `A:Foo:Bar:1` here\n")
+    assert mod.structural_problems(path, fake_decompile) == []
+
+
+def test_a_citation_that_does_not_resolve_is_a_structural_problem(tmp_path, fake_decompile):
+    """The member was renamed or never existed, so the anchor names nothing."""
+    path = write(tmp_path, "see `A:Foo:Gone:1` here\n")
+    assert whys(mod.structural_problems(path, fake_decompile)) == ["does not resolve"]
+
+
+def test_an_assembly_missing_from_the_checkout_is_skipped_with_its_reason(tmp_path, fake_decompile):
+    """One unresolvable assembly does not fail the file, and says why it was skipped."""
+    path = write(tmp_path, "see `Absent.Assembly:Foo:Bar:1` here\n")
+    assert whys(mod.structural_problems(path, fake_decompile)) == [
+        "not checked: no decompiled source for Absent.Assembly"
+    ]
+
+
+def test_structural_findings_do_not_fail_the_run(tmp_path, fake_decompile, capsys):
+    """The decision this work rests on: report, never block.
+
+    The checker runs over the whole repository on any staged `.md`, so blocking
+    would let one hotfix-added overload stop every documentation commit.
+    """
+    write_chapter(tmp_path, "a.md", "see `A:4` here\n")
+    assert mod.main([str(tmp_path), "--decompile", str(fake_decompile)]) == 0
+    assert "line is inside Foo:Bar" in capsys.readouterr().out
+
+
+def test_syntactic_findings_do_fail_the_run(tmp_path):
+    """A malformed citation is checkable by nobody, so it still blocks."""
+    write_chapter(tmp_path, "a.md", "see `:419767` here\n")
+    assert mod.main([str(tmp_path)]) == 1
+
+
+def test_without_a_decompile_the_structural_half_says_so(tmp_path, capsys):
+    """Skipped with its reason stated, never silently."""
+    write_chapter(tmp_path, "a.md", "see `A:4` here\n")
+    assert mod.main([str(tmp_path), "--decompile", str(tmp_path / "absent")]) == 0
+    assert "structural checks skipped" in capsys.readouterr().out
+
+
+def test_every_markdown_file_is_checked_not_only_docs_ck(tmp_path):
+    """The reach decision: the syntactic half runs in the mod repositories."""
+    (tmp_path / "README.md").write_text("see `:419767` here\n")
+    assert mod.main([str(tmp_path)]) == 1
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "docs/specs/a-design.md",
+        ".claude/skills/ck-docs-review/scoring/planted-errors.md",
+        ".claude/skills/ck-verify-chapter/SKILL.md",
+    ],
+)
+def test_a_record_or_a_description_of_the_notation_is_not_checked(tmp_path, relative):
+    """Widening the reach surfaced 67 references in files that are not defects.
+
+    A spec is a record of a decision and quotes the banned forms to argue about
+    them; a scoring fixture contains planted bad citations on purpose and is
+    half of a calibration instrument; and `ck-verify-chapter/SKILL.md` carries
+    `:419767` inside the sentence that explains why the form is refused. A
+    chapter can fence such an example, running prose cannot.
+    """
+    path = tmp_path / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("see `:419767` here\n")
+    assert mod.markdown_files(tmp_path) == []
+    assert mod.main([str(tmp_path)]) == 0
 
 
 if __name__ == "__main__":
