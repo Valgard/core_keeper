@@ -157,7 +157,10 @@
     "DedicatedServer/Pug.Other:423184": [
       "InventoryUtility.Craft(in inventoryHandlerShared, inventories[0], componentData2, inventories, new CanCraftObjectsBuffer"
     ],
-    "DedicatedServer/Pug.Other:450882-450898": [
+    "DedicatedServer/Pug.Other:4709": [
+      "public static void TriggerAchievementForEveryone(EntityCommandBuffer ecb, EntityArchetype rpcArchetype, AchievementID achievementID)"
+    ],
+    "DedicatedServer/Pug.Other:StandaloneFilesystem:StandaloneFilesystem(string, PlatformInterface):1-17": [
       "public StandaloneFilesystem(string partition, PlatformInterface platformInterface)",
       "{",
       "_persistentPath = CommandLineArgs.GetParam(\"-datapath\");",
@@ -176,11 +179,8 @@
       "CreateDirectory(directoryInfo);",
       "}"
     ],
-    "DedicatedServer/Pug.Other:450900": [
+    "DedicatedServer/Pug.Other:StandaloneFilesystem:StandaloneFilesystem(string, string, \u2026):1": [
       "public StandaloneFilesystem(string partition, string subFolder, PlatformInterface platformInterface)"
-    ],
-    "DedicatedServer/Pug.Other:4709": [
-      "public static void TriggerAchievementForEveryone(EntityCommandBuffer ecb, EntityArchetype rpcArchetype, AchievementID achievementID)"
     ],
     "DedicatedServer/PugMod.Loader:2236": [
       "return CreateRuntimeInstance(type, modId, DataBlockAddress.NewAddress(), overloadExisting: false);"
@@ -4372,7 +4372,7 @@
     "PugSprite:42": [
       "public class GradientMapDataBlock : ScriptableDataBlock"
     ],
-    "RoslynCSharp.Compiler:581": [
+    "RoslynCSharp.Compiler:CompilationError:CompilationError:5": [
       "message = diagnostic.GetMessage();"
     ],
     "RoslynCSharp:3866": [
