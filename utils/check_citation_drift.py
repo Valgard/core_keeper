@@ -184,7 +184,7 @@ def key_of(assembly, first, last):
     return f"{assembly}:{first}" if first == last else f"{assembly}:{first}-{last}"
 
 
-def _structure_for(source, structures):
+def structure_for(source, structures):
     """The Structure of `source`, through the caller's cache when it gave one.
 
     Keyed on the **resolved path**, not on the assembly name. The validity of a
@@ -247,7 +247,7 @@ def resolve_citation(citation, decompile, structures=None):
         # the blocking traceback `structural_available` exists to prevent, and
         # `Citation`'s own docstring says the next plan builds citations by
         # hand. The element's first line is what such a citation points at.
-        structure = _structure_for(source, structures)
+        structure = structure_for(source, structures)
         if structure is None:
             return None
         line = locate(structure, citation)
@@ -256,7 +256,7 @@ def resolve_citation(citation, decompile, structures=None):
     if tier(citation) == "absolute":
         return _stripped_lines(source, citation.first, citation.last)
 
-    structure = _structure_for(source, structures)
+    structure = structure_for(source, structures)
     if structure is None:
         return None
     line = locate(structure, citation)
