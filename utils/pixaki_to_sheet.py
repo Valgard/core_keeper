@@ -135,6 +135,12 @@ def collect_layers(doc, exclude_top, exclude_nested=frozenset()):
     Skips the excluded top-level groups, any hidden layer, and every node --
     group (with its whole subtree) or layer -- whose name is in exclude_nested,
     at any depth.
+
+    A hidden *group* hides nothing here: only the layer holding the clips is
+    asked. Group visibility is an editing toggle, and what gets cut is decided
+    by name in the sprite definition -- complete-tools writes its emissive
+    group hidden so it stays out of the way while drawing, and a separate
+    definition cuts exactly that group.
     """
     sp = doc["sprites"][0]
     cel_frame = {

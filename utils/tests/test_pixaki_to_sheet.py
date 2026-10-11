@@ -71,6 +71,16 @@ def test_collect_visible_layers_excludes_groups_and_hidden():
     assert all(layer.name != "Icon Sort" for layer in layers)
 
 
+def test_a_hidden_group_does_not_hide_its_visible_children():
+    """Only a layer's own visibility counts; a switched-off group still yields its layers.
+
+    complete-tools relies on this: its emissive group is saved hidden and cut
+    by a definition of its own. "Hiding" the group here would empty that sheet.
+    """
+    layers = p.collect_layers(_doc(), set())
+    assert ("Icon Sort", "DH") in {(layer.name, layer.drawing_id) for layer in layers}
+
+
 def _img(pixels_rgba, w, h):
     im = Image.new("RGBA", (w, h))
     im.putdata(pixels_rgba)
