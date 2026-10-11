@@ -28,12 +28,17 @@ Always exits 0 -- this is a report, not a gate.
 """
 
 import argparse
+import difflib
 import json
 import re
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from citation_notation import find
 
 DEFAULT_DECOMPILE = Path.home() / "Projects/checkouts/CoreKeeperDecompile"
 DEFAULT_SNAPSHOT = Path(__file__).resolve().parent / "ck-citation-snapshot.json"
@@ -104,6 +109,59 @@ def _git(root, *args):
     ).stdout
 
 
+CITATION_PLACEHOLDER = "\x00citation\x00"
+
+
+def normalise(text):
+    """`text` with every citation replaced by one placeholder.
+
+    So that a renumbered citation is not a change and a *migrated* one is not
+    either: both notations collapse to the same string. The second half matters
+    as much as the first -- without it the migration commit reads as prose and
+    fells the tick of every chapter it touches, which is the failure this whole
+    change exists to remove, reintroduced by the step meant to carry it.
+
+    Substitutes the tokens `citation_notation.find` returns rather than a
+    pattern of its own, so this and the checkers agree on what a citation is by
+    construction instead of by two regexes kept in step.
+
+    Transitional, with the same planned end of life as `relocate_citations.py`:
+    once every chapter is anchored on a symbol, a hotfix rewrites no citation
+    and there is nothing left to normalise away.
+    """
+    for token, _ in find(text):
+        text = text.replace(f"`{token}`", CITATION_PLACEHOLDER)
+    return text
+
+
+def changed_lines(root, commit, chapter):
+    """(added, deleted) between the chapter at `commit` and in the working tree.
+
+    Normalised on both sides, which is why this cannot be `git diff --numstat`:
+    that counts lines of the text as written, and the whole point is to compare
+    something else. A chapter that did not exist at `commit` counts as nothing,
+    which is the behaviour the numstat call had for the same case.
+    """
+    path = f"docs/ck/{chapter}.md"
+    try:
+        before = _git(root, "show", f"{commit}:{path}")
+    except subprocess.CalledProcessError:
+        return (0, 0)
+    current = Path(root, path)
+    after = current.read_text() if current.is_file() else ""
+
+    diff = difflib.unified_diff(
+        normalise(before).splitlines(), normalise(after).splitlines(), n=0, lineterm=""
+    )
+    added = deleted = 0
+    for line in diff:
+        if line.startswith("+") and not line.startswith("+++"):
+            added += 1
+        elif line.startswith("-") and not line.startswith("---"):
+            deleted += 1
+    return (added, deleted)
+
+
 def latest_verifications(root):
     """{chapter: Verification} for every chapter with a verification commit, newest one each."""
     found = {}
@@ -115,8 +173,7 @@ def latest_verifications(root):
             continue
         chapter, build = parsed
         # Against the working tree, not HEAD: an uncommitted edit is unverified too.
-        numstat = _git(root, "diff", "--numstat", commit, "--", f"docs/ck/{chapter}.md").split()
-        added, deleted = (int(numstat[0]), int(numstat[1])) if numstat else (0, 0)
+        added, deleted = changed_lines(root, commit, chapter)
         found[chapter] = Verification(chapter, commit, build, added, deleted)
     return found
 

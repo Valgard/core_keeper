@@ -11,8 +11,10 @@ import subprocess
 
 import pytest
 from verify_status import Verification
+from verify_status import changed_lines
 from verify_status import classify
 from verify_status import latest_verifications
+from verify_status import normalise
 from verify_status import parse_build
 from verify_status import parse_subject
 
@@ -149,3 +151,100 @@ class TestLatestVerifications:
         (repo / "docs/ck/a.md").write_text("one\ntwo\n")
 
         assert latest_verifications(repo)["a"].added == 1
+
+
+class TestNormalise:
+    """Coverage for normalise() -- what counts as a change to a chapter's prose.
+
+    The defect the whole symbol-anchoring effort opens with: `harmony-and-ecs`
+    lost its verification tick to a diff of 31 changed lines of which 31 were
+    citation numbers and none was prose. Counting raw lines cannot tell those
+    apart; normalising the citations away can.
+    """
+
+    def test_a_citation_renumbered_in_place_is_not_a_change(self):
+        """One hotfix moved 320 such lines across nine chapters."""
+        before = "the call `Pug.Other:441234` does it\n"
+        after = "the call `Pug.Other:441567` does it\n"
+        assert normalise(before) == normalise(after)
+
+    def test_a_citation_migrated_to_the_new_grammar_is_not_a_change(self):
+        """Both notations canonicalise to one placeholder.
+
+        Without this the migration commit reads as prose and fells the tick of
+        every chapter it touches -- the exact failure this design exists to
+        remove, reintroduced by the step meant to carry it.
+        """
+        before = "the call `Pug.Other:370859` does it\n"
+        after = "the call `Pug.Other:SmallTitleUIBackground:UpdateTextAndBackground:29` does it\n"
+        assert normalise(before) == normalise(after)
+
+    def test_prose_around_a_citation_still_counts_as_a_change(self):
+        """The point is to ignore the number, not the sentence."""
+        assert normalise("the call `A:1` does it\n") != normalise("the call `A:1` fails\n")
+
+    def test_a_chapter_with_no_citations_normalises_to_itself(self):
+        """Most lines have none, and most chapters are not migrated yet."""
+        text = "ordinary prose\nwith two lines\n"
+        assert normalise(text) == text
+
+    def test_two_different_citations_on_one_line_both_normalise(self):
+        """A line can carry several, and one left behind would read as a change."""
+        before = "between `A:1` and `A:2`\n"
+        after = "between `A:9` and `A:8`\n"
+        assert normalise(before) == normalise(after)
+
+
+class TestChangedLines:
+    """Coverage for changed_lines() -- the numbers latest_verifications judges by."""
+
+    @pytest.fixture
+    def repo(self, tmp_path):
+        """An empty repository with a committer identity and no signing."""
+        _git(tmp_path, "init", "-q")
+        _git(tmp_path, "config", "user.email", "test@example.invalid")
+        _git(tmp_path, "config", "user.name", "Test")
+        _git(tmp_path, "config", "commit.gpgsign", "false")
+        return tmp_path
+
+    def _head(self, repo):
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+    def test_a_citation_only_diff_counts_as_nothing(self, repo):
+        """End to end through git, where the numstat call used to be."""
+        _commit(repo, "docs/ck/a.md", "the call `A:100` does it\n", "docs(ck): add a")
+        commit = self._head(repo)
+        (repo / "docs/ck/a.md").write_text("the call `A:200` does it\n")
+
+        assert changed_lines(repo, commit, "a") == (0, 0)
+
+    def test_a_prose_edit_is_counted(self, repo):
+        """A real change still counts, or the normaliser would hide everything."""
+        _commit(repo, "docs/ck/a.md", "the call `A:100` does it\n", "docs(ck): add a")
+        commit = self._head(repo)
+        (repo / "docs/ck/a.md").write_text("the call `A:100` fails\n")
+
+        assert changed_lines(repo, commit, "a") == (1, 1)
+
+    def test_a_chapter_absent_at_that_commit_counts_as_nothing(self, repo):
+        """Today's behaviour for a chapter the verification predates."""
+        _commit(repo, "docs/ck/a.md", "one\n", "docs(ck): add a")
+        commit = self._head(repo)
+        (repo / "docs/ck/b.md").write_text("two\n")
+
+        assert changed_lines(repo, commit, "b") == (0, 0)
+
+    def test_a_renumbering_does_not_cost_a_chapter_its_tick(self, repo):
+        """The whole point, through latest_verifications rather than in isolation."""
+        _commit(
+            repo,
+            "docs/ck/a.md",
+            "the call `A:100` does it\n",
+            "docs(ck): verify a against 1.3.0.5-cb48",
+        )
+        (repo / "docs/ck/a.md").write_text("the call `A:200` does it\n")
+
+        found = latest_verifications(repo)["a"]
+        assert (found.added, found.deleted) == (0, 0)
