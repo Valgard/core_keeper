@@ -40,6 +40,17 @@ dev = [
     "ruff>=0.16.4",
 ]
 
+# Pyright runs as the language server, not as a gate. Without this block it
+# guessed its interpreter from PATH -- the global asdf Python -- so it never saw
+# .venv: tree-sitter showed as unresolved and Pillow resolved to whatever the
+# global site-packages held instead of the pinned version above. The Python
+# version is set explicitly for the same reason ruff's target-version is.
+[tool.pyright]
+pythonVersion = "3.13"
+venvPath = "."
+venv = ".venv"
+include = ["utils"]
+
 # Adopted verbatim from work/selgros/salesbuddy/shared, which is the oldest and
 # largest Python project here (first commit 2025-04-30, against this repo's
 # 2026-05-15) and the one whose selection is deliberate and commented. This repo
