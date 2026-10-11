@@ -14,6 +14,7 @@ on top of it -- migrate, keep, or refuse.
 """
 
 import json
+import re
 
 import anchor_citations as mod
 import pytest
@@ -325,3 +326,213 @@ class TestCli:
 
         assert code == 1
         assert "decompile tree not found" in capsys.readouterr().out
+
+
+class TestApply:
+    """Writing the prose, and the one shape of replacement that is safe."""
+
+    def test_applying_rewrites_replaces_every_occurrence(self, tmp_path):
+        """Every occurrence, and matched with its backticks.
+
+        The backticks are what keep one token from matching inside another:
+        `Pug.Other:37085` is a prefix of `Pug.Other:370859`, and replacing
+        the bare text would corrupt the longer citation while reporting
+        success.
+        """
+        path = make_file(
+            tmp_path, "see `Pug.Other:37085`, `Pug.Other:370859` and `Pug.Other:37085`\n"
+        )
+        rewrites = (
+            mod.Rewrite("Pug.Other:37085", "Pug.Other:Foo:Bar:1", 37085, 2),
+            mod.Rewrite("Pug.Other:370859", "Pug.Other:Foo:Baz:9", 370859, 1),
+        )
+
+        replaced = mod.apply_rewrites(path, rewrites)
+
+        assert replaced == 3
+        assert path.read_text() == (
+            "see `Pug.Other:Foo:Bar:1`, `Pug.Other:Foo:Baz:9` and `Pug.Other:Foo:Bar:1`\n"
+        )
+
+    def test_a_token_that_does_not_land_in_the_file_is_an_error(self, tmp_path, monkeypatch):
+        """The post-condition for the hazard the wrapping gate now prevents.
+
+        This is the step that would carry a citation the file cannot express
+        into a commit, so what was written is read back and checked rather
+        than assumed. Exercised by making the written token unfindable, since
+        no input can produce that state once `check_docs_wrapping` keeps a
+        citation whole.
+        """
+        path = make_file(tmp_path, "see `Pug.Other:8`\n")
+        monkeypatch.setattr(mod, "find", lambda line: [])
+
+        with pytest.raises(RuntimeError, match=re.escape("Pug.Other:Foo:Bar:3")):
+            mod.apply_rewrites(path, (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1),))
+
+
+class TestRekey:
+    """The snapshot after a migration: every record kept, under whichever key cites it."""
+
+    def test_the_recorded_text_travels_to_the_new_key_unchanged(self):
+        """The snapshot keeps recording what the line said, not what it says now.
+
+        Re-capturing instead would write the current text under the new key,
+        which compares equal to itself forever -- and so would hide a
+        mis-anchoring behind fresh evidence. Carrying the old record across
+        is the check that the new form points at the claim that was read.
+        """
+        snapshot = {"citations": {"Pug.Other:8": ["int x = 1;"]}, "game_version": "1.3.0.6-6e73"}
+        rewrites = (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1),)
+
+        after = mod.rekey_snapshot(snapshot, rewrites, {"Pug.Other:Foo:Bar:3"})
+
+        assert after["citations"] == {"Pug.Other:Foo:Bar:3": ["int x = 1;"]}
+
+    def test_it_keeps_a_token_another_chapter_still_cites(self):
+        """Both keys exist afterwards, carrying the same record.
+
+        13 of the three target chapters' citations are also cited in chapters
+        that stay unmigrated. Moving the key would leave the drift gate
+        reporting the unmigrated chapter's citation as uncaptured, which
+        reads as an instruction to capture what is already recorded.
+        """
+        snapshot = {"citations": {"Pug.Other:8": ["int x = 1;"]}}
+        rewrites = (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1),)
+
+        after = mod.rekey_snapshot(snapshot, rewrites, {"Pug.Other:8", "Pug.Other:Foo:Bar:3"})
+
+        assert after["citations"] == {
+            "Pug.Other:8": ["int x = 1;"],
+            "Pug.Other:Foo:Bar:3": ["int x = 1;"],
+        }
+
+    def test_it_adds_no_key_for_a_citation_no_chapter_carries(self):
+        """Anchoring a file outside docs/ck changes no snapshot entry at all.
+
+        The snapshot records the handbook, and `check_citation_drift.compare`
+        reports any key no chapter cites as stale. So adding a key for
+        `docs/roadmap.md` would turn the gate red on the very commit that
+        anchored it, and dropping the old one would do the same from the other
+        side -- the chapter that still cites it would read as uncaptured.
+        """
+        snapshot = {"citations": {"Pug.Other:8": ["int x = 1;"]}}
+        rewrites = (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1),)
+
+        after = mod.rekey_snapshot(snapshot, rewrites, {"Pug.Other:8"})
+
+        assert after["citations"] == {"Pug.Other:8": ["int x = 1;"]}
+
+    def test_the_game_version_survives_the_rekey(self):
+        """`verify_status` reads it to name the current build when no decompile is present."""
+        snapshot = {"citations": {"Pug.Other:8": ["int x = 1;"]}, "game_version": "1.3.0.6-6e73"}
+        rewrites = (mod.Rewrite("Pug.Other:8", "Pug.Other:Foo:Bar:3", 8, 1),)
+
+        after = mod.rekey_snapshot(snapshot, rewrites, {"Pug.Other:Foo:Bar:3"})
+
+        assert after["game_version"] == "1.3.0.6-6e73"
+
+
+class TestCitedTokens:
+    """What the handbook still writes, which is what decides the pruning."""
+
+    def test_it_reads_every_chapter_and_nothing_else(self, tmp_path):
+        """docs/ck only: the snapshot records the handbook, so only it votes.
+
+        A token cited solely in `docs/roadmap.md` has no snapshot entry to
+        keep alive, and counting it here would keep a stale record forever.
+        """
+        make_file(tmp_path, "a `Pug.Other:8` here\n", name="docs/ck/one.md")
+        make_file(tmp_path, "b `Pug.Base:12` there\n", name="docs/ck/two.md")
+        make_file(tmp_path, "c `WorldGen:3` elsewhere\n", name="docs/roadmap.md")
+
+        assert mod.cited_tokens(tmp_path) == {"Pug.Other:8", "Pug.Base:12"}
+
+
+class TestApplyIsAtomic:
+    """A refused file is untouched on disk, in both places."""
+
+    def test_nothing_is_written_when_the_file_is_refused(self, tmp_path, recorded):
+        """Neither the prose nor the snapshot.
+
+        A refusal means a citation must not move; writing the others anyway
+        would leave the chapter in two notations, which is the state this
+        tool exists to avoid rather than a partial success.
+        """
+        tree = make_decompile(tmp_path)
+        path = make_file(
+            tmp_path, "the call `Pug.Other:8` and `Pug.Nothing:3`\n", name="docs/ck/a.md"
+        )
+        before = path.read_text()
+        snapshot = make_snapshot(tmp_path, recorded)
+        snapshot_before = snapshot.read_text()
+
+        code = mod.main(
+            [str(path), "--apply", "--decompile", str(tree), "--snapshot", str(snapshot)]
+        )
+
+        assert code == 1
+        assert path.read_text() == before
+        assert snapshot.read_text() == snapshot_before
+
+    def test_apply_writes_both_the_chapter_and_the_snapshot(self, tmp_path, recorded):
+        """End to end through the flag, which is the half that is easiest to omit.
+
+        The spec says as much about its own acceptance test: the risk is not
+        that `describe` names the wrong element but that the value it returns
+        does not survive being written into a chapter and read back out. Here
+        that means three things at once -- the prose carries the anchored
+        form, the snapshot's record moved to the new key, and the old key is
+        gone because no chapter cites it any more.
+        """
+        tree = make_decompile(tmp_path)
+        path = make_file(tmp_path, "the call `Pug.Other:8` does it\n", name="docs/ck/a.md")
+        snapshot = make_snapshot(tmp_path, recorded)
+
+        code = mod.main(
+            [
+                str(path),
+                "--apply",
+                "--root",
+                str(tmp_path),
+                "--decompile",
+                str(tree),
+                "--snapshot",
+                str(snapshot),
+            ]
+        )
+
+        assert code == 0
+        assert path.read_text() == "the call `Pug.Other:Foo:Bar:3` does it\n"
+        citations = json.loads(snapshot.read_text())["citations"]
+        assert citations["Pug.Other:Foo:Bar:3"] == ["int x = 1;"]
+        assert "Pug.Other:8" not in citations
+
+    def test_nothing_is_written_without_apply(self, tmp_path, recorded):
+        """The default is a report: the flag is what authorises a write."""
+        tree = make_decompile(tmp_path)
+        path = make_file(tmp_path, "the call `Pug.Other:8`\n")
+        before = path.read_text()
+        snapshot = make_snapshot(tmp_path, recorded)
+
+        mod.main([str(path), "--decompile", str(tree), "--snapshot", str(snapshot)])
+
+        assert path.read_text() == before
+
+
+class TestRelocateCoexistence:
+    """An anchored citation is invisible to the transitional renumbering tool."""
+
+    def test_an_anchored_citation_is_not_touched_by_relocate_citations(self):
+        """`check_citation_drift.CITATION` requires digits straight after the assembly.
+
+        So an anchored citation matches nothing there, and the tool that
+        renumbers absolute citations after a game update leaves it alone --
+        which is what lets the two notations coexist while ten chapters are
+        still unmigrated. Pinned rather than assumed: a widened pattern would
+        read the `:3` of a member anchor as an absolute line and rewrite it.
+        """
+        from check_citation_drift import extract
+
+        text = "see `Pug.Other:Foo:Bar:29` and `Pug.Other:370859`"
+
+        assert extract(text) == [("Pug.Other", 370859, 370859)]

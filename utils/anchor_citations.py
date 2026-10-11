@@ -176,6 +176,87 @@ def plan_file(path, decompile, recorded, structures=None):
     return tuple(rewrites), tuple(notes), tuple(refusals)
 
 
+def apply_rewrites(path, rewrites):
+    """Rewrite every occurrence of each token in `path`; return how many were replaced.
+
+    Matched with its backticks, which is what keeps one token from matching
+    inside another: `Pug.Other:37085` is a prefix of `Pug.Other:370859`, and
+    a replacement on the bare text would corrupt the longer citation while
+    reporting success.
+
+    Then the file is read back and every anchored form looked for. The
+    wrapping gate now keeps a citation whole, so nothing should be able to
+    produce a token the file cannot express -- but this is the step that
+    would carry such a thing into a commit, and a citation with a line break
+    inside it matches no pattern, so the failure would be silence in every
+    other check at once.
+    """
+    path = Path(path)
+    text = path.read_text()
+    replaced = 0
+    for rewrite in rewrites:
+        old, new = f"`{rewrite.token}`", f"`{rewrite.anchored}`"
+        replaced += text.count(old)
+        text = text.replace(old, new)
+    path.write_text(text)
+
+    written = {token for line in path.read_text().splitlines() for token, _ in find(line)}
+    missing = [rewrite.anchored for rewrite in rewrites if rewrite.anchored not in written]
+    if missing:
+        raise RuntimeError(
+            f"{path}: {len(missing)} citation(s) were written but cannot be found again, "
+            f"starting with `{missing[0]}` — the file holds a form no checker can read"
+        )
+    return replaced
+
+
+def cited_tokens(root):
+    """Every citation token the handbook's chapters still write.
+
+    `docs/ck/` only, because that is what the snapshot records: a token cited
+    solely in `docs/roadmap.md` has no entry to keep alive, and counting it
+    here would keep a stale record indefinitely. Read with the same `find`
+    that `check_citation_drift.collect` uses, so the two agree on what a
+    citation is by construction rather than by two patterns kept in step.
+    """
+    return {
+        token
+        for chapter in sorted((Path(root) / "docs" / "ck").glob("*.md"))
+        for line in chapter.read_text().splitlines()
+        for token, _ in find(line)
+    }
+
+
+def rekey_snapshot(snapshot, rewrites, still_cited):
+    """The snapshot with each rewritten citation's record under its new key.
+
+    Both halves are decided against `still_cited` -- the chapters' citations
+    as they stand *after* the prose was rewritten -- because the snapshot
+    records the handbook and `check_citation_drift.compare` reports in both
+    directions: a key no chapter cites is stale, and a cited citation with no
+    key is uncaptured. So a record is added only once a chapter writes the
+    anchored form, and removed only once no chapter writes the old one.
+
+    The two cases that makes right are worth naming. 13 of the citations in
+    the chapters migrated here are also cited in chapters that stay
+    unmigrated, where moving the key would report the other chapter as
+    uncaptured. And anchoring a file outside `docs/ck/` changes no chapter at
+    all, so it must change no entry -- adding one would turn the gate red on
+    the very commit that anchored it.
+
+    The recorded text travels unchanged. Re-capturing instead would write
+    what the line says now, which compares equal to itself forever, and so
+    would hide a mis-anchoring behind fresh evidence.
+    """
+    citations = dict(snapshot.get("citations", {}))
+    for rewrite in rewrites:
+        if rewrite.token in citations and rewrite.anchored in still_cited:
+            citations[rewrite.anchored] = citations[rewrite.token]
+        if rewrite.token not in still_cited:
+            citations.pop(rewrite.token, None)
+    return {**snapshot, "citations": citations}
+
+
 def anchored_already(path):
     """How many of this file's citations are already on a symbol.
 
@@ -202,9 +283,11 @@ def read_snapshot(path):
 
 
 def main(argv=None):
-    """Report what anchoring the named file would change; exit 1 if it must not be."""
+    """Report what anchoring the named file would change; with --apply, do it."""
     ap = argparse.ArgumentParser(description=(__doc__ or "").partition("\n")[0])
     ap.add_argument("path")
+    ap.add_argument("--apply", action="store_true", help="write the file and the snapshot")
+    ap.add_argument("--root", default=".", help="repository root, for reading the chapters")
     ap.add_argument("--decompile", default=str(DEFAULT_DECOMPILE))
     ap.add_argument("--snapshot", default=str(DEFAULT_SNAPSHOT))
     args = ap.parse_args(argv)
@@ -226,6 +309,20 @@ def main(argv=None):
     if refusals:
         print(f"\n{args.path} is not anchored: {len(refusals)} citation(s) must not be moved")
         return 1
+
+    if args.apply and rewrites:
+        # The prose first, then the snapshot. A prose write whose snapshot
+        # write failed is reported by the drift gate on the next run, in both
+        # of its directions; the reverse order leaves a snapshot naming
+        # citations no file carries, which reads as a handbook that lost them.
+        replaced = apply_rewrites(args.path, rewrites)
+        snapshot = Path(args.snapshot)
+        rekeyed = rekey_snapshot(read_snapshot(snapshot), rewrites, cited_tokens(args.root))
+        snapshot.write_text(json.dumps(rekeyed, indent=2, sort_keys=True) + "\n")
+        print(f"\nanchored {len(rewrites)} citation(s) in {replaced} place(s) in {args.path}")
+        print(f"re-keyed {snapshot}: {len(rekeyed['citations'])} record(s)")
+        return 0
+
     print(
         f"\n{len(rewrites)} citation(s) to anchor, {len(notes)} kept as written, "
         f"{anchored_already(args.path)} already anchored"
