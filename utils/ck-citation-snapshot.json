@@ -375,12 +375,6 @@
     "Pug.ECS.Components:6525": [
       "public struct MapMarkerCD : IComponentData, IQueryTypeParameter"
     ],
-    "Pug.ECS.Components:8903": [
-      "public struct MapMarkerCustomDataSerializedCD : IComponentData, IQueryTypeParameter"
-    ],
-    "Pug.ECS.Components:8960": [
-      "public struct NameSerializedCD : IComponentData, IQueryTypeParameter, IPugJsonSerializer"
-    ],
     "Pug.ECS.Components:ClientInputData:1": [
       "public struct ClientInputData : IInputComponentData, IComponentData, IQueryTypeParameter"
     ],
@@ -390,8 +384,14 @@
     "Pug.ECS.Components:ClientInputDataInputBufferDataSendCommandSystem:4": [
       "internal struct ClientInputDataInputBufferDataSendCommandSystem : ISystem"
     ],
+    "Pug.ECS.Components:MapMarkerCustomDataSerializedCD:3": [
+      "public struct MapMarkerCustomDataSerializedCD : IComponentData, IQueryTypeParameter"
+    ],
     "Pug.ECS.Components:ModInfoRPC:1": [
       "public struct ModInfoRPC : IRpcCommand, IComponentData, IQueryTypeParameter"
+    ],
+    "Pug.ECS.Components:NameSerializedCD:5": [
+      "public struct NameSerializedCD : IComponentData, IQueryTypeParameter, IPugJsonSerializer"
     ],
     "Pug.ECS.Components:PlacementCD:51-69": [
       "public bool canPlaceOnWalkableTiles;",
@@ -530,26 +530,8 @@
     "Pug.Other:135471": [
       "Manager.input.touchpadInUse = inputModule.WasButtonPressedDownThisFrame(PlayerInput.InputType.TOUCHPAD);"
     ],
-    "Pug.Other:175127": [
-      "if (__query_927245375_1.TryGetSingleton<WorldVersionSerializedCD>(out var value) && value.Version >= 13)"
-    ],
-    "Pug.Other:175141": [
-      "if (variation >= 0 && variation <= 3)"
-    ],
     "Pug.Other:175145": [
       "iconAddress = GetDefaultIconForVariation(variation),"
-    ],
-    "Pug.Other:175149": [
-      "uncheckedRefRW2.ValueRW.Variation = 0;"
-    ],
-    "Pug.Other:175150-175153": [
-      "if (!InternalCompilerInterface.HasComponentAfterCompletingDependency(ref __TypeHandle.__NameSerializedCD_RO_ComponentLookup, ref state, entity2))",
-      "{",
-      "entityCommandBuffer.AddComponent(entity2, default(NameSerializedCD));",
-      "}"
-    ],
-    "Pug.Other:175152": [
-      "entityCommandBuffer.AddComponent(entity2, default(NameSerializedCD));"
     ],
     "Pug.Other:175165": [
       "private static DataBlockAddress GetDefaultIconForVariation(int variation)"
@@ -565,15 +547,6 @@
     ],
     "Pug.Other:176425": [
       "nameToObjectID.TryGetValue(value2, out value);"
-    ],
-    "Pug.Other:182328": [
-      "if (batchInChunk.DidChange(ObjectData, serializedChunk.ChangeVersion))"
-    ],
-    "Pug.Other:182338": [
-      "Amount = objectDataCD.amount,"
-    ],
-    "Pug.Other:182649": [
-      "EntityTransaction.SetComponentData(entity23, new MapMarkerCustomDataSerializedCD"
     ],
     "Pug.Other:186112-186690": [
       "public struct UnloadToSerializeWorldSystem : ISystem, ISystemCompilerGenerated",
@@ -1892,9 +1865,6 @@
     "Pug.Other:346588": [
       "private void ApplyEditToExistingMarker(Entity entity, DataBlockAddress iconAddress, int variantIndex, string markerName)"
     ],
-    "Pug.Other:346611": [
-      "variation = 0"
-    ],
     "Pug.Other:346945": [
       "mapPlayerPositionOffsetTransform.localPosition = -MakePixelPerfectMapPosition(localPlayerWorldPosition);"
     ],
@@ -2573,9 +2543,6 @@
     "Pug.Other:410403": [
       "throw new InvalidOperationException(\"Not allowed to access \" + memberInfo.Name);"
     ],
-    "Pug.Other:414243": [
-      "public void CreateMapUI(float3 worldPosition, int activeUserMapMarkerType)"
-    ],
     "Pug.Other:414624-414633": [
       "public void EditCustomMapMarker(Entity targetEntity, DataBlockAddress iconAddress, int variantIndex, FixedString64Bytes name = default(FixedString64Bytes))",
       "{",
@@ -2609,27 +2576,8 @@
       "Value = rpc.name",
       "});"
     ],
-    "Pug.Other:415248-415254": [
-      "if (guestMode)",
-      "{",
-      "Command command = component.command;",
-      "if (command != Command.MapPing && command != Command.RemoveLoginImmunity && command != Command.SetPlayerState && command != Command.UnlockCurrentState && fromEntity.GetAdminLevelOnServer(component2.SourceConnection) <= 0)",
-      "{",
-      "continue;",
-      "}"
-    ],
     "Pug.Other:415251": [
       "if (command != Command.MapPing && command != Command.RemoveLoginImmunity && command != Command.SetPlayerState && command != Command.UnlockCurrentState && fromEntity.GetAdminLevelOnServer(component2.SourceConnection) <= 0)"
-    ],
-    "Pug.Other:415307-415314": [
-      "case Command.CreateMapUI:",
-      "{",
-      "ObjectDataCD objectDataCD = new ObjectDataCD",
-      "{",
-      "objectID = ObjectID.MapMarker,",
-      "variation = component.int0 - 2",
-      "};",
-      "EntityUtility.CreateEntity(ecb, component.position0, objectDataCD.objectID, 1, databaseLocal, out var _, objectDataCD.variation);"
     ],
     "Pug.Other:415525": [
       "componentData5.amount = component.int0;"
@@ -2783,6 +2731,30 @@
     ],
     "Pug.Other:ClientDisconnectSystem:OnUpdate:22": [
       "case NetworkStreamDisconnectReason.InvalidRpc:"
+    ],
+    "Pug.Other:ClientSystem:CreateMapUI:1": [
+      "public void CreateMapUI(float3 worldPosition, int activeUserMapMarkerType)"
+    ],
+    "Pug.Other:ConvertOldMapMarkersSystem:GetDefaultIconForVariation:1": [
+      "private static DataBlockAddress GetDefaultIconForVariation(int variation)"
+    ],
+    "Pug.Other:ConvertOldMapMarkersSystem:OnUpdate:18": [
+      "if (variation >= 0 && variation <= 3)"
+    ],
+    "Pug.Other:ConvertOldMapMarkersSystem:OnUpdate:26": [
+      "uncheckedRefRW2.ValueRW.Variation = 0;"
+    ],
+    "Pug.Other:ConvertOldMapMarkersSystem:OnUpdate:27-30": [
+      "if (!InternalCompilerInterface.HasComponentAfterCompletingDependency(ref __TypeHandle.__NameSerializedCD_RO_ComponentLookup, ref state, entity2))",
+      "{",
+      "entityCommandBuffer.AddComponent(entity2, default(NameSerializedCD));",
+      "}"
+    ],
+    "Pug.Other:ConvertOldMapMarkersSystem:OnUpdate:29": [
+      "entityCommandBuffer.AddComponent(entity2, default(NameSerializedCD));"
+    ],
+    "Pug.Other:ConvertOldMapMarkersSystem:OnUpdate:4": [
+      "if (__query_927245375_1.TryGetSingleton<WorldVersionSerializedCD>(out var value) && value.Version >= 13)"
     ],
     "Pug.Other:DropSelfJob:22": [
       "private struct DropSelfJob : IJobEntity, IJobChunk"
@@ -2991,6 +2963,9 @@
     ],
     "Pug.Other:Manager:networking:1": [
       "public static NetworkingManager networking => main._networkingManager;"
+    ],
+    "Pug.Other:MapUI:PlaceMarker:7": [
+      "variation = 0"
     ],
     "Pug.Other:ModAPIServer:World:1": [
       "public World World => Manager.ecs.ServerWorld;"
@@ -3796,6 +3771,25 @@
     "Pug.Other:SeederSlot:PlaceItem:1": [
       "private static void PlaceItem(ref NativeList<PlacementHandler.EntityAndInfoFromPlacement> entitiesToSeed, in EquipmentUpdateAspect equipmentUpdateAspect, EquipmentUpdateSharedData equipmentUpdateSharedData, LookupEquipmentUpdateData equipmentUpdateLookupData)"
     ],
+    "Pug.Other:SerializeObjectJob:Execute:238": [
+      "if (batchInChunk.DidChange(ObjectData, serializedChunk.ChangeVersion))"
+    ],
+    "Pug.Other:SerializeObjectJob:Execute:248": [
+      "Amount = objectDataCD.amount,"
+    ],
+    "Pug.Other:SerializeObjectJob:Execute:559": [
+      "EntityTransaction.SetComponentData(entity23, new MapMarkerCustomDataSerializedCD"
+    ],
+    "Pug.Other:ServerSystem:OnUpdate:100-107": [
+      "case Command.CreateMapUI:",
+      "{",
+      "ObjectDataCD objectDataCD = new ObjectDataCD",
+      "{",
+      "objectID = ObjectID.MapMarker,",
+      "variation = component.int0 - 2",
+      "};",
+      "EntityUtility.CreateEntity(ecb, component.position0, objectDataCD.objectID, 1, databaseLocal, out var _, objectDataCD.variation);"
+    ],
     "Pug.Other:ServerSystem:OnUpdate:282": [
       "PlayerController.AddSkill(component.entity0, (SkillID)component.int0, component.int1, ecb, isServer: true);"
     ],
@@ -3805,8 +3799,20 @@
     "Pug.Other:ServerSystem:OnUpdate:319": [
       "ecb.SetComponent(component.entity0, componentData5);"
     ],
+    "Pug.Other:ServerSystem:OnUpdate:41-47": [
+      "if (guestMode)",
+      "{",
+      "Command command = component.command;",
+      "if (command != Command.MapPing && command != Command.RemoveLoginImmunity && command != Command.SetPlayerState && command != Command.UnlockCurrentState && fromEntity.GetAdminLevelOnServer(component2.SourceConnection) <= 0)",
+      "{",
+      "continue;",
+      "}"
+    ],
     "Pug.Other:ServerSystem:OnUpdate:44": [
       "if (command != Command.MapPing && command != Command.RemoveLoginImmunity && command != Command.SetPlayerState && command != Command.UnlockCurrentState && fromEntity.GetAdminLevelOnServer(component2.SourceConnection) <= 0)"
+    ],
+    "Pug.Other:ServerSystem_4A171A05_LambdaJob_1_Job:OriginalLambdaBody:11": [
+      "Entity e = EntityUtility.CreateEntity(ecb, rpc.position, ObjectID.MapMarker, 1, databaseLocal, out prefabEntity);"
     ],
     "Pug.Other:StartGameRPCSystem:1": [
       "[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation, WorldSystemFilterFlags.Default)]"

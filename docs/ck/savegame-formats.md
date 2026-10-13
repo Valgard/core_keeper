@@ -127,18 +127,19 @@ When this section was first written, against 1.2, markers carried **no text** �
 the type enums were the entire vocabulary. The 1.2.1.5 decompile agrees: the
 server's `CreateMapUI` handler creates the marker from a position and a
 variation and sets no name (1.2.1.5: the `case Command.CreateMapUI` branch of
-`PlayerCommand.ServerSystem.OnUpdate` in `Pug.Other`). The 1.3
-migration adds an empty name only where none exists
-(`Pug.Other:175150-175153`), which leaves room for markers that already had
-one.
+`PlayerCommand.ServerSystem.OnUpdate` in `Pug.Other`). The 1.3 migration adds an
+empty name only where none exists
+(`Pug.Other:ConvertOldMapMarkersSystem:OnUpdate:27-30`), which leaves room for
+markers that already had one.
 
 **Since 1.3 a player's marker carries two more serialized components**, because
 its icon is no longer a slot but a data block ([world and mechanics](world-and-mechanics.md#since-13-a-user-markers-icon-is-a-data-block)):
 `MapMarkerCustomDataSerializedCD` — the icon's `DataBlockAddress`, a 16-byte
-GUID, and a variant index (`Pug.ECS.Components:8903`), written from the runtime
-`MapMarkerCustomDataCD` (`Pug.Other:182649`) — and `NameSerializedCD`, the
-marker's name as a `FixedString64Bytes` (`Pug.ECS.Components:8960`). So a 1.3
-save does hold marker text.
+GUID, and a variant index
+(`Pug.ECS.Components:MapMarkerCustomDataSerializedCD:3`), written from the
+runtime `MapMarkerCustomDataCD` (`Pug.Other:SerializeObjectJob:Execute:559`) —
+and `NameSerializedCD`, the marker's name as a `FixedString64Bytes`
+(`Pug.ECS.Components:NameSerializedCD:5`). So a 1.3 save does hold marker text.
 
 The two ObjectIDs are `MapMarker = 2402` and `MapMarkerCoreAttention = 2403`.
 
@@ -157,24 +158,30 @@ rather than as the key: the migration that injects the echo-dungeon markers sets
 only the object id and the variation, so an amount of `1` on those is observed
 rather than written, and a marker arriving by some other route need not carry
 it. A marker the 1.3 client places is prespawned with variation 0
-(`Pug.Other:346611`) and created by the server with amount 1
-(`Pug.Other:414917`). That covers markers the vanilla client creates, not every
-1.3 marker: the pre-1.3 path is still in the game, a `CreateMapUI` command
-(`Pug.Other:414243`) whose server handler creates a marker at the variation the
-caller asks for, minus 2 (`Pug.Other:415307-415314`). Vanilla no longer calls it, but a
-mod can, and its markers can carry a non-zero variation — except in a
-guest-mode world, where the server drops the command from a player who is not
-an admin (`Pug.Other:415248-415254`).
+(`Pug.Other:MapUI:PlaceMarker:7`) and created by the server with amount 1
+(`Pug.Other:ServerSystem_4A171A05_LambdaJob_1_Job:OriginalLambdaBody:11`). That
+covers markers the vanilla client creates, not every 1.3 marker: the pre-1.3
+path is still in the game, a `CreateMapUI` command
+(`Pug.Other:ClientSystem:CreateMapUI:1`) whose server handler creates a marker
+at the variation the caller asks for, minus 2
+(`Pug.Other:ServerSystem:OnUpdate:100-107`). Vanilla no longer calls it, but a
+mod can, and its markers can carry a non-zero variation — except in a guest-mode
+world, where the server drops the command from a player who is not an admin
+(`Pug.Other:ServerSystem:OnUpdate:41-47`).
 
 **World version 13 converts the old slots once.** `ConvertOldMapMarkersSystem`
-runs while a world is below version 13 (`Pug.Other:175127`) and touches only
-markers with variation 0–3 (`Pug.Other:175141`): each gets a
-`MapMarkerCustomDataSerializedCD` holding the vanilla icon its slot used to show
-(`GetDefaultIconForVariation`, `Pug.Other:175165`; variation 1 becomes the yellow question
-mark, icon `7e09f30c-8838-5604-2b46-8c13b0ef771e` with variant 9), its variation
-is set to 0 (`Pug.Other:175149`), and an empty `NameSerializedCD` is added where none
-exists (`Pug.Other:175152`). **`Amount` is not touched** — which is what the next
-paragraph turns on.
+runs while a world is below version 13
+(`Pug.Other:ConvertOldMapMarkersSystem:OnUpdate:4`) and touches only markers
+with variation 0–3 (`Pug.Other:ConvertOldMapMarkersSystem:OnUpdate:18`): each
+gets a `MapMarkerCustomDataSerializedCD` holding the vanilla icon its slot used
+to show (`GetDefaultIconForVariation`,
+`Pug.Other:ConvertOldMapMarkersSystem:GetDefaultIconForVariation:1`; variation 1
+becomes the yellow question mark, icon `7e09f30c-8838-5604-2b46-8c13b0ef771e`
+with variant 9), its variation is set to 0
+(`Pug.Other:ConvertOldMapMarkersSystem:OnUpdate:26`), and an empty
+`NameSerializedCD` is added where none exists
+(`Pug.Other:ConvertOldMapMarkersSystem:OnUpdate:29`). **`Amount` is not
+touched** — which is what the next paragraph turns on.
 
 An earlier version of the table above also listed an `Amount` of 0 alongside a
 fixed variation as a mod's. The value exists in the source of the mod meant,
@@ -212,10 +219,11 @@ its releases — read it rather than hardcoding it.
 
 **A changed `Amount` on an existing marker is saved.** `SerializeObjectJob`
 rewrites `ObjectDataSerializedCD` from the live `ObjectDataCD` in every chunk
-whose `ObjectDataCD` changed since the last save (`Pug.Other:182328`, the
-`Amount` copy at `Pug.Other:182338`). Measured on 1.3.0.2: a mod set `Amount` from
-`6016`–`6028` to 1 on those 62 markers on a copy of the world, and a scan of the
-next save found none left at or above 6000.
+whose `ObjectDataCD` changed since the last save
+(`Pug.Other:SerializeObjectJob:Execute:238`, the `Amount` copy at
+`Pug.Other:SerializeObjectJob:Execute:248`). Measured on 1.3.0.2: a mod set
+`Amount` from `6016`–`6028` to 1 on those 62 markers on a copy of the world, and
+a scan of the next save found none left at or above 6000.
 
 **Position comes from a fixed offset, not from a parser** — and the position is
 stored under a different type than the one the running entity carries. A live
