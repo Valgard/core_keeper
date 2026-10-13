@@ -502,22 +502,6 @@
     "Pug.Objects:3092": [
       "public override void UpdateGraphicsFromObjectInfo(ObjectInfo info)"
     ],
-    "Pug.Other:129751-129753": [
-      "if (modInfo.required && !flag)",
-      "{",
-      "List<ModCheck> list = __this.modsToCheck;"
-    ],
-    "Pug.Other:130103": [
-      "localMod.required = (loadedMod.Metadata.requiredOn & ModMetadata.ModExistsOn.Server) != 0;"
-    ],
-    "Pug.Other:130119-130121": [
-      "if (!localMods[num].required)",
-      "{",
-      "localMods.RemoveAt(num);"
-    ],
-    "Pug.Other:131104": [
-      "required = ((loadedMod.Metadata.requiredOn & ModMetadata.ModExistsOn.Client) != 0)"
-    ],
     "Pug.Other:133529": [
       "UnityEngine.Debug.Log(\"Skipping load inventory by PlayerWasLastConnectedToThisServer\");"
     ],
@@ -1583,12 +1567,6 @@
     "Pug.Other:307309": [
       "bool flag4 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
     ],
-    "Pug.Other:309490": [
-      "protected override void OnSpawn()"
-    ],
-    "Pug.Other:309566": [
-      "Manager.main.player = this;"
-    ],
     "Pug.Other:3115": [
       "conversionManager.AddPostConverter(new PugDatabasePostConverter());"
     ],
@@ -1895,9 +1873,6 @@
     "Pug.Other:350322": [
       "public override bool SelectPrevIndex()"
     ],
-    "Pug.Other:352414": [
-      "private void OpenModUI()"
-    ],
     "Pug.Other:352615": [
       "helpButtonToGameObject.Add(HelpButtonTypes.RESET_DEFAULTS, resetDefaults);"
     ],
@@ -1909,18 +1884,6 @@
     ],
     "Pug.Other:352638": [
       "List<HelpButton> list = new List<HelpButton>();"
-    ],
-    "Pug.Other:352756": [
-      "public class ModListMenu : RadicalMenu, IScrollable"
-    ],
-    "Pug.Other:352936": [
-      "FetchModIoUpdates();"
-    ],
-    "Pug.Other:353600": [
-      "if (IsSteamPlatform())"
-    ],
-    "Pug.Other:354902": [
-      "switch (_sourceType)"
     ],
     "Pug.Other:357048": [
       "public class RadicalOptionsMenuOption_Slider : RadicalPauseMenuOption"
@@ -2982,6 +2945,18 @@
     "Pug.Other:ModInfoRpcSystem:OnCreate:13": [
       "modName = loadedMod.Metadata.name.Substring(0, math.min(FixedString32Bytes.UTF8MaxLengthInBytes / 2, loadedMod.Metadata.name.Length)),"
     ],
+    "Pug.Other:ModInfoRpcSystem:OnCreate:14": [
+      "required = ((loadedMod.Metadata.requiredOn & ModMetadata.ModExistsOn.Client) != 0)"
+    ],
+    "Pug.Other:ModListMenu:1": [
+      "public class ModListMenu : RadicalMenu, IScrollable"
+    ],
+    "Pug.Other:ModListMenu:Activate:14": [
+      "FetchModIoUpdates();"
+    ],
+    "Pug.Other:ModListMenu:SetupSlots:28": [
+      "if (IsSteamPlatform())"
+    ],
     "Pug.Other:ModManager:Init:23": [
       "UnityEngine.Debug.Log($\"Loading mod with ID {loadedMod.ModId}\");"
     ],
@@ -2994,11 +2969,17 @@
     "Pug.Other:ModManager:Update:8": [
       "Integration.Instance.Update();"
     ],
+    "Pug.Other:ModSourceMenuOption:OnActivated:4": [
+      "switch (_sourceType)"
+    ],
     "Pug.Other:NetworkClientStartSystem:OnUpdate:2": [
       "protected override void OnUpdate()"
     ],
     "Pug.Other:NetworkClientStartSystem:OnUpdate:24": [
       "localMod.name = loadedMod.Metadata.name;"
+    ],
+    "Pug.Other:NetworkClientStartSystem:OnUpdate:25": [
+      "localMod.required = (loadedMod.Metadata.requiredOn & ModMetadata.ModExistsOn.Server) != 0;"
     ],
     "Pug.Other:NetworkClientStartSystem:OnUpdate:30-90": [
       "}",
@@ -3104,6 +3085,11 @@
       "base.OnUpdate();",
       "return;"
     ],
+    "Pug.Other:NetworkClientStartSystem:OnUpdate:41-43": [
+      "if (!localMods[num].required)",
+      "{",
+      "localMods.RemoveAt(num);"
+    ],
     "Pug.Other:NetworkClientStartSystem:OnUpdate:56-63": [
       "if (restartNeeded || unsubscribe)",
       "{",
@@ -3173,6 +3159,11 @@
     ],
     "Pug.Other:NetworkClientStartSystem_33002849_LambdaJob_0_Job:OriginalLambdaBody:12": [
       "if ((__this.localMods[num].modId != 0L && __this.localMods[num].modId == modInfo.modId) || (__this.localMods[num].modGuid.IsValid && __this.localMods[num].modGuid == modInfo.modGuid))"
+    ],
+    "Pug.Other:NetworkClientStartSystem_33002849_LambdaJob_0_Job:OriginalLambdaBody:18-20": [
+      "if (modInfo.required && !flag)",
+      "{",
+      "List<ModCheck> list = __this.modsToCheck;"
     ],
     "Pug.Other:NetworkClientStartSystem_33002849_LambdaJob_0_Job:RunWithoutJobSystem:3": [
       "InternalCompilerInterface.JobChunkInterface.RunWithoutJobsInternal(ref InternalCompilerInterface.UnsafeAsRef<NetworkClientStartSystem_33002849_LambdaJob_0_Job>(jobPtr), ref query);"
@@ -3670,6 +3661,12 @@
     "Pug.Other:PlayerController:IncreasePetXp:1": [
       "public static void IncreasePetXp(Entity playerEntity, int xpIncrease, in PetOwnerCD petOwnerCD, in PlayerGhost playerGhost, in DynamicBuffer<ContainedObjectsBuffer> containedObjectsBuffer, BufferLookup<InventoryChangeBuffer> inventoryChangeBufferLookup, Entity inventoryChangeBufferEntity)"
     ],
+    "Pug.Other:PlayerController:OnSpawn:1": [
+      "protected override void OnSpawn()"
+    ],
+    "Pug.Other:PlayerController:OnSpawn:77": [
+      "Manager.main.player = this;"
+    ],
     "Pug.Other:PlayerController:adminPrivileges:1": [
       "public int adminPrivileges"
     ],
@@ -3681,6 +3678,9 @@
     ],
     "Pug.Other:RadicalMainMenuOption_OpenMods:Awake:10": [
       "Mods.OnModManagementEvent = (ModManagementEventDelegate)Delegate.Combine(Mods.OnModManagementEvent, new ModManagementEventDelegate(ModManagementEventCallback));"
+    ],
+    "Pug.Other:RadicalMainMenuOption_OpenMods:OpenModUI:1": [
+      "private void OpenModUI()"
     ],
     "Pug.Other:RpcSerializer:Deserialize:9-10": [
       "data.entity0 = Entity.Null;",
@@ -3962,7 +3962,37 @@
       "}",
       "if (tokenSource != null && tokenSource.IsCancellationRequested)"
     ],
-    "PugMod.Loader:1001-1024": [
+    "PugMod.Loader:1111": [
+      "public List<string> unsupportedModsToLoad = new List<string>();"
+    ],
+    "PugMod.Loader:1216": [
+      "_modHandlers.Call.Init();"
+    ],
+    "PugMod.Loader:1217": [
+      "_modHandlers.Call.Update();"
+    ],
+    "PugMod.Loader:2207": [
+      "ScriptableData.AddDataBlocksLoader(runtimeLoader.name, runtimeLoader);"
+    ],
+    "PugMod.Loader:2236": [
+      "return CreateRuntimeInstance(type, modId, DataBlockAddress.NewAddress(), overloadExisting: false);"
+    ],
+    "PugMod.Loader:2262": [
+      "_addressField.SetValue(scriptableDataBlock, GetInstanceAddress(runtimeLoader.modGuid, address));"
+    ],
+    "PugMod.Loader:2263": [
+      "_overloadField.SetValue(scriptableDataBlock, new DataBlockRef<ScriptableDataBlock>(address));"
+    ],
+    "PugMod.Loader:2288": [
+      "throw new InvalidOperationException(\"Runtime data blocks must be created before ScriptableData loading starts. Try creating your runtime datablocks in IMod.EarlyInit()\");"
+    ],
+    "PugMod.Loader:2295": [
+      "return new Guid(sHA.ComputeHash(Encoding.UTF8.GetBytes($\"PugMod.RuntimeDataBlock:{modGuid}:{address}\")).AsSpan(0, 16));"
+    ],
+    "PugMod.Loader:844": [
+      "for (int i = 0; i < _mods.Count; i++)"
+    ],
+    "PugMod.Loader:DependencySorter:SortMods:11-34": [
       "bool flag = true;",
       "while (flag)",
       "{",
@@ -3988,170 +4018,6 @@
       "}",
       "}"
     ],
-    "PugMod.Loader:1111": [
-      "public List<string> unsupportedModsToLoad = new List<string>();"
-    ],
-    "PugMod.Loader:1216": [
-      "_modHandlers.Call.Init();"
-    ],
-    "PugMod.Loader:1217": [
-      "_modHandlers.Call.Update();"
-    ],
-    "PugMod.Loader:1353-1386": [
-      "List<string> list2 = new List<string>(scriptFiles.Count);",
-      "foreach (ModFile scriptFile in scriptFiles)",
-      "{",
-      "try",
-      "{",
-      "list2.Add(File.ReadAllText(Path.Combine(mod.Directory, scriptFile.path)));",
-      "}",
-      "catch (Exception exception)",
-      "{",
-      "UnityEngine.Debug.LogException(exception);",
-      "SetError(mod, ref error, ModLoadError.FileAccess);",
-      "return false;",
-      "}",
-      "}",
-      "if (!SourceGenPatch.Patch(mod.Metadata.name, list2, !mod.Metadata.skipSafetyChecks))",
-      "{",
-      "UnityEngine.Debug.LogWarning(\"Failed to do source gen patch for \" + mod.Metadata.name);",
-      "SetError(mod, ref error, ModLoadError.InternalError);",
-      "return false;",
-      "}",
-      "scriptDomain.RoslynCompilerService.OutputName = mod.Metadata.name + \".dll\";",
-      "string[] array = new string[scriptFiles.Count];",
-      "UnityEngine.Debug.Log(\"Creating modified script files at \" + tempDirectoryPath);",
-      "for (int j = 0; j < scriptFiles.Count; j++)",
-      "{",
-      "FileInfo fileInfo = new FileInfo(Path.Combine(tempDirectoryPath, scriptFiles[j].path));",
-      "if (!fileInfo.Directory.Exists)",
-      "{",
-      "fileInfo.Directory.Create();",
-      "}",
-      "File.WriteAllText(fileInfo.FullName, list2[j], Encoding.UTF8);",
-      "array[j] = fileInfo.FullName;",
-      "}",
-      "ScriptAssembly scriptAssembly = scriptDomain.CompileAndLoadFiles(array, mod.Metadata.skipSafetyChecks ? ScriptSecurityMode.EnsureLoad : ScriptSecurityMode.UseSettings, list.ToArray());"
-    ],
-    "PugMod.Loader:1475-1484": [
-      "if (!harmony.Patch(mod.Metadata.name, assembly.SystemAssembly, !mod.Metadata.skipSafetyChecks, checker))",
-      "{",
-      "UnityEngine.Debug.Log(\"mod \" + mod.Metadata.name + \": patching failed\");",
-      "}",
-      "}",
-      "catch (Exception exception)",
-      "{",
-      "UnityEngine.Debug.Log(\"failed to patch mod \" + mod.Metadata.name + \", got exception\");",
-      "UnityEngine.Debug.LogException(exception);",
-      "}"
-    ],
-    "PugMod.Loader:1570-1581": [
-      "string text2 = text + \".manifest\";",
-      "if (File.Exists(text2))",
-      "{",
-      "foreach (KeyValuePair<string, string> item in GetAssetNameToGUIDMap(text2))",
-      "{",
-      "UnityEngine.Object obj = assetBundle.LoadAsset(item.Key);",
-      "if (obj == null)",
-      "{",
-      "UnityEngine.Debug.Log(\"couldn't load \" + item.Key + \" from asset bundle \" + bundleFile.path);",
-      "continue;",
-      "}",
-      "mod.LoadedAssets.Add(obj);"
-    ],
-    "PugMod.Loader:1587": [
-      "mod.LoadedAssets.AddRange(assetBundle.LoadAllAssets());"
-    ],
-    "PugMod.Loader:1724": [
-      "Assets = mod.LoadedAssets,"
-    ],
-    "PugMod.Loader:2207": [
-      "ScriptableData.AddDataBlocksLoader(runtimeLoader.name, runtimeLoader);"
-    ],
-    "PugMod.Loader:2236": [
-      "return CreateRuntimeInstance(type, modId, DataBlockAddress.NewAddress(), overloadExisting: false);"
-    ],
-    "PugMod.Loader:2262": [
-      "_addressField.SetValue(scriptableDataBlock, GetInstanceAddress(runtimeLoader.modGuid, address));"
-    ],
-    "PugMod.Loader:2263": [
-      "_overloadField.SetValue(scriptableDataBlock, new DataBlockRef<ScriptableDataBlock>(address));"
-    ],
-    "PugMod.Loader:2288": [
-      "throw new InvalidOperationException(\"Runtime data blocks must be created before ScriptableData loading starts. Try creating your runtime datablocks in IMod.EarlyInit()\");"
-    ],
-    "PugMod.Loader:2295": [
-      "return new Guid(sHA.ComputeHash(Encoding.UTF8.GetBytes($\"PugMod.RuntimeDataBlock:{modGuid}:{address}\")).AsSpan(0, 16));"
-    ],
-    "PugMod.Loader:2366-2426": [
-      "public void Update()",
-      "{",
-      "if (!Directory.Exists(_modDirectory))",
-      "{",
-      "return;",
-      "}",
-      "string[] directories = Directory.GetDirectories(_modDirectory);",
-      "List<string> list = new List<string>();",
-      "foreach (string key in _loadedMods.Keys)",
-      "{",
-      "string text = Path.Combine(key, \"ModManifest.json\");",
-      "try",
-      "{",
-      "if (!File.Exists(text) || !directories.Contains(key) || File.GetLastWriteTimeUtc(text).Ticks > _loadedMods[key].Timestamp)",
-      "{",
-      "UnityEngine.Debug.Log(\"detected change on \" + text + \"; reloading\");",
-      "Integration.Instance.RemoveMod(_loadedMods[key].ModId);",
-      "list.Add(key);",
-      "}",
-      "}",
-      "catch (Exception exception)",
-      "{",
-      "UnityEngine.Debug.LogError(\"failed to check mod: \" + key + \", unloading\");",
-      "UnityEngine.Debug.LogException(exception);",
-      "Integration.Instance.RemoveMod(_loadedMods[key].ModId);",
-      "list.Add(key);",
-      "}",
-      "}",
-      "foreach (string item in list)",
-      "{",
-      "_loadedMods.Remove(item);",
-      "}",
-      "string[] array = directories;",
-      "foreach (string text2 in array)",
-      "{",
-      "try",
-      "{",
-      "string path = Path.Combine(text2, \"ModManifest.json\");",
-      "if (File.Exists(path) && !_loadedMods.ContainsKey(text2))",
-      "{",
-      "ModMetadata metadata = JsonUtility.FromJson<ModMetadata>(File.ReadAllText(path));",
-      "LoadedMod value = new LoadedMod",
-      "{",
-      "ModId = -Mathf.Abs(metadata.name.GetHashCode()),",
-      "Timestamp = File.GetLastWriteTimeUtc(path).Ticks",
-      "};",
-      "if (!Integration.Instance.AddMod(metadata, text2, value.ModId, supportsCurrentVersion: true))",
-      "{",
-      "UnityEngine.Debug.Log(\"failed to load mod \" + metadata.name + \" at \" + text2);",
-      "continue;",
-      "}",
-      "UnityEngine.Debug.Log(\"loaded mod \" + metadata.name + \" at \" + text2);",
-      "_loadedMods.Add(text2, value);",
-      "}",
-      "}",
-      "catch (Exception exception2)",
-      "{",
-      "UnityEngine.Debug.LogError(\"failed to load mod: \" + text2);",
-      "UnityEngine.Debug.LogException(exception2);",
-      "}",
-      "}"
-    ],
-    "PugMod.Loader:481": [
-      "value.PatchAll(assembly);"
-    ],
-    "PugMod.Loader:844": [
-      "for (int i = 0; i < _mods.Count; i++)"
-    ],
     "PugMod.Loader:DependencySorter:SortMods:23": [
       "UnityEngine.Debug.LogWarning(\"skipping mod \" + mod.Metadata.name + \" because of missing dependency: \" + dependency.modName);"
     ],
@@ -4162,6 +4028,9 @@
       "{",
       "node.Dependencies.Add(value);",
       "}"
+    ],
+    "PugMod.Loader:HarmonyBootstrap:Patch(string, Assembly, \u2026):51": [
+      "value.PatchAll(assembly);"
     ],
     "PugMod.Loader:InvokeChecker:CheckType:1": [
       "public bool CheckType(Type type)"
@@ -4208,6 +4077,18 @@
       "}",
       "}"
     ],
+    "PugMod.Loader:Loader:HarmonyPatchAssembly:5-14": [
+      "if (!harmony.Patch(mod.Metadata.name, assembly.SystemAssembly, !mod.Metadata.skipSafetyChecks, checker))",
+      "{",
+      "UnityEngine.Debug.Log(\"mod \" + mod.Metadata.name + \": patching failed\");",
+      "}",
+      "}",
+      "catch (Exception exception)",
+      "{",
+      "UnityEngine.Debug.Log(\"failed to patch mod \" + mod.Metadata.name + \", got exception\");",
+      "UnityEngine.Debug.LogException(exception);",
+      "}"
+    ],
     "PugMod.Loader:Loader:Load:11": [
       "text = Path.Combine(Application.temporaryCachePath, \"ModLoader\", mod.Metadata.name);"
     ],
@@ -4219,8 +4100,61 @@
     "PugMod.Loader:Loader:Load:6": [
       "List<ModFile> list2 = mod.Metadata.files.FindAll((ModFile x) => x.path.EndsWith(\".cs\"));"
     ],
+    "PugMod.Loader:Loader:LoadBundle:50-61": [
+      "string text2 = text + \".manifest\";",
+      "if (File.Exists(text2))",
+      "{",
+      "foreach (KeyValuePair<string, string> item in GetAssetNameToGUIDMap(text2))",
+      "{",
+      "UnityEngine.Object obj = assetBundle.LoadAsset(item.Key);",
+      "if (obj == null)",
+      "{",
+      "UnityEngine.Debug.Log(\"couldn't load \" + item.Key + \" from asset bundle \" + bundleFile.path);",
+      "continue;",
+      "}",
+      "mod.LoadedAssets.Add(obj);"
+    ],
+    "PugMod.Loader:Loader:LoadBundle:67": [
+      "mod.LoadedAssets.AddRange(assetBundle.LoadAllAssets());"
+    ],
     "PugMod.Loader:Loader:LoadDll:29": [
       "scriptAssembly = scriptDomain.LoadAssembly(text, mod.Metadata.skipSafetyChecks ? ScriptSecurityMode.EnsureLoad : ScriptSecurityMode.EnsureSecurity);"
+    ],
+    "PugMod.Loader:Loader:LoadScripts:28-61": [
+      "List<string> list2 = new List<string>(scriptFiles.Count);",
+      "foreach (ModFile scriptFile in scriptFiles)",
+      "{",
+      "try",
+      "{",
+      "list2.Add(File.ReadAllText(Path.Combine(mod.Directory, scriptFile.path)));",
+      "}",
+      "catch (Exception exception)",
+      "{",
+      "UnityEngine.Debug.LogException(exception);",
+      "SetError(mod, ref error, ModLoadError.FileAccess);",
+      "return false;",
+      "}",
+      "}",
+      "if (!SourceGenPatch.Patch(mod.Metadata.name, list2, !mod.Metadata.skipSafetyChecks))",
+      "{",
+      "UnityEngine.Debug.LogWarning(\"Failed to do source gen patch for \" + mod.Metadata.name);",
+      "SetError(mod, ref error, ModLoadError.InternalError);",
+      "return false;",
+      "}",
+      "scriptDomain.RoslynCompilerService.OutputName = mod.Metadata.name + \".dll\";",
+      "string[] array = new string[scriptFiles.Count];",
+      "UnityEngine.Debug.Log(\"Creating modified script files at \" + tempDirectoryPath);",
+      "for (int j = 0; j < scriptFiles.Count; j++)",
+      "{",
+      "FileInfo fileInfo = new FileInfo(Path.Combine(tempDirectoryPath, scriptFiles[j].path));",
+      "if (!fileInfo.Directory.Exists)",
+      "{",
+      "fileInfo.Directory.Create();",
+      "}",
+      "File.WriteAllText(fileInfo.FullName, list2[j], Encoding.UTF8);",
+      "array[j] = fileInfo.FullName;",
+      "}",
+      "ScriptAssembly scriptAssembly = scriptDomain.CompileAndLoadFiles(array, mod.Metadata.skipSafetyChecks ? ScriptSecurityMode.EnsureLoad : ScriptSecurityMode.UseSettings, list.ToArray());"
     ],
     "PugMod.Loader:Loader:LoadScripts:33": [
       "list2.Add(File.ReadAllText(Path.Combine(mod.Directory, scriptFile.path)));"
@@ -4303,11 +4237,80 @@
       "}",
       "_loadedMods.Add(new LoadedMod"
     ],
+    "PugMod.Loader:Loader:Reload:96": [
+      "Assets = mod.LoadedAssets,"
+    ],
     "PugMod.Loader:Loader:Update:1": [
       "public void Update()"
     ],
     "PugMod.Loader:Loader:Update:3": [
       "_modHandlers.Call.Init();"
+    ],
+    "PugMod.Loader:Loader:Update:4": [
+      "_modHandlers.Call.Update();"
+    ],
+    "PugMod.Loader:SideLoader:Update:1-61": [
+      "public void Update()",
+      "{",
+      "if (!Directory.Exists(_modDirectory))",
+      "{",
+      "return;",
+      "}",
+      "string[] directories = Directory.GetDirectories(_modDirectory);",
+      "List<string> list = new List<string>();",
+      "foreach (string key in _loadedMods.Keys)",
+      "{",
+      "string text = Path.Combine(key, \"ModManifest.json\");",
+      "try",
+      "{",
+      "if (!File.Exists(text) || !directories.Contains(key) || File.GetLastWriteTimeUtc(text).Ticks > _loadedMods[key].Timestamp)",
+      "{",
+      "UnityEngine.Debug.Log(\"detected change on \" + text + \"; reloading\");",
+      "Integration.Instance.RemoveMod(_loadedMods[key].ModId);",
+      "list.Add(key);",
+      "}",
+      "}",
+      "catch (Exception exception)",
+      "{",
+      "UnityEngine.Debug.LogError(\"failed to check mod: \" + key + \", unloading\");",
+      "UnityEngine.Debug.LogException(exception);",
+      "Integration.Instance.RemoveMod(_loadedMods[key].ModId);",
+      "list.Add(key);",
+      "}",
+      "}",
+      "foreach (string item in list)",
+      "{",
+      "_loadedMods.Remove(item);",
+      "}",
+      "string[] array = directories;",
+      "foreach (string text2 in array)",
+      "{",
+      "try",
+      "{",
+      "string path = Path.Combine(text2, \"ModManifest.json\");",
+      "if (File.Exists(path) && !_loadedMods.ContainsKey(text2))",
+      "{",
+      "ModMetadata metadata = JsonUtility.FromJson<ModMetadata>(File.ReadAllText(path));",
+      "LoadedMod value = new LoadedMod",
+      "{",
+      "ModId = -Mathf.Abs(metadata.name.GetHashCode()),",
+      "Timestamp = File.GetLastWriteTimeUtc(path).Ticks",
+      "};",
+      "if (!Integration.Instance.AddMod(metadata, text2, value.ModId, supportsCurrentVersion: true))",
+      "{",
+      "UnityEngine.Debug.Log(\"failed to load mod \" + metadata.name + \" at \" + text2);",
+      "continue;",
+      "}",
+      "UnityEngine.Debug.Log(\"loaded mod \" + metadata.name + \" at \" + text2);",
+      "_loadedMods.Add(text2, value);",
+      "}",
+      "}",
+      "catch (Exception exception2)",
+      "{",
+      "UnityEngine.Debug.LogError(\"failed to load mod: \" + text2);",
+      "UnityEngine.Debug.LogException(exception2);",
+      "}",
+      "}"
     ],
     "PugMod.Loader:SideLoader:Update:44": [
       "ModId = -Mathf.Abs(metadata.name.GetHashCode()),"
@@ -4641,23 +4644,23 @@
     "modio.UI:Mods:OnModManagementEvent:1": [
       "public static ModManagementEventDelegate OnModManagementEvent;"
     ],
-    "modio.UnityPlugin:29014": [
-      "public enum SubscribedModStatus"
-    ],
-    "modio.UnityPlugin:31146": [
-      "Registry.existingUsers[user].subscribedMods.Clear();"
-    ],
-    "modio.UnityPlugin:32153": [
-      "if (IsInitialized(out var result) && IsAuthenticatedSessionValid(out result))"
-    ],
-    "modio.UnityPlugin:33339": [
-      "if (!isModManagementAwake && isModManagementEnabled)"
-    ],
-    "modio.UnityPlugin:33762": [
-      "ModCollectionManager.Registry.mods.Remove(uninstalledModsWithNoUserSubscription);"
-    ],
     "modio.UnityPlugin:34712": [
       "public HashSet<ModId> disabledMods = new HashSet<ModId>();"
+    ],
+    "modio.UnityPlugin:ModCollectionManager:SyncUsersSubscriptions:8": [
+      "Registry.existingUsers[user].subscribedMods.Clear();"
+    ],
+    "modio.UnityPlugin:ModIOUnityImplementation:EnableModManagement:3": [
+      "if (IsInitialized(out var result) && IsAuthenticatedSessionValid(out result))"
+    ],
+    "modio.UnityPlugin:ModManagement:GetNextModManagementJob:49": [
+      "ModCollectionManager.Registry.mods.Remove(uninstalledModsWithNoUserSubscription);"
+    ],
+    "modio.UnityPlugin:ModManagement:WakeUp:3": [
+      "if (!isModManagementAwake && isModManagementEnabled)"
+    ],
+    "modio.UnityPlugin:SubscribedModStatus:1": [
+      "public enum SubscribedModStatus"
     ],
     "modio.UnityPlugin:UserModCollectionData:disabledMods:1": [
       "public HashSet<ModId> disabledMods = new HashSet<ModId>();"

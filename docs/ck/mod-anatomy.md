@@ -180,7 +180,7 @@ differ, and normally should.
 ## The side-loader accepts a hand-written manifest
 
 Everything above is the SDK build pipeline. The loader has a second path in
-that needs none of it: `SideLoader.Update()` (`PugMod.Loader:2366-2426`) scans
+that needs none of it: `SideLoader.Update()` (`PugMod.Loader:SideLoader:Update:1-61`) scans
 `Application.streamingAssetsPath + "/Mods"` for directories, and for each one
 holding a `ModManifest.json` reads it with `JsonUtility.FromJson<ModMetadata>`,
 then calls `Integration.Instance.AddMod(metadata, <directory>, ModId,
@@ -193,12 +193,12 @@ the mod once the manifest disappears.
 From there the ordinary load path runs, same as for a built mod: the loader reads each
 entry of `metadata.files` relative to the mod directory, source-gen-patches the texts,
 writes them into the temp `ModLoader/<name>/` tree and compiles them with [the sandbox](sandbox.md)
-active unless `skipSafetyChecks` is set (`PugMod.Loader:1353-1386`). So an unlisted file
-is never opened, and a listed `.cs` is all a code mod needs. **`files`'s
-"build-generated" above describes the SDK pipeline, not a requirement of the loader** —
-`SideLoader` never touches `ModBuilder`, and a manifest it accepts is nothing a person
-cannot type by hand: `StreamingAssets/Mods/<any directory>/ModManifest.json` naming one
-`Scripts/*.cs` file is a complete, loadable mod. Verify field names against [`ModMetadata`](#modmetadata-fields)
+active unless `skipSafetyChecks` is set (`PugMod.Loader:Loader:LoadScripts:28-61`). So
+an unlisted file is never opened, and a listed `.cs` is all a code mod needs.
+**`files`'s "build-generated" above describes the SDK pipeline, not a requirement of the
+loader** — `SideLoader` never touches `ModBuilder`, and a manifest it accepts is nothing
+a person cannot type by hand: `StreamingAssets/Mods/<any directory>/ModManifest.json`
+naming one `Scripts/*.cs` file is a complete, loadable mod. Verify field names against [`ModMetadata`](#modmetadata-fields)
 rather than guessing them, and pick a `guid` that does not collide with an installed
 mod's — a collision breaks asset loading, [as below](#the-two-guids-and-the-rules-for-hand-created-files).
 
@@ -370,19 +370,19 @@ foreach (var mod in API.ModLoader.LoadedMods)
 
 `EarlyInit` is early enough for this.
 
-**What `LoadedMod.Assets` holds depends on the bundle's `.manifest`.** When a
-bundle ships with its `.manifest` beside it, as the SDK's build output does, the
-loader reads the asset names from it and calls `LoadAsset(name)` once per entry
-(`PugMod.Loader:1570-1581`), and that list is what `Assets` exposes (`PugMod.Loader:1724`).
-`LoadAsset` returns the named asset's main object only, so a sliced sprite sheet
-contributes its `Texture2D` and none of its sprites — measured with a probe mod
-on 1.3.0.2: one asset, no sprite. A bundle without a manifest goes through
-`LoadAllAssets()` instead (`PugMod.Loader:1587`), which includes sub-assets such as those
-sprites, and that case is not hypothetical: six installed third-party mods ship
-their bundles without one. Either way the sprites are in the bundle: reach them
-through the bundle handle above, or reference them from an asset that ships in
-the bundle — a prefab or a data block — which is how a map-marker icon block
-carries a sprite sheet's slices.
+**What `LoadedMod.Assets` holds depends on the bundle's `.manifest`.** When a bundle
+ships with its `.manifest` beside it, as the SDK's build output does, the loader reads
+the asset names from it and calls `LoadAsset(name)` once per entry
+(`PugMod.Loader:Loader:LoadBundle:50-61`), and that list is what `Assets` exposes
+(`PugMod.Loader:Loader:Reload:96`). `LoadAsset` returns the named asset's main object
+only, so a sliced sprite sheet contributes its `Texture2D` and none of its sprites —
+measured with a probe mod on 1.3.0.2: one asset, no sprite. A bundle without a manifest
+goes through `LoadAllAssets()` instead (`PugMod.Loader:Loader:LoadBundle:67`), which
+includes sub-assets such as those sprites, and that case is not hypothetical: six
+installed third-party mods ship their bundles without one. Either way the sprites are in
+the bundle: reach them through the bundle handle above, or reference them from an asset
+that ships in the bundle — a prefab or a data block — which is how a map-marker icon
+block carries a sprite sheet's slices.
 
 ### Reaching another mod without a dependency
 
@@ -435,8 +435,8 @@ further call is a no-op.
 
 `Init` is **not** part of the load pass. The loader calls it from its own `Update`,
 guarded by a per-handler "already initialised" flag, and then immediately calls `Update`
-— the `Init` loop covers every handler first (`PugMod.Loader:1216`,
-`PugMod.Loader:1217`), so at startup a mod's first `Update` sees what every other mod
+— the `Init` loop covers every handler first (`PugMod.Loader:Loader:Update:3`,
+`PugMod.Loader:Loader:Update:4`), so at startup a mod's first `Update` sees what every other mod
 did in its `Init`. That is why `Init` is the earliest point with a live frame loop. It
 comes after the startup conversion and before the per-world ones (measured on 1.3.0.6,
 client and dedicated server — on the client an observation, not something the code
@@ -465,10 +465,10 @@ message points at nothing.
 
 The anchor that works is a Harmony postfix on the player's spawn method that starts a
 coroutine on the player instance. **Since 1.3 that method is `OnSpawn`**, a `protected
-override` on `PlayerController` (`Pug.Other:309490`), which is why it is named by
-string. Through 1.2 it was `OnOccupied` (1.2.1.5: `PlayerController.OnOccupied` in
-`Pug.Other`); 1.3 moved the spawn logic out of it, and `PlayerController` no longer
-declares `OnOccupied` at all:
+override` on `PlayerController` (`Pug.Other:PlayerController:OnSpawn:1`), which is why
+it is named by string. Through 1.2 it was `OnOccupied` (1.2.1.5:
+`PlayerController.OnOccupied` in `Pug.Other`); 1.3 moved the spawn logic out of it, and
+`PlayerController` no longer declares `OnOccupied` at all:
 
 ```csharp
 [HarmonyPatch(typeof(PlayerController), "OnSpawn")]
@@ -499,7 +499,7 @@ sporadically.
 
 **Filter on `__instance.isLocal`.** The postfix fires for every player that spawns, remote
 ones included, and `Manager.main.player` is assigned only inside `if (isLocal)`
-(`Pug.Other:309566`).
+(`Pug.Other:PlayerController:OnSpawn:77`).
 
 **What this anchor does *not* guarantee is a populated ECS world.** It fires early
 enough that a one-shot probe taken here can pin an empty or wrong world for the rest of
@@ -524,20 +524,23 @@ itself. Two metadata fields govern the pass:
 Failures are logged and do **not** abort the load, so a mod whose patches never bound
 still reports as loaded. Two lines, two different causes: `mod <name>: patching failed`
 is the safety check rejecting the assembly, while `failed to patch mod <name>, got
-exception` — followed by the exception itself — is Harmony throwing (`PugMod.Loader:1475-1484`).
-On reload the loader undoes your patches (unless `disableHarmonyPatching` is set) as part
-of the same reset that calls `Shutdown`.
+exception` — followed by the exception itself — is Harmony throwing
+(`PugMod.Loader:Loader:HarmonyPatchAssembly:5-14`). On reload the loader undoes your
+patches (unless `disableHarmonyPatching` is set) as part of the same reset that calls
+`Shutdown`.
 
 **A throw does not cost you one patch, it costs the rest of the pass.** The loader hands
-the whole assembly to `Harmony.PatchAll` (`PugMod.Loader:481`), which walks
+the whole assembly to `Harmony.PatchAll`
+(`PugMod.Loader:HarmonyBootstrap:Patch(string, Assembly, …):51`), which walks
 `assembly.GetTypes()` and calls `PatchClassProcessor.Patch()` on each type with nothing
-catching in between (`0Harmony:2148-2154`, `0Harmony:3999-4003`). A target that cannot be resolved
-makes `PatchWithAttributes` throw `ArgumentException: Undefined target method for patch
-method …` (`0Harmony:3242`), and `Patch()` catches it only to run `[HarmonyCleanup]` before
-rethrowing it wrapped as a `HarmonyException` (`0Harmony:3169-3174`, `0Harmony:3371`). The
-enumeration ends there: classes already processed stay patched, the rest are never
-reached — and `GetTypes()` guarantees no order, so *which* ones made it is not something
-the source tells you. The symptom is a half-patched game, not one missing feature.
+catching in between (`0Harmony:2148-2154`, `0Harmony:3999-4003`). A target that cannot
+be resolved makes `PatchWithAttributes` throw `ArgumentException: Undefined target
+method for patch method …` (`0Harmony:3242`), and `Patch()` catches it only to run
+`[HarmonyCleanup]` before rethrowing it wrapped as a `HarmonyException`
+(`0Harmony:3169-3174`, `0Harmony:3371`). The enumeration ends there: classes already
+processed stay patched, the rest are never reached — and `GetTypes()` guarantees no
+order, so *which* ones made it is not something the source tells you. The symptom is a
+half-patched game, not one missing feature.
 
 **That is what makes a string-named target a bet on the whole mod.** A member named by
 string — private or, like `OnSpawn` above, protected — resolves to nothing after a rename
@@ -772,11 +775,11 @@ the mod simply is not there: no UI, no hotkey, nothing to click. If you ship a h
 dependency, document that symptom.
 
 **Through 1.2.1.5, at most one mod was dropped per pass.** The removal loop left with
-`break` as soon as it removed a mod and did not repeat, so a second mod with a missing required
-dependency was neither warned about nor removed — it stayed in the load list and failed
-later at the compile step instead. Since 1.3 the loop runs to the end and repeats
-(`PugMod.Loader:1001-1024`); this section described the old loop as current until
-2026-10-08.
+`break` as soon as it removed a mod and did not repeat, so a second mod with a missing
+required dependency was neither warned about nor removed — it stayed in the load list
+and failed later at the compile step instead. Since 1.3 the loop runs to the end and
+repeats (`PugMod.Loader:DependencySorter:SortMods:11-34`); this section described the
+old loop as current until 2026-10-08.
 
 To read the *actual* compile order at runtime, look for the loader's `Creating modified
 script files at …ModLoader\<Mod>` lines. They are ordered by compile, unlike the `loaded
@@ -802,14 +805,16 @@ symptom-first index: [troubleshooting](troubleshooting.md).
 
 | Check site | Test | Effect |
 |---|---|---|
-| `NetworkClientStartSystem` (`Pug.Other:130103`) | `localMod.required = (requiredOn & ModExistsOn.Server) != 0` | The **Server** flag makes the **client** demand the mod on the server |
-| `ModInfoRpcSystem` (`Pug.Other:131104`) | `required = (requiredOn & ModExistsOn.Client) != 0` | The **Client** flag makes the **server** demand it on the client |
+| `NetworkClientStartSystem` (`Pug.Other:NetworkClientStartSystem:OnUpdate:25`) | `localMod.required = (requiredOn & ModExistsOn.Server) != 0` | The **Server** flag makes the **client** demand the mod on the server |
+| `ModInfoRpcSystem` (`Pug.Other:ModInfoRpcSystem:OnCreate:14`) | `required = (requiredOn & ModExistsOn.Client) != 0` | The **Client** flag makes the **server** demand it on the client |
 
 A mod without the relevant flag is removed from the check list, but by two different
 mechanisms depending on direction: in the `Server` direction, `localMods.RemoveAt`
-(`Pug.Other:130119-130121`) drops it outright; in the `Client` direction, the server reports
-`required = false` for it and the client never adds it to `modsToCheck` in the first
-place (`Pug.Other:129751-129753`). Either way it never interferes with a connection.
+(`Pug.Other:NetworkClientStartSystem:OnUpdate:41-43`) drops it outright; in the `Client`
+direction, the server reports `required = false` for it and the client never adds it to
+`modsToCheck` in the first place
+(`Pug.Other:NetworkClientStartSystem_33002849_LambdaJob_0_Job:OriginalLambdaBody:18-20`).
+Either way it never interferes with a connection.
 
 ### Choosing a value
 
@@ -831,19 +836,20 @@ mod.io catalogue tag, which is described in [publishing](publishing.md).
 ## The in-game mod menu, and when mod.io is contacted
 
 In the 1.3 builds the Mods entry in the main menu opens a screen of Pugstorm's own,
-`ModListMenu` (`Pug.Other:352756`): the installed mods from all sources in load order —
-plus pending, failed and mod.io-disabled ones — with reorder controls and one button per
-source. In 1.2.1.5 the same entry, `RadicalMainMenuOption_OpenMods`, went from its
-confirmation popup straight to `Browser.Open()`, with no list in between; older notes
-that say "the Mods menu" mean the mod.io browser. The source buttons are **Mod.io** and
-**Local**, plus **Steam** on Steam builds only (`Pug.Other:353600`). Their `OnActivated`
-switch (`Pug.Other:354902`) sends **Mod.io** to
-`RadicalMainMenuOption_OpenMods.OpenModUI` (`Pug.Other:352414`), which calls
-`Browser.Open()` on mod.io's embedded drop-in UI package — `modio.UI.dll`, namespace
-`ModIOBrowser`. **Steam** opens the Workshop page (in the Steam overlay when it is
-enabled), **Local** the local mods folder. Pugstorm embedded mod.io's browser rather
-than rebuilding it, so what you see behind that button is mod.io's behaviour, not the
-game's.
+`ModListMenu` (`Pug.Other:ModListMenu:1`): the installed mods from all sources in load
+order — plus pending, failed and mod.io-disabled ones — with reorder controls and one
+button per source. In 1.2.1.5 the same entry, `RadicalMainMenuOption_OpenMods`, went
+from its confirmation popup straight to `Browser.Open()`, with no list in between; older
+notes that say "the Mods menu" mean the mod.io browser. The source buttons are
+**Mod.io** and **Local**, plus **Steam** on Steam builds only
+(`Pug.Other:ModListMenu:SetupSlots:28`). Their `OnActivated` switch
+(`Pug.Other:ModSourceMenuOption:OnActivated:4`) sends **Mod.io** to
+`RadicalMainMenuOption_OpenMods.OpenModUI`
+(`Pug.Other:RadicalMainMenuOption_OpenMods:OpenModUI:1`), which calls `Browser.Open()`
+on mod.io's embedded drop-in UI package — `modio.UI.dll`, namespace `ModIOBrowser`.
+**Steam** opens the Workshop page (in the Steam overlay when it is enabled), **Local**
+the local mods folder. Pugstorm embedded mod.io's browser rather than rebuilding it, so
+what you see behind that button is mod.io's behaviour, not the game's.
 
 That matters for when the game learns that a mod has a new release.
 `ModIOUnity.FetchUpdates()` has five callers — four inside that embedded UI, and one
@@ -851,7 +857,7 @@ that is the list screen itself:
 
 | Caller | When |
 |---|---|
-| `ModListMenu.Activate()` (`Pug.Other:352936`) | **Every time the Mods screen opens**, before any button is pressed — and only when the session is already authenticated |
+| `ModListMenu.Activate()` (`Pug.Other:ModListMenu:Activate:14`) | **Every time the Mods screen opens**, before any button is pressed — and only when the session is already authenticated |
 | `Browser.IsInitialized()` | Pressing **Mod.io** (`Browser.Open()` runs into it) — and only when the session is already authenticated |
 | `Authentication.CodeSubmitted(Result)` | After an email-code login succeeds |
 | `Authentication.ThirdPartyAuthenticationSubmitted(…)` | After a Steam/portal login succeeds |
@@ -862,25 +868,27 @@ never asks mod.io whether anything changed.
 
 **Syncing and installing are two separate steps, and the list screen does only the
 first.** `FetchUpdates` rebuilds the local subscription set from the account's
-subscriptions (`SyncUsersSubscriptions` **clears** it first, `modio.UnityPlugin:31146`),
-refreshes each subscribed mod's cached profile — tags included — and saves the
-registry. Downloading, installing and uninstalling are the mod-management pass, which
-it wakes but which does nothing unless it has been enabled (`modio.UnityPlugin:33339`).
+subscriptions (`SyncUsersSubscriptions` **clears** it first,
+`modio.UnityPlugin:ModCollectionManager:SyncUsersSubscriptions:8`), refreshes each
+subscribed mod's cached profile — tags included — and saves the registry. Downloading,
+installing and uninstalling are the mod-management pass, which it wakes but which does
+nothing unless it has been enabled (`modio.UnityPlugin:ModManagement:WakeUp:3`).
 `ModIOUnity.EnableModManagement(...)` has four call sites, all in the embedded UI and
 three of them the members above; in `Browser.IsInitialized()` it sits *after* the
 authentication branch, so the call is always made — but it sets the flag only for an
-authenticated session (`modio.UnityPlugin:32153`). So apart from `state.json` itself, the
-list screen writes and deletes no mod files until **Mod.io** has been pressed, logged
-in, in that session. From then on the flag stays set until a logout in the browser or
-quitting the game (`DisableModManagement`, reached from `RemoveUserData` and
-`ShutdownOperations`), so every later visit to the list screen in that session runs the
-full pass as well — that half is read from the code, not measured.
+authenticated session
+(`modio.UnityPlugin:ModIOUnityImplementation:EnableModManagement:3`). So apart from
+`state.json` itself, the list screen writes and deletes no mod files until **Mod.io**
+has been pressed, logged in, in that session. From then on the flag stays set until a
+logout in the browser or quitting the game (`DisableModManagement`, reached from
+`RemoveUserData` and `ShutdownOperations`), so every later visit to the list screen in
+that session runs the full pass as well — that half is read from the code, not measured.
 
 When the pass runs, it uninstalls a mod the account no longer subscribes to — the
 installation directory, then its `mods` entry in `state.json`
-(`modio.UnityPlugin:33762`) — and installs a missing subscribed one or replaces it when
-a newer modfile exists; an up-to-date mod whose directory exists is left as it is,
-contents unchecked.
+(`modio.UnityPlugin:ModManagement:GetNextModManagementJob:49`) — and installs a missing
+subscribed one or replaces it when a newer modfile exists; an up-to-date mod whose
+directory exists is left as it is, contents unchecked.
 
 Measured on 1.3.0.3 with a fake-ID dev install present (a placeholder mod id that no
 subscription can contain): fresh launch, open the Mods screen, close it without
@@ -897,6 +905,6 @@ The locally held state, by contrast, is readable at any time with no network tra
 SubscribedMod { SubscribedModStatus status; string directory; ModProfile modProfile; bool enabled; }
 ```
 
-with the status enum at `modio.UnityPlugin:29014`. Reaching any of this from
+with the status enum at `modio.UnityPlugin:SubscribedModStatus:1`. Reaching any of this from
 mod source is the two-switch case described above under *Using an assembly the game loads
 but does not expose*.
