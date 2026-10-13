@@ -1497,9 +1497,6 @@
       "{",
       "i2LanguageData.AddLanguage(item.name, item.ISO6391);"
     ],
-    "Pug.Other:288981": [
-      "string s = JsonUtility.ToJson(modConfigFile, prettyPrint: true);"
-    ],
     "Pug.Other:296268-296270": [
       "if (!SteamUtils.ShowGamepadTextInput(hidden ? GamepadTextInputMode.Password : GamepadTextInputMode.Normal, GamepadTextInputLineMode.SingleLine, description, maxChars, currentText))",
       "{",
@@ -2537,12 +2534,6 @@
     "Pug.Other:410222": [
       "if (ObjectIDLookup.TryGetValue(name, out var value))"
     ],
-    "Pug.Other:410340": [
-      "private InvokeChecker _checker = new InvokeChecker();"
-    ],
-    "Pug.Other:410403": [
-      "throw new InvalidOperationException(\"Not allowed to access \" + memberInfo.Name);"
-    ],
     "Pug.Other:414624-414633": [
       "public void EditCustomMapMarker(Entity targetEntity, DataBlockAddress iconAddress, int variantIndex, FixedString64Bytes name = default(FixedString64Bytes))",
       "{",
@@ -2966,6 +2957,15 @@
     ],
     "Pug.Other:MapUI:PlaceMarker:7": [
       "variation = 0"
+    ],
+    "Pug.Other:ModAPIConfig:Set:20": [
+      "string s = JsonUtility.ToJson(modConfigFile, prettyPrint: true);"
+    ],
+    "Pug.Other:ModAPIReflection:GetValue:6": [
+      "throw new InvalidOperationException(\"Not allowed to access \" + memberInfo.Name);"
+    ],
+    "Pug.Other:ModAPIReflection:_checker:1": [
+      "private InvokeChecker _checker = new InvokeChecker();"
     ],
     "Pug.Other:ModAPIServer:World:1": [
       "public World World => Manager.ecs.ServerWorld;"
@@ -4033,9 +4033,6 @@
       "}",
       "ScriptAssembly scriptAssembly = scriptDomain.CompileAndLoadFiles(array, mod.Metadata.skipSafetyChecks ? ScriptSecurityMode.EnsureLoad : ScriptSecurityMode.UseSettings, list.ToArray());"
     ],
-    "PugMod.Loader:1373": [
-      "scriptDomain.RoslynCompilerService.OutputName = mod.Metadata.name + \".dll\";"
-    ],
     "PugMod.Loader:1475-1484": [
       "if (!harmony.Patch(mod.Metadata.name, assembly.SystemAssembly, !mod.Metadata.skipSafetyChecks, checker))",
       "{",
@@ -4152,28 +4149,6 @@
     "PugMod.Loader:481": [
       "value.PatchAll(assembly);"
     ],
-    "PugMod.Loader:560-567": [
-      "private void LazyInit()",
-      "{",
-      "if (_disallowedTypes == null)",
-      "{",
-      "IEnumerable<Type> collection = from p in AppDomain.CurrentDomain.GetAssemblies().SelectMany((Assembly s) => s.GetTypes())",
-      "where p.GetCustomAttribute<DisallowPatching>() != null",
-      "select p;",
-      "_disallowedTypes = new HashSet<Type>(collection);"
-    ],
-    "PugMod.Loader:571": [
-      "public bool CheckType(Type type)"
-    ],
-    "PugMod.Loader:580": [
-      "UnityEngine.Debug.Log($\"Trying to patch disallowed type {type}\");"
-    ],
-    "PugMod.Loader:586": [
-      "UnityEngine.Debug.Log(\"Patching mod loading not allowed\");"
-    ],
-    "PugMod.Loader:609": [
-      "UnityEngine.Debug.Log($\"Trying to patch type {type} from unknown assembly\");"
-    ],
     "PugMod.Loader:844": [
       "for (int i = 0; i < _mods.Count; i++)"
     ],
@@ -4187,6 +4162,28 @@
       "{",
       "node.Dependencies.Add(value);",
       "}"
+    ],
+    "PugMod.Loader:InvokeChecker:CheckType:1": [
+      "public bool CheckType(Type type)"
+    ],
+    "PugMod.Loader:InvokeChecker:CheckType:10": [
+      "UnityEngine.Debug.Log($\"Trying to patch disallowed type {type}\");"
+    ],
+    "PugMod.Loader:InvokeChecker:CheckType:16": [
+      "UnityEngine.Debug.Log(\"Patching mod loading not allowed\");"
+    ],
+    "PugMod.Loader:InvokeChecker:CheckType:39": [
+      "UnityEngine.Debug.Log($\"Trying to patch type {type} from unknown assembly\");"
+    ],
+    "PugMod.Loader:InvokeChecker:LazyInit:1-8": [
+      "private void LazyInit()",
+      "{",
+      "if (_disallowedTypes == null)",
+      "{",
+      "IEnumerable<Type> collection = from p in AppDomain.CurrentDomain.GetAssemblies().SelectMany((Assembly s) => s.GetTypes())",
+      "where p.GetCustomAttribute<DisallowPatching>() != null",
+      "select p;",
+      "_disallowedTypes = new HashSet<Type>(collection);"
     ],
     "PugMod.Loader:Loader:AddEntitySystems:28": [
       "SystemBaseRegistry.AddUnmanagedSystemType(item.SystemType, BurstRuntime.GetHashCode64(item.SystemType), array[0], array[1], array[2], array[3], array[4], array[5], item.FullName, 0);"
@@ -4230,6 +4227,9 @@
     ],
     "PugMod.Loader:Loader:LoadScripts:42": [
       "if (!SourceGenPatch.Patch(mod.Metadata.name, list2, !mod.Metadata.skipSafetyChecks))"
+    ],
+    "PugMod.Loader:Loader:LoadScripts:48": [
+      "scriptDomain.RoslynCompilerService.OutputName = mod.Metadata.name + \".dll\";"
     ],
     "PugMod.Loader:Loader:LoadScripts:5-7": [
       "foreach (Mod mod2 in _mods)",
@@ -4342,27 +4342,6 @@
     "PugMod.SDK.Runtime:1138": [
       "public byte[] GetFile(string path)"
     ],
-    "PugMod.SDK.Runtime:567": [
-      "public static string GetNameChecked(this Type type)"
-    ],
-    "PugMod.SDK.Runtime:607": [
-      "public static MemberInfo[] GetMembersChecked(this Type type)"
-    ],
-    "PugMod.SDK.Runtime:609": [
-      "System.Reflection.MemberInfo[] members = type.GetMembers(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);"
-    ],
-    "PugMod.SDK.Runtime:609-615": [
-      "System.Reflection.MemberInfo[] members = type.GetMembers(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);",
-      "MemberInfo[] array = new MemberInfo[members.Length];",
-      "for (int i = 0; i < array.Length; i++)",
-      "{",
-      "array[i] = members[i];",
-      "}",
-      "return array;"
-    ],
-    "PugMod.SDK.Runtime:647": [
-      "public static implicit operator MemberInfo(System.Reflection.MemberInfo o)"
-    ],
     "PugMod.SDK.Runtime:709": [
       "public static void DisableBurstForSystemAndJobs<T>(bool burstEnabled = false)"
     ],
@@ -4448,6 +4427,27 @@
       "}",
       "}"
     ],
+    "PugMod.SDK.Runtime:MemberInfo:operator MemberInfo:1": [
+      "public static implicit operator MemberInfo(System.Reflection.MemberInfo o)"
+    ],
+    "PugMod.SDK.Runtime:ModAPIExtensions:GetMembersChecked:1": [
+      "public static MemberInfo[] GetMembersChecked(this Type type)"
+    ],
+    "PugMod.SDK.Runtime:ModAPIExtensions:GetMembersChecked:3": [
+      "System.Reflection.MemberInfo[] members = type.GetMembers(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);"
+    ],
+    "PugMod.SDK.Runtime:ModAPIExtensions:GetMembersChecked:3-9": [
+      "System.Reflection.MemberInfo[] members = type.GetMembers(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);",
+      "MemberInfo[] array = new MemberInfo[members.Length];",
+      "for (int i = 0; i < array.Length; i++)",
+      "{",
+      "array[i] = members[i];",
+      "}",
+      "return array;"
+    ],
+    "PugMod.SDK.Runtime:ModAPIExtensions:GetNameChecked(Type):1": [
+      "public static string GetNameChecked(this Type type)"
+    ],
     "PugProperties:1436": [
       "BlobBuilderArray<ObjectData> blobBuilderArray = builder.Allocate(ref reference.Objects, num + 1);"
     ],
@@ -4474,7 +4474,7 @@
     "RoslynCSharp.Compiler:CompilationError:CompilationError:5": [
       "message = diagnostic.GetMessage();"
     ],
-    "RoslynCSharp:3866": [
+    "RoslynCSharp:ScriptDomain:RegisterAssemblyImpl:15": [
       "RoslynCSharp.LogError(securityResult.GetAllText(reportAllOccurences: true));"
     ],
     "ScriptableData.Addressables:237": [
