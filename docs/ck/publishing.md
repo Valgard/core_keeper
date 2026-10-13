@@ -232,7 +232,7 @@ quick look leaves it subscribed.
 The loader has **three** platforms: a side-loader that scans
 `StreamingAssets/Mods` for any directory holding a `ModManifest.json`, the
 mod.io loader, and the Steam Workshop loader. `-safemode` disables all three
-(`Pug.Other:272241-272255`). It did not always: through 1.3.0.4 the Steam
+(`Pug.Other:Manager:EarlyInit:70-84`). It did not always: through 1.3.0.4 the Steam
 Workshop loader was registered unconditionally, even in safe mode, and 1.3.0.5
 moved it under the same `-safemode` check as the other two. Two of the three —
 the mod.io loader and the Steam Workshop loader — load from a subscription list;

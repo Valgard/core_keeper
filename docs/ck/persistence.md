@@ -267,12 +267,13 @@ the failure surfaces nowhere near it.
 
 **Trap: another mod can switch your file's auto-save off.** The automatic saves
 above hang on one public flag, `ConfigFile.SaveOnConfigSet`, which defaults to
-`true` (`ConfigFile.cs:90`) and gates the save after a `Bind`
-(`ConfigFile.cs:457`) and the save after a value change (`ConfigFile.cs:509`) —
-not the constructor's own save or an explicit `Save()`. The registry hands every
-file to every mod, and General Mod Config Menu (mod.io modfile 8270186) sets the
-flag to `false` at three places: `ModConfigMenu.Awake`, which runs when its menu
-is created at the title screen, and `ConfigSyncSystem.OnCreate`, once per
+`true` (`ConfigFile.cs:ConfigFile:SaveOnConfigSet:1`) and gates the save after a
+`Bind` (`ConfigFile.cs:ConfigFile:Bind(ConfigDefinition, …):26`) and the save
+after a value change (`ConfigFile.cs:ConfigFile:OnSettingChanged:6`) — not the
+constructor's own save or an explicit `Save()`. The registry hands every file to
+every mod, and General Mod Config Menu (mod.io modfile 8270186) sets the flag to
+`false` at three places: `ModConfigMenu.Awake`, which runs when its menu is
+created at the title screen, and `ConfigSyncSystem.OnCreate`, once per
 simulation world — both skip files whose `ConfigFilePath` starts with `CoreLib`
 — and `ModConfigMenu.RegisterFile`, with no such exception. It never sets it
 back, so in a process with that mod loaded a foreign settings UI writes the new
@@ -310,8 +311,8 @@ none of the three routes reach it: it never passes through
 `API.ConfigFilesystem`, because the loader never wrote it there in the first
 place.
 
-`LoadedMod.GetFile(string path)` (`PugMod.SDK.Runtime:1138`) is the answer. It
-resolves `path` against the mod's own install directory
+`LoadedMod.GetFile(string path)` (`PugMod.SDK.Runtime:LoadedMod:GetFile:1`) is
+the answer. It resolves `path` against the mod's own install directory
 (`API.ModLoader.GetDirectory(ModId)`), rejects a path that escapes that
 directory, and returns the file's bytes with `File.ReadAllBytes` — all inside
 the trusted loader assembly, so referencing it costs nothing against [the sandbox](sandbox.md).

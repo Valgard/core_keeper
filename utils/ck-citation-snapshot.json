@@ -1,12 +1,12 @@
 {
   "citations": {
-    "ConfigFile.cs:457": [
+    "ConfigFile.cs:ConfigFile:Bind(ConfigDefinition, \u2026):26": [
       "if (SaveOnConfigSet)"
     ],
-    "ConfigFile.cs:509": [
+    "ConfigFile.cs:ConfigFile:OnSettingChanged:6": [
       "if (SaveOnConfigSet)"
     ],
-    "ConfigFile.cs:90": [
+    "ConfigFile.cs:ConfigFile:SaveOnConfigSet:1": [
       "public bool SaveOnConfigSet { get; set; } = true;"
     ],
     "ControlMappingMenu.prefab:2459-2460": [
@@ -1172,23 +1172,6 @@
     ],
     "Pug.Other:272234": [
       "API.Authoring = new ModAPIAuthoring();"
-    ],
-    "Pug.Other:272241-272255": [
-      "if (!num)",
-      "{",
-      "_modLoaders.Add(new SideLoader());",
-      "}",
-      "string userIdentifier;",
-      "if (!num)",
-      "{",
-      "userIdentifier = ((_platformInterface == null) ? Environment.UserName : (_platformInterface.Name + \":\" + _platformInterface.GetAccountId()));",
-      "_modLoaders.Add(new ModIOLoader(userIdentifier));",
-      "}",
-      "userIdentifier = Environment.UserName;",
-      "if (!num)",
-      "{",
-      "_modLoaders.Add(new SteamWorkshopLoader(userIdentifier));",
-      "}"
     ],
     "Pug.Other:274963": [
       "public static Vector3 RoundPosition(Vector3 p, float ppu = 16f)"
@@ -2898,6 +2881,23 @@
     "Pug.Other:Manager:EarlyInit:1": [
       "[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]"
     ],
+    "Pug.Other:Manager:EarlyInit:70-84": [
+      "if (!num)",
+      "{",
+      "_modLoaders.Add(new SideLoader());",
+      "}",
+      "string userIdentifier;",
+      "if (!num)",
+      "{",
+      "userIdentifier = ((_platformInterface == null) ? Environment.UserName : (_platformInterface.Name + \":\" + _platformInterface.GetAccountId()));",
+      "_modLoaders.Add(new ModIOLoader(userIdentifier));",
+      "}",
+      "userIdentifier = Environment.UserName;",
+      "if (!num)",
+      "{",
+      "_modLoaders.Add(new SteamWorkshopLoader(userIdentifier));",
+      "}"
+    ],
     "Pug.Other:Manager:EarlyInit:72-83": [
       "_modLoaders.Add(new SideLoader());",
       "}",
@@ -3962,9 +3962,6 @@
       "}",
       "if (tokenSource != null && tokenSource.IsCancellationRequested)"
     ],
-    "PugMod.Loader:1111": [
-      "public List<string> unsupportedModsToLoad = new List<string>();"
-    ],
     "PugMod.Loader:1216": [
       "_modHandlers.Call.Init();"
     ],
@@ -3991,6 +3988,9 @@
     ],
     "PugMod.Loader:844": [
       "for (int i = 0; i < _mods.Count; i++)"
+    ],
+    "PugMod.Loader:Config:unsupportedModsToLoad:1": [
+      "public List<string> unsupportedModsToLoad = new List<string>();"
     ],
     "PugMod.Loader:DependencySorter:SortMods:11-34": [
       "bool flag = true;",
@@ -4342,9 +4342,6 @@
     "PugMod.Platform:ModIOLoader:Init:64": [
       "UnityEngine.Debug.Log(\"loaded mod \" + metadata.name + \" from mod.io (\" + subscribedMod.modProfile.name + \")\");"
     ],
-    "PugMod.SDK.Runtime:1138": [
-      "public byte[] GetFile(string path)"
-    ],
     "PugMod.SDK.Runtime:709": [
       "public static void DisableBurstForSystemAndJobs<T>(bool burstEnabled = false)"
     ],
@@ -4429,6 +4426,9 @@
       "BurstCompiler.Options.EnableBurstCompilation = false;",
       "}",
       "}"
+    ],
+    "PugMod.SDK.Runtime:LoadedMod:GetFile:1": [
+      "public byte[] GetFile(string path)"
     ],
     "PugMod.SDK.Runtime:MemberInfo:operator MemberInfo:1": [
       "public static implicit operator MemberInfo(System.Reflection.MemberInfo o)"
@@ -4643,9 +4643,6 @@
     ],
     "modio.UI:Mods:OnModManagementEvent:1": [
       "public static ModManagementEventDelegate OnModManagementEvent;"
-    ],
-    "modio.UnityPlugin:34712": [
-      "public HashSet<ModId> disabledMods = new HashSet<ModId>();"
     ],
     "modio.UnityPlugin:ModCollectionManager:SyncUsersSubscriptions:8": [
       "Registry.existingUsers[user].subscribedMods.Clear();"
