@@ -66,11 +66,12 @@ Core rather than in the Core.
 **One number in the code agrees with that.** When `ECSManager` finds more than
 one entity carrying `TheCoreCD`, it deletes the extras and repositions the
 survivor to a hardcoded `LocalTransform.FromPosition(new float3(0f, 0f, 4f))`
-(`Pug.Other:188080`) — the only hardcoded Core position in the assemblies, and it
-lands inside the range the map measurement gives. Read it as corroboration of the
-direction and rough size of the offset, not as the Core's position: it is a repair
-value on one code path, and a world that never needed repairing never went through
-it. For an actual position, query the entity (below).
+(`Pug.Other:SetServerDefaultsSystem:OnStartRunning:215`) — the only hardcoded
+Core position in the assemblies, and it lands inside the range the map
+measurement gives. Read it as corroboration of the direction and rough size of
+the offset, not as the Core's position: it is a repair value on one code path,
+and a world that never needed repairing never went through it. For an actual
+position, query the entity (below).
 
 **Trap: do not derive the offset from the region's midpoint.** Only the southern
 edge was stable across all eight worlds; the northern one came out at `10` or
@@ -89,10 +90,11 @@ Practical consequences:
 
 **Getting the Core's position at runtime.** You do not have to measure anything:
 the Core carries a dedicated tag component, `TheCoreCD`
-(`Pug.ECS.Components:1478`) — zero bytes, and `[GhostComponent(PrefabType =
-GhostPrefabType.All)]`, so it exists on the client ghost as well as on the
+(`Pug.ECS.Components:TheCoreCD:3`) — zero bytes, and `[GhostComponent(PrefabType
+= GhostPrefabType.All)]`, so it exists on the client ghost as well as on the
 server. Query it, take the single entity, read its `LocalTransform.Position`.
-The game does exactly that query itself (`Pug.Other:188073`, in the routine that
+The game does exactly that query itself
+(`Pug.Other:SetServerDefaultsSystem:OnStartRunning:208`, in the routine that
 deletes duplicate cores). Two conditions apply: the Core resolves only while it
 is loaded — see [entity radii](#entity-radii-loaded-is-not-observed) — and the sandbox's verdict on ECS reads is per
 component type, so verify the load as described in [reading the live ECS world](harmony-and-ecs.md#reading-the-live-ecs-world-from-a-mod).
@@ -123,26 +125,29 @@ int2 x = (int2)math.floor(mapUI.GetCursorWorldPosition());
 ```
 
 — the map **cursor**, not the player — and renders each coordinate through
-`ToString("F0")` (`Pug.Other:330521-330529`), not a printf-style `"%d, %d"`
+`ToString("F0")` (`Pug.Other:CoordinatesUI:LateUpdate:1-9`), not a printf-style `"%d, %d"`
 template. That parenthesised number is the straight-line distance to the world
 origin, computed **from the already-floored ints** rather than from the float
 position, formatted the same way. Measured: at `63, -14` the readout shows
 `(65)`, matching `sqrt(63² + 14²) = 64.5 → 65`.
 
 **Which cursor depends on the input device.** `MapUI.GetCursorScreenPosition`
-(`Pug.Other:347595`) branches on `inputModule.PrefersKeyboardAndMouse()`: with
-keyboard and mouse it returns the mouse pointer, and otherwise the map's own
-centre transform. So on a gamepad the readout follows where the map is centred,
-not a pointer — and reproducing vanilla's number means reading the same source it
-does, rather than assuming a mouse exists.
+(`Pug.Other:MapUI:GetCursorScreenPosition:1`) branches on
+`inputModule.PrefersKeyboardAndMouse()`: with keyboard and mouse it returns the
+mouse pointer, and otherwise the map's own centre transform. So on a gamepad the
+readout follows where the map is centred, not a pointer — and reproducing
+vanilla's number means reading the same source it does, rather than assuming a
+mouse exists.
 
 The player marker drawn on the map is rasterised independently, through
-`MakePixelPerfectMapPosition` (`Pug.Other:347581`, called from `Pug.Other:346945`), which
+`MakePixelPerfectMapPosition` (`Pug.Other:MapUI:MakePixelPerfectMapPosition:1`,
+called from `Pug.Other:MapUI:UpdatePositionFromPlayerMovement:4`), which
 quantises with `GetPixelPerfectQuantization()` — `0.0625f / GetCurrentZoom()`
-(`Pug.Other:346472`) — so the step shrinks as you zoom in rather than staying fixed at
-`0.0625f`. The literal `RoundToMultiple(0.0625f)` does exist in the code, but
-in `MapUI.CenterMapOnLocalPlayer` (`Pug.Other:347063`), operating on a screen-coordinate
-offset, not on the marker.
+(`Pug.Other:MapUI:GetPixelPerfectQuantization:3`) — so the step shrinks as you
+zoom in rather than staying fixed at `0.0625f`. The literal
+`RoundToMultiple(0.0625f)` does exist in the code, but in
+`MapUI.CenterMapOnLocalPlayer` (`Pug.Other:MapUI:CenterMapOnLocalPlayer:3`),
+operating on a screen-coordinate offset, not on the marker.
 
 **Trap: at a tile boundary the readout and the marker may differ by 1.** They are
 two separate quantities, so reproducing vanilla's numbers exactly means copying
@@ -153,9 +158,9 @@ its floor-then-measure order, not reading its marker position.
 Most marker icons vanilla draws on the map come from an entity carrying
 `MapMarkerCD`. The exceptions are the Core, pings and the players themselves:
 `MapUI` draws those without a marker entity behind them and keeps them in a list
-of their own, `_allNonEntityMarkers` (`Pug.Other:346254`). On 1.3 the
+of their own, `_allNonEntityMarkers` (`Pug.Other:MapUI:_allNonEntityMarkers:1`). On 1.3 the
 component's two fields are `mapMarkerType` and `uniqueMarkerId`
-(`Pug.ECS.Components:6525`). That covers the icons, not the map as a whole: the
+(`Pug.ECS.Components:MapMarkerCD:1`). That covers the icons, not the map as a whole: the
 explored terrain itself is map data rather than entities (see [savegame formats](savegame-formats.md)),
 and another mod may draw client-side markers of its own that no entity backs.
 `MapMarkerType` divides the vanilla space:
@@ -192,19 +197,22 @@ for the reasons in [savegame formats](savegame-formats.md).
 
 A hand-placed marker stores its icon as `MapMarkerCustomDataCD` — an
 `iconAddress` and a `variantIndex`, both ghost fields
-(`Pug.ECS.Components:3249`) — and its name in `NameCD`. The address names a
-`MapMarkerIconDataBlock` (`Pug.Base:15143`), whose `variants` list holds one
-entry per colour or form: `largeMapSprite`, `miniMapSprite` and `colorIcon`. An
-index out of range is clamped to the first or last variant rather than failing
-(`Pug.Base:15163`), but an empty or null `variants` list returns a default
-`Variant` (`Pug.Base:15159-15161`) whose sprites are all null, so a marker using such a
-block is drawn with no sprite at all.
+(`Pug.ECS.Components:MapMarkerCustomDataCD:3`) — and its name in `NameCD`. The
+address names a `MapMarkerIconDataBlock` (`Pug.Base:MapMarkerIconDataBlock:1`),
+whose `variants` list holds one entry per colour or form: `largeMapSprite`,
+`miniMapSprite` and `colorIcon`. An index out of range is clamped to the first
+or last variant rather than failing
+(`Pug.Base:MapMarkerIconDataBlock:GetVariant:7`), but an empty or null
+`variants` list returns a default `Variant`
+(`Pug.Base:MapMarkerIconDataBlock:GetVariant:3-5`) whose sprites are all null,
+so a marker using such a block is drawn with no sprite at all.
 
 **A mod adds icons by shipping such blocks.** The marker dialog,
 `MapMarkerCustomizationPanel`, builds its icon row from
-`ScriptableData.TryGetDataBlocks<MapMarkerIconDataBlock>` (`Pug.Other:345043`),
-once per panel instance (`Pug.Other:344965`), in the order of that list — which is not
-the order you might expect: see [database and baking](database-and-baking.md#scriptabledata-blocks-addresses-and-order).
+`ScriptableData.TryGetDataBlocks<MapMarkerIconDataBlock>`
+(`Pug.Other:MapMarkerCustomizationPanel:PopulateIconRow:3`), once per panel
+instance (`Pug.Other:MapMarkerCustomizationPanel:Open(MapMarkerPreset, …):7`),
+in the order of that list — which is not the order you might expect: see [database and baking](database-and-baking.md#scriptabledata-blocks-addresses-and-order).
 Verified on 1.3.0.2 with five mod-shipped icon assets: they appear in the
 dialog, place, save and survive a restart like vanilla's. A saved marker refers
 to its block only by address, so the block needs one that never changes, and to
@@ -212,41 +220,46 @@ the variant only by its index, so the order of `variants` has to stay stable
 too: new variants go at the end. Reordering or removing one changes what the
 markers whose stored index it shifts show, not every marker: those below the
 change keep their variant, and an index past the shortened end is clamped to the
-last variant (`Pug.Base:15163`).
+last variant (`Pug.Base:MapMarkerIconDataBlock:GetVariant:7`).
 
 **The server stores an icon address without resolving it.** Placing a marker
 sends `CreateCustomMapMarker`; the server's `MapMarkerRpc` handler
-(`Pug.Other:414907`) copies the address and variant into the new entity, created
-with amount 1 (`Pug.Other:414917`), and never looks the block up. So a dedicated server
-does not need the mod whose icons its players use. A hosting player is a
-different case: that process is also a client that draws the markers, so the
-host needs the mod to see the icons like any other player. Measured on 1.3.0.2:
-a client with an icon mod placed a marker on a dedicated server without it, the
-server restarted, and the marker still showed its icon.
+(`Pug.Other:ServerSystem_4A171A05_LambdaJob_1_Job:OriginalLambdaBody:1`) copies
+the address and variant into the new entity, created with amount 1
+(`Pug.Other:ServerSystem_4A171A05_LambdaJob_1_Job:OriginalLambdaBody:11`), and
+never looks the block up. So a dedicated server does not need the mod whose
+icons its players use. A hosting player is a different case: that process is
+also a client that draws the markers, so the host needs the mod to see the icons
+like any other player. Measured on 1.3.0.2: a client with an icon mod placed a
+marker on a dedicated server without it, the server restarted, and the marker
+still showed its icon.
 
 **A marker whose block is missing keeps whatever sprite its display element last
 had, and logs an error every frame it is drawn.**
 `MapMarkerUIElement.LateUpdate` calls `TryApplyCustomMarkerSprite` for every
-user marker (`Pug.Other:345756`), which logs `Failed to resolve
-MapMarkerIconDataBlock at address …` and returns (`Pug.Other:345814`) without assigning a
-sprite. The map draws markers through pooled elements: `MarkerPool.GetMarker`
-reuses a returned element before it instantiates a new one (`Pug.Other:346081-346083`),
-and `ReturnToPool` clears the element's entity and player but not its sprite
-(`Pug.Other:347536-347539`). So a freshly instantiated element shows the prefab's
-default sprite — `userPlacedMapMarker.prefab` references `map_markers_1`, the
-second tile of the marker sheet `map_markers.png` that 1.2 drew user markers
-from — 1.2's first user marker, a blue diamond on a dark framed square; observed
-on 1.3.0.2 right after launch (map-markers-enhanced, `docs/manual-tests.md`,
-"Without the mod on the client") and on 1.3.0.4 for a mod icon whose mod was
-uninstalled — while a reused one can go on showing the icon of another user
-marker it displayed before. `UpdateColor()` still runs first and tints the
-element's colour renderer in the local player's colour (`Pug.Other:345753`), which only
-the resolved path resets to white (`Pug.Other:345822-345826`) — but in the 1.3.0.2
-`userPlacedMapMarker.prefab`, read from the extracted resources, both colour
-renderers carry no sprite and no code assigns them one, so the tint has nothing
-visible to colour. That is what players without an icon mod see for markers
-placed with it, and what everyone sees after uninstalling it — so do not expect
-it to look like any one particular icon.
+user marker (`Pug.Other:MapMarkerUIElement:LateUpdate:6`), which logs `Failed to
+resolve MapMarkerIconDataBlock at address …` and returns
+(`Pug.Other:MapMarkerUIElement:TryApplyCustomMarkerSprite:14`) without assigning
+a sprite. The map draws markers through pooled elements: `MarkerPool.GetMarker`
+reuses a returned element before it instantiates a new one
+(`Pug.Other:MarkerPool:GetMarker:3-5`), and `ReturnToPool` clears the element's
+entity and player but not its sprite (`Pug.Other:MapUI:ReturnToPool:1-4`). So a
+freshly instantiated element shows the prefab's default sprite —
+`userPlacedMapMarker.prefab` references `map_markers_1`, the second tile of the
+marker sheet `map_markers.png` that 1.2 drew user markers from — 1.2's first
+user marker, a blue diamond on a dark framed square; observed on 1.3.0.2 right
+after launch (map-markers-enhanced, `docs/manual-tests.md`, "Without the mod on
+the client") and on 1.3.0.4 for a mod icon whose mod was uninstalled — while a
+reused one can go on showing the icon of another user marker it displayed
+before. `UpdateColor()` still runs first and tints the element's colour renderer
+in the local player's colour (`Pug.Other:MapMarkerUIElement:LateUpdate:3`),
+which only the resolved path resets to white
+(`Pug.Other:MapMarkerUIElement:TryApplyCustomMarkerSprite:22-26`) — but in the
+1.3.0.2 `userPlacedMapMarker.prefab`, read from the extracted resources, both
+colour renderers carry no sprite and no code assigns them one, so the tint has
+nothing visible to colour. That is what players without an icon mod see for
+markers placed with it, and what everyone sees after uninstalling it — so do not
+expect it to look like any one particular icon.
 
 **The error repeats for every visible unresolved marker, and it is costly.** The
 log line carries a full native stack trace, and it comes once per marker per
@@ -260,22 +273,29 @@ until the markers are rewritten or the blocks come back. The stack-trace cost is
 inferred from the logging per frame; its share of the stutter was not isolated.
 
 **1.3.0.2 cannot edit a placed marker.** The pieces exist:
-`MapUI.ApplyEditToExistingMarker` (`Pug.Other:346588`) sends
-`EditCustomMapMarker`, and the server handler's `targetEntity` branch (`Pug.Other:414927`)
+`MapUI.ApplyEditToExistingMarker`
+(`Pug.Other:MapUI:ApplyEditToExistingMarker:1`) sends `EditCustomMapMarker`, and
+the server handler's `targetEntity` branch
+(`Pug.Other:ServerSystem_4A171A05_LambdaJob_1_Job:OriginalLambdaBody:21`)
 updates icon, variant and name of an existing marker. That branch checks only
 that the target carries `MapMarkerCustomDataCD`: it never looks at who sent the
-request, and unlike the command path it has no guest-mode check either (`Pug.Other:415637`
-runs it unconditionally), so any client could edit any player's marker it has as
-a ghost. The target travels as a ghost id; one the server cannot map arrives as
-`Entity.Null` (`Pug.Other:454475-454482`), and the handler then takes its create branch
-(`Pug.Other:414914`) and places a new marker at the request's position, which
-`EditCustomMapMarker` never sets (`Pug.Other:414624-414633`), so at the origin. The edit
-branch also writes the request's name unconditionally (`Pug.Other:414930-414933`), so an
-edit with an empty name clears the marker's name, where creation sets a name
-only when one is given (`Pug.Other:414919`). But nothing calls
-`ApplyEditToExistingMarker`, in the client or the dedicated-server build, and
-the game offers no way to reach it — changing a marker means deleting it and
-placing a new one. A mod that wants editing has to open the dialog on an
+request, and unlike the command path it has no guest-mode check either
+(`Pug.Other:ServerSystem:OnUpdate:430` runs it unconditionally), so any client
+could edit any player's marker it has as a ghost. The target travels as a ghost
+id; one the server cannot map arrives as `Entity.Null`
+(`Pug.Other:MapMarkerRpcSerializer:Deserialize:8-15`), and the handler then
+takes its create branch
+(`Pug.Other:ServerSystem_4A171A05_LambdaJob_1_Job:OriginalLambdaBody:8`) and
+places a new marker at the request's position, which `EditCustomMapMarker` never
+sets (`Pug.Other:ClientSystem:EditCustomMapMarker:1-10`), so at the origin. The
+edit branch also writes the request's name unconditionally
+(`Pug.Other:ServerSystem_4A171A05_LambdaJob_1_Job:OriginalLambdaBody:24-27`), so
+an edit with an empty name clears the marker's name, where creation sets a name
+only when one is given
+(`Pug.Other:ServerSystem_4A171A05_LambdaJob_1_Job:OriginalLambdaBody:13`). But
+nothing calls `ApplyEditToExistingMarker`, in the client or the dedicated-server
+build, and the game offers no way to reach it — changing a marker means deleting
+it and placing a new one. A mod that wants editing has to open the dialog on an
 existing marker itself; whether the dead path works as it stands is untested.
 
 **The 1.3 world migration turned old markers into these** — by their old slot
@@ -305,29 +325,35 @@ green, light cyan, teal, brown, pink, slate blue, yellow.
 Measured on 1.3.0.4 by logging every block that
 `ScriptableData.TryGetDataBlocks<MapMarkerIconDataBlock>` returns, with its
 name, address and each variant's sprite names. The address and the variants are
-serialized fields (`m_address`, `ScriptableData:1703-1706`; `variants`,
-`Pug.Base:15155`), but the extracted block assets carry only the header, because
-the extraction drops the data-block fields — so they cannot supply this. Two
-serialized sources in the extracted resources do record addresses.
-`MapUI.defaultPresets`, in `Global Objects (Main Manager).prefab`, stores five
-icon/variant pairs as `m_low`/`m_high` halves: Dot 2, Question 9, Skull 0, Flag
-3 and Pickaxe 1. And the game's code hard-codes four of them for the markers of
-1.2: in `ConvertOldMapMarkersSystem` of 1.3.0.4 (client), `Pug.Other:175145`
-assigns, `Pug.Other:175165` picks the block and `Pug.Other:175177` the variant —
-Dot variant 2, Question 9 (yellow question mark), Skull 0 (white skull) and Flag
-3 (green flag). Cross, Home and Star rest on the probe alone. The Dot-2 pair is
-1.3's redraw of the first user marker of 1.2, a blue diamond; it is not the
-fallback sprite described above, which is the 1.2 original of the same motif.
+serialized fields (`m_address`,
+`ScriptableData:ScriptableDataBlock:m_address:1-4`; `variants`,
+`Pug.Base:MapMarkerIconDataBlock:variants:1`), but the extracted block assets
+carry only the header, because the extraction drops the data-block fields — so
+they cannot supply this. Two serialized sources in the extracted resources do
+record addresses. `MapUI.defaultPresets`, in `Global Objects (Main
+Manager).prefab`, stores five icon/variant pairs as `m_low`/`m_high` halves: Dot
+2, Question 9, Skull 0, Flag 3 and Pickaxe 1. And the game's code hard-codes
+four of them for the markers of 1.2: in `ConvertOldMapMarkersSystem` of 1.3.0.4
+(client), `Pug.Other:ConvertOldMapMarkersSystem:OnUpdate:22` assigns,
+`Pug.Other:ConvertOldMapMarkersSystem:GetDefaultIconForVariation:1` picks the
+block and
+`Pug.Other:ConvertOldMapMarkersSystem:GetDefaultVariantForOldVariation:1` the
+variant — Dot variant 2, Question 9 (yellow question mark), Skull 0 (white
+skull) and Flag 3 (green flag). Cross, Home and Star rest on the probe alone.
+The Dot-2 pair is 1.3's redraw of the first user marker of 1.2, a blue diamond;
+it is not the fallback sprite described above, which is the 1.2 original of the
+same motif.
 
 ### Marker sprites are fixed even boxes, and an odd size jitters
 
 Every vanilla marker sprite is the same size: the 80 sprites cut from
-`map_marker_large.png` (100×90) are all 10×10, the 80 from `map_marker_small.png`
-(60×54) all 6×6, at 16 pixels per unit with the pivot at the centre. Measured on
-1.3.0.4 on every sprite asset. The game hands a variant's `miniMapSprite` and
-`largeMapSprite` to a `SpriteRenderer` without scaling
-(`MapMarkerUIElement.TryApplyCustomMarkerSprite`, `Pug.Other:345801`), so the
-sprite's own size and pivot are what is drawn.
+`map_marker_large.png` (100×90) are all 10×10, the 80 from
+`map_marker_small.png` (60×54) all 6×6, at 16 pixels per unit with the pivot at
+the centre. Measured on 1.3.0.4 on every sprite asset. The game hands a
+variant's `miniMapSprite` and `largeMapSprite` to a `SpriteRenderer` without
+scaling (`MapMarkerUIElement.TryApplyCustomMarkerSprite`,
+`Pug.Other:MapMarkerUIElement:TryApplyCustomMarkerSprite:1`), so the sprite's
+own size and pivot are what is drawn.
 
 A mod's sprite should therefore be an even box too. One cut to its drawn pixels
 has odd sizes such as 5×5 or 5×7, which puts the centre pivot on half a pixel:
@@ -340,9 +366,10 @@ not isolated from the rest.
 
 ## Tile layers: what may sit on what
 
-`TileType.GetNeededTile` (`Pug.Base:19957`) and `GetInvalidTile` (`Pug.Base:20002`) are
-the authority. A tile is applied only if at least one of its needed tiles is
-present at that position and none of its invalid ones is.
+`TileType.GetNeededTile` (`Pug.Base:TileTypeUtility:GetNeededTile:1`) and
+`GetInvalidTile` (`Pug.Base:TileTypeUtility:GetInvalidTile:1`) are the
+authority. A tile is applied only if at least one of its needed tiles is present
+at that position and none of its invalid ones is.
 
 | Tile | Requires (ANY of) |
 |---|---|
@@ -358,7 +385,7 @@ therefore never be laid over normal ground.
 
 ### The bridge family
 
-Nine objects produce the `bridge` tile (`Pug.Base:2840-2884`):
+Nine objects produce the `bridge` tile (`Pug.Base:ObjectID:690-734`):
 
 | `ObjectID` | Object |
 |---|---|
@@ -372,7 +399,7 @@ Nine objects produce the `bridge` tile (`Pug.Base:2840-2884`):
 | 4773 | `MetalGrateBridge` |
 | 4802 | `ExcavationBridge` |
 
-`ObjectID.Rail` is `6550` (`Pug.Base:3454`).
+`ObjectID.Rail` is `6550` (`Pug.Base:ObjectID:Rail:1`).
 
 Pugstorm hands out IDs as content ships, so the numeric order *roughly* tracks
 biome progression and hence roughly tracks scarcity. Treat that as a heuristic
@@ -380,20 +407,21 @@ for ordering a fallback list, never as a rule — `GlassBridge` and
 `MetalGrateBridge` are both counterexamples.
 
 **Do not substitute `TileType.IsWalkableTile()` for this check.**
-`IsWalkableTile` (`Pug.Base:19631`) also accepts `floor`, `rug`, `litFloor`,
-`looseFlooring`, `rail`, `circuitPlate` and more — a strictly wider set than the
-apply-time rule uses. The correct predicate for "can a rail/floor/wall go here"
-is `ground || bridge`.
+`IsWalkableTile` (`Pug.Base:TileTypeUtility:IsWalkableTile:1`) also accepts
+`floor`, `rug`, `litFloor`, `looseFlooring`, `rail`, `circuitPlate` and more — a
+strictly wider set than the apply-time rule uses. The correct predicate for "can
+a rail/floor/wall go here" is `ground || bridge`.
 
 Vanilla itself substitutes a tile the player never asked for:
-`PlaceObjectSlot.GetTileTypeToPlace` (`Pug.Other:323186-323193`) returns
-`TileType.ground` **instead of** `wall` when a wall is placed on a position
-with neither `ground` nor `bridge` — gated on a third condition alongside the
-missing-substrate check: a ground item must exist for that tileset. The wall
-itself does not follow automatically in the same click; it needs a second
-click, handled by `IsPlacingWallAfterPreviouslyPlacedGround`
-(`Pug.Other:323196-323203`). Inserting a missing substrate is an established pattern,
-not a hack.
+`PlaceObjectSlot.GetTileTypeToPlace`
+(`Pug.Other:PlaceObjectSlot:GetTileTypeToPlace:1-8`) returns `TileType.ground`
+**instead of** `wall` when a wall is placed on a position with neither `ground`
+nor `bridge` — gated on a third condition alongside the missing-substrate check:
+a ground item must exist for that tileset. The wall itself does not follow
+automatically in the same click; it needs a second click, handled by
+`IsPlacingWallAfterPreviouslyPlacedGround`
+(`Pug.Other:PlaceObjectSlot:IsPlacingWallAfterPreviouslyPlacedGround:1-8`).
+Inserting a missing substrate is an established pattern, not a hack.
 
 ## `AddTile` is a queue append, not a commit
 
@@ -403,10 +431,10 @@ EntityUtility.AddTile(int tileSet, TileType tileType, int2 position,
                       DynamicBuffer<TileUpdateBuffer> tileUpdateBuffer)
 ```
 
-`Pug.Other:265203`. Its core is `tileUpdateBuffer.Add(new TileUpdateBuffer {
-command = Add, … })`. It rejects `tileSet < 0 || tileSet >= 75` and guards the
-spawn-area tiles. **The layer rules above are judged later**, when the buffer
-is applied.
+`Pug.Other:EntityUtility:AddTile:1`. Its core is `tileUpdateBuffer.Add(new
+TileUpdateBuffer { command = Add, … })`. It rejects `tileSet < 0 || tileSet >=
+75` and guards the spawn-area tiles. **The layer rules above are judged later**,
+when the buffer is applied.
 
 **Two tile types queue extra removals of their own.** A `wall` pairs its `Add`
 with a `Remove` of `roofHole`; a `ground` pairs it with a `Remove` of both
@@ -416,9 +444,11 @@ that position, silently and without a placement check.
 
 ### Ordering: the buffer is reversed twice, so insertion order survives
 
-- `UpdateSubMapCommon.FilterUpdates` (`Pug.Other:248455`) walks the buffer
-  backwards while building `addList`, de-duplicating per `(position, tileType)`.
-- `ApplyAdd` (`Pug.Other:249515`) walks `addList` backwards again.
+- `UpdateSubMapCommon.FilterUpdates`
+  (`Pug.Other:UpdateSubMapCommon:FilterUpdates:2`) walks the buffer backwards
+  while building `addList`, de-duplicating per `(position, tileType)`.
+- `ApplyAdd` (`Pug.Other:UpdateSubMapSystemServerEditor:ApplyAdd:2`) walks
+  `addList` backwards again.
 
 Two reversals cancel. Net effect: **write the substrate tile first and it is
 applied first.** A bridge under a rail means queueing `bridge`, then `rail`. A
@@ -429,27 +459,29 @@ would silently invert this, so re-verify after updates.
 
 In `ApplyAdd`, when the needed tile is missing or an invalid one is present, the
 tile is simply not set — instead `EntityUtility.DropNewEntity` puts the
-corresponding item into the world as a pickup (`Pug.Other:257309`), unless its
-`objectType` is `NonObtainable`. So queueing a tile that then fails validation
-costs the player a walk to pick it back up, nothing more.
+corresponding item into the world as a pickup
+(`Pug.Other:UpdateHealthFromBufferJob:Execute:299`), unless its `objectType` is
+`NonObtainable`. So queueing a tile that then fails validation costs the player
+a walk to pick it back up, nothing more.
 
 ### Never suppress an `AddTile` call to veto a placement
 
 `AddTile` is the convergence point of **equipment-driven** tile placement: every
 path where the player's held item produces a tile — placing, digging, watering,
-painting, roofing — routes through it. Vanilla calls it at `Pug.Other:323003`,
-and third-party placement mods call it too. That makes it the right place to
-*change* a placement — but the wrong place to *cancel* one:
+painting, roofing — routes through it. Vanilla calls it at
+`Pug.Other:PlaceObjectSlot:PlaceItem:61`, and third-party placement mods call it
+too. That makes it the right place to *change* a placement — but the wrong place
+to *cancel* one:
 
 **The item is debited from the inventory *after* the `AddTile` call.** Vanilla
 does it in the same method, one statement later: `EntityUtility.AddTile(...)`
 followed immediately by `Create.ConsumeEntityAt(..., destroy: true, ...)` pushed
-onto the inventory update buffer (`Pug.Other:323003`, then `Pug.Other:323006`). The one
-foreign placement mod measured here, PlacementPlus, behaves the same way.
-Blocking the call therefore consumes the item and produces nothing: a straight
-item loss. Letting the call through and having it fail validation only drops a
-pickup (see above). If you need to veto, veto earlier, at the placement
-decision, not at the tile write.
+onto the inventory update buffer (`Pug.Other:PlaceObjectSlot:PlaceItem:61`, then
+`Pug.Other:PlaceObjectSlot:PlaceItem:64`). The one foreign placement mod
+measured here, PlacementPlus, behaves the same way. Blocking the call therefore
+consumes the item and produces nothing: a straight item loss. Letting the call
+through and having it fail validation only drops a pickup (see above). If you
+need to veto, veto earlier, at the placement decision, not at the tile write.
 
 Another placement mod probably orders it the same way — it is the natural shape,
 since the debit belongs to a placement that succeeded — but that is an
@@ -474,23 +506,25 @@ path wholesale — are in [Harmony and ECS](harmony-and-ecs.md).
 ## The placement permission model
 
 Whether an item may be placed on a given tile is decided by
-`PlacementHandler.ShouldCheckPlaceObjectOnTile` (`Pug.Other:306169`), and it
-grants permission through **two independent, OR-ed routes**:
+`PlacementHandler.ShouldCheckPlaceObjectOnTile`
+(`Pug.Other:PlacementHandler:ShouldCheckPlaceObjectOnTile:1`), and it grants
+permission through **two independent, OR-ed routes**:
 
 1. **`PlacementCD` bool flags** — `canPlaceOnWalkableTiles`, `canPlaceOnWater`,
    `canBePlacedOnLava` (which is `water` with `tileset == 3`), `canPlaceOnPit`,
-   … They are set in `PlacementHandler.Activate` (`Pug.Other:306463`) from
-   `ObjectPropertiesCD` hashes:
+   … They are set in `PlacementHandler.Activate`
+   (`Pug.Other:PlacementHandler:Activate:1`) from `ObjectPropertiesCD` hashes:
 
    | Hash | Flag |
    |---|---|
-   | `1497889171` | `canPlaceOnWalkableTiles` (`Pug.Other:306475`) |
+   | `1497889171` | `canPlaceOnWalkableTiles` (`Pug.Other:PlacementHandler:Activate:13`) |
    | `-1324171664` | `canPlaceOnWater` |
    | `-1535225238` | `canBePlacedOnLava` |
    | `-1827158511` | `canPlaceOnPit` |
 
 2. **An object list** — `ObjectCanBePlacedOnObject(<the ObjectID the target TILE
-   maps to>, …, canBePlacedOnObjects)` at `Pug.Other:306224`, which sets
+   maps to>, …, canBePlacedOnObjects)` at
+   `Pug.Other:PlacementHandler:ShouldCheckPlaceObjectOnTile:56`, which sets
    `foundValidTileToPlaceOn = true` **regardless of every flag**.
 
 **Trap: bridges use route 2, not route 1.** Measured live on `WoodBridge`, the
@@ -503,11 +537,13 @@ membership list.
 
 ### The two list properties are passed crossed
 
-`CanPlaceObjectAtPosition` (`Pug.Other:306028-306035`) reads both list properties into
-locals and then calls `ShouldCheckPlaceObjectOnTile(…, tilesChecked, value2,
-value, …)` at `Pug.Other:306080` against a signature of `(…, canBePlacedOnObjects,
-canNotBePlaceOnObjects, …)`. Reading the hashes in declaration order gets the
-meaning exactly backwards:
+`CanPlaceObjectAtPosition`
+(`Pug.Other:PlacementHandler:CanPlaceObjectAtPosition:42-49`) reads both list
+properties into locals and then calls `ShouldCheckPlaceObjectOnTile(…,
+tilesChecked, value2, value, …)` at
+`Pug.Other:PlacementHandler:CanPlaceObjectAtPosition:94` against a signature of
+`(…, canBePlacedOnObjects, canNotBePlaceOnObjects, …)`. Reading the hashes in
+declaration order gets the meaning exactly backwards:
 
 | Property hash | Meaning |
 |---|---|
@@ -527,9 +563,10 @@ conveyor belts.
 `ObjectCanBePlacedOnObject` is a plain membership scan — veto list first as a
 hard block, then the allow list, where a hit returns `true` with no further
 condition. A third, reciprocal step follows if neither list resolves it:
-`Pug.Other:306347-306379` resolves the **target**'s own primary prefab and tests
-whether *its* `-789473209` (`canBePlacedOnObjects`) list contains the object
-being placed — so either object naming the other is enough.
+`Pug.Other:PlacementHandler:ObjectCanBePlacedOnObject:1-33` resolves the
+**target**'s own primary prefab and tests whether *its* `-789473209`
+(`canBePlacedOnObjects`) list contains the object being placed — so either
+object naming the other is enough.
 
 Note that permission and layer rules are separate gates. Being allowed to place
 a rail on a pit does not conjure a substrate: the rail still needs `ground` or
@@ -538,39 +575,42 @@ a rail on a pit does not conjure a substrate: the rail still needs `ground` or
 ### Changing the list requires the bake-time hook
 
 `PlaceableObjectConverter.Convert(PlaceableObjectAuthoring)`
-(`Pug.ECS.Conversion:2975`) **does run in the shipped game.** Zero *static* call
-sites is expected, not a sign the converter never fires: converters are found by
-reflection and invoked virtually.
+(`Pug.ECS.Conversion:PlaceableObjectConverter:1`) **does run in the shipped
+game.** Zero *static* call sites is expected, not a sign the converter never
+fires: converters are found by reflection and invoked virtually.
 `ConversionManager.FindAllConvertersInCurrentAssembly()`
-(`PugConversion:724-742`) scans the executing assembly and every loaded assembly
-referencing it; `RunConverters` (`PugConversion:1080-1091`) calls
+(`PugConversion:ConversionManager:FindAllConvertersInCurrentAssembly:1-19`)
+scans the executing assembly and every loaded assembly referencing it;
+`RunConverters` (`PugConversion:ConversionManager:RunConverters:1-12`) calls
 `converter.Convert(gameObject)`, which `SingleAuthoringComponentConverter<T>`
-(`PugConversion:1478-1488`) forwards to the abstract `Convert(T authoring)` — the same
-conversion pipeline that [database and baking](database-and-baking.md#changing-a-vanilla-objects-baked-data) describes for
-`PugDatabasePostConverter`.
+(`PugConversion:SingleAuthoringComponentConverter:1-11`) forwards to the
+abstract `Convert(T authoring)` — the same conversion pipeline that [database and baking](database-and-baking.md#changing-a-vanilla-objects-baked-data)
+describes for `PugDatabasePostConverter`.
 
 The accurate reason to prefer the `PostConvert` seam is **ordering, not
 non-existence**: `Convert` snapshots the list
 (`SetPropertyList("PlaceableObject/canBePlacedOnObjects", …)`,
-`Pug.ECS.Conversion:3043`) and all converters run before any post-converter
-(`PugConversion:850-889`), so a `PostConvert` mutation lands in the *next*
-conversion pass.
+`Pug.ECS.Conversion:PlaceableObjectConverter:Convert:67`) and all converters run
+before any post-converter
+(`PugConversion:ConversionManager:ConvertEnqueuedObjects:1-40`), so a
+`PostConvert` mutation lands in the *next* conversion pass.
 
 That next pass comes within the same session, because each world is converted
 separately and the mutation stays on the in-memory prefab: `ECSManager.Init`
-converts the Default World first (`Pug.Other:2542-2554`), and every world load
-or join later runs `ConvertAuthoringDataRoutine`, which converts the ServerWorld
-and the ClientWorld, whichever of the two the process has (`Pug.Other:2817`,
-`Pug.Other:2839`). An edit made during the Default World's `PostConvert`
-therefore reaches the worlds that are actually played in, while the Default
-World keeps the unpatched list — and so does
+converts the Default World first (`Pug.Other:ECSManager:Init:13-25`), and every
+world load or join later runs `ConvertAuthoringDataRoutine`, which converts the
+ServerWorld and the ClientWorld, whichever of the two the process has
+(`Pug.Other:ECSManager:ConvertAuthoringDataRoutine:8`,
+`Pug.Other:ECSManager:ConvertAuthoringDataRoutine:30`). An edit made during the
+Default World's `PostConvert` therefore reaches the worlds that are actually
+played in, while the Default World keeps the unpatched list — and so does
 `Manager.mod.Authoring.ObjectProperties`, which is read from it
-(`Pug.Other:2560`). A dedicated server orders these the same way: its
-`ECSManager.Init` converts the Default World too
-(`DedicatedServer/Pug.Other:2531` in the server build), and its log shows that
-conversion before the ServerWorld's. Observed working in `auto-rail-bridges` on
-1.3.0.2 in a host session; the edit's effect on a dedicated server has not been
-measured.
+(`Pug.Other:ECSManager:Init:31`). A dedicated server orders these the same way:
+its `ECSManager.Init` converts the Default World too
+(`DedicatedServer/Pug.Other:ECSManager:Init:13` in the server build), and its
+log shows that conversion before the ServerWorld's. Observed working in
+`auto-rail-bridges` on 1.3.0.2 in a host session; the edit's effect on a
+dedicated server has not been measured.
 
 Two consequences. `PostConvert` runs again on every one of those conversions, so
 the edit has to be idempotent — add an entry only if it is missing. And the
@@ -578,15 +618,19 @@ mutation outlives a settings change: a later world load picks up an added entry
 without a restart, but taking it back needs code that removes it, or a restart.
 
 The list is reachable from `PugDatabasePostConverter.PostConvert(GameObject)`
-(`Pug.Other:3647`/`Pug.Other:3709`), which does run per world/database
-conversion. Since 1.3, walk the prefabs the way vanilla `PostConvert` itself
-does: `ScriptableData.GetDataBlocks<EntityAuthoringDataBlock>()`
-(`Pug.Other:3718`) → every block whose `prefab`'s
-`IEntityMonoBehaviourData.ObjectInfo.objectID` matches (`Pug.Other:3734`,
-`Pug.Other:3740`; vanilla keys on objectID *and* variation, `Pug.Other:3747`, so
-one object can have several blocks) →
+(`Pug.Other:PugDatabasePostConverter:1`/`Pug.Other:PugDatabasePostConverter:PostConvert:1`),
+which does run per world/database conversion. Since 1.3, walk the prefabs the
+way vanilla `PostConvert` itself does:
+`ScriptableData.GetDataBlocks<EntityAuthoringDataBlock>()`
+(`Pug.Other:PugDatabasePostConverter:PostConvert:10`) → every block whose
+`prefab`'s `IEntityMonoBehaviourData.ObjectInfo.objectID` matches
+(`Pug.Other:PugDatabasePostConverter:PostConvert:26`,
+`Pug.Other:PugDatabasePostConverter:PostConvert:32`; vanilla keys on objectID
+*and* variation, `Pug.Other:PugDatabasePostConverter:PostConvert:39`, so one
+object can have several blocks) →
 `block.prefab.TryGetComponent<PlaceableObjectAuthoring>()` → mutate
-`canBePlacedOnObjects`, a `List<ObjectID>` (`Pug.ECS.Authoring:3251`). The 1.2
+`canBePlacedOnObjects`, a `List<ObjectID>`
+(`Pug.ECS.Authoring:PlaceableObjectAuthoring:canBePlacedOnObjects:1`). The 1.2
 route through `DatabaseConversionUtility.GetPrefabList(...)` and
 `ObjectInfo.prefabInfos[].ecsPrefab` no longer compiles on 1.3; [database and baking](database-and-baking.md#injecting-a-craftable-into-a-vanilla-station-at-runtime)
 has the two versions side by side. Filter on `PugDatabaseAuthoring` first, since
@@ -599,19 +643,22 @@ World's bake runs after `EarlyInit` and before `Init`, so binding the patch in
 later still. The full `PostConvert` pattern is in [database and baking](database-and-baking.md).
 
 **Permission has to exist before placement runs.** `canPlaceObject` is computed
-in `UpdatePlaceablePosition`, and `PlaceItem` returns early at `Pug.Other:322946` when it
-is false. You cannot "place first and justify it afterwards" — a hook that would
-insert the supporting tile is never reached.
+in `UpdatePlaceablePosition`, and `PlaceItem` returns early at
+`Pug.Other:PlaceObjectSlot:PlaceItem:4` when it is false. You cannot "place
+first and justify it afterwards" — a hook that would insert the supporting tile
+is never reached.
 
 ### Placement flags are re-initialised every tick
 
 `PlacementHandler.Activate` — the call that populates `PlacementCD` from the
 object's properties — is invoked from
-`SelectedEquipmentChangeSystem.EquippedSlotChangeJob` (`Pug.Other:447018`, call
-at `Pug.Other:447252`).
+`SelectedEquipmentChangeSystem.EquippedSlotChangeJob`
+(`Pug.Other:EquippedSlotChangeJob:4`, call at
+`Pug.Other:EquippedSlotChangeJob:Execute(EquippedObjectCD, …):60`).
 
-**Trap: do not read that system's name as its cadence.** Its `OnUpdate` schedules
-the job **unconditionally every tick** (`Pug.Other:448204-448207`; its queries carry no
+**Trap: do not read that system's name as its cadence.** Its `OnUpdate`
+schedules the job **unconditionally every tick**
+(`Pug.Other:SelectedEquipmentChangeSystem:OnUpdate:2-5`; its queries carry no
 `SetChangedVersionFilter`), and the `Activate` call sits *outside* the
 equip-change branch above it. The flags are refreshed per tick, not only when
 the equipped item changes.
@@ -628,18 +675,20 @@ the player at all.
 
 | Method | What it receives | Inventory reachable |
 |---|---|---|
-| `PlacementHandler.UpdatePlaceablePosition` (`Pug.Other:305800`) | the full `EquipmentUpdateAspect`, and through `LookupEquipmentUpdateData` the `BufferLookup<ContainedObjectsBuffer> containedObjectsBufferLookup` (`Pug.Other:438145`) | yes |
+| `PlacementHandler.UpdatePlaceablePosition` (`Pug.Other:PlacementHandler:UpdatePlaceablePosition:1`) | the full `EquipmentUpdateAspect`, and through `LookupEquipmentUpdateData` the `BufferLookup<ContainedObjectsBuffer> containedObjectsBufferLookup` (`Pug.Other:LookupEquipmentUpdateData:containedObjectsBufferLookup:2`) | yes |
 | `PlacementHandler.Activate` | `(ref PlacementCD, Entity placementPrefab, ComponentLookup<ObjectPropertiesCD>, ComponentLookup<TileCD>, ComponentLookup<PseudoTileCD>)` | no — there is no player entity in the signature |
 
 Vanilla reads that buffer lookup exactly this way in `UpdateJob.Execute`
-(`Pug.Other:438945`), so it is a supported route rather than a trick. If your
-hook sits on `Activate`, no amount of lookup juggling will get you an inventory;
-move the work to `UpdatePlaceablePosition` instead.
+(`Pug.Other:EquipmentUpdateSystem.UpdateJob:Execute(EquipmentUpdateAspect, …):13`),
+so it is a supported route rather than a trick. If your hook sits on `Activate`,
+no amount of lookup juggling will get you an inventory; move the work to
+`UpdatePlaceablePosition` instead.
 
 ## Consuming an item from an inventory slot
 
-`InventoryUtility.ConsumeEntityAt` (`Pug.Other:428862`, class at `Pug.Other:428606`)
-takes an `optionalTargetObjectID`.
+`InventoryUtility.ConsumeEntityAt`
+(`Pug.Other:InventoryUtility:ConsumeEntityAt:2`, class at
+`Pug.Other:InventoryUtility:2`) takes an `optionalTargetObjectID`.
 
 **Trap: despite the name, it is not optional.** The slot's ObjectID is compared
 **only** when that argument is set. Left at `ObjectID.None`, the call consumes
@@ -649,12 +698,13 @@ data loss for the player, and because it needs a race to happen it will not show
 up in an unhurried manual test. With the argument set, the consume fails
 instead, which is the direction you want this failure to go.
 
-`Create.ConsumeEntityAt(Entity inventory, int index, …)` (`Pug.Other:426685`,
-class `Create` at `Pug.Other:426672`) looks like an overload of the same method but is
-not — it is a different class. It builds an `InventoryChangeData` command and
-pushes it onto the inventory-update buffer; it consumes nothing itself.
-`InventoryUtility.ConsumeEntityAt` above already takes an `Entity inventory`,
-so reaching for `Create`'s version for that reason buys nothing.
+`Create.ConsumeEntityAt(Entity inventory, int index, …)`
+(`Pug.Other:Create:ConsumeEntityAt:1`, class `Create` at `Pug.Other:Create:1`)
+looks like an overload of the same method but is not — it is a different class.
+It builds an `InventoryChangeData` command and pushes it onto the
+inventory-update buffer; it consumes nothing itself.
+`InventoryUtility.ConsumeEntityAt` above already takes an `Entity inventory`, so
+reaching for `Create`'s version for that reason buys nothing.
 
 ## Entity radii: loaded is not observed
 
@@ -672,9 +722,10 @@ The named constants:
 | `UNLOADED_WORLD_SEGMENT_SIZE_LOG2` | 7 (serialized world segment = 128 tiles) |
 
 `UnloadToSerializeWorldSystem` / `FindUnloadedChunksToLoad`
-(`Pug.Other:186112-186690`) build the keep-loaded, load and load-immediately
-circles from those radii: a segment's entities are destroyed when its AABB
-overlaps no 300-circle, and re-created when it overlaps the 250 or 200 circles.
+(`Pug.Other:UnloadToSerializeWorldSystem:7-585`) build the keep-loaded, load and
+load-immediately circles from those radii: a segment's entities are destroyed
+when its AABB overlaps no 300-circle, and re-created when it overlaps the 250 or
+200 circles.
 
 `defaultSimDistance = 100` and `SessionConfiguration.SimulationDistance = 50`
 exist but are unreferenced in the shipped DLLs — **the player load bubble is not
@@ -761,30 +812,32 @@ can edit.
 
 What the stored object lacks, the placing player's entity carries until the next
 placement overwrites it. `PlaceObjectSlot.PlaceItem` restarts
-`PlacementCD.timeSincePlaced` (`Pug.Other:322968`) — for anything but a critter
-(`Pug.Other:322966`) — and writes the placed tile to
-`PlacementCD.positionLastPlacedAt` (`Pug.Other:322972`). Both are
-`[GhostField]`s (`Pug.ECS.Components:4434-4438`), so the placing client holds
-them whether it predicted the placement or received it from the server. A client
-that reads its local player's `PlacementCD` every frame therefore sees each of
-its own placement attempts as a new `timeSincePlaced.startTick`, together with
-the tile. That needs no Harmony patch and, in particular, not the process-wide
-Burst change a patch on the placement path would bring (see [Harmony and ECS](harmony-and-ecs.md)).
+`PlacementCD.timeSincePlaced` (`Pug.Other:PlaceObjectSlot:PlaceItem:26`) — for
+anything but a critter (`Pug.Other:PlaceObjectSlot:PlaceItem:24`) — and writes
+the placed tile to `PlacementCD.positionLastPlacedAt`
+(`Pug.Other:PlaceObjectSlot:PlaceItem:30`). Both are `[GhostField]`s
+(`Pug.ECS.Components:PlacementCD:9-13`), so the placing client holds them
+whether it predicted the placement or received it from the server. A client that
+reads its local player's `PlacementCD` every frame therefore sees each of its
+own placement attempts as a new `timeSincePlaced.startTick`, together with the
+tile. That needs no Harmony patch and, in particular, not the process-wide Burst
+change a patch on the placement path would bring (see [Harmony and ECS](harmony-and-ecs.md)).
 
 **A new `startTick` means a placement was attempted, not that an object
 spawned.** Both writes come before checks that can still abort the placement —
-the consume check (`Pug.Other:322973`) and, for an object, the object-properties
-check (`Pug.Other:323014`) — and a tile placement (`Pug.Other:322999`), which
-spawns no object at all, writes them as well. So pair the record with the object
-that spawns on that tile shortly afterwards; the record does not name the
-object, and a watcher that trusts it alone reacts to placements that produced
-nothing. The object spawns on the recorded tile for any footprint — the tile
-already has the object's `prefabCornerOffset` subtracted, and the spawn position
-is taken from it (`Pug.Other:323013`) — except for a wall-mounted placement,
-where the spawn position is shifted by `wallSideToPlaceObject`
-(`Pug.Other:323043`). `SeederSlot` writes `positionLastPlacedAt` for a seed
-(`Pug.Other:323882`) without restarting the timer, so seeding is invisible to a
-watch keyed on `startTick`.
+the consume check (`Pug.Other:PlaceObjectSlot:PlaceItem:31`) and, for an object,
+the object-properties check (`Pug.Other:PlaceObjectSlot:PlaceItem:72`) — and a
+tile placement (`Pug.Other:PlaceObjectSlot:PlaceItem:57`), which spawns no
+object at all, writes them as well. So pair the record with the object that
+spawns on that tile shortly afterwards; the record does not name the object, and
+a watcher that trusts it alone reacts to placements that produced nothing. The
+object spawns on the recorded tile for any footprint — the tile already has the
+object's `prefabCornerOffset` subtracted, and the spawn position is taken from
+it (`Pug.Other:PlaceObjectSlot:PlaceItem:71`) — except for a wall-mounted
+placement, where the spawn position is shifted by `wallSideToPlaceObject`
+(`Pug.Other:PlaceObjectSlot:PlaceItem:101`). `SeederSlot` writes
+`positionLastPlacedAt` for a seed (`Pug.Other:SeederSlot:PlaceItem:82`) without
+restarting the timer, so seeding is invisible to a watch keyed on `startTick`.
 
 Observed working on 1.3.0.4 in singleplayer, for signs placed by the local player and
 matched against the sign's own spawn on the same tile. Whether another player's
@@ -827,21 +880,21 @@ every 30 ticks it sets every entity carrying `RequiresDrillCD` and
 `DontDropSelfCD` back to `maxHealth`, but only while `0 < health < maxHealth *
 0.1` (a boulder already at `health <= 0` is deliberately not reanimated). At
 Core Keeper's 20 Hz simulation rate (`defaultSimulationTickRate = 20`,
-`Pug.Base:14788`/`Pug.Base:15620`) 30 ticks is ≈1.5 s, not the ≈0.5 s a 60 Hz frame
-rate would give — if the mod is instead counting Unity frames rather than
-simulation ticks, the ≈0.5 s figure stands, but the qualitative point holds
-either way. That 10% window is 1.296 million health wide — with eight drills
-at an 11× speed multiplier it stays open for roughly 12 minutes and, at 1.5 s
-per heal, some 480 heal opportunities. "The drill speed skips the window" is
-arithmetic that does not work out; when the numbers say a window cannot be
-missed, look for a situation in which the system is not running at all rather
-than for a collision.
+`Pug.Base:Constants:defaultSimulationTickRate:1`/`Pug.Base:SessionConfiguration:SimulationTickRate:2`)
+30 ticks is ≈1.5 s, not the ≈0.5 s a 60 Hz frame rate would give — if the mod is
+instead counting Unity frames rather than simulation ticks, the ≈0.5 s figure
+stands, but the qualitative point holds either way. That 10% window is 1.296
+million health wide — with eight drills at an 11× speed multiplier it stays open
+for roughly 12 minutes and, at 1.5 s per heal, some 480 heal opportunities. "The
+drill speed skips the window" is arithmetic that does not work out; when the
+numbers say a window cannot be missed, look for a situation in which the system
+is not running at all rather than for a collision.
 
 ### `RequiresDrillCD` selects exactly the ore boulders
 
 Exactly one converter hands out `RequiresDrillCD`: `DestructibleObjectConverter`,
 gated on `DestructibleObjectAuthoring.requiresDrill`
-(`Pug.ECS.Conversion:1157-1167`). Of the 177 prefabs carrying
+(`Pug.ECS.Conversion:DestructibleObjectConverter:1-11`). Of the 177 prefabs carrying
 `DestructibleObjectAuthoring`, exactly **12** set `requiresDrill: 1` — the ten
 ore types plus two scene variants. Counted against the unpacked prefabs, not
 assumed.
@@ -857,16 +910,17 @@ adds, and it fails quietly, as a mod that simply does nothing to the new boulder
 ### Ore boulders are ordinary placeable prefabs
 
 All ten ore types (`CopperOreBoulder` 2200 … `ReluciteOreBoulder` 2218) carry
-`objectType: 800` = `ObjectType.PlaceablePrefab` (`Pug.Base:4889`), a real `icon`
-and `smallIcon`, `isStackable: 1` and `prefabTileSize: 2×2`. Nothing in the
-prefab data marks them as world-only decoration.
+`objectType: 800` = `ObjectType.PlaceablePrefab`
+(`Pug.Base:ObjectType:PlaceablePrefab:1`), a real `icon` and `smallIcon`,
+`isStackable: 1` and `prefabTileSize: 2×2`. Nothing in the prefab data marks
+them as world-only decoration.
 
 **The only gate is the creative catalogue, and it is a single runtime call.**
-Vanilla hangs the creative object browser off
-`UIManager.OnPlayerInventoryOpen` → `if (_creativeModeUIShouldBeOn &&
-Manager.saves.IsCreativeModeWorld() && …) creativeModeUI.ShowContainerUI()`
-(`Pug.Other:282115`). The mod.io mod *Item Spawner* (6103095) consists
-essentially of one prefix on that predicate:
+Vanilla hangs the creative object browser off `UIManager.OnPlayerInventoryOpen`
+→ `if (_creativeModeUIShouldBeOn && Manager.saves.IsCreativeModeWorld() && …)
+creativeModeUI.ShowContainerUI()`
+(`Pug.Other:UIManager:OnPlayerInventoryOpen:15`). The mod.io mod *Item Spawner*
+(6103095) consists essentially of one prefix on that predicate:
 
 ```csharp
 [HarmonyPatch(typeof(SaveManager), "IsCreativeModeWorld")]
@@ -967,8 +1021,8 @@ two distinct consume sites:
 
 | Event | Where | What happens |
 |---|---|---|
-| Capture | `CageCattle()` `Pug.Other:422908` | Gated on `objectID == ObjectID.CattleCage`; calls `EntityUtility.DropPetInCage(...)`, `DestroyEntity(cattle)` (`Pug.Other:422954`), then `Create.ConsumeEntityAt(.., 1, destroy: true, ..)` (`Pug.Other:422958`) eats the empty box |
-| Release | `PlaceItem()` `Pug.Other:323089` | The carried item is placed and consumed via `Create.ConsumeEntityAt(.., destroy: false, ..)`, amount from `objectDataCD2.amount` (`Pug.Other:323075-323078`); `Pug.Other:323011` is the `else` branch, not the consume |
+| Capture | `CageCattle()` `Pug.Other:Casting:CageCattle:1` | Gated on `objectID == ObjectID.CattleCage`; calls `EntityUtility.DropPetInCage(...)`, `DestroyEntity(cattle)` (`Pug.Other:Casting:CageCattle:47`), then `Create.ConsumeEntityAt(.., 1, destroy: true, ..)` (`Pug.Other:Casting:CageCattle:51`) eats the empty box |
+| Release | `PlaceItem()` `Pug.Other:PlaceObjectSlot:PlaceItem:147` | The carried item is placed and consumed via `Create.ConsumeEntityAt(.., destroy: false, ..)`, amount from `objectDataCD2.amount` (`Pug.Other:PlaceObjectSlot:PlaceItem:133-136`); `Pug.Other:PlaceObjectSlot:PlaceItem:69` is the `else` branch, not the consume |
 
 **There is no "filled box" item.** This is the natural assumption and it is
 wrong. `DropPetInCage` spawns a `DroppedItem` that carries the
@@ -987,8 +1041,9 @@ That changes how you detect a release: test `objectType == Creature` **and**
 `CattleCD` on the prefab. Testing for a cage object finds nothing.
 
 The `amount < 1 && HasComponent<CattleCD>` exception in `CanConsumeEntityInSlot`
-(`Pug.Other:311913`, static overload `Pug.Other:311920`) exists precisely so the
-carried item can still be placed at amount 0.
+(`Pug.Other:PlayerController:CanConsumeEntityInSlot(EquipmentSlot, …):9`, static
+overload `Pug.Other:PlayerController:CanConsumeEntityInSlot(Entity, …):1`)
+exists precisely so the carried item can still be placed at amount 0.
 
 Both sites live in Burst-compiled DOTS player systems (state-update and
 equipment-update aspects), so intercepting them needs the Burst treatment in [Harmony and ECS](harmony-and-ecs.md).
@@ -998,30 +1053,32 @@ patching something a nested job calls — as `PlaceItem` is, from
 `EquipmentUpdateSystem.UpdateJob` — needs `DisableBurstForSystemAndJobs` (see [nested jobs need the `AndJobs` variant](harmony-and-ecs.md#nested-jobs-need-the-andjobs-variant)).
 
 **Trap: the data-only loot path does not fire on placement.** Emitting an empty
-`CattleCage` through `SpawnsItemsOnUseCD` / `OpenItemAndSpawnLoot` (`Pug.Other:422770`)
-looks like an elegant way to avoid a Burst patch entirely — it is a dead end.
-That path is not reached when an item is *placed*, so a pure CoreLib data patch
-cannot dispense anything at placement time. This was tested and rejected before
-the equivalent mod was built as a code patch instead. (Verified for this case;
-whether the path never fires on *any* placement is **unverified**.)
+`CattleCage` through `SpawnsItemsOnUseCD` / `OpenItemAndSpawnLoot`
+(`Pug.Other:Casting:OpenItemAndSpawnLoot:1`) looks like an elegant way to avoid
+a Burst patch entirely — it is a dead end. That path is not reached when an item
+is *placed*, so a pure CoreLib data patch cannot dispense anything at placement
+time. This was tested and rejected before the equivalent mod was built as a code
+patch instead. (Verified for this case; whether the path never fires on *any*
+placement is **unverified**.)
 
 ### Pets
 
 Pets are `ObjectType.Pet` (802) — **not** `Creature`, which is a common wrong
 guess when relaxing a bake filter to "include pets".
 
-`SaveManager.SetObjectAsDiscovered` (`Pug.Other` ~`Pug.Other:380909`) force-zeroes
-`variation` for anything with a `PetCD`, so `discoveredObjects2` only ever holds
-a pet at `(objectID, 0)`. **The game does not track which pet skins you have
-seen** — a skin collection is necessarily mod-owned state.
+`SaveManager.SetObjectAsDiscovered` (`Pug.Other`
+~`Pug.Other:SaveManager:SetObjectAsDiscovered:1`) force-zeroes `variation` for
+anything with a `PetCD`, so `discoveredObjects2` only ever holds a pet at
+`(objectID, 0)`. **The game does not track which pet skins you have seen** — a
+skin collection is necessarily mod-owned state.
 
 | Fact | Detail |
 |---|---|
 | Skin storage | `PetSkinCD { int skinIndex }`, an `[InventoryAuxDataComponent]` in the world-global `InventoryAuxDataSystem` — not a variation, not a direct entity component |
 | Assignment | Random on hatch, `rng.NextInt(maxSkins)` |
 | ObjectID | All skins of a pet share one ID (`PetDog` = 1222) |
-| Skin count | `Manager.ui.petInfosTable.GetPetSkinInfo(id).skins.Count` — `PetCD.maxSkins` is baked from this same value (`Pug.ECS.Conversion:2910`) |
-| Rendering | Gradient recolours of the base `ObjectInfo.icon` (`_GradientMap` from `skins[i].primaryGradientMap` plus the `USE_GRADIENT_MAP` keyword on the `Amplify/UISpriteColorReplace` shader), not separate sprites; `GradientMapDataBlock` lives in `PugSprite.dll` (`PugSprite:42`, global namespace) — only its base `ScriptableDataBlock` is in `ScriptableData.dll` (`ScriptableData:1648`) |
+| Skin count | `Manager.ui.petInfosTable.GetPetSkinInfo(id).skins.Count` — `PetCD.maxSkins` is baked from this same value (`Pug.ECS.Conversion:PetConverter:Convert:3`) |
+| Rendering | Gradient recolours of the base `ObjectInfo.icon` (`_GradientMap` from `skins[i].primaryGradientMap` plus the `USE_GRADIENT_MAP` keyword on the `Amplify/UISpriteColorReplace` shader), not separate sprites; `GradientMapDataBlock` lives in `PugSprite.dll` (`PugSprite:GradientMapDataBlock:1`, global namespace) — only its base `ScriptableDataBlock` is in `ScriptableData.dll` (`ScriptableData:ScriptableDataBlock:1`) |
 | Stacking | Pets are non-stackable, one per slot |
 
 Reading `skinIndex` is sandbox-safe:
@@ -1051,7 +1108,7 @@ them all:
 | Group | ObjectIDs | Note |
 |---|---|---|
 | Net-catchable critters | 9800-9819 | 20 entries, no gaps |
-| Fireflies / glowbugs | 3500-3504 | `YellowFirefly` (`Pug.Base:2719`, lower-case `f` — vanilla is inconsistent here), `BlueFireFly`, `GreenFireFly`, `RedFireFly`, `PurpleFireFly` (`Pug.Base:2723`); carry `FireflyCD`, **not** `CritterCD` |
+| Fireflies / glowbugs | 3500-3504 | `YellowFirefly` (`Pug.Base:ObjectID:YellowFirefly:1`, lower-case `f` — vanilla is inconsistent here), `BlueFireFly`, `GreenFireFly`, `RedFireFly`, `PurpleFireFly` (`Pug.Base:ObjectID:PurpleFireFly:1`); carry `FireflyCD`, **not** `CritterCD` |
 
 Because the fireflies use a different component, following `TryCatchAnyCritters`
 in the decompile leads away from them entirely. They are bug-net catchable
@@ -1112,7 +1169,8 @@ inside: golden plants and `StarlightNautilus` win by rule
 all pairs. It also decides the dish family: the **primary** ingredient's
 `CookingIngredientCD.turnsIntoFood` picks it.
 
-The name is generated per pair (`Pug.Other` ~`Pug.Other:312444`): `foodFormat` composes an
+The name is generated per pair (`Pug.Other`
+~`Pug.Other:PlayerController:GetObjectName:34`): `foodFormat` composes an
 adjective (`FoodAdjectives/<secondary>`), a noun (`FoodNouns/<primary>`) and the
 dish type (`Items/<family>`), with grammatical gender. A "Mushroom Soup" is
 simply mushroom in both slots. Each pair is a genuinely distinct, separately
@@ -1132,15 +1190,16 @@ The arithmetic, measured in game on Core Keeper 1.2.1.5:
 | **Distinct obtainable dishes** | **6,864** — `3,003 × 2` (base + rare, unconditional) `+ 858` (reachable epic) |
 
 **The epic tier is gated, not unconditional.** A `flag` in
-`Pug.Other:336152-336192` guards the epic counter (`num5++`) entirely: it
-requires a Rare-rarity Flower among the ingredients or any Legendary
-ingredient. Without it, only base and rare are reachable — which is why
-2,145 of the 3,003 pairs have an epic `ObjectID`/variation baked into the
-database that no cooking roll can ever produce. That same roll
-(`ChanceToGainExtraCookedFood` → `ChanceForExtraCookedFoodToBeRare`,
-`Pug.Other:336148-336149`) shifts by one tier when `flag` is set: a roll that
-would otherwise add base instead adds rare, and one that would otherwise add
-rare instead adds epic.
+`Pug.Other:InventorySlotUI:IncreaseCookingSkillAndSpawnExtraFoodIfWeShould:32-72`
+guards the epic counter (`num5++`) entirely: it requires a Rare-rarity Flower
+among the ingredients or any Legendary ingredient. Without it, only base and
+rare are reachable — which is why 2,145 of the 3,003 pairs have an epic
+`ObjectID`/variation baked into the database that no cooking roll can ever
+produce. That same roll (`ChanceToGainExtraCookedFood` →
+`ChanceForExtraCookedFoodToBeRare`,
+`Pug.Other:InventorySlotUI:IncreaseCookingSkillAndSpawnExtraFoodIfWeShould:28-29`)
+shifts by one tier when `flag` is set: a roll that would otherwise add base
+instead adds rare, and one that would otherwise add rare instead adds epic.
 
 **Trap: the widely cited wiki figure of 5,550 dishes is wrong.** It lists three
 rarity colours and then multiplies by two — self-contradicting. The code has
