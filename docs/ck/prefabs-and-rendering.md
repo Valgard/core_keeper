@@ -156,27 +156,29 @@ The Editor-or-script rule above is about a mod's own prefab YAML. A vanilla obje
 **graphical prefab** — the GameObject the game pools and instantiates for each spawned
 entity of that object — is a different case: a mod can reach it during the bake and
 change it in memory, and every instance the game spawns afterwards carries the change,
-pooled and reused ones included — on one condition. The pools are built from the
-prefab, not re-read from it: `MemoryManager` queues `CreatePools()` with
-`Manager.RunAfterInitComplete` (`Pug.Other:277791`), and `CreatePools` takes each
-pool's component type from the prefab's `IPoolable` root at that moment
-(`Pug.Other:277811`, `Pug.Other:277817`) and pre-allocates its instances. An edit made
-in the bake lands before that, so the pool is built from the edited prefab — observed:
-all 17 pre-allocated arrow instances carried the swapped root. An edit made after pool
-creation would miss the instances already allocated, and a swapped root would no longer
-match the pool's recorded type. What follows came out of giving seven vanilla signs a
-label and an interaction (`sign-labels`): observed in game across the 1.3.0 hotfixes,
-the full in-game check on 1.3.0.3 in a singleplayer (hosting) client; line numbers
-against 1.3.0.4. The same edit was confirmed on a dedicated server too: a 1.3.0.4 run
-(2026-09-30, one client) logged the same five `edited` lines and no `failed` line on
-the server side. Not yet observed there: a second client.
+pooled and reused ones included — on one condition. The pools are built from the prefab,
+not re-read from it: `MemoryManager` queues `CreatePools()` with
+`Manager.RunAfterInitComplete` (`Pug.Other:MemoryManager:Init:5`), and `CreatePools`
+takes each pool's component type from the prefab's `IPoolable` root at that moment
+(`Pug.Other:MemoryManager:CreatePools:15`, `Pug.Other:MemoryManager:CreatePools:21`) and
+pre-allocates its instances. An edit made in the bake lands before that, so the pool is
+built from the edited prefab — observed: all 17 pre-allocated arrow instances carried
+the swapped root. An edit made after pool creation would miss the instances already
+allocated, and a swapped root would no longer match the pool's recorded type. What
+follows came out of giving seven vanilla signs a label and an interaction
+(`sign-labels`): observed in game across the 1.3.0 hotfixes, the full in-game check on
+1.3.0.3 in a singleplayer (hosting) client; line numbers against 1.3.0.4. The same edit
+was confirmed on a dedicated server too: a 1.3.0.4 run (2026-09-30, one client) logged
+the same five `edited` lines and no `failed` line on the server side. Not yet observed
+there: a second client.
 
 ### The loaded prefab takes components, not children
 
-`PrefabInfo.GetGraphical()` returns the data block's prefab (`Pug.Base:4753`), or the
-legacy `prefab` field's object when the data block does not resolve (`Pug.Base:4755`) —
-in both cases the asset itself, not an instance of it: `gameObject.scene.IsValid()` is
-`false`. On that object, from a converter during the bake:
+`PrefabInfo.GetGraphical()` returns the data block's prefab
+(`Pug.Base:PrefabInfo:GetGraphical:5`), or the legacy `prefab` field's object when the
+data block does not resolve (`Pug.Base:PrefabInfo:GetGraphical:7`) — in both cases the
+asset itself, not an instance of it: `gameObject.scene.IsValid()` is `false`. On that
+object, from a converter during the bake:
 
 - `AddComponent` works, and `Object.DestroyImmediate(component, true)` removes a
   component (the `true` is what permits destroying on an asset).
@@ -201,36 +203,42 @@ for roots whose class body is empty: the five sign prefabs above, whose classes
 (`SignArrow`, `SignPostSkull`, `SignPostBrute`, `YellowWarningSign`, `WoodenSign`) add
 nothing to `EntityMonoBehaviour`. A root that overrides anything loses it — all three
 holoboards play their break effects in their own `OnDeath` (`InfoBoardBroken`
-`Pug.Objects:3050`, `InfoBoardLarge` `Pug.Objects:3062`, `InfoBoardSmall`
-`Pug.Objects:3084`), and the small one also picks its sprite variant in
-`UpdateGraphicsFromObjectInfo` (`Pug.Objects:3092`). Read the class body in
+`Pug.Objects:InfoBoardBroken:OnDeath:1`, `InfoBoardLarge`
+`Pug.Objects:InfoBoardLarge:OnDeath:1`, `InfoBoardSmall`
+`Pug.Objects:InfoBoardSmall:OnDeath:1`), and the small one also picks its sprite variant
+in `UpdateGraphicsFromObjectInfo`
+(`Pug.Objects:InfoBoardSmall:UpdateGraphicsFromObjectInfo:1`). Read the class body in
 `Pug.Objects` before swapping; where it is not empty, the new component belongs beside
 the original root, not in its place.
 
 ### `interactable` must be set, and on a directional object it must be a child
 
-`EntityMonoBehaviour.interactable` (`Pug.Other:283903`) does three jobs, and each
-fails without an error:
+`EntityMonoBehaviour.interactable` (`Pug.Other:EntityMonoBehaviour:interactable:1`) does
+three jobs, and each fails without an error:
 
 - When the graphical object spawns, `CreateGraphicalObjectSystem` copies it into the
-  entity's `InteractableObjectReferenceCD` (`Pug.Other:458924-458928`) — only if it is
-  not null. That reference is how the interaction system gets back to the component
-  whose `onUseActions` it invokes. Left null, the hover outline flickers on and
-  interacting does nothing.
-- `OnSpawn` sets `interactable.transform`'s local rotation and position for the
-  object's direction whenever the entity has a `DirectionCD`
-  (`Pug.Other:284902-284905`). Pointed at the root, that rotates the whole object (its
-  position is restored right after, its rotation is not): on the arrow and the warning
-  signs the sprite and the label turned edge-on to the camera and vanished, while the
-  flat shadow stayed. An object without `DirectionCD` tolerates the root.
+  entity's `InteractableObjectReferenceCD`
+  (`Pug.Other:CreateGraphicalObjectSystem:OnUpdate:151-155`) — only if it is not null.
+  That reference is how the interaction system gets back to the component whose
+  `onUseActions` it invokes. Left null, the hover outline flickers on and interacting
+  does nothing.
+- `OnSpawn` sets `interactable.transform`'s local rotation and position for the object's
+  direction whenever the entity has a `DirectionCD`
+  (`Pug.Other:EntityMonoBehaviour:OnSpawn:8-11`). Pointed at the root, that rotates the
+  whole object (its position is restored right after, its rotation is not): on the arrow
+  and the warning signs the sprite and the label turned edge-on to the camera and
+  vanished, while the flat shadow stayed. An object without `DirectionCD` tolerates the
+  root.
 - The hover outline goes through it too: `EntityMonoBehaviour.UpdateOutline`
-  (`Pug.Other:285379`) switches `interactable.optionalOutlineController`
-  (`Pug.Other:285396`) and the sprite outlines listed in its `subInteractingData`.
-  Outline references copied from another prefab's `InteractableObject` point at that
-  prefab's objects, so they have to be replaced with the object's own sprite.
+  (`Pug.Other:EntityMonoBehaviour:UpdateOutline:1`) switches
+  `interactable.optionalOutlineController`
+  (`Pug.Other:EntityMonoBehaviour:UpdateOutline:18`) and the sprite outlines listed in
+  its `subInteractingData`. Outline references copied from another prefab's
+  `InteractableObject` point at that prefab's objects, so they have to be replaced with
+  the object's own sprite.
 
-`Awake` caches whether the field is set (`Pug.Other:284240`) and, if it is, the
-interactable's local position and rotation (`Pug.Other:284262-284263`), which
+`Awake` caches whether the field is set (`Pug.Other:EntityMonoBehaviour:Awake:5`) and, if it is, the
+interactable's local position and rotation (`Pug.Other:EntityMonoBehaviour:Awake:27-28`), which
 `OnSpawn` later rotates from. So a subclass creates the child, moves the
 `InteractableObject` onto it and points `interactable` at it **before** calling
 `base.Awake()` — assigning the field alone is not enough. The text sign is the shape to
@@ -241,33 +249,36 @@ somewhere in the prefab — and each instance moves it onto a new child in `Awak
 
 ### Interaction triggers need an `InteractableObject` first
 
-`InteractablePostConverter` (`Pug.Other:450327`) runs for every entity that carries a
-`TriggerUseInteractionBuffer` or a `TriggerExitInteractionBuffer` (`Pug.Other:450333`),
-collects the graphical prefab's `InteractableObject`s, and takes the first without
-checking that there is one (`Pug.Other:450368`). A mod that adds either trigger buffer
-to an object whose graphical prefab has no `InteractableObject` makes it throw there:
-ECS initialisation failed, and the game hung on its way out. That hang was observed
-only on a Wine (CrossOver) host; what the same exception does elsewhere is
+`InteractablePostConverter` (`Pug.Other:InteractablePostConverter:1`) runs for every
+entity that carries a `TriggerUseInteractionBuffer` or a `TriggerExitInteractionBuffer`
+(`Pug.Other:InteractablePostConverter:PostConvert:5`), collects the graphical prefab's
+`InteractableObject`s, and takes the first without checking that there is one
+(`Pug.Other:InteractablePostConverter:PostConvert:40`). A mod that adds either trigger
+buffer to an object whose graphical prefab has no `InteractableObject` makes it throw
+there: ECS initialisation failed, and the game hung on its way out. That hang was
+observed only on a Wine (CrossOver) host; what the same exception does elsewhere is
 **unverified**, but the failed initialisation is not host-specific. Add the trigger
 components only once the edit that supplies the `InteractableObject` has verifiably
 succeeded, and never speculatively.
 
 That first `InteractableObject` is also where the interaction's shape comes from. The
 post converter bakes the per-direction interaction point from its transform
-(`Pug.Other:450373`) and its radius and flags into `InteractableBlobData`
-(`Pug.Other:450385-450392`) — the component as it sits on the asset at bake time. Moving
-it onto a child at runtime does not change what was baked, so its radius and its
-position on the asset are what decide where and from how far the object can be used.
+(`Pug.Other:InteractablePostConverter:PostConvert:45`) and its radius and flags into
+`InteractableBlobData` (`Pug.Other:InteractablePostConverter:PostConvert:57-64`) — the
+component as it sits on the asset at bake time. Moving it onto a child at runtime does
+not change what was baked, so its radius and its position on the asset are what decide
+where and from how far the object can be used.
 
 The vanilla route to those components, `LocalInteractableAuthoring` →
 `LocalInteractableConverter`, adds them only when the first `InteractableObject`'s
 `onUseActions` or `onTriggerExitActions` carries a **persistent** UnityEvent call
-(`Interaction.Converters:135`); otherwise it logs *"No local interaction events
-registered on entity"* (`Interaction.Converters:104`) and adds nothing. Persistent calls
-are authored in the Editor. A mod can only obtain them by copying an existing
-`InteractableObject`, and the copies still target the source prefab's component — the
-text sign's, in this case — not the mod's. So a mod's own `Converter` adds what that
-converter would: for a primary use interaction `TriggerUseInteractionBuffer`,
+(`Interaction.Converters:LocalInteractableConverter:HasAnyRegisteredInteraction:5`);
+otherwise it logs *"No local interaction events registered on entity"*
+(`Interaction.Converters:LocalInteractableConverter:Convert:24`) and adds nothing.
+Persistent calls are authored in the Editor. A mod can only obtain them by copying an
+existing `InteractableObject`, and the copies still target the source prefab's component
+— the text sign's, in this case — not the mod's. So a mod's own `Converter` adds what
+that converter would: for a primary use interaction `TriggerUseInteractionBuffer`,
 `LocalUseInteractionTriggerCD` (disabled) and `LocalUseInteractionTriggerSubIndexCD {
 subIndex = 0 }`, and for an exit action — vanilla adds this pair only when
 `onTriggerExitActions` has a persistent call — `TriggerExitInteractionBuffer` and
@@ -580,7 +591,7 @@ material bug, and it is a pure off-by-one.
 
 ## PugText that switches itself off
 
-`PugText.Start()` (`Pug.Other:367915`) is:
+`PugText.Start()` (`Pug.Other:PugText:Start:1`) is:
 
 ```csharp
 if (!renderOnStart) { if (!keepEnabledOnStart) { gameObject.SetActive(false); } return; }
@@ -740,7 +751,7 @@ Which charset a face uses differs per face. `thinTiny` carries its own `_customC
 but it does not start at ASCII 33: index 0 is unmapped (`glyphs[0]` carries no `chars`)
 and `'!'` sits at index 1 — the charset holds 118 entries for 114 actual codepoints.
 `thinSmall` uses the shared static `latinCharset`; the `charset` property
-(`Pug.Other:366911`) picks `_customCharset` whenever it is not null or whitespace.
+(`Pug.Other:PugFont:charset:1`) picks `_customCharset` whenever it is not null or whitespace.
 `thinTiny`'s 114 codepoints are a **true subset** of `thinSmall`'s 331 — the difference
 measures empty, so going from one to the other is a pure gain of 217 characters.
 
@@ -1156,8 +1167,9 @@ exactly — this is one to finish by looking, not by arithmetic.
 ### Horizontal placement: the drawn edge is a measured value
 
 `PugText.dimensions` is a `Rect`, not just the height the formula above uses, and
-`PugFont.Render` fills its horizontal bounds **per alignment** (`Pug.Other:367237` for
-left, `Pug.Other:367242` centre, `Pug.Other:367258` right). Where `xMin` ends up:
+`PugFont.Render` fills its horizontal bounds **per alignment**
+(`Pug.Other:PugFont:Render:254` for left, `Pug.Other:PugFont:Render:259` centre,
+`Pug.Other:PugFont:Render:275` right). Where `xMin` ends up:
 
 | `horizontalAlignment` | `dimensions.xMin` lands |
 |---|---|
@@ -1174,7 +1186,8 @@ float leftEdge = text.transform.localPosition.x + text.dimensions.xMin;
 
 is the left edge of what is actually on screen, **for any alignment**, without knowing a
 single glyph width. CK positions its own text-field caret exactly this way
-(`Pug.Other:359849`). Verified in game for left- and right-aligned rows.
+(`Pug.Other:RadicalMenuOptionTextInput:Update:11`). Verified in game for left- and
+right-aligned rows.
 
 **The consequence for anything placed beside a text row.** With right-aligned text the
 row grows leftwards, so that left edge moves whenever the string gains a character. An
@@ -1189,12 +1202,12 @@ Three properties decide whether what you read out of it is a measurement or a le
 
 **The draw writes it synchronously.** `PugText.Render` reaches `PugFont.Render` within
 the same call, and that assigns `pooledObj.dimensions` before returning
-(`Pug.Other:367278`). There is no deferred layout pass to wait for, which is what makes
+(`Pug.Other:PugFont:Render:295`). There is no deferred layout pass to wait for, which is what makes
 the usual ordering sound: a mod's `IMod.Update` renders the string, the element's
 `LateUpdate` places against it, and the value read there belongs to this frame.
 
 **It survives hide and show.** `OnDisable` releases the glyphs only when
-`freeResourcesOnDisable` is set (`Pug.Other:367962`), and `OnEnable`'s repaint is gated
+`freeResourcesOnDisable` is set (`Pug.Other:PugText:OnDisable:8`), and `OnEnable`'s repaint is gated
 on `renderOnStart`. With the flags an always-on HUD wants anyway — `renderOnStart: 0`,
 `keepEnabledOnStart: 1`, `freeResourcesOnDisable: 0` — both the glyphs and the Rect
 outlive every toggle. So the empty-Rect window opens exactly **once per session**, on the

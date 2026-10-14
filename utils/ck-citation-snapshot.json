@@ -188,10 +188,10 @@
     "DedicatedServer/PugMod.Loader:2236": [
       "return CreateRuntimeInstance(type, modId, DataBlockAddress.NewAddress(), overloadExisting: false);"
     ],
-    "Interaction.Converters:104": [
+    "Interaction.Converters:LocalInteractableConverter:Convert:24": [
       "UnityEngine.Debug.LogError(\"No local interaction events registered on entity. \" + authoring.gameObject.name, authoring.gameObject);"
     ],
-    "Interaction.Converters:135": [
+    "Interaction.Converters:LocalInteractableConverter:HasAnyRegisteredInteraction:5": [
       "if (interactableOnUseAction.GetPersistentEventCount() > 0)"
     ],
     "LoadItemDictSystem.cs:87": [
@@ -294,14 +294,14 @@
     "Pug.Base:4709": [
       "public class CraftingObject"
     ],
-    "Pug.Base:4753": [
-      "return dataBlock.prefab;"
-    ],
-    "Pug.Base:4755": [
-      "return prefab?.gameObject;"
-    ],
     "Pug.Base:4889": [
       "PlaceablePrefab = 800,"
+    ],
+    "Pug.Base:PrefabInfo:GetGraphical:5": [
+      "return dataBlock.prefab;"
+    ],
+    "Pug.Base:PrefabInfo:GetGraphical:7": [
+      "return prefab?.gameObject;"
     ],
     "Pug.ControlMapping:302-320": [
       "private void PollForInput()",
@@ -490,16 +490,16 @@
     "Pug.Mods:714": [
       "lootTableBank.OnAfterDeserialize();"
     ],
-    "Pug.Objects:3050": [
+    "Pug.Objects:InfoBoardBroken:OnDeath:1": [
       "protected override void OnDeath()"
     ],
-    "Pug.Objects:3062": [
+    "Pug.Objects:InfoBoardLarge:OnDeath:1": [
       "protected override void OnDeath()"
     ],
-    "Pug.Objects:3084": [
+    "Pug.Objects:InfoBoardSmall:OnDeath:1": [
       "protected override void OnDeath()"
     ],
-    "Pug.Objects:3092": [
+    "Pug.Objects:InfoBoardSmall:UpdateGraphicsFromObjectInfo:1": [
       "public override void UpdateGraphicsFromObjectInfo(ObjectInfo info)"
     ],
     "Pug.Other:133529": [
@@ -1206,15 +1206,6 @@
     "Pug.Other:276332": [
       "public bool SystemIsUsingMouse()"
     ],
-    "Pug.Other:277791": [
-      "Manager.RunAfterInitComplete(CreatePools());"
-    ],
-    "Pug.Other:277811": [
-      "UnityEngine.Component component = dataBlock2.prefab.GetComponent<IPoolable>() as UnityEngine.Component;"
-    ],
-    "Pug.Other:277817": [
-      "Type type = component.GetType();"
-    ],
     "Pug.Other:278031": [
       "private TimerSimple sfxCooldownTimer = new TimerSimple(0.05f, unscaled: true);"
     ],
@@ -1435,28 +1426,6 @@
     ],
     "Pug.Other:2839": [
       "IEnumerator convertAuthoringData = ConvertAuthoringData(ClientWorld, frameWorkloadTimer);"
-    ],
-    "Pug.Other:283903": [
-      "public InteractableObject interactable;"
-    ],
-    "Pug.Other:284240": [
-      "hasInteractable = interactable != null;"
-    ],
-    "Pug.Other:284262-284263": [
-      "interactableDefaultPosition = interactable.transform.localPosition;",
-      "interactableDefaultRotation = interactable.transform.localRotation;"
-    ],
-    "Pug.Other:284902-284905": [
-      "if (hasInteractable && entityComponentLookup.HasComponentData<DirectionCD>())",
-      "{",
-      "DirectionCD.RotateTransform(interactableDefaultRotation, interactableDefaultPosition, DirectionBasedOnVariationCD.GetVariationFromDirection(direction.RoundToInt2()), objectInfo.prefabCornerOffset.ToInt2(), objectInfo.prefabTileSize.ToInt2(), out var newOrientation, out var newTranslation);",
-      "interactable.transform.SetLocalPositionAndRotation(newTranslation, newOrientation);"
-    ],
-    "Pug.Other:285379": [
-      "public void UpdateOutline(OutlineType outlineType, int outlineSubIndex)"
-    ],
-    "Pug.Other:285396": [
-      "interactable.optionalOutlineController.showOutline = flag;"
     ],
     "Pug.Other:285663-285666": [
       "i2LanguageData.ClearAllData();",
@@ -2026,9 +1995,6 @@
     "Pug.Other:359839": [
       "protected override void Update()"
     ],
-    "Pug.Other:359849": [
-      "float num = pugText.transform.position.x + pugText.dimensions.xMin + 1f / 32f;"
-    ],
     "Pug.Other:359849-359850": [
       "float num = pugText.transform.position.x + pugText.dimensions.xMin + 1f / 32f;",
       "num += ((currentCharIndex > 0 && currentCharIndex <= pugText.localCharacterEndPositions.Count) ? pugText.localCharacterEndPositions[currentCharIndex - 1].x : 0f);"
@@ -2077,9 +2043,6 @@
     "Pug.Other:366093-366094": [
       "jumpCooloff.Start();",
       "colorCooloff.Start();"
-    ],
-    "Pug.Other:366911": [
-      "public string charset"
     ],
     "Pug.Other:366995-366997": [
       "bool flag = LocalizationManager.IsRight2Left && localized;",
@@ -2161,9 +2124,6 @@
       "pooledObj.dimensions = dimensions;",
       "}"
     ],
-    "Pug.Other:367278": [
-      "pooledObj.dimensions = dimensions;"
-    ],
     "Pug.Other:367416-367428": [
       "int num12 = gd.rect.width - num11;",
       "num10 += (float)num11 / pixelsPerUnit;",
@@ -2239,9 +2199,6 @@
       "if (defaultStyle.horizontalAlignment == PugTextStyle.HorizontalAlignment.left)",
       "{",
       "style.horizontalAlignment = PugTextStyle.HorizontalAlignment.right;"
-    ],
-    "Pug.Other:367915": [
-      "private void Start()"
     ],
     "Pug.Other:367933": [
       "private void OnDestroy()"
@@ -2588,28 +2545,6 @@
       "JobHandle job = __ScheduleViaJobChunkExtension_0(new EquippedSlotChangeJob",
       "{"
     ],
-    "Pug.Other:450327": [
-      "public class InteractablePostConverter : PostConverter"
-    ],
-    "Pug.Other:450333": [
-      "if (!base.EntityManager.HasComponent<TriggerUseInteractionBuffer>(entity) && !base.EntityManager.HasComponent<TriggerExitInteractionBuffer>(entity))"
-    ],
-    "Pug.Other:450368": [
-      "InteractableObject interactableObject = array[0];"
-    ],
-    "Pug.Other:450373": [
-      "DirectionCD.RotateTransform(interactableObject.transform.rotation, interactableObject.transform.position, DirectionBasedOnVariationCD.GetVariationFromDirection(direction), objectInfo.prefabCornerOffset.ToInt2(), objectInfo.prefabTileSize.ToInt2(), out var _, out var newTranslation);"
-    ],
-    "Pug.Other:450385-450392": [
-      "interactRadiusSqr = interactableObject.radius * interactableObject.radius,",
-      "requiredFactionToInteract = interactableObject.requiredFactionToInteract,",
-      "allowToUseOnlyWhenClaimed = interactableObject.allowToUseOnlyWhenClaimed,",
-      "weightMultiplier = interactableObject.weightMultiplier,",
-      "directionOffset = fourDirectionFloat,",
-      "ignorePlayerDirection = interactableObject.ignorePlayerDirection,",
-      "ignorePlayerDirectionRadiusPercentage = interactableObject.ignorePlayerDirectionRadiusPercentage,",
-      "requireLineOfSight = interactableObject.requireLineOfSight"
-    ],
     "Pug.Other:454475-454482": [
       "data.targetEntity = Entity.Null;",
       "if (num != 0 && state.ghostMap.TryGetValue(new SpawnedGhost",
@@ -2619,13 +2554,6 @@
       "}, out var item))",
       "{",
       "data.targetEntity = item;"
-    ],
-    "Pug.Other:458924-458928": [
-      "if (component.interactable != null)",
-      "{",
-      "entityCommandBuffer.SetComponent(current2.SpawnedObject.PrimaryEntity, new InteractableObjectReferenceCD",
-      "{",
-      "Value = component.interactable"
     ],
     "Pug.Other:90860": [
       "amount = math.max(1, alwaysDropOneLookup.HasComponent(entity) ? 1 : objectData.amount),"
@@ -2693,6 +2621,13 @@
     "Pug.Other:ConvertOldMapMarkersSystem:OnUpdate:4": [
       "if (__query_927245375_1.TryGetSingleton<WorldVersionSerializedCD>(out var value) && value.Version >= 13)"
     ],
+    "Pug.Other:CreateGraphicalObjectSystem:OnUpdate:151-155": [
+      "if (component.interactable != null)",
+      "{",
+      "entityCommandBuffer.SetComponent(current2.SpawnedObject.PrimaryEntity, new InteractableObjectReferenceCD",
+      "{",
+      "Value = component.interactable"
+    ],
     "Pug.Other:DropSelfJob:22": [
       "private struct DropSelfJob : IJobEntity, IJobChunk"
     ],
@@ -2754,6 +2689,28 @@
     ],
     "Pug.Other:ECSManager:Update:7": [
       "if (ServerWorld != null)"
+    ],
+    "Pug.Other:EntityMonoBehaviour:Awake:27-28": [
+      "interactableDefaultPosition = interactable.transform.localPosition;",
+      "interactableDefaultRotation = interactable.transform.localRotation;"
+    ],
+    "Pug.Other:EntityMonoBehaviour:Awake:5": [
+      "hasInteractable = interactable != null;"
+    ],
+    "Pug.Other:EntityMonoBehaviour:OnSpawn:8-11": [
+      "if (hasInteractable && entityComponentLookup.HasComponentData<DirectionCD>())",
+      "{",
+      "DirectionCD.RotateTransform(interactableDefaultRotation, interactableDefaultPosition, DirectionBasedOnVariationCD.GetVariationFromDirection(direction.RoundToInt2()), objectInfo.prefabCornerOffset.ToInt2(), objectInfo.prefabTileSize.ToInt2(), out var newOrientation, out var newTranslation);",
+      "interactable.transform.SetLocalPositionAndRotation(newTranslation, newOrientation);"
+    ],
+    "Pug.Other:EntityMonoBehaviour:UpdateOutline:1": [
+      "public void UpdateOutline(OutlineType outlineType, int outlineSubIndex)"
+    ],
+    "Pug.Other:EntityMonoBehaviour:UpdateOutline:18": [
+      "interactable.optionalOutlineController.showOutline = flag;"
+    ],
+    "Pug.Other:EntityMonoBehaviour:interactable:1": [
+      "public InteractableObject interactable;"
     ],
     "Pug.Other:EntityUtility:AddTile:16-26": [
       "if (tile.tileType == PugTilemap.TileType.wall)",
@@ -2875,6 +2832,28 @@
     "Pug.Other:HoeSlot:Dig:82": [
       "if (diggableEntityAndInfo2.objectID == ObjectID.DiggingSpot && top.tileset == 0)"
     ],
+    "Pug.Other:InteractablePostConverter:1": [
+      "public class InteractablePostConverter : PostConverter"
+    ],
+    "Pug.Other:InteractablePostConverter:PostConvert:40": [
+      "InteractableObject interactableObject = array[0];"
+    ],
+    "Pug.Other:InteractablePostConverter:PostConvert:45": [
+      "DirectionCD.RotateTransform(interactableObject.transform.rotation, interactableObject.transform.position, DirectionBasedOnVariationCD.GetVariationFromDirection(direction), objectInfo.prefabCornerOffset.ToInt2(), objectInfo.prefabTileSize.ToInt2(), out var _, out var newTranslation);"
+    ],
+    "Pug.Other:InteractablePostConverter:PostConvert:5": [
+      "if (!base.EntityManager.HasComponent<TriggerUseInteractionBuffer>(entity) && !base.EntityManager.HasComponent<TriggerExitInteractionBuffer>(entity))"
+    ],
+    "Pug.Other:InteractablePostConverter:PostConvert:57-64": [
+      "interactRadiusSqr = interactableObject.radius * interactableObject.radius,",
+      "requiredFactionToInteract = interactableObject.requiredFactionToInteract,",
+      "allowToUseOnlyWhenClaimed = interactableObject.allowToUseOnlyWhenClaimed,",
+      "weightMultiplier = interactableObject.weightMultiplier,",
+      "directionOffset = fourDirectionFloat,",
+      "ignorePlayerDirection = interactableObject.ignorePlayerDirection,",
+      "ignorePlayerDirectionRadiusPercentage = interactableObject.ignorePlayerDirectionRadiusPercentage,",
+      "requireLineOfSight = interactableObject.requireLineOfSight"
+    ],
     "Pug.Other:ListConnectedPlayers:Update:29": [
       "else if (menuType == PlayersListType.UNASSIGN_ADMIN)"
     ],
@@ -2920,6 +2899,15 @@
     ],
     "Pug.Other:MapUI:PlaceMarker:7": [
       "variation = 0"
+    ],
+    "Pug.Other:MemoryManager:CreatePools:15": [
+      "UnityEngine.Component component = dataBlock2.prefab.GetComponent<IPoolable>() as UnityEngine.Component;"
+    ],
+    "Pug.Other:MemoryManager:CreatePools:21": [
+      "Type type = component.GetType();"
+    ],
+    "Pug.Other:MemoryManager:Init:5": [
+      "Manager.RunAfterInitComplete(CreatePools());"
     ],
     "Pug.Other:ModAPIConfig:Set:20": [
       "string s = JsonUtility.ToJson(modConfigFile, prettyPrint: true);"
@@ -3673,6 +3661,27 @@
     "Pug.Other:PlayerController:guestMode:1": [
       "public bool guestMode"
     ],
+    "Pug.Other:PugFont:Render:254": [
+      "dimensions.xMin = 0f + num2;"
+    ],
+    "Pug.Other:PugFont:Render:259": [
+      "dimensions.xMin = RoundToPixelPerfectPosition.RoundFloat((0f - num7) / 2f) + num2;"
+    ],
+    "Pug.Other:PugFont:Render:275": [
+      "dimensions.xMin = 0f - num7 + num2;"
+    ],
+    "Pug.Other:PugFont:Render:295": [
+      "pooledObj.dimensions = dimensions;"
+    ],
+    "Pug.Other:PugFont:charset:1": [
+      "public string charset"
+    ],
+    "Pug.Other:PugText:OnDisable:8": [
+      "if (freeResourcesOnDisable)"
+    ],
+    "Pug.Other:PugText:Start:1": [
+      "private void Start()"
+    ],
     "Pug.Other:RadicalJoinGameMenu:Join:10": [
       "Manager.ecs.StartEcs(startClient: true, -1, frameWorkloadTimer, delegate(bool result)"
     ],
@@ -3681,6 +3690,9 @@
     ],
     "Pug.Other:RadicalMainMenuOption_OpenMods:OpenModUI:1": [
       "private void OpenModUI()"
+    ],
+    "Pug.Other:RadicalMenuOptionTextInput:Update:11": [
+      "float num = pugText.transform.position.x + pugText.dimensions.xMin + 1f / 32f;"
     ],
     "Pug.Other:RpcSerializer:Deserialize:9-10": [
       "data.entity0 = Entity.Null;",
