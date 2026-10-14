@@ -13,33 +13,6 @@
       "_helpButtonList: 0600000005000000000000000100000002000000",
       "_helpButtonListNoJoystick: 05000000000000000100000002000000"
     ],
-    "DedicatedServer/Pug.Other:133510": [
-      "UnityEngine.Debug.Log(\"Skipping load inventory by PlayerWasLastConnectedToThisServer\");"
-    ],
-    "DedicatedServer/Pug.Other:2542": [
-      "conversionManager.EnqueueGameObjectHierarchy(Manager.ecs.serverAuthoringPrefab);"
-    ],
-    "DedicatedServer/Pug.Other:2549": [
-      "Manager.mod.Authoring.ObjectProperties = entityQuery.GetSingleton<DatabaseCD>().ObjectPropertyLookup.AsEnum<ObjectID>();"
-    ],
-    "DedicatedServer/Pug.Other:2785": [
-      "Integration.Instance.Update();"
-    ],
-    "DedicatedServer/Pug.Other:302705": [
-      "bool flag9 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
-    ],
-    "DedicatedServer/Pug.Other:303123": [
-      "bool flag4 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
-    ],
-    "DedicatedServer/Pug.Other:318309": [
-      "if (diggableEntityAndInfo2.objectID == ObjectID.DiggingSpot && top.tileset == 0)"
-    ],
-    "DedicatedServer/Pug.Other:3617": [
-      "list.Sort();"
-    ],
-    "DedicatedServer/Pug.Other:423184": [
-      "InventoryUtility.Craft(in inventoryHandlerShared, inventories[0], componentData2, inventories, new CanCraftObjectsBuffer"
-    ],
     "DedicatedServer/Pug.Other:AchievementSystem:TriggerAchievementForEveryone:1": [
       "public static void TriggerAchievementForEveryone(EntityCommandBuffer ecb, EntityArchetype rpcArchetype, AchievementID achievementID)"
     ],
@@ -51,6 +24,12 @@
     ],
     "DedicatedServer/Pug.Other:ECSManager:Init:13": [
       "TargetWorld = World.DefaultGameObjectInjectionWorld,"
+    ],
+    "DedicatedServer/Pug.Other:ECSManager:Init:24": [
+      "conversionManager.EnqueueGameObjectHierarchy(Manager.ecs.serverAuthoringPrefab);"
+    ],
+    "DedicatedServer/Pug.Other:ECSManager:Init:31": [
+      "Manager.mod.Authoring.ObjectProperties = entityQuery.GetSingleton<DatabaseCD>().ObjectPropertyLookup.AsEnum<ObjectID>();"
     ],
     "DedicatedServer/Pug.Other:ECSManager:PauseWorld:1-23": [
       "private void PauseWorld(World world)",
@@ -99,6 +78,9 @@
     "DedicatedServer/Pug.Other:ECSManager:UnloadWorldsInternal:25": [
       "BurstDisabler.ResetWorlds();"
     ],
+    "DedicatedServer/Pug.Other:HoeSlot:Dig:82": [
+      "if (diggableEntityAndInfo2.objectID == ObjectID.DiggingSpot && top.tileset == 0)"
+    ],
     "DedicatedServer/Pug.Other:Manager:EarlyInit:1": [
       "[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]"
     ],
@@ -141,8 +123,20 @@
     "DedicatedServer/Pug.Other:NetworkingManager:OnPlayerConnect:6": [
       "if (adminList.adminList.Count == 0 || isLocalPlayer)"
     ],
+    "DedicatedServer/Pug.Other:PlacementHandlerDigging:CanPlaceObjectAtPosition:131": [
+      "bool flag9 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
+    ],
+    "DedicatedServer/Pug.Other:PlacementHandlerSeeder:CanPlaceObjectAtPosition:116": [
+      "bool flag4 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
+    ],
     "DedicatedServer/Pug.Other:PlayerAdminEntry:Equals(PlayerAdminEntry):5": [
       "if (crossPlatformId != 0L && other.crossPlatformId != 0L)"
+    ],
+    "DedicatedServer/Pug.Other:ProcessCraftingJob:Execute:32": [
+      "InventoryUtility.Craft(in inventoryHandlerShared, inventories[0], componentData2, inventories, new CanCraftObjectsBuffer"
+    ],
+    "DedicatedServer/Pug.Other:PugDatabaseConverter:Convert:15": [
+      "list.Sort();"
     ],
     "DedicatedServer/Pug.Other:RGBManager:1": [
       "public class RGBManager : ManagerBase"
@@ -185,7 +179,10 @@
     "DedicatedServer/Pug.Other:StandaloneFilesystem:StandaloneFilesystem(string, string, \u2026):1": [
       "public StandaloneFilesystem(string partition, string subFolder, PlatformInterface platformInterface)"
     ],
-    "DedicatedServer/PugMod.Loader:2236": [
+    "DedicatedServer/Pug.Other:StartGameRPCSystem:OnUpdate:41": [
+      "UnityEngine.Debug.Log(\"Skipping load inventory by PlayerWasLastConnectedToThisServer\");"
+    ],
+    "DedicatedServer/PugMod.Loader:RuntimeDataBlocks:CreateRuntimeInstance(Type, long):3": [
       "return CreateRuntimeInstance(type, modId, DataBlockAddress.NewAddress(), overloadExisting: false);"
     ],
     "Interaction.Converters:LocalInteractableConverter:Convert:24": [
@@ -194,23 +191,23 @@
     "Interaction.Converters:LocalInteractableConverter:HasAnyRegisteredInteraction:5": [
       "if (interactableOnUseAction.GetPersistentEventCount() > 0)"
     ],
-    "LoadItemDictSystem.cs:87": [
+    "LoadItemDictSystem.cs:LoadItemDictSystem:AddItemFriendlyNames:4": [
       "var modAuthoring = (API.Authoring as ModAPIAuthoring)?.ObjectIDLookup;"
     ],
     "LocalizationModule.cs:132": [
       "localizationSourceData.AddLanguage(translations.LocalizationName, translations.LocalizationCode);"
     ],
-    "Pug.Base:17292": [
-      "public void OnAfterDeserialize()"
-    ],
-    "Pug.Base:17334": [
-      "private void InitLoot(List<LootInfo> lootInfos, int minUniqueDrops, int maxUniqueDrops, List<LootInfo> guaranteedLootInfos)"
-    ],
-    "Pug.Base:4709": [
-      "public class CraftingObject"
-    ],
     "Pug.Base:Constants:defaultSimulationTickRate:1": [
       "public const int defaultSimulationTickRate = 20;"
+    ],
+    "Pug.Base:CraftingObject:2": [
+      "public class CraftingObject"
+    ],
+    "Pug.Base:LootTableBank:InitLoot:1": [
+      "private void InitLoot(List<LootInfo> lootInfos, int minUniqueDrops, int maxUniqueDrops, List<LootInfo> guaranteedLootInfos)"
+    ],
+    "Pug.Base:LootTableBank:OnAfterDeserialize:1": [
+      "public void OnAfterDeserialize()"
     ],
     "Pug.Base:MapMarkerIconDataBlock:1": [
       "public class MapMarkerIconDataBlock : ScriptableDataBlock"
@@ -341,20 +338,20 @@
       "}",
       "return _helpButtonList;"
     ],
-    "Pug.ECS.Authoring:2896": [
+    "Pug.ECS.Authoring:CraftingObject:2": [
       "public struct CraftingObject"
     ],
-    "Pug.ECS.Authoring:2983": [
-      "objectIndex = (int)objectInfo.objectID;"
-    ],
-    "Pug.ECS.Authoring:2992": [
-      "objectID = API.Authoring.GetObjectID(objectAuthoring.objectName);"
-    ],
-    "Pug.ECS.Authoring:3031": [
+    "Pug.ECS.Authoring:ObjectAuthoring:ObjectAuthoringToObjectInfo:45": [
       "foreach (InventoryItemAuthoring.CraftingObject item in component2.requiredObjectsToCraft)"
     ],
-    "Pug.ECS.Authoring:3033": [
+    "Pug.ECS.Authoring:ObjectAuthoring:ObjectAuthoringToObjectInfo:47": [
       "ObjectID objectID2 = ((API.Authoring != null) ? API.Authoring.GetObjectID(item.objectName) : ObjectID.None);"
+    ],
+    "Pug.ECS.Authoring:ObjectAuthoring:ObjectAuthoringToObjectInfo:6": [
+      "objectID = API.Authoring.GetObjectID(objectAuthoring.objectName);"
+    ],
+    "Pug.ECS.Authoring:ObjectAuthoring:TryGetPreferredObjectIndex:9": [
+      "objectIndex = (int)objectInfo.objectID;"
     ],
     "Pug.ECS.Authoring:PlaceableObjectAuthoring:canBePlacedOnObjects:1": [
       "public List<ObjectID> canBePlacedOnObjects;"
@@ -432,33 +429,6 @@
     "Pug.ECS.Components:WorldInfoCD:guestMode:1": [
       "[GhostField]"
     ],
-    "Pug.ECS.Conversion:1690": [
-      "if (craftingAuthoring.includeCraftedObjectsFromBuildings != null)"
-    ],
-    "Pug.ECS.Conversion:1707": [
-      "AddToBuffer(new IncludedCraftingBuildingsBuffer"
-    ],
-    "Pug.ECS.Conversion:1765": [
-      "ObjectID objectID = API.Authoring.GetObjectID(recipe.moddedObjectID);"
-    ],
-    "Pug.ECS.Conversion:2551": [
-      "List<LootTable> list = ((!Application.isPlaying) ? LootTableBank.GetTable().GetLootTables() : Manager.mod.LootTable);"
-    ],
-    "Pug.ECS.Conversion:3507": [
-      "Value = GetPrefabDependency(prefab)"
-    ],
-    "Pug.ECS.Conversion:3572": [
-      "Manager.mod.Authoring.ObjectIDLookup.TryAdd(authoring.objectName, (ObjectID)base.ObjectIndex);"
-    ],
-    "Pug.ECS.Conversion:3576": [
-      "base.PropertiesBuilder.SetPropertyString(base.ObjectIndex, \"name\", authoring.objectName);"
-    ],
-    "Pug.ECS.Conversion:5815": [
-      "string text = authoring.objectInfo.objectID.ToString();"
-    ],
-    "Pug.ECS.Conversion:5818": [
-      "Manager.mod.Authoring.ObjectIDLookup.TryAdd(text, authoring.objectInfo.objectID);"
-    ],
     "Pug.ECS.Conversion:DestructibleObjectConverter:1-11": [
       "public class DestructibleObjectConverter : SingleAuthoringComponentConverter<DestructibleObjectAuthoring>",
       "{",
@@ -478,6 +448,30 @@
     "Pug.ECS.Conversion:EntityMonoBehaviourDataConverter:Convert:26": [
       "AddComponentData(new ObjectCategoryTagsCD"
     ],
+    "Pug.ECS.Conversion:EntityMonoBehaviourDataConverter:Convert:3": [
+      "string text = authoring.objectInfo.objectID.ToString();"
+    ],
+    "Pug.ECS.Conversion:EntityMonoBehaviourDataConverter:Convert:6": [
+      "Manager.mod.Authoring.ObjectIDLookup.TryAdd(text, authoring.objectInfo.objectID);"
+    ],
+    "Pug.ECS.Conversion:InventoryConverter:AddRecipe:5": [
+      "ObjectID objectID = API.Authoring.GetObjectID(recipe.moddedObjectID);"
+    ],
+    "Pug.ECS.Conversion:InventoryConverter:SetupCanCraftBuffer:10": [
+      "if (craftingAuthoring.includeCraftedObjectsFromBuildings != null)"
+    ],
+    "Pug.ECS.Conversion:InventoryConverter:SetupCanCraftBuffer:27": [
+      "AddToBuffer(new IncludedCraftingBuildingsBuffer"
+    ],
+    "Pug.ECS.Conversion:LootTableConverter:Convert:5": [
+      "List<LootTable> list = ((!Application.isPlaying) ? LootTableBank.GetTable().GetLootTables() : Manager.mod.LootTable);"
+    ],
+    "Pug.ECS.Conversion:ObjectConverter:Convert:5": [
+      "Manager.mod.Authoring.ObjectIDLookup.TryAdd(authoring.objectName, (ObjectID)base.ObjectIndex);"
+    ],
+    "Pug.ECS.Conversion:ObjectConverter:Convert:9": [
+      "base.PropertiesBuilder.SetPropertyString(base.ObjectIndex, \"name\", authoring.objectName);"
+    ],
     "Pug.ECS.Conversion:PetConverter:Convert:3": [
       "int maxSkins = PetInfosTable.GetTable().GetPetSkinInfo((ObjectID)base.ObjectIndex)?.skins.Count ?? 0;"
     ],
@@ -487,7 +481,10 @@
     "Pug.ECS.Conversion:PlaceableObjectConverter:Convert:67": [
       "SetPropertyList(\"PlaceableObject/canBePlacedOnObjects\", authoring.canBePlacedOnObjects);"
     ],
-    "Pug.Mods:714": [
+    "Pug.ECS.Conversion:PugPrefabBufferConverter:Convert:8": [
+      "Value = GetPrefabDependency(prefab)"
+    ],
+    "Pug.Mods:LootTable:Init:37": [
       "lootTableBank.OnAfterDeserialize();"
     ],
     "Pug.Objects:InfoBoardBroken:OnDeath:1": [
@@ -502,53 +499,8 @@
     "Pug.Objects:InfoBoardSmall:UpdateGraphicsFromObjectInfo:1": [
       "public override void UpdateGraphicsFromObjectInfo(ObjectInfo info)"
     ],
-    "Pug.Other:133529": [
-      "UnityEngine.Debug.Log(\"Skipping load inventory by PlayerWasLastConnectedToThisServer\");"
-    ],
-    "Pug.Other:133539": [
-      "if (characterData.inventoryObjectNames.Count > i && characterData.inventory.Count > i && characterData.inventory[i].objectID >= (ObjectID)32767 && !string.IsNullOrEmpty(characterData.inventoryObjectNames[i]))"
-    ],
-    "Pug.Other:133541": [
-      "ObjectID objectID = API.Authoring.GetObjectID(characterData.inventoryObjectNames[i]);"
-    ],
     "Pug.Other:135471": [
       "Manager.input.touchpadInUse = inputModule.WasButtonPressedDownThisFrame(PlayerInput.InputType.TOUCHPAD);"
-    ],
-    "Pug.Other:176409": [
-      "if (oldObjectId > ObjectID.None && oldObjectId < (ObjectID)32767)"
-    ],
-    "Pug.Other:176415": [
-      "if (oldObjectId >= ObjectID.None && !previous.TryGetPropertyString((int)oldObjectId, NamePropertyId, out value2))"
-    ],
-    "Pug.Other:176425": [
-      "nameToObjectID.TryGetValue(value2, out value);"
-    ],
-    "Pug.Other:2550": [
-      "ConfigurePostConverters(conversionManager);"
-    ],
-    "Pug.Other:2551": [
-      "PugDatabase.UpdateEntityMonos(PugDatabase.BuildAuthoringListFromEntityDataBlocks());"
-    ],
-    "Pug.Other:2553": [
-      "conversionManager.EnqueueGameObjectHierarchy(Manager.ecs.serverAuthoringPrefab);"
-    ],
-    "Pug.Other:2554": [
-      "conversionManager.ConvertEnqueuedObjectsImmediately();"
-    ],
-    "Pug.Other:2555": [
-      "PugDatabase.UpdateEntityMonos(Manager.mod.ExtraAuthoring);"
-    ],
-    "Pug.Other:2560": [
-      "Manager.mod.Authoring.ObjectProperties = entityQuery.GetSingleton<DatabaseCD>().ObjectPropertyLookup.AsEnum<ObjectID>();"
-    ],
-    "Pug.Other:2599": [
-      "num ^= buffer[i].Hash;"
-    ],
-    "Pug.Other:2607": [
-      "int num = (int)ObjectIDExtensions.GetHighestObjectID();"
-    ],
-    "Pug.Other:272234": [
-      "API.Authoring = new ModAPIAuthoring();"
     ],
     "Pug.Other:274963": [
       "public static Vector3 RoundPosition(Vector3 p, float ppu = 16f)"
@@ -725,12 +677,6 @@
     "Pug.Other:278979": [
       "InputReceiver.OnAlternate();"
     ],
-    "Pug.Other:279067": [
-      "API.Authoring.RegisterAuthoringGameObject(gameObject);"
-    ],
-    "Pug.Other:279189": [
-      "PugMods.LootTable.Init(lootTableBank);"
-    ],
     "Pug.Other:280176": [
       "UnityEngine.Debug.LogWarning($\"{Name}: Couldn't allocate {numNewElements} objects because \" + $\"max capacity ({_maxSize}) exceeded! Consider increasing max size \" + $\"to {_maxSize + numNewElements} or more.\");"
     ],
@@ -809,77 +755,8 @@
     "Pug.Other:297405": [
       "public bool GetControllerTextInput(string description, int maxChars, string currentText, PlatformInterface.GotControllerTextInput callback, bool hidden = false)"
     ],
-    "Pug.Other:303759": [
-      ""
-    ],
-    "Pug.Other:303889": [
-      "public RecipeInfo GetRecipeInfo(int index)"
-    ],
-    "Pug.Other:305187": [
-      "craftActionData = Create.Craft(objectID, amount, additionalFreeAmount, playerController.entity, craftingEntity)"
-    ],
-    "Pug.Other:306891": [
-      "bool flag9 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
-    ],
-    "Pug.Other:307309": [
-      "bool flag4 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
-    ],
-    "Pug.Other:3115": [
-      "conversionManager.AddPostConverter(new PugDatabasePostConverter());"
-    ],
-    "Pug.Other:318061": [
-      "public CraftingUISettings defaultUISettings;"
-    ],
-    "Pug.Other:318064": [
-      "public List<CraftingUISettingsOverride> buildingSpecificUISettings;"
-    ],
-    "Pug.Other:318081": [
-      "public CraftingUISettings GetCraftingUISettings()"
-    ],
-    "Pug.Other:318085": [
-      "return defaultUISettings;"
-    ],
-    "Pug.Other:318136": [
-      "if (EntityUtility.HasComponentData<IncludedCraftingBuildingsBuffer>(base.entity, base.world))"
-    ],
-    "Pug.Other:321349": [
-      "if (_visibilityState == 0)"
-    ],
-    "Pug.Other:321353": [
-      "if (_visibilityState == 1 && Manager.main.player.GetCurrentInteractableObject() != GetComponentInChildren<InteractableObject>())"
-    ],
-    "Pug.Other:322506": [
-      "if (diggableEntityAndInfo2.objectID == ObjectID.DiggingSpot && top.tileset == 0)"
-    ],
-    "Pug.Other:325814": [
-      "if (!(entityMono is IEntityMonoBehaviourData { ObjectInfo: { objectID: not ObjectID.None } objectInfo } entityMonoBehaviourData))"
-    ],
-    "Pug.Other:325825": [
-      "objectsByType.TryAdd(key, objectInfo);"
-    ],
-    "Pug.Other:325888": [
-      "public static ObjectInfo GetObjectInfo(ObjectID objectID, int variation = 0)"
-    ],
-    "Pug.Other:326289": [
-      "if (!(num2 <= lootTableBank.Value.lootTables[i].guaranteedDropsLootTable[j].accumulatedDropChance))"
-    ],
-    "Pug.Other:326339": [
-      "num4 += lootTableBank.Value.lootTables[i].lootTable[m].weight;"
-    ],
     "Pug.Other:331602": [
       "int state = activeWorldLabel.GetState();"
-    ],
-    "Pug.Other:334113": [
-      "mouseInventoryHandler.CraftItem(player, objectID, amount, num3);"
-    ],
-    "Pug.Other:338169": [
-      "if (recipeInfo.requiredObjectsToCraft.Count == 1 && base.activeCraftingHandler.HasMaterialsInCraftingInventoryToCraftRecipe(recipeInfo, checkPlayerInventoryToo: true, nearbyChests, useRequiredObjectsSetInRecipeInfo: true))"
-    ],
-    "Pug.Other:338174": [
-      "craftActionData = Create.ActivateRecipeSlot(base.activeCraftingHandler.craftingEntity, player.entity, 1, mod1, visibleSlotIndex)"
-    ],
-    "Pug.Other:338587": [
-      "if (showEmptySlots || (recipeInfo.isValid && recipeInfo.objectID != ObjectID.None))"
     ],
     "Pug.Other:338803": [
       "public class SignTextUI : UIelement"
@@ -889,27 +766,6 @@
     ],
     "Pug.Other:338891": [
       "player.playerCommandSystem.SetWorldLabelVisibility(player.activeWorldLabel.entity, signStateToggle.stateIndex);"
-    ],
-    "Pug.Other:338979": [
-      "public class SimpleCraftingUIContainer : CraftingUIBase"
-    ],
-    "Pug.Other:338981": [
-      "public const int MAX_RECIPES_PER_UI = 6;"
-    ],
-    "Pug.Other:339020": [
-      "num2 = craftingCategoryWindowInfo.endSlotIndex + 1;"
-    ],
-    "Pug.Other:339027": [
-      "if (AnyAvailableRecipeInRange(recipes, num3, num3 + 6))"
-    ],
-    "Pug.Other:339031": [
-      "UnityEngine.Debug.LogError($\"Not enough SimpleCraftingUIs in SimpleCraftingUIContainer to show all recipes. Needed at least {amountOfWindowsShowing + 1}, but only have {simpleCraftingUIs.Count}.\", this);"
-    ],
-    "Pug.Other:339058": [
-      "endIndex = Mathf.Min(endIndex, canCraftBuffer.Length);"
-    ],
-    "Pug.Other:339061": [
-      "if (canCraftBuffer[i].objectID != ObjectID.None)"
     ],
     "Pug.Other:339829": [
       "public List<TextAndFormatFields> GetHoverStats(ContainedObjectsBuffer containedObject, bool previewReinforced, bool previewUpgraded)"
@@ -1126,12 +982,6 @@
     ],
     "Pug.Other:360010": [
       "public void Deactivate(bool commit)"
-    ],
-    "Pug.Other:3640": [
-      "list.Sort();"
-    ],
-    "Pug.Other:3643": [
-      "GetPrefabDependency(item.prefab);"
     ],
     "Pug.Other:365354": [
       "[RequireComponent(typeof(PugText))]"
@@ -1419,15 +1269,6 @@
     "Pug.Other:370226": [
       "public void SetState(int index)"
     ],
-    "Pug.Other:370819": [
-      "private void Update()"
-    ],
-    "Pug.Other:370845": [
-      "CraftingBuilding.CraftingUISettings craftingUISettings = component.GetCraftingUISettings();"
-    ],
-    "Pug.Other:370852": [
-      "UnityEngine.Debug.LogWarning($\"Missing title for crafting UI window index {windowIndex} in building {component}. Using default title.\", this);"
-    ],
     "Pug.Other:371385-371393": [
       "protected void Update()",
       "{",
@@ -1438,9 +1279,6 @@
       "Vector2 vector2 = vector + new Vector2(pugText.dimensions.min.x, pugText.dimensions.max.y) + new Vector2(1f / 32f, 0f - num);",
       "vector2 += ((num2 > 0 && num2 <= pugText.localCharacterEndPositions.Count) ? pugText.localCharacterEndPositions[num2 - 1] : Vector2.zero);",
       "characterMarkBlinker.transform.position = new Vector3(vector2.x, vector2.y, characterMarkBlinker.transform.position.z);"
-    ],
-    "Pug.Other:3718": [
-      "readOnlyList = ScriptableData.GetDataBlocks<EntityAuthoringDataBlock>();"
     ],
     "Pug.Other:372747": [
       "public class UIMouse : MonoBehaviour"
@@ -1496,12 +1334,6 @@
     "Pug.Other:374642": [
       "Vector2 position2 = new Vector2(pointer.transform.localPosition.x + hoverContainer.hoverTopLeft.transform.localPosition.x, pointer.transform.localPosition.y + hoverContainer.hoverTopLeft.transform.localPosition.y - hoverContainer.hoverTextBackground.size.y);"
     ],
-    "Pug.Other:3747": [
-      "ObjectKey key = new ObjectKey(objectInfo.objectID, objectInfo.variation);"
-    ],
-    "Pug.Other:3749": [
-      "if (!dictionary.TryGetValue(key, out var value))"
-    ],
     "Pug.Other:374917": [
       "return pugCamera.TransformMousePosition(mousePosition) / 16f;"
     ],
@@ -1520,53 +1352,11 @@
     "Pug.Other:375507": [
       "public void LeftClick(bool mod1 = false, bool mod2 = false, bool autoActivated = false)"
     ],
-    "Pug.Other:381160": [
-      "characterData[characterId].inventoryObjectNames.Add(value);"
-    ],
     "Pug.Other:403951": [
       "[ActionIdFieldInfo(categoryName = \"Common actions used in multiple input contexts\", friendlyName = \"UIInteract\")]"
     ],
     "Pug.Other:404225": [
       "public const int OpenProfile = 223;"
-    ],
-    "Pug.Other:410199": [
-      "public readonly Dictionary<string, ObjectID> ObjectIDLookup = new Dictionary<string, ObjectID>();"
-    ],
-    "Pug.Other:410222": [
-      "if (ObjectIDLookup.TryGetValue(name, out var value))"
-    ],
-    "Pug.Other:415251": [
-      "if (command != Command.MapPing && command != Command.RemoveLoginImmunity && command != Command.SetPlayerState && command != Command.UnlockCurrentState && fromEntity.GetAdminLevelOnServer(component2.SourceConnection) <= 0)"
-    ],
-    "Pug.Other:415525": [
-      "componentData5.amount = component.int0;"
-    ],
-    "Pug.Other:427456": [
-      "[BurstCompile]"
-    ],
-    "Pug.Other:427823": [
-      "private struct ProcessCraftingJob : IJob"
-    ],
-    "Pug.Other:427851": [
-      "if (worldIsReadOnly && inventoryHandlerShared.playerGhostLookup.TryGetComponent(craftActionData.playerEntity, out var componentData) && componentData.adminPrivileges <= 0)"
-    ],
-    "Pug.Other:427876": [
-      "InventoryUtility.Craft(in inventoryHandlerShared, inventories[0], componentData2, inventories, new CanCraftObjectsBuffer"
-    ],
-    "Pug.Other:427908": [
-      "if (!inventoryHandlerShared.isServer)"
-    ],
-    "Pug.Other:428180": [
-      "state.Dependency = IJobExtensions.Schedule(new ProcessCraftingJob"
-    ],
-    "Pug.Other:430203": [
-      "public static bool CanCraft(in CraftingCD crafting, BufferLookup<ContainedObjectsBuffer> containedObjectsBufferLookup, ComponentLookup<CookingIngredientCD> ingredientLookup, ComponentLookup<ObjectCategoryTagsCD> objectCategoryTagsLookup, PugDatabase.DatabaseBankCD databaseBankCD, Entity mainEntity, ObjectDataCD mainEntityObjectData, NativeList<Entity> inventoryEntities, CanCraftObjectsBuffer objectToCraft, float costMultiplier = 1f)"
-    ],
-    "Pug.Other:430819": [
-      "if (PugDatabase.HasObject(objectId, databaseBankCD.databaseBankBlob))"
-    ],
-    "Pug.Other:90860": [
-      "amount = math.max(1, alwaysDropOneLookup.HasComponent(entity) ? 1 : objectData.amount),"
     ],
     "Pug.Other:BenchmarkRunner:CreateMetrics:26": [
       "if (Manager.ecs.ServerWorld != null)"
@@ -1672,6 +1462,27 @@
       "distanceText.Render(text2);",
       "distanceTextOutline.Render(text2);"
     ],
+    "Pug.Other:CraftingBuilding:GetCraftingUISettings:1": [
+      "public CraftingUISettings GetCraftingUISettings()"
+    ],
+    "Pug.Other:CraftingBuilding:GetCraftingUISettings:5": [
+      "return defaultUISettings;"
+    ],
+    "Pug.Other:CraftingBuilding:OnSpawn:7": [
+      "if (EntityUtility.HasComponentData<IncludedCraftingBuildingsBuffer>(base.entity, base.world))"
+    ],
+    "Pug.Other:CraftingBuilding:buildingSpecificUISettings:2": [
+      "public List<CraftingUISettingsOverride> buildingSpecificUISettings;"
+    ],
+    "Pug.Other:CraftingBuilding:defaultUISettings:1": [
+      "public CraftingUISettings defaultUISettings;"
+    ],
+    "Pug.Other:CraftingHandler:GetRecipeInfo(int):1": [
+      "public RecipeInfo GetRecipeInfo(int index)"
+    ],
+    "Pug.Other:CraftingUIBase:ActivateRecipeSlot:123": [
+      "mouseInventoryHandler.CraftItem(player, objectID, amount, num3);"
+    ],
     "Pug.Other:Create:1": [
       "public static class Create"
     ],
@@ -1685,8 +1496,26 @@
       "{",
       "Value = component.interactable"
     ],
+    "Pug.Other:DefaultConvertSystem:GetNewObjectID:13": [
+      "if (oldObjectId >= ObjectID.None && !previous.TryGetPropertyString((int)oldObjectId, NamePropertyId, out value2))"
+    ],
+    "Pug.Other:DefaultConvertSystem:GetNewObjectID:23": [
+      "nameToObjectID.TryGetValue(value2, out value);"
+    ],
+    "Pug.Other:DefaultConvertSystem:GetNewObjectID:7": [
+      "if (oldObjectId > ObjectID.None && oldObjectId < (ObjectID)32767)"
+    ],
     "Pug.Other:DropSelfJob:22": [
       "private struct DropSelfJob : IJobEntity, IJobChunk"
+    ],
+    "Pug.Other:DropSelfJob:Execute(Entity, \u2026):15": [
+      "amount = math.max(1, alwaysDropOneLookup.HasComponent(entity) ? 1 : objectData.amount),"
+    ],
+    "Pug.Other:ECSManager:CalculateReservedObjectIndices:3": [
+      "int num = (int)ObjectIDExtensions.GetHighestObjectID();"
+    ],
+    "Pug.Other:ECSManager:ConfigurePostConverters:6": [
+      "conversionManager.AddPostConverter(new PugDatabasePostConverter());"
     ],
     "Pug.Other:ECSManager:ConvertAuthoringDataRoutine:30": [
       "IEnumerator convertAuthoringData = ConvertAuthoringData(ClientWorld, frameWorkloadTimer);"
@@ -1714,6 +1543,21 @@
       "ECSManager.BeforeInitialEntityConversion?.Invoke();",
       "conversionManager.EnqueueGameObjectHierarchy(Manager.ecs.serverAuthoringPrefab);",
       "conversionManager.ConvertEnqueuedObjectsImmediately();"
+    ],
+    "Pug.Other:ECSManager:Init:21": [
+      "ConfigurePostConverters(conversionManager);"
+    ],
+    "Pug.Other:ECSManager:Init:22": [
+      "PugDatabase.UpdateEntityMonos(PugDatabase.BuildAuthoringListFromEntityDataBlocks());"
+    ],
+    "Pug.Other:ECSManager:Init:24": [
+      "conversionManager.EnqueueGameObjectHierarchy(Manager.ecs.serverAuthoringPrefab);"
+    ],
+    "Pug.Other:ECSManager:Init:25": [
+      "conversionManager.ConvertEnqueuedObjectsImmediately();"
+    ],
+    "Pug.Other:ECSManager:Init:26": [
+      "PugDatabase.UpdateEntityMonos(Manager.mod.ExtraAuthoring);"
     ],
     "Pug.Other:ECSManager:Init:31": [
       "Manager.mod.Authoring.ObjectProperties = entityQuery.GetSingleton<DatabaseCD>().ObjectPropertyLookup.AsEnum<ObjectID>();"
@@ -1761,6 +1605,9 @@
     ],
     "Pug.Other:ECSManager:TryCalculateGhostCollectionHash:1": [
       "public bool TryCalculateGhostCollectionHash(out (ulong GhostCollectionHash, ulong GhostCollectionCount) result)"
+    ],
+    "Pug.Other:ECSManager:TryCalculateGhostCollectionHash:20": [
+      "num ^= buffer[i].Hash;"
     ],
     "Pug.Other:ECSManager:UnloadWorldsInternal:23": [
       "ServerWorld = null;"
@@ -1947,6 +1794,9 @@
       "ignorePlayerDirectionRadiusPercentage = interactableObject.ignorePlayerDirectionRadiusPercentage,",
       "requireLineOfSight = interactableObject.requireLineOfSight"
     ],
+    "Pug.Other:InventoryHandler:CraftItem:12": [
+      "craftActionData = Create.Craft(objectID, amount, additionalFreeAmount, playerController.entity, craftingEntity)"
+    ],
     "Pug.Other:InventorySlotUI:IncreaseCookingSkillAndSpawnExtraFoodIfWeShould:28-29": [
       "float num = (float)EntityUtility.GetConditionEffectValue(ConditionEffect.ChanceToGainExtraCookedFood, player.entity, player.world) / 1000f;",
       "float num2 = (float)EntityUtility.GetConditionValue(ConditionID.ChanceForExtraCookedFoodToBeRare, player.entity, player.world) / 100f;"
@@ -1994,11 +1844,23 @@
       "num3++;",
       "}"
     ],
+    "Pug.Other:InventoryUpdateSystem:1": [
+      "[BurstCompile]"
+    ],
+    "Pug.Other:InventoryUpdateSystem:OnUpdate:34": [
+      "state.Dependency = IJobExtensions.Schedule(new ProcessCraftingJob"
+    ],
     "Pug.Other:InventoryUtility:2": [
       "public static class InventoryUtility"
     ],
+    "Pug.Other:InventoryUtility:CanCraft(CraftingCD, \u2026):2": [
+      "public static bool CanCraft(in CraftingCD crafting, BufferLookup<ContainedObjectsBuffer> containedObjectsBufferLookup, ComponentLookup<CookingIngredientCD> ingredientLookup, ComponentLookup<ObjectCategoryTagsCD> objectCategoryTagsLookup, PugDatabase.DatabaseBankCD databaseBankCD, Entity mainEntity, ObjectDataCD mainEntityObjectData, NativeList<Entity> inventoryEntities, CanCraftObjectsBuffer objectToCraft, float costMultiplier = 1f)"
+    ],
     "Pug.Other:InventoryUtility:ConsumeEntityAt:2": [
       "public static bool ConsumeEntityAt(in InventoryHandlerShared inventoryHandlerShared, Entity inventory, int index, int amount, bool destroy, float3 position, int variationToInstatiate = -1, float3 direction = default(float3), ObjectID optionalTargetObjectID = ObjectID.None)"
+    ],
+    "Pug.Other:InventoryUtility:GetRecipeInfo(PugDatabase.DatabaseBankCD, ObjectID, \u2026):3": [
+      "if (PugDatabase.HasObject(objectId, databaseBankCD.databaseBankBlob))"
     ],
     "Pug.Other:ListConnectedPlayers:Update:29": [
       "else if (menuType == PlayersListType.UNASSIGN_ADMIN)"
@@ -2008,6 +1870,9 @@
     ],
     "Pug.Other:Manager:EarlyInit:1": [
       "[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]"
+    ],
+    "Pug.Other:Manager:EarlyInit:63": [
+      "API.Authoring = new ModAPIAuthoring();"
     ],
     "Pug.Other:Manager:EarlyInit:70-84": [
       "if (!num)",
@@ -2125,6 +1990,12 @@
     "Pug.Other:MemoryManager:Init:5": [
       "Manager.RunAfterInitComplete(CreatePools());"
     ],
+    "Pug.Other:ModAPIAuthoring:GetObjectID:7": [
+      "if (ObjectIDLookup.TryGetValue(name, out var value))"
+    ],
+    "Pug.Other:ModAPIAuthoring:ObjectIDLookup:1": [
+      "public readonly Dictionary<string, ObjectID> ObjectIDLookup = new Dictionary<string, ObjectID>();"
+    ],
     "Pug.Other:ModAPIConfig:Set:20": [
       "string s = JsonUtility.ToJson(modConfigFile, prettyPrint: true);"
     ],
@@ -2160,6 +2031,12 @@
     ],
     "Pug.Other:ModListMenu:SetupSlots:28": [
       "if (IsSteamPlatform())"
+    ],
+    "Pug.Other:ModManager:EarlyInit:7": [
+      "API.Authoring.RegisterAuthoringGameObject(gameObject);"
+    ],
+    "Pug.Other:ModManager:Init:114": [
+      "PugMods.LootTable.Init(lootTableBank);"
     ],
     "Pug.Other:ModManager:Init:23": [
       "UnityEngine.Debug.Log($\"Loading mod with ID {loadedMod.ModId}\");"
@@ -2999,6 +2876,45 @@
     "Pug.Other:PlayerController:guestMode:1": [
       "public bool guestMode"
     ],
+    "Pug.Other:ProcessCraftingJob:2": [
+      "private struct ProcessCraftingJob : IJob"
+    ],
+    "Pug.Other:ProcessCraftingJob:Execute:32": [
+      "InventoryUtility.Craft(in inventoryHandlerShared, inventories[0], componentData2, inventories, new CanCraftObjectsBuffer"
+    ],
+    "Pug.Other:ProcessCraftingJob:Execute:64": [
+      "if (!inventoryHandlerShared.isServer)"
+    ],
+    "Pug.Other:ProcessCraftingJob:Execute:7": [
+      "if (worldIsReadOnly && inventoryHandlerShared.playerGhostLookup.TryGetComponent(craftActionData.playerEntity, out var componentData) && componentData.adminPrivileges <= 0)"
+    ],
+    "Pug.Other:ProcessResourcesCraftingUI:ActivateRecipeSlot:13": [
+      "craftActionData = Create.ActivateRecipeSlot(base.activeCraftingHandler.craftingEntity, player.entity, 1, mod1, visibleSlotIndex)"
+    ],
+    "Pug.Other:ProcessResourcesCraftingUI:ActivateRecipeSlot:8": [
+      "if (recipeInfo.requiredObjectsToCraft.Count == 1 && base.activeCraftingHandler.HasMaterialsInCraftingInventoryToCraftRecipe(recipeInfo, checkPlayerInventoryToo: true, nearbyChests, useRequiredObjectsSetInRecipeInfo: true))"
+    ],
+    "Pug.Other:PugDatabase:GetObjectInfo:1": [
+      "public static ObjectInfo GetObjectInfo(ObjectID objectID, int variation = 0)"
+    ],
+    "Pug.Other:PugDatabase:GetRandomLoot(LootTableID, int, \u2026):18": [
+      "if (!(num2 <= lootTableBank.Value.lootTables[i].guaranteedDropsLootTable[j].accumulatedDropChance))"
+    ],
+    "Pug.Other:PugDatabase:GetRandomLoot(LootTableID, int, \u2026):68": [
+      "num4 += lootTableBank.Value.lootTables[i].lootTable[m].weight;"
+    ],
+    "Pug.Other:PugDatabase:UpdateEntityMonos:13": [
+      "if (!(entityMono is IEntityMonoBehaviourData { ObjectInfo: { objectID: not ObjectID.None } objectInfo } entityMonoBehaviourData))"
+    ],
+    "Pug.Other:PugDatabase:UpdateEntityMonos:24": [
+      "objectsByType.TryAdd(key, objectInfo);"
+    ],
+    "Pug.Other:PugDatabaseConverter:Convert:15": [
+      "list.Sort();"
+    ],
+    "Pug.Other:PugDatabaseConverter:Convert:18": [
+      "GetPrefabDependency(item.prefab);"
+    ],
     "Pug.Other:PugDatabasePostConverter:1": [
       "public class PugDatabasePostConverter : PostConverter"
     ],
@@ -3016,6 +2932,9 @@
     ],
     "Pug.Other:PugDatabasePostConverter:PostConvert:39": [
       "ObjectKey key = new ObjectKey(objectInfo.objectID, objectInfo.variation);"
+    ],
+    "Pug.Other:PugDatabasePostConverter:PostConvert:41": [
+      "if (!dictionary.TryGetValue(key, out var value))"
     ],
     "Pug.Other:PugFont:Render:254": [
       "dimensions.xMin = 0f + num2;"
@@ -3049,6 +2968,12 @@
     ],
     "Pug.Other:RadicalMenuOptionTextInput:Update:11": [
       "float num = pugText.transform.position.x + pugText.dimensions.xMin + 1f / 32f;"
+    ],
+    "Pug.Other:RecipeInfo:18": [
+      ""
+    ],
+    "Pug.Other:RecipesUI:ShowContainerUI:23": [
+      "if (showEmptySlots || (recipeInfo.isValid && recipeInfo.objectID != ObjectID.None))"
     ],
     "Pug.Other:RpcSerializer:Deserialize:9-10": [
       "data.entity0 = Entity.Null;",
@@ -3091,6 +3016,9 @@
       "_characterDead = false;",
       "_characterId = id;",
       "}"
+    ],
+    "Pug.Other:SaveManager:SetInventory:12": [
+      "characterData[characterId].inventoryObjectNames.Add(value);"
     ],
     "Pug.Other:SaveManager:SetObjectAsDiscovered:1": [
       "public bool SetObjectAsDiscovered(ObjectDataCD objectData)"
@@ -3176,6 +3104,9 @@
     "Pug.Other:ServerSystem:OnUpdate:317": [
       "ObjectDataCD componentData5 = EntityUtility.GetComponentData<ObjectDataCD>(component.entity0, base.World);"
     ],
+    "Pug.Other:ServerSystem:OnUpdate:318": [
+      "componentData5.amount = component.int0;"
+    ],
     "Pug.Other:ServerSystem:OnUpdate:319": [
       "ecb.SetComponent(component.entity0, componentData5);"
     ],
@@ -3221,8 +3152,47 @@
     "Pug.Other:SetServerDefaultsSystem:OnStartRunning:215": [
       "SetComponent(nativeArray[0], LocalTransform.FromPosition(new float3(0f, 0f, 4f)));"
     ],
+    "Pug.Other:SimpleCraftingUIContainer:1": [
+      "public class SimpleCraftingUIContainer : CraftingUIBase"
+    ],
+    "Pug.Other:SimpleCraftingUIContainer:AnyAvailableRecipeInRange:3": [
+      "endIndex = Mathf.Min(endIndex, canCraftBuffer.Length);"
+    ],
+    "Pug.Other:SimpleCraftingUIContainer:AnyAvailableRecipeInRange:6": [
+      "if (canCraftBuffer[i].objectID != ObjectID.None)"
+    ],
+    "Pug.Other:SimpleCraftingUIContainer:MAX_RECIPES_PER_UI:1": [
+      "public const int MAX_RECIPES_PER_UI = 6;"
+    ],
+    "Pug.Other:SimpleCraftingUIContainer:ShowCraftingUI:11": [
+      "num2 = craftingCategoryWindowInfo.endSlotIndex + 1;"
+    ],
+    "Pug.Other:SimpleCraftingUIContainer:ShowCraftingUI:18": [
+      "if (AnyAvailableRecipeInRange(recipes, num3, num3 + 6))"
+    ],
+    "Pug.Other:SimpleCraftingUIContainer:ShowCraftingUI:22": [
+      "UnityEngine.Debug.LogError($\"Not enough SimpleCraftingUIs in SimpleCraftingUIContainer to show all recipes. Needed at least {amountOfWindowsShowing + 1}, but only have {simpleCraftingUIs.Count}.\", this);"
+    ],
+    "Pug.Other:SmallTitleUIBackground:Update:1": [
+      "private void Update()"
+    ],
+    "Pug.Other:SmallTitleUIBackground:UpdateTextAndBackground:15": [
+      "CraftingBuilding.CraftingUISettings craftingUISettings = component.GetCraftingUISettings();"
+    ],
+    "Pug.Other:SmallTitleUIBackground:UpdateTextAndBackground:22": [
+      "UnityEngine.Debug.LogWarning($\"Missing title for crafting UI window index {windowIndex} in building {component}. Using default title.\", this);"
+    ],
     "Pug.Other:StartGameRPCSystem:1": [
       "[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation, WorldSystemFilterFlags.Default)]"
+    ],
+    "Pug.Other:StartGameRPCSystem:OnUpdate:36": [
+      "UnityEngine.Debug.Log(\"Skipping load inventory by PlayerWasLastConnectedToThisServer\");"
+    ],
+    "Pug.Other:StartGameRPCSystem:OnUpdate:46": [
+      "if (characterData.inventoryObjectNames.Count > i && characterData.inventory.Count > i && characterData.inventory[i].objectID >= (ObjectID)32767 && !string.IsNullOrEmpty(characterData.inventoryObjectNames[i]))"
+    ],
+    "Pug.Other:StartGameRPCSystem:OnUpdate:48": [
+      "ObjectID objectID = API.Authoring.GetObjectID(characterData.inventoryObjectNames[i]);"
     ],
     "Pug.Other:StartGameRPCSystem_2FE3D5A9_LambdaJob_3_Job:OriginalLambdaBody:15": [
       "CharacterData characterDataFromSerialized = SaveManager.GetCharacterDataFromSerialized(characterDataEntry.data);"
@@ -3829,6 +3799,12 @@
     "Pug.Other:WaterCanSlot:UpdateEquipment:1": [
       "public new static bool UpdateEquipment(bool interactHeld, bool secondInteractHeld, in ClientInput clientInput, in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData, bool hasItemInMouse)"
     ],
+    "Pug.Other:WorldLabel:UpdateWorldText:5": [
+      "if (_visibilityState == 0)"
+    ],
+    "Pug.Other:WorldLabel:UpdateWorldText:9": [
+      "if (_visibilityState == 1 && Manager.main.player.GetCurrentInteractableObject() != GetComponentInChildren<InteractableObject>())"
+    ],
     "Pug.UnityExtensions:5344": [
       "public static int Clamp(int x, int low, int high)"
     ],
@@ -3863,13 +3839,7 @@
     "Pug.UnityExtensions:7932": [
       "lifespan = newLifespan;"
     ],
-    "PugConversion:1044": [
-      "if (component == null || !component.TryGetPreferredObjectIndex(out var objectIndex))"
-    ],
-    "PugConversion:1046": [
-      "objectIndex = _nextUnusedObjectIndex++;"
-    ],
-    "PugConversion:712": [
+    "PugConversion:ConversionManager:ConversionManager:14": [
       "_nextUnusedObjectIndex = parameters.ReservedObjectIndices;"
     ],
     "PugConversion:ConversionManager:ConvertEnqueuedObjects:1-40": [
@@ -3935,6 +3905,12 @@
       "}",
       "}"
     ],
+    "PugConversion:ConversionManager:FinishConversionQueue:14": [
+      "if (component == null || !component.TryGetPreferredObjectIndex(out var objectIndex))"
+    ],
+    "PugConversion:ConversionManager:FinishConversionQueue:16": [
+      "objectIndex = _nextUnusedObjectIndex++;"
+    ],
     "PugConversion:ConversionManager:RunConverters:1-12": [
       "private void RunConverters(List<int> converterIndices, GameObject gameObject, int objectIndex, int uniqueObjectIndex, Entity entity)",
       "{",
@@ -3961,33 +3937,6 @@
       "}",
       "",
       "protected abstract void Convert(T authoring);"
-    ],
-    "PugMod.Loader:1216": [
-      "_modHandlers.Call.Init();"
-    ],
-    "PugMod.Loader:1217": [
-      "_modHandlers.Call.Update();"
-    ],
-    "PugMod.Loader:2207": [
-      "ScriptableData.AddDataBlocksLoader(runtimeLoader.name, runtimeLoader);"
-    ],
-    "PugMod.Loader:2236": [
-      "return CreateRuntimeInstance(type, modId, DataBlockAddress.NewAddress(), overloadExisting: false);"
-    ],
-    "PugMod.Loader:2262": [
-      "_addressField.SetValue(scriptableDataBlock, GetInstanceAddress(runtimeLoader.modGuid, address));"
-    ],
-    "PugMod.Loader:2263": [
-      "_overloadField.SetValue(scriptableDataBlock, new DataBlockRef<ScriptableDataBlock>(address));"
-    ],
-    "PugMod.Loader:2288": [
-      "throw new InvalidOperationException(\"Runtime data blocks must be created before ScriptableData loading starts. Try creating your runtime datablocks in IMod.EarlyInit()\");"
-    ],
-    "PugMod.Loader:2295": [
-      "return new Guid(sHA.ComputeHash(Encoding.UTF8.GetBytes($\"PugMod.RuntimeDataBlock:{modGuid}:{address}\")).AsSpan(0, 16));"
-    ],
-    "PugMod.Loader:844": [
-      "for (int i = 0; i < _mods.Count; i++)"
     ],
     "PugMod.Loader:Config:unsupportedModsToLoad:1": [
       "public List<string> unsupportedModsToLoad = new List<string>();"
@@ -4249,6 +4198,27 @@
     "PugMod.Loader:Loader:Update:4": [
       "_modHandlers.Call.Update();"
     ],
+    "PugMod.Loader:ModContainer:Init:3": [
+      "for (int i = 0; i < _mods.Count; i++)"
+    ],
+    "PugMod.Loader:RuntimeDataBlocks:AddMod:5": [
+      "ScriptableData.AddDataBlocksLoader(runtimeLoader.name, runtimeLoader);"
+    ],
+    "PugMod.Loader:RuntimeDataBlocks:CreateRuntimeInstance(Type, long):3": [
+      "return CreateRuntimeInstance(type, modId, DataBlockAddress.NewAddress(), overloadExisting: false);"
+    ],
+    "PugMod.Loader:RuntimeDataBlocks:CreateRuntimeInstance(Type, long, DataBlockAddress, \u2026):15": [
+      "_addressField.SetValue(scriptableDataBlock, GetInstanceAddress(runtimeLoader.modGuid, address));"
+    ],
+    "PugMod.Loader:RuntimeDataBlocks:CreateRuntimeInstance(Type, long, DataBlockAddress, \u2026):16": [
+      "_overloadField.SetValue(scriptableDataBlock, new DataBlockRef<ScriptableDataBlock>(address));"
+    ],
+    "PugMod.Loader:RuntimeDataBlocks:EnsureRegistrationOpen:9": [
+      "throw new InvalidOperationException(\"Runtime data blocks must be created before ScriptableData loading starts. Try creating your runtime datablocks in IMod.EarlyInit()\");"
+    ],
+    "PugMod.Loader:RuntimeDataBlocks:GetInstanceAddress:4": [
+      "return new Guid(sHA.ComputeHash(Encoding.UTF8.GetBytes($\"PugMod.RuntimeDataBlock:{modGuid}:{address}\")).AsSpan(0, 16));"
+    ],
     "PugMod.Loader:SideLoader:Update:1-61": [
       "public void Update()",
       "{",
@@ -4341,9 +4311,6 @@
     ],
     "PugMod.Platform:ModIOLoader:Init:64": [
       "UnityEngine.Debug.Log(\"loaded mod \" + metadata.name + \" from mod.io (\" + subscribedMod.modProfile.name + \")\");"
-    ],
-    "PugMod.SDK.Runtime:709": [
-      "public static void DisableBurstForSystemAndJobs<T>(bool burstEnabled = false)"
     ],
     "PugMod.SDK.Runtime:BurstDisabler:CreateCompleteDependencyPatch:1": [
       "private static void CreateCompleteDependencyPatch(Type systemType, Harmony harmony, List<MethodInfo> patchedMethods, bool isManaged)"
@@ -4451,11 +4418,11 @@
     "PugMod.SDK.Runtime:ModAPIExtensions:GetNameChecked(Type):1": [
       "public static string GetNameChecked(this Type type)"
     ],
-    "PugProperties:1436": [
-      "BlobBuilderArray<ObjectData> blobBuilderArray = builder.Allocate(ref reference.Objects, num + 1);"
-    ],
-    "PugProperties:1606": [
+    "PugProperties:PropertyLookupBuilder:AddProperty:12": [
       "UnityEngine.Debug.Log($\"replacing {name} at index {lookupIndex}\");"
+    ],
+    "PugProperties:PropertyLookupBuilder:CreateLookup:11": [
+      "BlobBuilderArray<ObjectData> blobBuilderArray = builder.Allocate(ref reference.Objects, num + 1);"
     ],
     "PugRP:1266-1271": [
       "public enum OutputMode",
@@ -4480,81 +4447,10 @@
     "RoslynCSharp:ScriptDomain:RegisterAssemblyImpl:15": [
       "RoslynCSharp.LogError(securityResult.GetAllText(reportAllOccurences: true));"
     ],
-    "ScriptableData.Addressables:237": [
+    "ScriptableData.Addressables:ScriptableDataAddressables:Init:6": [
       "ScriptableData.AddDataBlocksLoader(\"addressables\", new ScriptableDataAddressablesLoader(\"ScriptableDataBlock\"));"
     ],
-    "ScriptableData:1180-1186": [
-      "private static void Reset()",
-      "{",
-      "s_dataBlockSets.Clear();",
-      "s_dataBlockLookup.Clear();",
-      "s_runtimeLists.Clear();",
-      "s_runtimeListsT.Clear();",
-      "s_runtimeLookups.Clear();"
-    ],
-    "ScriptableData:1238": [
-      "list.Sort();"
-    ],
-    "ScriptableData:1264": [
-      "list.Sort();"
-    ],
-    "ScriptableData:1284": [
-      "foreach (var s_dataBlockLoader in s_dataBlockLoaders)"
-    ],
-    "ScriptableData:1327-1330": [
-      "if (!dictionary.TryGetValue(dataBlock.address, out var value4))",
-      "{",
-      "resolvedDataBlocks.Add(dataBlock.address, dataBlock);",
-      "return dataBlock;"
-    ],
-    "ScriptableData:1341-1345": [
-      "value3 = ProcessOverload(value3, ResolveOverloadRecursive(item3, startingDataBlockAddress, resolvedDataBlocks, dictionary));",
-      "}",
-      "}",
-      "UnityEngine.Debug.Log(\"data block \" + dataBlock.name + \" resolved to \" + value3.name);",
-      "resolvedDataBlocks.Add(dataBlock.address, value3);"
-    ],
-    "ScriptableData:1350": [
-      "private static void AddDataBlocksToRuntimeLists(IEnumerable<ScriptableDataBlock> dataBlocks)"
-    ],
-    "ScriptableData:1361-1363": [
-      "if (s_dataBlockLookup.TryGetValue(dataBlock.address, out var value) && (object)value != dataBlock)",
-      "{",
-      "continue;"
-    ],
-    "ScriptableData:1375": [
-      "value3 = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(type));"
-    ],
-    "ScriptableData:1383-1384": [
-      "value4.Add(dataBlock, value2.Count);",
-      "value2.Add(dataBlock);"
-    ],
-    "ScriptableData:1417-1421": [
-      "public static bool TryGetDataBlocks(Type type, out IReadOnlyList<ScriptableDataBlock> dataBlocks)",
-      "{",
-      "List<ScriptableDataBlock> value;",
-      "bool result = s_runtimeLists.TryGetValue(type, out value);",
-      "dataBlocks = value;"
-    ],
-    "ScriptableData:1430": [
-      "bool result = s_runtimeListsT.TryGetValue(typeFromHandle, out value);"
-    ],
-    "ScriptableData:1446": [
-      "if (s_runtimeLookups.TryGetValue(type, out var value2))"
-    ],
-    "ScriptableData:1490": [
-      "if (!TryGetDataBlocks(type, out var dataBlocks) || num < 0 || num >= dataBlocks.Count)"
-    ],
-    "ScriptableData:1495": [
-      "dataBlock = dataBlocks[num];"
-    ],
-    "ScriptableData:1526": [
-      "bool result = s_dataBlockLookup.TryGetValue(address, out value);"
-    ],
-    "ScriptableData:1808": [
-      "return m_address.CompareTo(other.m_address);"
-    ],
-    "ScriptableData:34-45": [
+    "ScriptableData:DataBlockAddress:5-16": [
       "[FieldOffset(0)]",
       "private Guid m_guid;",
       "",
@@ -4568,11 +4464,82 @@
       "[HideInInspector]",
       "private long m_high;"
     ],
-    "ScriptableData:71": [
+    "ScriptableData:DataBlockAddress:NewAddress:3": [
       "return Guid.NewGuid();"
+    ],
+    "ScriptableData:ScriptableData:AddDataBlocksToRuntimeLists:1": [
+      "private static void AddDataBlocksToRuntimeLists(IEnumerable<ScriptableDataBlock> dataBlocks)"
+    ],
+    "ScriptableData:ScriptableData:AddDataBlocksToRuntimeLists:12-14": [
+      "if (s_dataBlockLookup.TryGetValue(dataBlock.address, out var value) && (object)value != dataBlock)",
+      "{",
+      "continue;"
+    ],
+    "ScriptableData:ScriptableData:AddDataBlocksToRuntimeLists:26": [
+      "value3 = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(type));"
+    ],
+    "ScriptableData:ScriptableData:AddDataBlocksToRuntimeLists:34-35": [
+      "value4.Add(dataBlock, value2.Count);",
+      "value2.Add(dataBlock);"
+    ],
+    "ScriptableData:ScriptableData:Initialize:51-54": [
+      "if (!dictionary.TryGetValue(dataBlock.address, out var value4))",
+      "{",
+      "resolvedDataBlocks.Add(dataBlock.address, dataBlock);",
+      "return dataBlock;"
+    ],
+    "ScriptableData:ScriptableData:Initialize:65-69": [
+      "value3 = ProcessOverload(value3, ResolveOverloadRecursive(item3, startingDataBlockAddress, resolvedDataBlocks, dictionary));",
+      "}",
+      "}",
+      "UnityEngine.Debug.Log(\"data block \" + dataBlock.name + \" resolved to \" + value3.name);",
+      "resolvedDataBlocks.Add(dataBlock.address, value3);"
+    ],
+    "ScriptableData:ScriptableData:Initialize:8": [
+      "foreach (var s_dataBlockLoader in s_dataBlockLoaders)"
+    ],
+    "ScriptableData:ScriptableData:Load:19": [
+      "list.Sort();"
+    ],
+    "ScriptableData:ScriptableData:LoadAsync:21": [
+      "list.Sort();"
+    ],
+    "ScriptableData:ScriptableData:Reset:1-7": [
+      "private static void Reset()",
+      "{",
+      "s_dataBlockSets.Clear();",
+      "s_dataBlockLookup.Clear();",
+      "s_runtimeLists.Clear();",
+      "s_runtimeListsT.Clear();",
+      "s_runtimeLookups.Clear();"
+    ],
+    "ScriptableData:ScriptableData:TryGetDataBlock(DataBlockAddress, \u2026):5": [
+      "bool result = s_dataBlockLookup.TryGetValue(address, out value);"
+    ],
+    "ScriptableData:ScriptableData:TryGetDataBlock(int, Type, \u2026):10": [
+      "dataBlock = dataBlocks[num];"
+    ],
+    "ScriptableData:ScriptableData:TryGetDataBlock(int, Type, \u2026):5": [
+      "if (!TryGetDataBlocks(type, out var dataBlocks) || num < 0 || num >= dataBlocks.Count)"
+    ],
+    "ScriptableData:ScriptableData:TryGetDataBlocks(IReadOnlyList<T>):6": [
+      "bool result = s_runtimeListsT.TryGetValue(typeFromHandle, out value);"
+    ],
+    "ScriptableData:ScriptableData:TryGetDataBlocks(Type, \u2026):2-6": [
+      "public static bool TryGetDataBlocks(Type type, out IReadOnlyList<ScriptableDataBlock> dataBlocks)",
+      "{",
+      "List<ScriptableDataBlock> value;",
+      "bool result = s_runtimeLists.TryGetValue(type, out value);",
+      "dataBlocks = value;"
+    ],
+    "ScriptableData:ScriptableData:TryGetRuntimeID(ScriptableDataBlock, Type, \u2026):5": [
+      "if (s_runtimeLookups.TryGetValue(type, out var value2))"
     ],
     "ScriptableData:ScriptableDataBlock:1": [
       "public abstract class ScriptableDataBlock : ScriptableObject, IComparable<ScriptableDataBlock>"
+    ],
+    "ScriptableData:ScriptableDataBlock:CompareTo:11": [
+      "return m_address.CompareTo(other.m_address);"
     ],
     "ScriptableData:ScriptableDataBlock:m_address:1-4": [
       "[SerializeField]",

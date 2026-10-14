@@ -35,7 +35,7 @@ wrong one for the authoring values that get copied into the blob.
 > and `ObjectInfo.prefabInfos`, so it no longer compiles: the loader reports
 > `CompileFailed` with `CS0103: The name 'DatabaseConversionUtility' does not
 > exist`. `PostConvert` itself now reads the prefabs from
-> `ScriptableData.GetDataBlocks<EntityAuthoringDataBlock>()` (`Pug.Other:3718`),
+> `ScriptableData.GetDataBlocks<EntityAuthoringDataBlock>()` (`Pug.Other:PugDatabasePostConverter:PostConvert:10`),
 > so that is the list a 1.3 prefix would walk; `rebalance-key-crafting` and
 > `auto-rail-bridges` carry such prefixes, unreleased, and neither has been
 > seen running — **unverified**. The runtime station lookup further down has both forms.
@@ -110,8 +110,8 @@ item in two different ways:
 
 | How you spell it | Where it is declared | Shape |
 |---|---|---|
-| `CraftingObject` | a **class**, global namespace (`Pug.Base:4709`) | `{ ObjectID objectID; int amount; }` |
-| `InventoryItemAuthoring.CraftingObject` | a **struct** nested inside `InventoryItemAuthoring` (`Pug.ECS.Authoring:2896`) | `{ string objectName; int amount; }` |
+| `CraftingObject` | a **class**, global namespace (`Pug.Base:CraftingObject:2`) | `{ ObjectID objectID; int amount; }` |
+| `InventoryItemAuthoring.CraftingObject` | a **struct** nested inside `InventoryItemAuthoring` (`Pug.ECS.Authoring:CraftingObject:2`) | `{ string objectName; int amount; }` |
 
 Only the first is global, so a bare `CraftingObject` resolves to it and the
 compiler never has to choose between the two — there is no `CS0104` to trip over
@@ -122,10 +122,11 @@ item is named.
 Iterate with `var` and never write the type name. Where you must name the nested
 one — in a method signature, say, where `var` is not available — qualify it in
 full; that is what CK's own bake code does (`foreach
-(InventoryItemAuthoring.CraftingObject item in …)`, `Pug.ECS.Authoring:3031`),
-and CoreLib too. Reading the element into a `var` local, mutating it, and
-assigning back through the list indexer (as above) is the shape that works for
-both — and is not optional for the nested struct, where the local is a copy.
+(InventoryItemAuthoring.CraftingObject item in …)`,
+`Pug.ECS.Authoring:ObjectAuthoring:ObjectAuthoringToObjectInfo:45`), and CoreLib
+too. Reading the element into a `var` local, mutating it, and assigning back
+through the list indexer (as above) is the shape that works for both — and is
+not optional for the nested struct, where the local is a copy.
 
 ### Trap: a config value the bake reads must be bound in `EarlyInit`
 
@@ -135,15 +136,16 @@ is identical on both sides:
 
 1. `EarlyInit`, every mod.
 2. **The startup conversion**, in `ECSManager.Init`: it registers the
-   post-converters (`Pug.Other:2550`), `PugDatabasePostConverter` among them
-   (`Pug.Other:3115`), and converts the server authoring prefab once
-   (`Pug.Other:2553`, `Pug.Other:2554`). A `PostConvert` prefix fires here — its
-   log lines come before `PugDatabase initialized` and before any mod's `Init`.
+   post-converters (`Pug.Other:ECSManager:Init:21`), `PugDatabasePostConverter`
+   among them (`Pug.Other:ECSManager:ConfigurePostConverters:6`), and converts
+   the server authoring prefab once (`Pug.Other:ECSManager:Init:24`,
+   `Pug.Other:ECSManager:Init:25`). A `PostConvert` prefix fires here — its log
+   lines come before `PugDatabase initialized` and before any mod's `Init`.
 3. `Init`, every mod, then `Update` — in the same loader call (below).
 4. **The per-world conversions**, from `ECSManager.StartEcs`: on a client when a
    world is entered, on a dedicated server when it starts its world. The server's
    `StartEcs` runs the loader's update before it converts
-   (`DedicatedServer/Pug.Other:2785`), so a mod not yet initialised is
+   (`DedicatedServer/Pug.Other:ECSManager:StartEcs:38`), so a mod not yet initialised is
    initialised there first. Through 1.2 a dedicated server ran `Init` *after*
    `StartEcs`; [Harmony and ECS](harmony-and-ecs.md#the-dedicated-server-trap) has that measurement.
 
@@ -163,10 +165,11 @@ then freezes that default in place, so the world conversions copy it too.
 Restarting does not repair it: the ordering is the same every session, so a
 one-line timing mistake becomes a permanent one.
 
-**At startup, the loader calls every mod's `Init` before any mod's `Update`.** Its update is
-`_modHandlers.Call.Init()` followed by `_modHandlers.Call.Update()`
-(`PugMod.Loader:1216`, `PugMod.Loader:1217`), and the first loops over every
-handler not yet initialised (`PugMod.Loader:844`). The order of `Init` between
+**At startup, the loader calls every mod's `Init` before any mod's `Update`.**
+Its update is `_modHandlers.Call.Init()` followed by
+`_modHandlers.Call.Update()` (`PugMod.Loader:Loader:Update:3`,
+`PugMod.Loader:Loader:Update:4`), and the first loops over every handler not yet
+initialised (`PugMod.Loader:ModContainer:Init:3`). The order of `Init` between
 two mods that do not depend on each other is not yours to choose, but the first
 `Update` comes after all of them. So an edit to a list that other mods also edit
 from `Init` — a station's `canCraftObjects`, for one — belongs in the first
@@ -191,20 +194,23 @@ The lifecycle itself is in [Mod anatomy](mod-anatomy.md).
 The obvious alternative — patching the runtime craft — is closed to a plain
 Harmony patch. The path is `InventoryUpdateSystem` → `ProcessCraftingJob` →
 `InventoryUtility.Craft`, and it is **Burst-compiled twice over**:
-`InventoryUpdateSystem` is a `[BurstCompile] ISystem` (`Pug.Other:427456`), and
-the work sits in the separately `[BurstCompile]`d `IJob` it schedules
-(`ProcessCraftingJob`, `Pug.Other:427823`; scheduled at `Pug.Other:428180`, calling
-`InventoryUtility.Craft` at `Pug.Other:427876`).
+`InventoryUpdateSystem` is a `[BurstCompile] ISystem`
+(`Pug.Other:InventoryUpdateSystem:1`), and the work sits in the separately
+`[BurstCompile]`d `IJob` it schedules (`ProcessCraftingJob`,
+`Pug.Other:ProcessCraftingJob:2`; scheduled at
+`Pug.Other:InventoryUpdateSystem:OnUpdate:34`, calling `InventoryUtility.Craft`
+at `Pug.Other:ProcessCraftingJob:Execute:32`).
 
 **The distinction that matters is which `BurstDisabler` call.**
 `DisableBurstForSystem<InventoryUpdateSystem>()` does not reach it — that takes
 the *system's* `OnUpdate` off Burst and leaves the job it schedules to run its
 own Burst-compiled form. A nested job needs `DisableBurstForSystemAndJobs<T>()`
-(`PugMod.SDK.Runtime:709`), which additionally completes the system's job
-dependency inside the un-Bursted window. That variant is verified to make
-patches fire on another `ISystem` whose work sits in a nested `[BurstCompile]`
-job, but whether it does the same for the craft path is **unverified** — see [Harmony and ECS](harmony-and-ecs.md)
-for how it works and what it costs.
+(`PugMod.SDK.Runtime:BurstDisabler:DisableBurstForSystemAndJobs(bool):1`), which
+additionally completes the system's job dependency inside the un-Bursted window.
+That variant is verified to make patches fire on another `ISystem` whose work
+sits in a nested `[BurstCompile]` job, but whether it does the same for the
+craft path is **unverified** — see [Harmony and ECS](harmony-and-ecs.md) for how it works and what it
+costs.
 
 Bake time remains the seam this chapter recommends: one edit at conversion time,
 against a per-craft patch on a hot simulation path that has to be taken off Burst
@@ -218,11 +224,12 @@ to exist at all.
 elements are `{ objectName: string, amount: int }`. CoreLib is needed for UI,
 not for the item.
 
-**Since 1.3 the prefab also needs an `EntityAuthoringDataBlock`, or the item
-is missing from the database.** `PugDatabasePostConverter` builds the database
-bank from `ScriptableData.GetDataBlocks<EntityAuthoringDataBlock>()` and nothing
-else (`Pug.Other:3718`); through 1.2 the prefab list also took in the loader's
-`Manager.mod.ExtraAuthoring`, which is why a 1.2 mod needed no block.
+**Since 1.3 the prefab also needs an `EntityAuthoringDataBlock`, or the item is
+missing from the database.** `PugDatabasePostConverter` builds the database bank
+from `ScriptableData.GetDataBlocks<EntityAuthoringDataBlock>()` and nothing else
+(`Pug.Other:PugDatabasePostConverter:PostConvert:10`); through 1.2 the prefab
+list also took in the loader's `Manager.mod.ExtraAuthoring`, which is why a 1.2
+mod needed no block.
 
 What a missing block looks like was measured in `caveling-divining-rod` on
 1.3.0.2, with CoreLib's `EntityModule` loaded: the rod still resolved to an
@@ -230,11 +237,14 @@ What a missing block looks like was measured in `caveling-divining-rod` on
 `ObjectAuthoring` prefab gets one, whether a block or another prefab pulled it
 into the conversion ([below](#where-a-modded-items-objectid-comes-from)) — so its Iron Workbench recipe resolved
 (`moddedObjectID` goes through `API.Authoring.GetObjectID`,
-`Pug.ECS.Conversion:1765`) and an extra crafting window opened, because that
-test only asks for a non-`None` ID (`Pug.Other:339027`, the check at
-`Pug.Other:339061`). The slot inside it stayed empty, because drawing one asks
-the bank (`PugDatabase.HasObject`, `Pug.Other:430819`), and nothing could be
-crafted. No error was logged.
+`Pug.ECS.Conversion:InventoryConverter:AddRecipe:5`) and an extra crafting
+window opened, because that test only asks for a non-`None` ID
+(`Pug.Other:SimpleCraftingUIContainer:ShowCraftingUI:18`, the check at
+`Pug.Other:SimpleCraftingUIContainer:AnyAvailableRecipeInRange:6`). The slot
+inside it stayed empty, because drawing one asks the bank
+(`PugDatabase.HasObject`,
+`Pug.Other:InventoryUtility:GetRecipeInfo(PugDatabase.DatabaseBankCD, ObjectID, …):3`),
+and nothing could be crafted. No error was logged.
 
 **Most 1.3 item mods ship the block as an asset.** StoragePlus, ChestsGalore,
 DoubleChest, Extra Pouches and MoreScenes all carry `EntityAuthoringDataBlock`
@@ -258,7 +268,8 @@ public void EarlyInit()
 ```
 
 - **It has to be `EarlyInit`.** Runtime blocks are refused once ScriptableData
-  has started loading — the loader throws and says so (`PugMod.Loader:2288`).
+  has started loading — the loader throws and says so
+  (`PugMod.Loader:RuntimeDataBlocks:EnsureRegistrationOpen:9`).
 - **Take the prefab from `LoadedMod.Assets`.** In `caveling-divining-rod`,
   `AssetBundle.LoadAsset<GameObject>("<prefab name>")` returned null in game
   for a prefab that `Assets` contained; why is **unverified**.
@@ -298,40 +309,51 @@ on build `1.3.0.5-cb48` and re-checked on `1.3.0.6-6e73`, client and dedicated
 server alike:
 
 1. `API.Authoring.GetObjectID(name)` is a dictionary lookup and nothing else
-   (`Pug.Other:410222`); a name that is not in it returns `ObjectID.None`.
+   (`Pug.Other:ModAPIAuthoring:GetObjectID:7`); a name that is not in it returns
+   `ObjectID.None`.
 2. The lookup is written during conversion, first value wins: by
    `ObjectConverter` for every converted `ObjectAuthoring` prefab
-   (`Pug.ECS.Conversion:3572`), and by `EntityMonoBehaviourDataConverter` with
-   the vanilla prefab's own enum value (`Pug.ECS.Conversion:5818`).
+   (`Pug.ECS.Conversion:ObjectConverter:Convert:5`), and by
+   `EntityMonoBehaviourDataConverter` with the vanilla prefab's own enum value
+   (`Pug.ECS.Conversion:EntityMonoBehaviourDataConverter:Convert:6`).
 3. The index a prefab converts under is its *preferred* index if it has one,
-   otherwise the next value of a counter (`PugConversion:1044`,
-   `PugConversion:1046`). Every converted object without a preferred index takes
-   a value, item or not. An `ObjectAuthoring` prefers the ID its `objectName`
-   already resolves to (`Pug.ECS.Authoring:2992`, `Pug.ECS.Authoring:2983`) — so
-   on the first conversion a modded item has none and takes the counter, and
-   every later conversion reuses that value. The counter starts above the
-   highest vanilla `ObjectID`, at no less than 32768 (`PugConversion:712`,
-   `Pug.Other:2607`).
+   otherwise the next value of a counter
+   (`PugConversion:ConversionManager:FinishConversionQueue:14`,
+   `PugConversion:ConversionManager:FinishConversionQueue:16`). Every converted
+   object without a preferred index takes a value, item or not. An
+   `ObjectAuthoring` prefers the ID its `objectName` already resolves to
+   (`Pug.ECS.Authoring:ObjectAuthoring:ObjectAuthoringToObjectInfo:6`,
+   `Pug.ECS.Authoring:ObjectAuthoring:TryGetPreferredObjectIndex:9`) — so on the
+   first conversion a modded item has none and takes the counter, and every
+   later conversion reuses that value. The counter starts above the highest
+   vanilla `ObjectID`, at no less than 32768
+   (`PugConversion:ConversionManager:ConversionManager:14`,
+   `Pug.Other:ECSManager:CalculateReservedObjectIndices:3`).
 4. The first conversion is `ECSManager.Init`, which converts the server
-   authoring prefab once at startup (`Pug.Other:2553`). Its
-   `PugDatabaseConverter` enqueues the prefab of every `EntityAuthoringDataBlock`,
-   **sorted by the block's address** (`Pug.Other:3640`, `Pug.Other:3643`; the
-   comparison is the address GUID, `ScriptableData:1808`). A prefab can also
+   authoring prefab once at startup (`Pug.Other:ECSManager:Init:24`). Its
+   `PugDatabaseConverter` enqueues the prefab of every
+   `EntityAuthoringDataBlock`, **sorted by the block's address**
+   (`Pug.Other:PugDatabaseConverter:Convert:15`,
+   `Pug.Other:PugDatabaseConverter:Convert:18`; the comparison is the address
+   GUID, `ScriptableData:ScriptableDataBlock:CompareTo:11`). A prefab can also
    enter the queue because a converted prefab references it — a
-   `PugPrefabBufferAuthoring` list does that (`Pug.ECS.Conversion:3507`) — and
-   then it gets an ID with no block of its own. The loader's
-   `RegisterAuthoringGameObject` (`Pug.Other:279067`) only lists a prefab in
-   `ExtraAuthoring`. Startup enqueues only the server authoring prefab
-   (`Pug.Other:2553`) and hands that list, after the conversion, to
-   `PugDatabase.UpdateEntityMonos` (`Pug.Other:2555`), which reads the
-   prefabs' `ObjectInfo` rather than converting them; no other use of the list
-   in the decompile enqueues it. That is the likeliest reading
-   of the blockless rod above, which resolved to an ID all the same; which
-   reference pulled it in is not traced.
+   `PugPrefabBufferAuthoring` list does that
+   (`Pug.ECS.Conversion:PugPrefabBufferConverter:Convert:8`) — and then it gets
+   an ID with no block of its own. The loader's `RegisterAuthoringGameObject`
+   (`Pug.Other:ModManager:EarlyInit:7`) only lists a prefab in `ExtraAuthoring`.
+   Startup enqueues only the server authoring prefab
+   (`Pug.Other:ECSManager:Init:24`) and hands that list, after the conversion,
+   to `PugDatabase.UpdateEntityMonos` (`Pug.Other:ECSManager:Init:26`), which
+   reads the prefabs' `ObjectInfo` rather than converting them; no other use of
+   the list in the decompile enqueues it. That is the likeliest reading of the
+   blockless rod above, which resolved to an ID all the same; which reference
+   pulled it in is not traced.
 5. `API.DataBlocks.CreateRuntimeInstance<T>(modId)` — the call this chapter's
    example uses, and CoreLib uses for its generated workbenches — gives the
-   block a fresh `Guid.NewGuid()` (`PugMod.Loader:2236`, `ScriptableData:71`),
-   on every launch, the same machine included.
+   block a fresh `Guid.NewGuid()`
+   (`PugMod.Loader:RuntimeDataBlocks:CreateRuntimeInstance(Type, long):3`,
+   `ScriptableData:DataBlockAddress:NewAddress:3`), on every launch, the same
+   machine included.
 
 So a runtime block created that way lands at a random place in the sort, in each
 process separately, and the counter values it and every other modded prefab
@@ -340,10 +362,12 @@ process and one lookup, so a host always agrees with itself. **A second process
 — a dedicated server, or a player joining someone else's game — may give the
 same item a different `ObjectID`**, and several items registered this way may
 come out in a different order on each side. The dedicated-server decompile runs
-the identical path (`DedicatedServer/Pug.Other:2542`,
-`DedicatedServer/Pug.Other:3617`, `DedicatedServer/PugMod.Loader:2236`). Nothing
-at connect time would notice: the connect request carries a hash over the ghost
-collection (`Pug.Other:2599`), not the ID table.
+the identical path (`DedicatedServer/Pug.Other:ECSManager:Init:24`,
+`DedicatedServer/Pug.Other:PugDatabaseConverter:Convert:15`,
+`DedicatedServer/PugMod.Loader:RuntimeDataBlocks:CreateRuntimeInstance(Type, long):3`).
+Nothing at connect time would notice: the connect request carries a hash over
+the ghost collection
+(`Pug.Other:ECSManager:TryCalculateGhostCollectionHash:20`), not the ID table.
 
 **Measured on 1.3.0.5, 2026-10-08.** Complete Tools registered its item on a
 block with a *fixed* address, in a mod set with nine random-address blocks:
@@ -361,50 +385,59 @@ CoreLib's generated workbenches use the no-address overload (`EntityModule.cs`,
 line 280 in mod.io modfile 8237090). Caveling Divining Rod has since moved to a
 fixed address and a pre-seeded ID (60001).
 
-**Saves are the exception, and the strongest sign that the game treats these
-IDs as unstable.** Both save paths translate modded IDs back by name on load. A
+**Saves are the exception, and the strongest sign that the game treats these IDs
+as unstable.** Both save paths translate modded IDs back by name on load. A
 world save keeps the name of every ID, and `DefaultConvertSystem` renumbers
-every ID from 32767 up through that name (`Pug.Other:176409`,
-`Pug.Other:176415`, `Pug.Other:176425`). A character save stores
-`inventoryObjectNames` beside the IDs (`Pug.Other:381160`). When a player
-joins, the client sends that character data to the server, and the server-side
-`StartGameRPCSystem` re-resolves every inventory slot of 32767 and up by its
-name against the *server's* lookup (`Pug.Other:133539`, `Pug.Other:133541`) —
-the only place modded IDs are reconciled between two processes. It is skipped
-for a player last connected to this same server (`Pug.Other:133529`,
-`DedicatedServer/Pug.Other:133510`), whose inventory then keeps its raw IDs.
-That skip is the likeliest reading of the inventory item above that changed
-after every server restart; it is not traced further. Nothing else reconciles:
-crafting requests, ghosts and the UI all carry the raw ID.
+every ID from 32767 up through that name
+(`Pug.Other:DefaultConvertSystem:GetNewObjectID:7`,
+`Pug.Other:DefaultConvertSystem:GetNewObjectID:13`,
+`Pug.Other:DefaultConvertSystem:GetNewObjectID:23`). A character save stores
+`inventoryObjectNames` beside the IDs (`Pug.Other:SaveManager:SetInventory:12`).
+When a player joins, the client sends that character data to the server, and the
+server-side `StartGameRPCSystem` re-resolves every inventory slot of 32767 and
+up by its name against the *server's* lookup
+(`Pug.Other:StartGameRPCSystem:OnUpdate:46`,
+`Pug.Other:StartGameRPCSystem:OnUpdate:48`) — the only place modded IDs are
+reconciled between two processes. It is skipped for a player last connected to
+this same server (`Pug.Other:StartGameRPCSystem:OnUpdate:36`,
+`DedicatedServer/Pug.Other:StartGameRPCSystem:OnUpdate:41`), whose inventory
+then keeps its raw IDs. That skip is the likeliest reading of the inventory item
+above that changed after every server restart; it is not traced further. Nothing
+else reconciles: crafting requests, ghosts and the UI all carry the raw ID.
 
-**A stable address is not a stable `ObjectID` — measured, not only argued.**
-Two ways to the first: ship the block as an asset, whose address is serialised
-with it, or call the overload that takes an address,
-`CreateRuntimeInstance<T>(modId, address)` — the loader then derives the
-block's address from a SHA-256 of the mod's manifest GUID and the given address
-(`PugMod.Loader:2262`, `PugMod.Loader:2295`), the same on every machine for one
-build of the mod. What the overload's `m_overload` side effect does is [below](#scriptabledata-blocks-addresses-and-order).
-The measurement above used that overload. The IDs are only as stable as
-everything else that consumes the counter: another mod's random-address block
-still sorts among yours, and a mod installed on only one side shifts every value
-after its own. Choosing an address that sorts first only narrows the same
-dependency — the number is still a function of every other installed mod, and a
-second mod doing the same thing breaks it.
+**A stable address is not a stable `ObjectID` — measured, not only argued.** Two
+ways to the first: ship the block as an asset, whose address is serialised with
+it, or call the overload that takes an address, `CreateRuntimeInstance<T>(modId,
+address)` — the loader then derives the block's address from a SHA-256 of the
+mod's manifest GUID and the given address
+(`PugMod.Loader:RuntimeDataBlocks:CreateRuntimeInstance(Type, long, DataBlockAddress, …):15`,
+`PugMod.Loader:RuntimeDataBlocks:GetInstanceAddress:4`), the same on every
+machine for one build of the mod. What the overload's `m_overload` side effect
+does is [below](#scriptabledata-blocks-addresses-and-order). The measurement above used that overload. The IDs are only as
+stable as everything else that consumes the counter: another mod's
+random-address block still sorts among yours, and a mod installed on only one
+side shifts every value after its own. Choosing an address that sorts first only
+narrows the same dependency — the number is still a function of every other
+installed mod, and a second mod doing the same thing breaks it.
 
 ### Pinning a modded item's `ObjectID`: seed the lookup first
 
 **What does work is to give the item a preferred index before the first
 conversion, by writing its ID into the lookup that `GetObjectID` reads.** The
 chain is the one in step 3 above: an `ObjectAuthoring` prefers whatever
-`API.Authoring.GetObjectID(objectName)` returns (`Pug.ECS.Authoring:2992`,
-`Pug.ECS.Authoring:2983`), and that is `ModAPIAuthoring.ObjectIDLookup`, a
-public `readonly Dictionary<string, ObjectID>` (`Pug.Other:410199`, read at
-`Pug.Other:410222`). An ID found there is used as the object's index and the
-counter is not consulted (`PugConversion:1044`); the converter's own write is a
-`TryAdd`, so the seeded value stays (`Pug.ECS.Conversion:3572`); and every later
-conversion reuses it. The lookup exists from the moment the loader's API is
-created (`Pug.Other:272234`), before `EarlyInit`, so `EarlyInit` is where to
-seed it:
+`API.Authoring.GetObjectID(objectName)` returns
+(`Pug.ECS.Authoring:ObjectAuthoring:ObjectAuthoringToObjectInfo:6`,
+`Pug.ECS.Authoring:ObjectAuthoring:TryGetPreferredObjectIndex:9`), and that is
+`ModAPIAuthoring.ObjectIDLookup`, a public `readonly Dictionary<string,
+ObjectID>` (`Pug.Other:ModAPIAuthoring:ObjectIDLookup:1`, read at
+`Pug.Other:ModAPIAuthoring:GetObjectID:7`). An ID found there is used as the
+object's index and the counter is not consulted
+(`PugConversion:ConversionManager:FinishConversionQueue:14`); the converter's
+own write is a `TryAdd`, so the seeded value stays
+(`Pug.ECS.Conversion:ObjectConverter:Convert:5`); and every later conversion
+reuses it. The lookup exists from the moment the loader's API is created
+(`Pug.Other:Manager:EarlyInit:63`), before `EarlyInit`, so `EarlyInit` is where
+to seed it:
 
 ```csharp
 var lookup = (API.Authoring as ModAPIAuthoring)?.ObjectIDLookup;
@@ -415,30 +448,33 @@ if (!lookup.TryGetValue("MyItem", out _))
 
 The cast passes the sandbox — `ModAPIAuthoring` is a public type in namespace
 `PugMod`, and CoreLib, itself a sandboxed source mod, does the same cast
-(`LoadItemDictSystem.cs:87`). **Measured:** Complete Tools seeds twelve items
-this way, each with an FNV-1a hash of its object name mapped into 50000–59999
-and probed upward on a collision — so an ID also depends on the order of the
-mod's own catalogue. On 1.3.0.5 the Relucite Pickaxe resolved to the same seeded
-ID on the client and on the dedicated server, verified as below, and was crafted
-on the server and kept. On 1.3.0.6 the twelve IDs were identical on both sides;
-the mod logs an ID only after reading the object's name back at it through
-`ObjectProperties` and finding no other object there, so those lines are not an
-echo of the seed.
+(`LoadItemDictSystem.cs:LoadItemDictSystem:AddItemFriendlyNames:4`).
+**Measured:** Complete Tools seeds twelve items this way, each with an FNV-1a
+hash of its object name mapped into 50000–59999 and probed upward on a collision
+— so an ID also depends on the order of the mod's own catalogue. On 1.3.0.5 the
+Relucite Pickaxe resolved to the same seeded ID on the client and on the
+dedicated server, verified as below, and was crafted on the server and kept. On
+1.3.0.6 the twelve IDs were identical on both sides; the mod logs an ID only
+after reading the object's name back at it through `ObjectProperties` and
+finding no other object there, so those lines are not an echo of the seed.
 
 Three things the seed makes your problem:
 
 - **Pick a range the counter does not reach.** The counter does not skip values
-  a preferred index already took (`PugConversion:1046`), so a seed inside its
-  range collides with whatever the counter hands out there. Nothing fails:
+  a preferred index already took
+  (`PugConversion:ConversionManager:FinishConversionQueue:16`), so a seed inside
+  its range collides with whatever the counter hands out there. Nothing fails:
   `PugDatabasePostConverter` groups blocks by `(objectID, variation)` without
-  complaint (`Pug.Other:3747`, `Pug.Other:3749`), and the only trace is an
+  complaint (`Pug.Other:PugDatabasePostConverter:PostConvert:39`,
+  `Pug.Other:PugDatabasePostConverter:PostConvert:41`), and the only trace is an
   info-level `replacing name at index N` when the second object writes its name
-  property there (`PugProperties:1606`). Complete Tools and Caveling Divining
-  Rod both refuse to seed an ID another seeded name already holds, which covers
-  seeds but not counter values. Do not go to the other extreme either — the
-  property lookup is allocated as one array up to the highest index in use
-  (`PugProperties:1436`), so an ID in the millions costs memory for every index
-  below it.
+  property there (`PugProperties:PropertyLookupBuilder:AddProperty:12`).
+  Complete Tools and Caveling Divining Rod both refuse to seed an ID another
+  seeded name already holds, which covers seeds but not counter values. Do not
+  go to the other extreme either — the property lookup is allocated as one array
+  up to the highest index in use
+  (`PugProperties:PropertyLookupBuilder:CreateLookup:11`), so an ID in the
+  millions costs memory for every index below it.
 - **The object name is now the identity, permanently.** Saves already resolve
   modded items by name; with a seed derived from the name, so does multiplayer.
   A renamed object, or a changed derivation, is a different item to every
@@ -450,46 +486,51 @@ Three things the seed makes your problem:
 `GetObjectID` reads the dictionary you just wrote, so it returns your seed
 whatever the conversion did. `PugDatabase.GetObjectInfo` echoes it too: the
 managed catalogue is filled before the conversion runs (next section), keyed on
-the `objectID` the lookup supplied (`Pug.Other:325825`, read back at
-`Pug.Other:325888`). `ObjectProperties` is assigned once, after the startup
-conversion (`Pug.Other:2560`; dedicated server
-`DedicatedServer/Pug.Other:2549`), from the property lookup in which the
-converter wrote each object's `"name"` at the index it actually used
-(`Pug.ECS.Conversion:3576`). Reading the name back at your ID through
-`ObjectProperties.TryGetPropertyString` is evidence; reading the ID back
-through `GetObjectID` is an echo.
+the `objectID` the lookup supplied
+(`Pug.Other:PugDatabase:UpdateEntityMonos:24`, read back at
+`Pug.Other:PugDatabase:GetObjectInfo:1`). `ObjectProperties` is assigned once,
+after the startup conversion (`Pug.Other:ECSManager:Init:31`; dedicated server
+`DedicatedServer/Pug.Other:ECSManager:Init:31`), from the property lookup in
+which the converter wrote each object's `"name"` at the index it actually used
+(`Pug.ECS.Conversion:ObjectConverter:Convert:9`). Reading the name back at your
+ID through `ObjectProperties.TryGetPropertyString` is evidence; reading the ID
+back through `GetObjectID` is an echo.
 
 ### Seeding an item hides its recipe from the managed catalogue
 
 `PugDatabase`'s managed catalogue — `objectsByType`, what `GetObjectInfo` and
 mods such as Item Browser read — is a snapshot taken *before* the startup
-conversion: `PugDatabase.UpdateEntityMonos(BuildAuthoringListFromEntityDataBlocks())`
-(`Pug.Other:2551`) reads each block's `ObjectInfo`, skips any whose `objectID`
-is still `None` (`Pug.Other:325814`) and `TryAdd`s the rest
-(`Pug.Other:325825`). Nothing refreshes it during play; its only other caller
-there adds the `ExtraAuthoring` list after the conversion (`Pug.Other:2555`).
-A third caller, in `Pug.Dev`, is an Editor dungeon tool.
+conversion:
+`PugDatabase.UpdateEntityMonos(BuildAuthoringListFromEntityDataBlocks())`
+(`Pug.Other:ECSManager:Init:22`) reads each block's `ObjectInfo`, skips any
+whose `objectID` is still `None` (`Pug.Other:PugDatabase:UpdateEntityMonos:13`)
+and `TryAdd`s the rest (`Pug.Other:PugDatabase:UpdateEntityMonos:24`). Nothing
+refreshes it during play; its only other caller there adds the `ExtraAuthoring`
+list after the conversion (`Pug.Other:ECSManager:Init:26`). A third caller, in
+`Pug.Dev`, is an Editor dungeon tool.
 
 Building that `ObjectInfo` resolves each ingredient of the item's recipe by name
-through the same lookup (`Pug.ECS.Authoring:3033`). At that moment the lookup
-holds only pre-seeded names: vanilla names arrive during the conversion
-(`Pug.ECS.Conversion:5818`). An unseeded modded item is still `None` there and
-skipped; it enters the catalogue at the `ExtraAuthoring` pass instead — every
-bundle prefab with entity data is in that list (`Pug.Other:279067`) — when all
-names resolve, so its recipe is complete. A seeded one is taken at the first
-pass, with **`ObjectID.None` for every vanilla ingredient**, and because both
-passes `TryAdd`, the complete entry from the second pass is dropped. Crafting
-is unaffected, because the ECS side resolves the recipe during conversion. The
+through the same lookup
+(`Pug.ECS.Authoring:ObjectAuthoring:ObjectAuthoringToObjectInfo:47`). At that
+moment the lookup holds only pre-seeded names: vanilla names arrive during the
+conversion (`Pug.ECS.Conversion:EntityMonoBehaviourDataConverter:Convert:6`). An
+unseeded modded item is still `None` there and skipped; it enters the catalogue
+at the `ExtraAuthoring` pass instead — every bundle prefab with entity data is
+in that list (`Pug.Other:ModManager:EarlyInit:7`) — when all names resolve, so
+its recipe is complete. A seeded one is taken at the first pass, with
+**`ObjectID.None` for every vanilla ingredient**, and because both passes
+`TryAdd`, the complete entry from the second pass is dropped. Crafting is
+unaffected, because the ECS side resolves the recipe during conversion. The
 managed recipe is not only a mods' concern: vanilla's own
-`CraftingHandler.RecipeInfo` exposes it (`Pug.Other:303759`), and a processing
-station checks materials against it before sending a craft
-(`Pug.Other:338169`); that path was not tried with a seeded item. Measured
-in Complete Tools on 1.3.0.6: Item Browser threw a `NullReferenceException` in
-`ObjectUtility.GetValue` on opening its Items tab, and switching Complete Tools
-off made it go away.
+`CraftingHandler.RecipeInfo` exposes it (`Pug.Other:RecipeInfo:18`), and a
+processing station checks materials against it before sending a craft
+(`Pug.Other:ProcessResourcesCraftingUI:ActivateRecipeSlot:8`); that path was not
+tried with a seeded item. Measured in Complete Tools on 1.3.0.6: Item Browser
+threw a `NullReferenceException` in `ObjectUtility.GetValue` on opening its
+Items tab, and switching Complete Tools off made it go away.
 
 **Seed the ingredient names as well.** A vanilla object's lookup name is its
-enum constant's name (`Pug.ECS.Conversion:5815`), so
+enum constant's name (`Pug.ECS.Conversion:EntityMonoBehaviourDataConverter:Convert:3`), so
 `Enum.TryParse<ObjectID>(name, out var id)` gives the value the conversion would
 write anyway; seeding those names in `EarlyInit`, before the conversion, gave
 Item Browser complete recipes again, with no exception, on the next launch. That
@@ -570,14 +611,19 @@ re-entrancy guard a `PostConvert` prefix needs remains open.
 
 At a crafting station, clicking a recipe sends the item's `ObjectID`, not a slot
 or a name. Processing stations differ: their window sends a slot index
-(`ActivateRecipeSlot`, `Pug.Other:338174`). At a crafting station the
-window calls `CraftItem(player, objectID, …)` (`Pug.Other:334113`), which queues
-a craft action built from that ID (`Pug.Other:305187`). The crafting job runs on
-the server, and on the client as predicted crafting (`Pug.Other:427908`). It
-drops a craft from a non-admin on a read-only (guest-mode) world
-(`Pug.Other:427851`), then hands the ID to `InventoryUtility.Craft`
-(`Pug.Other:427876`; dedicated server `DedicatedServer/Pug.Other:423184`), whose
-gate is `InventoryUtility.CanCraft` (`Pug.Other:430203`): for a cooking pot its
+(`ActivateRecipeSlot`,
+`Pug.Other:ProcessResourcesCraftingUI:ActivateRecipeSlot:13`). At a crafting
+station the window calls `CraftItem(player, objectID, …)`
+(`Pug.Other:CraftingUIBase:ActivateRecipeSlot:123`), which queues a craft action
+built from that ID (`Pug.Other:InventoryHandler:CraftItem:12`). The crafting job
+runs on the server, and on the client as predicted crafting
+(`Pug.Other:ProcessCraftingJob:Execute:64`). It drops a craft from a non-admin
+on a read-only (guest-mode) world (`Pug.Other:ProcessCraftingJob:Execute:7`),
+then hands the ID to `InventoryUtility.Craft`
+(`Pug.Other:ProcessCraftingJob:Execute:32`; dedicated server
+`DedicatedServer/Pug.Other:ProcessCraftingJob:Execute:32`), whose gate is
+`InventoryUtility.CanCraft`
+(`Pug.Other:InventoryUtility:CanCraft(CraftingCD, …):2`): for a cooking pot its
 two ingredients, for a station that consumes its own stack
 (`craftingConsumesEntityAmount`) only that stack's amount, and otherwise the
 output slot, the material tag and the materials the requested ID's recipe lists.
@@ -589,23 +635,26 @@ matters in multiplayer.
 
 ### How a station window lays out the list: six slots, three windows
 
-A station drawn by `SimpleCraftingUIContainer` (`Pug.Other:338979`) cuts its
-recipes into windows of six slots — `MAX_RECIPES_PER_UI = 6`
-(`Pug.Other:338981`). `ShowCraftingUI` walks the list in six-slot ranges and
-opens a window only for a range holding at least one non-`None` entry
-(`Pug.Other:339027`); an empty range is skipped and the windows after it close
-up. So the list index decides which range an entry falls into, not which
-on-screen position it ends up in.
+A station drawn by `SimpleCraftingUIContainer`
+(`Pug.Other:SimpleCraftingUIContainer:1`) cuts its recipes into windows of six
+slots — `MAX_RECIPES_PER_UI = 6`
+(`Pug.Other:SimpleCraftingUIContainer:MAX_RECIPES_PER_UI:1`). `ShowCraftingUI`
+walks the list in six-slot ranges and opens a window only for a range holding at
+least one non-`None` entry
+(`Pug.Other:SimpleCraftingUIContainer:ShowCraftingUI:18`); an empty range is
+skipped and the windows after it close up. So the list index decides which range
+an entry falls into, not which on-screen position it ends up in.
 
 **The metal workbenches show their own list as one category among several.**
 From Copper to Solarite, each workbench names every lower-tier workbench in
 `CraftingAuthoring.includeCraftedObjectsFromBuildings` — Copper names Wood,
 Solarite names Wood through Galaxite. The conversion appends those lists to the
-station's own (`Pug.ECS.Conversion:1690`) and records one
-`IncludedCraftingBuildingsBuffer` entry per list, the station's own first
-(`Pug.ECS.Conversion:1707`). `CraftingBuilding.OnSpawn` turns those into
-category ranges (`Pug.Other:318136`), and `ShowCraftingUI` then walks only the
-active category, counting its six-slot ranges from the category's own start.
+station's own (`Pug.ECS.Conversion:InventoryConverter:SetupCanCraftBuffer:10`)
+and records one `IncludedCraftingBuildingsBuffer` entry per list, the station's
+own first (`Pug.ECS.Conversion:InventoryConverter:SetupCanCraftBuffer:27`).
+`CraftingBuilding.OnSpawn` turns those into category ranges
+(`Pug.Other:CraftingBuilding:OnSpawn:7`), and `ShowCraftingUI` then walks only
+the active category, counting its six-slot ranges from the category's own start.
 The Wood workbench and the Relucite Smithing Table include nothing and show one
 list. Two consequences:
 
@@ -619,10 +668,10 @@ list. Two consequences:
 serialized with three entries (`simpleCraftingUIs` in `Global Objects (Main
 Manager).prefab`). A fourth range with at least one recipe in it logs `Not
 enough SimpleCraftingUIs in SimpleCraftingUIContainer to show all recipes`
-(`Pug.Other:339031`) and its entries never render — the recipe exists, it just
-has nowhere to appear. On 1.3.0.5 the own list of every metal workbench from
-Copper to Solarite already holds 18 entries, so on those an appended recipe
-needs a fourth window.
+(`Pug.Other:SimpleCraftingUIContainer:ShowCraftingUI:22`) and its entries never
+render — the recipe exists, it just has nowhere to appear. On 1.3.0.5 the own
+list of every metal workbench from Copper to Solarite already holds 18 entries,
+so on those an appended recipe needs a fourth window.
 
 **The vanilla lists use the windows as groups.** On those workbenches the first
 window holds tools and gear and the second further stations, up to Galaxite
@@ -638,20 +687,25 @@ frame.** `CraftingBuilding.buildingSpecificUISettings` names each window per
 station (`CraftingUISettings.titles`), falling back to `defaultUISettings` for a
 station it does not list. For a window index past the end of the titles, the
 window shows the default title and logs `Missing title for crafting UI window
-index …` (`Pug.Other:370852`) — from `SmallTitleUIBackground.Update`
-(`Pug.Other:370819`), so once per frame while the station is open: one Complete
-Tools session logged 10733 of them before its windows had titles. A mod that adds
-a window should add its title too.
+index …` (`Pug.Other:SmallTitleUIBackground:UpdateTextAndBackground:22`) — from
+`SmallTitleUIBackground.Update` (`Pug.Other:SmallTitleUIBackground:Update:1`),
+so once per frame while the station is open: one Complete Tools session logged
+10733 of them before its windows had titles. A mod that adds a window should add
+its title too.
 
 **The titles are not reachable as data, so patch the getter — on a copy.** Both
-lists are serialized fields of `CraftingBuilding` (`Pug.Other:318061`,
-`Pug.Other:318064`), the station's graphical `EntityMonoBehaviour`, not its
-authoring prefab, so the runtime edits this chapter describes do not reach them.
-The title code asks `CraftingBuilding.GetCraftingUISettings()`
-(`Pug.Other:370845`), which returns the stored `CraftingUISettings` instance
-itself (`Pug.Other:318081`, `Pug.Other:318085`), a class instance rather than a
-copy, so a write into it changes what every later caller gets. Whether it is
-also shared between buildings is Unity's instantiation business and not shown
+lists are serialized fields of `CraftingBuilding`
+(`Pug.Other:CraftingBuilding:defaultUISettings:1`,
+`Pug.Other:CraftingBuilding:buildingSpecificUISettings:2`), the station's
+graphical `EntityMonoBehaviour`, not its authoring prefab, so the runtime edits
+this chapter describes do not reach them. The title code asks
+`CraftingBuilding.GetCraftingUISettings()`
+(`Pug.Other:SmallTitleUIBackground:UpdateTextAndBackground:15`), which returns
+the stored `CraftingUISettings` instance itself
+(`Pug.Other:CraftingBuilding:GetCraftingUISettings:1`,
+`Pug.Other:CraftingBuilding:GetCraftingUISettings:5`), a class instance rather
+than a copy, so a write into it changes what every later caller gets. Whether it
+is also shared between buildings is Unity's instantiation business and not shown
 here; return a copy and the question does not arise. A Harmony postfix on
 `GetCraftingUISettings` that returns a cached copy with the extra titles
 appended works: measured in Complete Tools on 1.3.0.6, the warning count went
@@ -665,22 +719,27 @@ six-slot boundary and wrote its items after it; with its setting off, those
 items were themselves left `None`. On 1.3.0.6 the Wood, Tin, Iron and Scarlet
 workbenches then showed an empty fourth window — although the range check above
 returns false for a range holding nothing but `None`
-(`AnyAvailableRecipeInRange`, `Pug.Other:339061`). Not writing trailing
-placeholders past the last real item removed it. The windows were the extra ones
-Simple Crafting Pool Extender adds, and it is **not** the cause: besides cloning
-container entries it only repositions the category navigation (a postfix on
-`CraftingCategoryNavigationUI.LateUpdate`), and every entry, cloned or vanilla,
-goes through the same check at `Pug.Other:339027`. So that range was not all
-`None` as the game saw it, or something other than this loop showed the window,
-and which is not established. Two places where the check and the drawn window
-disagree are known from the code: a slot is drawn only if
+(`AnyAvailableRecipeInRange`,
+`Pug.Other:SimpleCraftingUIContainer:AnyAvailableRecipeInRange:6`). Not writing
+trailing placeholders past the last real item removed it. The windows were the
+extra ones Simple Crafting Pool Extender adds, and it is **not** the cause:
+besides cloning container entries it only repositions the category navigation (a
+postfix on `CraftingCategoryNavigationUI.LateUpdate`), and every entry, cloned
+or vanilla, goes through the same check at
+`Pug.Other:SimpleCraftingUIContainer:ShowCraftingUI:18`. So that range was not
+all `None` as the game saw it, or something other than this loop showed the
+window, and which is not established. Two places where the check and the drawn
+window disagree are known from the code: a slot is drawn only if
 `CraftingHandler.GetRecipeInfo` resolves it to a valid object
-(`Pug.Other:338587`, `Pug.Other:303889`), a different source from the raw buffer
-the check reads; and the check clamps a range to the buffer's length, not to the
-active category's end (`Pug.Other:339058`, against `Pug.Other:339020`), so on a
-workbench with categories the last range of one category can pass on the next
-category's entries. Neither explains the Wood workbench, which has no
-categories. The one-variable test that would settle it: a diagnostic postfix on
+(`Pug.Other:RecipesUI:ShowContainerUI:23`,
+`Pug.Other:CraftingHandler:GetRecipeInfo(int):1`), a different source from the
+raw buffer the check reads; and the check clamps a range to the buffer's length,
+not to the active category's end
+(`Pug.Other:SimpleCraftingUIContainer:AnyAvailableRecipeInRange:3`, against
+`Pug.Other:SimpleCraftingUIContainer:ShowCraftingUI:11`), so on a workbench with
+categories the last range of one category can pass on the next category's
+entries. Neither explains the Wood workbench, which has no categories. The
+one-variable test that would settle it: a diagnostic postfix on
 `SimpleCraftingUIContainer.ShowCraftingUI` that logs, for the affected station,
 the buffer's length, the category bounds, the `objectID` of every entry in the
 fourth range, and per window whether it is active and how many of its slots are
@@ -703,35 +762,37 @@ that names its item through `moddedObjectID`.
 
 ## Adding an item to a vanilla loot table
 
-Loot tables are baked like recipes. `LootTableConverter.Convert` builds the
-loot blob from `Manager.mod.LootTable` in play mode
-(`Pug.ECS.Conversion:2551`), so a mod edits that list before the conversion
-runs. CoreLib's `LootDropModule` does exactly this, applied once per process by
-a prefix on `LootTableConverter.Convert`. `AddNewDrop(LootTableID,
-DropTableInfo)` and `EditDrop` take the item by name and resolve it through
-`API.Authoring.GetObjectID` at that point, which suits a modded item whose
-`ObjectID` is assigned at load; `RemoveDrop` takes an `ObjectID`.
+Loot tables are baked like recipes. `LootTableConverter.Convert` builds the loot
+blob from `Manager.mod.LootTable` in play mode
+(`Pug.ECS.Conversion:LootTableConverter:Convert:5`), so a mod edits that list
+before the conversion runs. CoreLib's `LootDropModule` does exactly this,
+applied once per process by a prefix on `LootTableConverter.Convert`.
+`AddNewDrop(LootTableID, DropTableInfo)` and `EditDrop` take the item by name
+and resolve it through `API.Authoring.GetObjectID` at that point, which suits a
+modded item whose `ObjectID` is assigned at load; `RemoveDrop` takes an
+`ObjectID`.
 
 **The two lists in a table are rolled differently, and only one of them
 tolerates an appended entry.**
 
 | List | Rolled by | An appended entry |
 |---|---|---|
-| `lootInfos` (random drops) | `weight`, summed over the list at roll time (`Pug.Other:326339`) | is weighed in correctly |
-| `guaranteedLootInfos` | `accumulatedDropChance`, precomputed (`Pug.Other:326289`) | is not reached |
+| `lootInfos` (random drops) | `weight`, summed over the list at roll time (`Pug.Other:PugDatabase:GetRandomLoot(LootTableID, int, …):68`) | is weighed in correctly |
+| `guaranteedLootInfos` | `accumulatedDropChance`, precomputed (`Pug.Other:PugDatabase:GetRandomLoot(LootTableID, int, …):18`) | is not reached |
 
 `accumulatedDropChance` is computed by `LootTableBank.InitLoot`
-(`Pug.Base:17334`) from `OnAfterDeserialize` (`Pug.Base:17292`), which the
-game calls when it loads the table (`Pug.Mods:714`, from `Pug.Other:279189`) —
-before CoreLib's edit, which runs at conversion. So a `LootInfo` appended
-afterwards keeps its default of 0, while the existing entries' accumulated
-values already run up to 1 over a roll drawn from `[0, 1)`: the appended entry
-is never reached, whatever value it is given. CoreLib's `AddDrops` appends every
-added drop to both lists, skipping one already present, and computes no
-`accumulatedDropChance`. For an ordinary random drop the guaranteed copy is
-therefore inert and the random copy works; a drop meant to be guaranteed would,
-by the same reading, never arrive. This is source reading only and
-**unverified** in game.
+(`Pug.Base:LootTableBank:InitLoot:1`) from `OnAfterDeserialize`
+(`Pug.Base:LootTableBank:OnAfterDeserialize:1`), which the game calls when it
+loads the table (`Pug.Mods:LootTable:Init:37`, from
+`Pug.Other:ModManager:Init:114`) — before CoreLib's edit, which runs at
+conversion. So a `LootInfo` appended afterwards keeps its default of 0, while
+the existing entries' accumulated values already run up to 1 over a roll drawn
+from `[0, 1)`: the appended entry is never reached, whatever value it is given.
+CoreLib's `AddDrops` appends every added drop to both lists, skipping one
+already present, and computes no `accumulatedDropChance`. For an ordinary random
+drop the guaranteed copy is therefore inert and the random copy works; a drop
+meant to be guaranteed would, by the same reading, never arrive. This is source
+reading only and **unverified** in game.
 
 **A weight is not a percentage.** The `editorVisualDropChance` shown beside
 each entry in the asset is derived from the weight, the list's total weight
@@ -746,7 +807,7 @@ them, and matters as soon as anything stores a reference to a block.
 
 **A block's identity is its address.** `DataBlockAddress` is a `Guid` overlaid
 on two `long`s, `m_low` at offset 0 and `m_high` at offset 8
-(`ScriptableData:34-45`). A block asset stores those two fields, so writing
+(`ScriptableData:DataBlockAddress:5-16`). A block asset stores those two fields, so writing
 one by hand means taking the GUID's .NET byte layout — the byte order Python's
 `uuid.UUID(...).bytes_le` produces — and reading bytes 0–7 and 8–15 each as a
 signed little-endian 64-bit integer. Verified on 1.3.0.2: five assets written
@@ -756,7 +817,8 @@ address and nothing else.
 
 **A runtime block created without an address gets a new one on every launch.**
 `CreateRuntimeInstance<T>(modId)` passes `DataBlockAddress.NewAddress()`
-(`PugMod.Loader:2236`), which is `Guid.NewGuid()` (`ScriptableData:71`). So no
+(`PugMod.Loader:RuntimeDataBlocks:CreateRuntimeInstance(Type, long):3`), which
+is `Guid.NewGuid()` (`ScriptableData:DataBlockAddress:NewAddress:3`). So no
 saved reference can name such a block by its address: in a probe mod on 1.3.0.2,
 markers placed with a runtime icon lost it at the next restart — observed,
 without a recorded test. That concerns references by address only. An item built
@@ -765,57 +827,71 @@ its `ObjectID`: world and character saves carry each modded item's name and are
 renumbered by name on load ([how a modded item gets its ID](#where-a-modded-items-objectid-comes-from)), which is how
 CoreLib's and caveling-divining-rod's runtime blocks persist. The overload
 taking an address is stable — the block's address is a SHA-256 over the mod's
-GUID and the given address (`PugMod.Loader:2295`) — but it also records the
-given address as the block's `m_overload` (`PugMod.Loader:2263`), declaring it
-an overload of the block at that address. What that does depends on whether such
-a block exists. If one does, `ScriptableData.Initialize` resolves the given
-address to the runtime block (`ScriptableData:1341-1345`) and leaves the
-original out of every runtime list (`ScriptableData:1361-1363`): the call
+GUID and the given address
+(`PugMod.Loader:RuntimeDataBlocks:GetInstanceAddress:4`) — but it also records
+the given address as the block's `m_overload`
+(`PugMod.Loader:RuntimeDataBlocks:CreateRuntimeInstance(Type, long, DataBlockAddress, …):16`),
+declaring it an overload of the block at that address. What that does depends on
+whether such a block exists. If one does, `ScriptableData.Initialize` resolves
+the given address to the runtime block
+(`ScriptableData:ScriptableData:Initialize:65-69`) and leaves the original out
+of every runtime list
+(`ScriptableData:ScriptableData:AddDataBlocksToRuntimeLists:12-14`): the call
 replaces it. If none does, the runtime block registers under its own hashed
-address only (`ScriptableData:1327-1330`). Both cases are read from the code and
-untried in game. A shipped asset avoids the question: it registers under the
-`m_address` it carries.
+address only (`ScriptableData:ScriptableData:Initialize:51-54`). Both cases are
+read from the code and untried in game. A shipped asset avoids the question: it
+registers under the `m_address` it carries.
 
 **Within one loader, blocks are sorted by address.** Every loader's set is
-sorted as it loads (`ScriptableData:1238` async, `ScriptableData:1264` sync),
-and `ScriptableDataBlock.CompareTo` compares addresses (`ScriptableData:1808`).
-`Initialize` then walks the loaders in registration order
-(`ScriptableData:1284`) and appends each set to the typed lists
-(`AddDataBlocksToRuntimeLists`, `ScriptableData:1350`). So a mod that wants the
-blocks it ships as assets in a particular order gives them ascending addresses.
-That does not carry over to runtime blocks: they sit in a runtime loader of
-their own (`PugMod.Loader:2207`), and one created with an address is stored
-under the hash above, so its position does not follow the address it was given.
-Keeping the first hex digit of each at `0`–`7` sidesteps a question not checked
-here: whether the GUID's first 32-bit field compares signed or unsigned on the
-game's runtime.
+sorted as it loads (`ScriptableData:ScriptableData:LoadAsync:21` async,
+`ScriptableData:ScriptableData:Load:19` sync), and
+`ScriptableDataBlock.CompareTo` compares addresses
+(`ScriptableData:ScriptableDataBlock:CompareTo:11`). `Initialize` then walks the
+loaders in registration order (`ScriptableData:ScriptableData:Initialize:8`) and
+appends each set to the typed lists (`AddDataBlocksToRuntimeLists`,
+`ScriptableData:ScriptableData:AddDataBlocksToRuntimeLists:1`). So a mod that
+wants the blocks it ships as assets in a particular order gives them ascending
+addresses. That does not carry over to runtime blocks: they sit in a runtime
+loader of their own (`PugMod.Loader:RuntimeDataBlocks:AddMod:5`), and one
+created with an address is stored under the hash above, so its position does not
+follow the address it was given. Keeping the first hex digit of each at `0`–`7`
+sidesteps a question not checked here: whether the GUID's first 32-bit field
+compares signed or unsigned on the game's runtime.
 
 **Across loaders, the order observed is not the one the code suggests.** The
 addressables loader, which holds the game's own blocks, registers at
-`AfterAssembliesLoaded` (`ScriptableData.Addressables:237`), before any mod is
-loaded. Yet in one run on 1.3.0.2 the log listed every mod loader before it,
-and the map-marker dialog showed a mod's icons in front of the game's. That was
-observed without a recorded test: map-markers-enhanced's `docs/manual-tests.md`
-("Icon order and scrolling") records only the order after that mod moved its
-icons. The decompile does not explain it. Treat it as an observation, not as a
-rule, and do not build on either order.
+`AfterAssembliesLoaded`
+(`ScriptableData.Addressables:ScriptableDataAddressables:Init:6`), before any
+mod is loaded. Yet in one run on 1.3.0.2 the log listed every mod loader before
+it, and the map-marker dialog showed a mod's icons in front of the game's. That
+was observed without a recorded test: map-markers-enhanced's
+`docs/manual-tests.md` ("Icon order and scrolling") records only the order after
+that mod moved its icons. The decompile does not explain it. Treat it as an
+observation, not as a rule, and do not build on either order.
 
 **`TryGetDataBlocks<T>` hands out the live typed list.** The `IReadOnlyList<T>`
-it returns is the `List<T>` the registry itself keeps (`ScriptableData:1430`,
-created at `ScriptableData:1375`), so a caller that casts it back to `List<T>`
-can reorder it in place — and every later reader sees the new order until the
-next ScriptableData load. That load's `Reset` empties the registry's
-dictionaries (`ScriptableData:1180-1186`), not the lists they held, and the
-rebuild creates a new list per type (`ScriptableData:1375`) in sorted order; the
-reordered list is left behind rather than emptied, so a caller still holding it
-keeps seeing the old order, while one that asks again gets the new list.
-Reordering this generic typed list leaves runtime IDs alone: they come from a
-separate untyped list and lookup (`ScriptableData:1383-1384`, read at
-`ScriptableData:1446` and `ScriptableData:1490`), and lookup by address uses a
-dictionary of its own (`ScriptableData:1526`). The non-generic
-`TryGetDataBlocks(Type, …)` is a different matter: it hands out that untyped
-list itself, just as live (`ScriptableData:1417-1421`), so reordering it would
-change which block a runtime ID resolves to (`ScriptableData:1495`) while the
+it returns is the `List<T>` the registry itself keeps
+(`ScriptableData:ScriptableData:TryGetDataBlocks(IReadOnlyList<T>):6`, created
+at `ScriptableData:ScriptableData:AddDataBlocksToRuntimeLists:26`), so a caller
+that casts it back to `List<T>` can reorder it in place — and every later reader
+sees the new order until the next ScriptableData load. That load's `Reset`
+empties the registry's dictionaries (`ScriptableData:ScriptableData:Reset:1-7`),
+not the lists they held, and the rebuild creates a new list per type
+(`ScriptableData:ScriptableData:AddDataBlocksToRuntimeLists:26`) in sorted
+order; the reordered list is left behind rather than emptied, so a caller still
+holding it keeps seeing the old order, while one that asks again gets the new
+list. Reordering this generic typed list leaves runtime IDs alone: they come
+from a separate untyped list and lookup
+(`ScriptableData:ScriptableData:AddDataBlocksToRuntimeLists:34-35`, read at
+`ScriptableData:ScriptableData:TryGetRuntimeID(ScriptableDataBlock, Type, …):5`
+and `ScriptableData:ScriptableData:TryGetDataBlock(int, Type, …):5`), and lookup
+by address uses a dictionary of its own
+(`ScriptableData:ScriptableData:TryGetDataBlock(DataBlockAddress, …):5`). The
+non-generic `TryGetDataBlocks(Type, …)` is a different matter: it hands out that
+untyped list itself, just as live
+(`ScriptableData:ScriptableData:TryGetDataBlocks(Type, …):2-6`), so reordering
+it would change which block a runtime ID resolves to
+(`ScriptableData:ScriptableData:TryGetDataBlock(int, Type, …):10`) while the
 lookup keeps the old indices. Verified on 1.3.0.2: a Harmony prefix that moved a
 mod's map-marker icons to the end of the generic list, before the dialog read
 it, put them behind the game's icons (map-markers-enhanced,
@@ -844,13 +920,16 @@ belongs to before using its number.
 **Biome variants split one logical object over several ObjectIDs.** Digging
 spots occupy `5532`–`5536` for five biome variants beside the generic `5530`,
 while CK's own checks (`objectID == ObjectID.DiggingSpot`, all three of them:
-`Pug.Other:306891`, `Pug.Other:307309` and `Pug.Other:322506`, and in the server
-build `DedicatedServer/Pug.Other:302705`, `DedicatedServer/Pug.Other:303123` and
-`DedicatedServer/Pug.Other:318309`) test only the generic one. Filtering on a single
-`ObjectID` then produces a mod that works in one biome and not in another —
-which reads like a bug everywhere except at the filter. Biome variants are
-common but not universal, so the rule is: **check the enum neighbourhood before
-filtering on one ObjectID.**
+`Pug.Other:PlacementHandlerDigging:CanPlaceObjectAtPosition:131`,
+`Pug.Other:PlacementHandlerSeeder:CanPlaceObjectAtPosition:116` and
+`Pug.Other:HoeSlot:Dig:82`, and in the server build
+`DedicatedServer/Pug.Other:PlacementHandlerDigging:CanPlaceObjectAtPosition:131`,
+`DedicatedServer/Pug.Other:PlacementHandlerSeeder:CanPlaceObjectAtPosition:116`
+and `DedicatedServer/Pug.Other:HoeSlot:Dig:82`) test only the generic one.
+Filtering on a single `ObjectID` then produces a mod that works in one biome and
+not in another — which reads like a bug everywhere except at the filter. Biome
+variants are common but not universal, so the rule is: **check the enum
+neighbourhood before filtering on one ObjectID.**
 
 ## `PugDatabase.objectsByType` and the `(objectID, variation)` key
 
@@ -900,28 +979,30 @@ applies to the objects you enumerate before reading the field.
 **On an object that shows a world label, `amount` is the label's visibility
 state** — and still the drop count, which is where the two meanings collide.
 `WorldLabel` hides the label at `0`, shows it at `1` only while the object is
-the player's current interactable, and always otherwise (`Pug.Other:321349`,
-`Pug.Other:321353`); the Hover check compares against the object's first
-`InteractableObject` found with `GetComponentInChildren`, so one on a child
-counts. The sign window's toggle writes it through the `SetWorldLabelVisibility`
-RPC, whose server handler sets `amount` on whatever entity it is handed, with no
-type check (`Pug.Other:415525`) — and drops it, like the text RPC, from a player
-without admin rights on a guest-mode world (`Pug.Other:415251`; see [multiplayer and server](multiplayer-and-server.md#who-is-allowed-to-change-things-admin-level-and-guest-mode)).
+the player's current interactable, and always otherwise
+(`Pug.Other:WorldLabel:UpdateWorldText:5`,
+`Pug.Other:WorldLabel:UpdateWorldText:9`); the Hover check compares against the
+object's first `InteractableObject` found with `GetComponentInChildren`, so one
+on a child counts. The sign window's toggle writes it through the
+`SetWorldLabelVisibility` RPC, whose server handler sets `amount` on whatever
+entity it is handed, with no type check (`Pug.Other:ServerSystem:OnUpdate:318`)
+— and drops it, like the text RPC, from a player without admin rights on a
+guest-mode world (`Pug.Other:ServerSystem:OnUpdate:44`; see [multiplayer and server](multiplayer-and-server.md#who-is-allowed-to-change-things-admin-level-and-guest-mode)).
 A freshly placed sign was observed to start at `1`, which is why Hover is what a
 new sign shows; vanilla offers no other default.
 
 An object that drops itself when mined drops `max(1, amount)` unless the entity
-has `AlwaysDropOneCD` (`Pug.Other:90860`, in `DropLootSystem.DropSelfJob`). A
-label set to "always" sits at `2`, so without that component it would drop two.
-Vanilla pairs the two: in the 1.3.0.4 assets the entity prefabs carrying
-`DescriptionAuthoring` (the label text) and those carrying
-`AlwaysDropOneAuthoring` are the same 80 — 77 chest entities and the three text
-signs. The locked chests are the exception on both counts: the ten
-`Locked*ChestEntity` prefabs and three `…_TitanTempleScene_*` variants of them carry
-neither component.
-A mod that gives a label to an object that had none has to add `AlwaysDropOneCD`
-as well, and first, so that no partial failure of the rest leaves the label
-without it. How such an object is made labelled at all is in [prefabs and rendering](prefabs-and-rendering.md#editing-a-vanilla-graphical-prefab-at-bake-time).
+has `AlwaysDropOneCD` (`Pug.Other:DropSelfJob:Execute(Entity, …):15`, in
+`DropLootSystem.DropSelfJob`). A label set to "always" sits at `2`, so without
+that component it would drop two. Vanilla pairs the two: in the 1.3.0.4 assets
+the entity prefabs carrying `DescriptionAuthoring` (the label text) and those
+carrying `AlwaysDropOneAuthoring` are the same 80 — 77 chest entities and the
+three text signs. The locked chests are the exception on both counts: the ten
+`Locked*ChestEntity` prefabs and three `…_TitanTempleScene_*` variants of them
+carry neither component. A mod that gives a label to an object that had none has
+to add `AlwaysDropOneCD` as well, and first, so that no partial failure of the
+rest leaves the label without it. How such an object is made labelled at all is
+in [prefabs and rendering](prefabs-and-rendering.md#editing-a-vanilla-graphical-prefab-at-bake-time).
 
 ### Trap: `ObjectType.NonUsable` is where the raw materials live
 
