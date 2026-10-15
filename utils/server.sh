@@ -229,13 +229,16 @@ World:
                              is shown under this name. Kept by the server for
                              later starts without it.
       --seed SEED            World seed, any string. Only used when the world
-                             is first created; omit for a random seed.
+                             is first created; omitted, the server reuses the
+                             seed stored by its last new world, random only if
+                             none was ever stored.
       --hashed-seed N        An already hashed seed, 0-4294967295, for when
                              only that is known. Ignored together with --seed.
       --mode MODE            World mode at creation; creative and non-creative
                              cannot be switched later. One of:
 ${modes}
-      --season SEASON        Default: from the system date. One of:
+      --season SEASON        Default: the season stored by an earlier --season,
+                             else from the system date. One of:
 ${seasons}
       --activate-content B1,B2
                              Activate content bundles, PERMANENT for this
