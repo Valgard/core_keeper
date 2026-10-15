@@ -3,10 +3,12 @@
 #
 # Shared by every Core Keeper mod under this directory.
 #
-# Pugstorm's mod loader fails to extract Scripts/ from locally built mods
-# under Wine (a `\\?\C:\…` long-path bug in RemoveDirectoryRecursive). Mods
-# from mod.io load via a different codepath that avoids the bug. This script
-# makes a locally built mod look mod.io-installed.
+# Pugstorm's loader only sees mods that arrive via the mod.io subscription
+# path, so a locally built, not-yet-published mod is invisible to it. This
+# script makes such a mod look mod.io-installed under a fake mod ID. The Wine
+# breakage on this host is a separate matter, fixed by corekeeper-patch: the
+# loader extracts every source mod — mod.io ones included — to the ModLoader
+# path below and deletes it first, which is the delete Wine fails.
 #
 # Five places are touched — three written, two cleared. uninstall-macos.sh is
 # the mirror and has to cover every one of them, so keep both in sync: an entry
@@ -178,8 +180,11 @@ jq --arg user "$USER_ID" \
 mv "$STATE_JSON.tmp" "$STATE_JSON"
 
 # --- 4. Clean the ModLoader cache for this mod -------------------------------
-# The loader will not touch this path for mod.io-routed mods, but a stale entry
-# from an earlier StreamingAssets-style install can still trip future runs.
+# The client loader extracts this mod's sources here on every launch and
+# deletes what the previous launch left first — the delete that fails under
+# Wine without corekeeper-patch's Patch 1. Clearing it from macOS beforehand
+# means the next launch finds nothing to delete; with Patch 1 applied this is
+# hygiene rather than load-critical.
 
 rm -rf "$MODLOADER_CACHE"
 

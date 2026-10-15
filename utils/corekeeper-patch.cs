@@ -436,9 +436,12 @@ static int ProcessOtherDll(string dllPath, bool apply)
     //         Directory.Delete(abs, false)
     //     } catch { swallow }
     //
-    // Effekt: Alle DeleteDirectory-Caller (BackupFolder × 2, UI-Welt-Löschen,
-    // Mod-Cleanup, etc.) nutzen den Wine-kompatiblen Code-Pfad. Backups werden
-    // tatsächlich rotiert, kein no-op-Verzicht.
+    // Effekt: Alle DeleteDirectory-Caller nutzen den Wine-kompatiblen Code-Pfad.
+    // Im Spiel ist das nur FilesystemManager.BackupFolder (× 2, Backup nach
+    // Versionswechsel); dazu Mods über API.ConfigFilesystem. UI-Welt-Löschen
+    // läuft NICHT hierüber (siehe Patch 5), das Mod-Extraktionsverzeichnis
+    // löscht der Loader selbst (Patch 1). Backups werden tatsächlich rotiert,
+    // kein no-op-Verzicht.
     {
         // fsType (StandaloneFilesystem) ist schon oben für Patch 3 geladen.
         var deleteMethods = fsType
