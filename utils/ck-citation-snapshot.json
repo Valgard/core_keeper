@@ -176,6 +176,17 @@
       "CreateDirectory(directoryInfo);",
       "}"
     ],
+    "DedicatedServer/Pug.Other:StandaloneFilesystem:StandaloneFilesystem(string, PlatformInterface):3-11": [
+      "_persistentPath = CommandLineArgs.GetParam(\"-datapath\");",
+      "if (string.IsNullOrEmpty(_persistentPath))",
+      "{",
+      "_persistentPath = Application.persistentDataPath;",
+      "if (!string.IsNullOrEmpty(partition))",
+      "{",
+      "_persistentPath = _persistentPath + \"/\" + partition;",
+      "}",
+      "_persistentPath += \"/DedicatedServer\";"
+    ],
     "DedicatedServer/Pug.Other:StandaloneFilesystem:StandaloneFilesystem(string, string, \u2026):3-12": [
       "_persistentPath = CommandLineArgs.GetParam(\"-datapath\");",
       "if (string.IsNullOrEmpty(_persistentPath))",
@@ -383,14 +394,20 @@
     "Pug.ECS.Components:MapMarkerCustomDataCD:3": [
       "public struct MapMarkerCustomDataCD : IComponentData, IQueryTypeParameter"
     ],
-    "Pug.ECS.Components:MapMarkerCustomDataSerializedCD:3": [
-      "public struct MapMarkerCustomDataSerializedCD : IComponentData, IQueryTypeParameter"
+    "Pug.ECS.Components:MapMarkerCustomDataSerializedCD:iconAddress:1": [
+      "public DataBlockAddress iconAddress;"
+    ],
+    "Pug.ECS.Components:MapMarkerCustomDataSerializedCD:variantIndex:1": [
+      "public int variantIndex;"
     ],
     "Pug.ECS.Components:ModInfoRPC:1": [
       "public struct ModInfoRPC : IRpcCommand, IComponentData, IQueryTypeParameter"
     ],
-    "Pug.ECS.Components:NameSerializedCD:5": [
-      "public struct NameSerializedCD : IComponentData, IQueryTypeParameter, IPugJsonSerializer"
+    "Pug.ECS.Components:NameSerializedCD:4": [
+      "[TypeManager.OverrideTypeHash(18221140013894219486uL)]"
+    ],
+    "Pug.ECS.Components:NameSerializedCD:Value:1": [
+      "public FixedString64Bytes Value;"
     ],
     "Pug.ECS.Components:PlacementCD:51-69": [
       "public bool canPlaceOnWalkableTiles;",
@@ -495,6 +512,12 @@
     ],
     "Pug.ECS.Conversion:PugPrefabBufferConverter:Convert:8": [
       "Value = GetPrefabDependency(prefab)"
+    ],
+    "Pug.ECS.Serialization:WorldDeserializer:ShouldPatch:9-12": [
+      "version = *(int*)unsafePtr;",
+      "if (version == 57)",
+      "{",
+      "return true;"
     ],
     "Pug.Mods:LootTable:Init:37": [
       "lootTableBank.OnAfterDeserialize();"

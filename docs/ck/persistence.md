@@ -40,12 +40,18 @@ would hold, it needs no dependency, and it is **initialised before any mod's
 | `GetAllFiles` | `IEnumerable<string> GetAllFiles()` |
 | `GetFileTime` | `DateTime GetFileTime(string path)` |
 
-Paths are relative to the API's root — the `mods/` directory — so your own files
-carry your mod's name as their first segment:
+Paths are relative to the API's root — the `mods/` directory every mod shares —
+so by convention your own files carry your mod's name as their first segment;
+nothing enforces it, and installed third-party mods deviate from it —
+ConveyorTunnelMod writes `ConveyorTunnelMod_world_<key>_links.json` straight
+into `mods/`:
 
 ```text
 …/LocalLow/Pugstorm/Core Keeper/<platform>/<user-id>/mods/<ModName>/
 ```
+
+That is the client's path. On a dedicated server, everything before `mods/` is
+the server's own save root instead — see [where the saves live](savegame-formats.md#where-the-saves-live).
 
 Four members are worth their implementation detail, which comes from
 `StandaloneFilesystem` — the one implementation `API.ConfigFilesystem` is
