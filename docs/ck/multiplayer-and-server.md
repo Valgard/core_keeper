@@ -593,7 +593,7 @@ a separate server process exercises without a second machine is everything that
 needs a remote client against it — a differing mod set and `requiredOn`, the
 inverted `Init()` order, and the build differences at the end of this chapter.
 
-Four things about starting it are not obvious:
+Five things about starting it are not obvious:
 
 - **`-batchmode` yes, `-nographics` never.** Part of world generation runs on
   the GPU, so a headless server still needs a graphics device — the server's own
@@ -612,19 +612,37 @@ Four things about starting it are not obvious:
   direct-connection branch that `-port` gates.
 - **`-world` selects, `-worldname` does not — and both persist.** The server
   takes a world by its slot alone; `-worldname` only sets the name clients see
-  for whichever slot loads. Each argument overwrites a field of the server's
+  for whichever slot loads. Each valid argument overwrites a field of the server's
   settings, which are saved as `ServerConfig.json` in its data path, and an
   argument left out leaves the stored value in force (`ReloadAllSettings` in the
-  dedicated server's `Pug.Other`): without `-world` the server loads the slot
-  last stored, 0 only on a fresh install, and without `-worldname` the name last
-  stored. The same holds for seed, mode, season, player cap, Game ID and
-  password. Name, mode and seed of the running world come from those settings
-  too — the server's `GetWorldInfo` and `GetWorldName` return them for any slot
-  — so it never consults a `<slot>.worldinfo`, and a launcher that picks a world
-  by name has to read those files itself and pass the name along with the slot,
-  or the world appears under the stored name. Observed once: after `-worldname`
-  and a clean shutdown the name was in `ServerConfig.json`, and the slot's
-  `.worldinfo` was untouched.
+  dedicated server's `Pug.Other`, which writes the file back at every start,
+  not only on shutdown). Without `-world` the server loads the slot last stored;
+  0 is its fallback whenever no usable value is stored — a first run, another
+  data path, a `ServerConfig.json` deleted for failing to parse, a stored slot
+  outside 0–29 — and without `-worldname` it keeps the name last stored. The
+  same holds for seed, mode, season, player cap and Game ID, and for the
+  password only together with `-port`: `-password` is read inside the
+  direct-connection check, so without a port it is ignored and nothing is
+  stored. The stored value is not always one that was passed, though.
+  `-serverconfig <path>` reads that file instead of `ServerConfig.json` and then
+  saves its values there, and the server writes some fields back itself — the
+  generated seed of a new world (`SetServerDefaultsSystem.OnStartRunning`), and
+  the Game ID and password of its connection — so a second new world started
+  without `-worldseed` gets the first one's seed, not a random one.
+
+  Name and mode of the running world come from those settings — the server's
+  `GetWorldInfo` and `GetWorldName` build them from the settings for any slot,
+  and its `WriteWorldInfo` only logs an error — so for them it never consults a
+  `<slot>.worldinfo`, and never creates one. The seed of a world that already
+  exists comes from its save instead: a different stored seed only draws a
+  "Seed mismatch … Only the world seed will be used" warning from the same
+  `OnStartRunning`. (Until 2026-10-15 this bullet had the seed coming from the
+  settings as well.) So a launcher that picks a world by name has to read the
+  `.worldinfo` files itself and pass the name along with the slot, or the world
+  appears under the stored name — which works only for worlds a client created,
+  since one the server generated has no such file. Observed on 2026-10-10 with
+  this repository's server under CrossOver: after a start with `-worldname`, the
+  name was in `ServerConfig.json` and the slot's `.worldinfo` was untouched.
 - **A cold start with a full mod set takes minutes**, observed under CrossOver —
   every source mod goes through Roslyn and the world is decompressed on load. A
   server that looks hung shortly after launch usually is not.
