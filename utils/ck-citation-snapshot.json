@@ -176,11 +176,23 @@
       "CreateDirectory(directoryInfo);",
       "}"
     ],
-    "DedicatedServer/Pug.Other:StandaloneFilesystem:StandaloneFilesystem(string, string, \u2026):1": [
-      "public StandaloneFilesystem(string partition, string subFolder, PlatformInterface platformInterface)"
+    "DedicatedServer/Pug.Other:StandaloneFilesystem:StandaloneFilesystem(string, string, \u2026):3-12": [
+      "_persistentPath = CommandLineArgs.GetParam(\"-datapath\");",
+      "if (string.IsNullOrEmpty(_persistentPath))",
+      "{",
+      "_persistentPath = Application.persistentDataPath;",
+      "if (!string.IsNullOrEmpty(partition))",
+      "{",
+      "_persistentPath = _persistentPath + \"/\" + partition;",
+      "}",
+      "_persistentPath += \"/DedicatedServer\";",
+      "}"
     ],
     "DedicatedServer/Pug.Other:StartGameRPCSystem:OnUpdate:41": [
       "UnityEngine.Debug.Log(\"Skipping load inventory by PlayerWasLastConnectedToThisServer\");"
+    ],
+    "DedicatedServer/PugMod.Loader:Loader:Load:11": [
+      "text = Path.Combine(Application.temporaryCachePath, \"ModLoader\", \"DedicatedServer\", Guid.NewGuid().ToString());"
     ],
     "DedicatedServer/PugMod.Loader:RuntimeDataBlocks:CreateRuntimeInstance(Type, long):3": [
       "return CreateRuntimeInstance(type, modId, DataBlockAddress.NewAddress(), overloadExisting: false);"
@@ -890,6 +902,14 @@
     ],
     "Pug.Other:EvaluateConsumeResultJob:Execute(Entity, \u2026):14": [
       "PlayerController.IncreasePetXp(entity, xpIncrease, in petOwnerCD, in playerGhost, in containedObjectsBuffer, inventoryChangeBufferLookup, inventoryChangeResultBufferEntity);"
+    ],
+    "Pug.Other:FilesystemManager:BackupFolder:14": [
+      "platformImpl.DeleteDirectory(text3);"
+    ],
+    "Pug.Other:FilesystemManager:WriteHandler:110-112": [
+      "catch (Exception ex2)",
+      "{",
+      "UnityEngine.Debug.LogError(\"Exception trying to write \" + filePath + \": \" + ex2.Message);"
     ],
     "Pug.Other:FishingRodSlot:PlaceItem:1": [
       "private static void PlaceItem(in EquipmentUpdateAspect equipmentUpdateAspect, in EquipmentUpdateSharedData equipmentUpdateSharedData, in LookupEquipmentUpdateData equipmentUpdateLookupData)"
@@ -2252,6 +2272,9 @@
     "Pug.Other:PopUpText:StartNewDisplaySequence:3": [
       "if (_priority > priority && textBackground.gameObject.activeSelf)"
     ],
+    "Pug.Other:PrefsManager:Init:53": [
+      "Manager.filesystemManager.Backup();"
+    ],
     "Pug.Other:ProcessCraftingJob:2": [
       "private struct ProcessCraftingJob : IJob"
     ],
@@ -3020,6 +3043,12 @@
     ],
     "Pug.Other:SmallTitleUIBackground:UpdateTextAndBackground:22": [
       "UnityEngine.Debug.LogWarning($\"Missing title for crafting UI window index {windowIndex} in building {component}. Using default title.\", this);"
+    ],
+    "Pug.Other:StandaloneFilesystem:StandaloneFilesystem(string, PlatformInterface):8": [
+      "_persistentPath = _persistentPath + \"/\" + platformInterface.Name + \"/\" + platformInterface.GetAccountId();"
+    ],
+    "Pug.Other:StandaloneFilesystem:Write(string, string, \u2026):71": [
+      "UnityEngine.Debug.LogError(\"Write failed: \" + ex3.Message + \" (\" + ex3.HResult + \")\");"
     ],
     "Pug.Other:StandalonePlatform:GetControllerTextInput:1": [
       "public bool GetControllerTextInput(string description, int maxChars, string currentText, PlatformInterface.GotControllerTextInput callback, bool hidden = false)"
@@ -4034,6 +4063,9 @@
       "{",
       "Directory.Delete(text, recursive: true);"
     ],
+    "PugMod.Loader:Loader:Load:14": [
+      "Directory.Delete(text, recursive: true);"
+    ],
     "PugMod.Loader:Loader:Load:6": [
       "List<ModFile> list2 = mod.Metadata.files.FindAll((ModFile x) => x.path.EndsWith(\".cs\"));"
     ],
@@ -4118,6 +4150,9 @@
     ],
     "PugMod.Loader:Loader:Reload:124": [
       "loadedMod3.ModObjectLoaded(loadedAsset);"
+    ],
+    "PugMod.Loader:Loader:Reload:14": [
+      "_needsReload = false;"
     ],
     "PugMod.Loader:Loader:Reload:37-54": [
       "_triedToLoadSet.Clear();",
@@ -4431,6 +4466,9 @@
     ],
     "RoslynCSharp.Compiler:CompilationError:CompilationError:5": [
       "message = diagnostic.GetMessage();"
+    ],
+    "RoslynCSharp.Compiler:CompilationResult:CreateErrors:7": [
+      "if (!(id == \"CS1701\") && !(id == \"CS1702\") && diagnostic.Severity != DiagnosticSeverity.Hidden)"
     ],
     "RoslynCSharp:ScriptDomain:RegisterAssemblyImpl:15": [
       "RoslynCSharp.LogError(securityResult.GetAllText(reportAllOccurences: true));"
