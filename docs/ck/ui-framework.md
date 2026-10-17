@@ -1742,6 +1742,70 @@ the bottom of `HandleTypingInput` that reach `AppendString` at all — paste
 held, typed characters and paste are suppressed for that frame; the flag is
 reset at the top of each call (`Pug.Other:MenuManager:HandleTypingInput:20`).
 
+### Putting a line of your own into the chat
+
+`ChatWindow.AddInfoText` renders a line in the local chat without the network,
+but it takes a `MessageTextType` from a fixed enum and the prefab behind each
+value holds the text, so the call cannot carry free text on its own. A value
+outside the enum fails in `AllocPugText`, which indexes three private
+dictionaries by type (`Pug.Other:ChatWindow:AllocPugText:3`,
+`Pug.Other:ChatWindow:AddPugText:4`) that `Awake` filled from the prefab list
+(`Pug.Other:ChatWindow:Awake:5`). Registering the value is enough to make it
+work, and it needs no reflection:
+
+~~~csharp
+const ChatWindow.MessageTextType Mine = (ChatWindow.MessageTextType)29314;
+
+[HarmonyPatch(typeof(ChatWindow), "AllocPugText"), HarmonyPrefix]
+static void Prefix(ChatWindow.MessageTextType type,
+    Dictionary<ChatWindow.MessageTextType, GameObject> ___textPrefabLookup,
+    Dictionary<ChatWindow.MessageTextType, Queue<PugText>> ___activePools,
+    Dictionary<ChatWindow.MessageTextType, Queue<PugText>> ___freePools)
+{
+    if (type != Mine || ___textPrefabLookup.ContainsKey(type)) return;
+    ___textPrefabLookup[type] = ___textPrefabLookup[ChatWindow.MessageTextType.Received];
+    ___activePools[type] = new Queue<PugText>();
+    ___freePools[type] = new Queue<PugText>();
+}
+
+[HarmonyPatch(typeof(ChatWindow), "AllocPugText"), HarmonyPostfix]
+static void Postfix(ChatWindow.MessageTextType type, ref PugText __result)
+{
+    if (type != Mine) return;
+    __result.localize = false;            // the string is already final
+    __result.localizePlaceholders = false;
+    __result.SetText(text);               // before AddInfoText renders it
+}
+// then: Manager.ui.chatWindow.AddInfoText(Mine);
+~~~
+
+Private fields are injected by the `___name` parameter convention, so the
+sandbox's ban on `AccessTools` costs nothing here. The line is rendered by the
+vanilla path (`Pug.Other:ChatWindow:AddInfoText(string[], Rarity, …):6`), so it
+stacks, wraps and fades like any other. Measured 2026-10-17 on 1.3.0.6-6e73:
+four probe lines appeared and wrapped correctly in a locally started game and
+on a client of a dedicated server. Both patch targets are in `Pug.Other`, which
+the loader admits (see [the sandbox](sandbox.md)).
+
+**Colouring that line is not simple, and the working method is a trap.** Setting
+`style.color` (to `Color.yellow` and to an amber) before the render produced
+**white** text in both cases; why is **not established** — the fade effect reads
+`style.color` every frame
+(`Pug.Other:PugTextEffectMaxFade:PugTextEffectLateUpdate:15`), so a tint was
+the expected outcome. The inline tag `[#RRGGBBAA]text[/]` does colour its span,
+but only when `style.supportColorTags` is set on the instance
+(`Pug.Other:PugFont:Render:118`), and the coloured span **stayed fully visible
+after the rest of the line had faded out** — observed once, in one screenshot.
+The code explains the observation: the fade applies its alpha through
+`SetTempColor`, which skips every glyph a tag has coloured
+(`Pug.Other:PugText:SetTempColor:18`), so a tagged glyph carries its own colour
+and alpha and never fades. Treat that as read, not as seen: only the persisting
+span was observed. The same skip applies to any `PugText` with
+`supportColorTags`, so a tag can also defeat a tint or dimming applied through
+`SetTempColor` on a menu row. Core Keeper has no yellow text or option state
+of its own to reuse: `OptionActiveState` is `INACTIVE`, `ACTIVE`, `GRAYED_OUT`,
+and vanilla's yellow is plain `Color.yellow` passed to `SetTempColor`.
+
 ## Rebindable keybinds
 
 CoreLib's `ControlMappingModule` (a submodule, loaded in `EarlyInit`) puts a
