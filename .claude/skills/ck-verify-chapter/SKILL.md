@@ -245,7 +245,7 @@ provenance ("every mod in this family points it at a child GameObject named
 `root`", `docs/ck/ui-framework.md:278-279`), by extent of measurement ("measured
 across four built bundles", `docs/ck/steam-workshop.md:216`), by extent of
 verification ("this is verified for the equipment/durability case",
-`docs/ck/database-and-baking.md:313`).
+`docs/ck/database-and-baking.md:977`).
 
 ## Mark the evidence class only where its absence misleads
 
