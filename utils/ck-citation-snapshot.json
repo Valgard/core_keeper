@@ -1121,6 +1121,9 @@
     "Pug.Other:Manager:EarlyInit:1": [
       "[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]"
     ],
+    "Pug.Other:Manager:EarlyInit:49": [
+      "FilesystemInterface filesystemInterface = new StandaloneFilesystem(text, _platformInterface);"
+    ],
     "Pug.Other:Manager:EarlyInit:63": [
       "API.Authoring = new ModAPIAuthoring();"
     ],
@@ -2878,6 +2881,9 @@
     ],
     "Pug.Other:SaveManager:GetCharacterDataFromSerialized:8": [
       "characterData.UpgradeIfOutdated();"
+    ],
+    "Pug.Other:SaveManager:GetCharacterGuid:3": [
+      "return UnityEngine.Hash128.Parse(characterData[characterId].characterGuid);"
     ],
     "Pug.Other:SaveManager:GetWorldId:1": [
       "public int GetWorldId()"

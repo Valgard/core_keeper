@@ -1041,9 +1041,8 @@ the strategy that keeps the two together.
 ## Correlating private state across two methods
 
 Sometimes the data you need is neither in the arguments of any hookable method
-nor reachable directly, because the API that exposes it is sandbox-blocked and
-the value itself lives in a private field written by one method and consumed by
-another.
+nor reachable through an API you can call, and the value itself lives in a
+private field written by one method and consumed by another.
 
 The pattern: **hook both methods and correlate them with a static flag.**
 
@@ -1081,11 +1080,17 @@ internal static class CharacterDataDiscoverySnapshot
 
 That example obtains the active character's GUID — in a process that hosts its
 own world; see below. `PlayerController.characterGuid` does not exist,
-`HarmonyLib.Traverse` is banned as a reflection wrapper, and
-`Manager.saves.GetCharacterGuid()` was passed over here because calls through
-`Manager.saves` were believed to fail verification — a belief that does not
-survive the code or the corpus (see [what is banned](sandbox.md#what-is-banned)), so that call is a candidate
-this passage never weighed.
+`HarmonyLib.Traverse` is banned as a reflection wrapper — but
+`Manager.saves.GetCharacterGuid()` is a direct route by the code, and this
+example predates knowing that. It parses
+`characterData[characterId].characterGuid`
+(`Pug.Other:SaveManager:GetCharacterGuid:3`), the very field the example reads,
+and returns a `Hash128`, which the sandbox allows; the published ItemBrowser
+calls it from a postfix on `SetCharacterId`. It was passed over here because
+calls through `Manager.saves` were believed to fail verification, a belief that
+does not survive the code or the corpus (see [what is banned](sandbox.md#what-is-banned)). Not measured here,
+so the example stays — as the worked case of the correlation pattern this
+section is about, not as the recommended way to get this GUID.
 
 **Correction: `EntityManager.HasComponent<CharacterGuidCD>` plus
 `GetComponentData` does not trip the sandbox.** This passage used to list that
@@ -1094,7 +1099,8 @@ member." **Measured** 2026-09-03 against 1.2.1.5-8be0: eight side-loaded probes
 (`skipSafetyChecks: false`, every mod.io mod off, one expression isolated per
 assembly) all passed verification — including the full expression, reading
 `.Value` into a `Hash128` and calling `.ToString()`. The sandbox's verdict is
-per assembly and its message reports counts, not names (see [what is banned](sandbox.md#what-is-banned)), so
+per assembly and its summary line reports counts; the occurrence report logged
+beside it names each site (see [finding the banned identifier](sandbox.md#finding-the-banned-identifier)), and short of reading that,
 attributing a count to one expression only holds when that expression was
 isolated the way this measurement isolated it; the original claim was not, and
 the real failure it recorded was misattributed. Whether a direct `EntityManager`
@@ -1105,10 +1111,9 @@ deserialised is not the same question as whether `CharacterGuidCD` can be read
 at all.
 
 Nothing in the hook bodies violates the sandbox: only value-type parameters
-(`int id`), a public `string` field on a class that appears on no deny list,
-and the mod's own statics. The `[HarmonyPatch(typeof(SaveManager), …)]`
-attribute is legal regardless — the reflection behind it runs in trusted
-`0Harmony.dll`.
+(`int id`), a public `string` field on a class that appears on no deny list, and
+the mod's own statics. The `[HarmonyPatch(typeof(SaveManager), …)]` attribute is
+legal regardless — the verifier reads no attributes at all (see [the load-time sandbox](sandbox.md#harmony-attributes-are-exempt--hook-bodies-are-not)).
 
 **Preconditions — verify all three in the decompile before committing to this:**
 
