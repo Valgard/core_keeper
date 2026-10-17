@@ -1400,7 +1400,16 @@
     "Pug.Other:ModAPIConfig:Set:20": [
       "string s = JsonUtility.ToJson(modConfigFile, prettyPrint: true);"
     ],
+    "Pug.Other:ModAPIModLoader:ApplyHarmonyPatch:1": [
+      "public void ApplyHarmonyPatch(long modId, Type type)"
+    ],
     "Pug.Other:ModAPIReflection:GetValue:6": [
+      "throw new InvalidOperationException(\"Not allowed to access \" + memberInfo.Name);"
+    ],
+    "Pug.Other:ModAPIReflection:Invoke:4": [
+      "if (!_checker.CheckType(memberInfo.DeclaringType))"
+    ],
+    "Pug.Other:ModAPIReflection:Invoke:6": [
       "throw new InvalidOperationException(\"Not allowed to access \" + memberInfo.Name);"
     ],
     "Pug.Other:ModAPIReflection:_checker:1": [
@@ -2870,6 +2879,9 @@
     "Pug.Other:SaveManager:GetCharacterDataFromSerialized:8": [
       "characterData.UpgradeIfOutdated();"
     ],
+    "Pug.Other:SaveManager:GetWorldId:1": [
+      "public int GetWorldId()"
+    ],
     "Pug.Other:SaveManager:Init:15": [
       "characterData[i].UpgradeIfOutdated();"
     ],
@@ -4018,6 +4030,9 @@
       "node.Dependencies.Add(value);",
       "}"
     ],
+    "PugMod.Loader:HarmonyBootstrap:Patch(string, Assembly, \u2026):3": [
+      "if (safetyCheck)"
+    ],
     "PugMod.Loader:HarmonyBootstrap:Patch(string, Assembly, \u2026):51": [
       "value.PatchAll(assembly);"
     ],
@@ -4078,6 +4093,9 @@
       "UnityEngine.Debug.LogException(exception);",
       "}"
     ],
+    "PugMod.Loader:Loader:HarmonyPatchType:1": [
+      "public void HarmonyPatchType(Mod mod, Type type)"
+    ],
     "PugMod.Loader:Loader:Load:11": [
       "text = Path.Combine(Application.temporaryCachePath, \"ModLoader\", mod.Metadata.name);"
     ],
@@ -4111,6 +4129,27 @@
     ],
     "PugMod.Loader:Loader:LoadDll:29": [
       "scriptAssembly = scriptDomain.LoadAssembly(text, mod.Metadata.skipSafetyChecks ? ScriptSecurityMode.EnsureLoad : ScriptSecurityMode.EnsureSecurity);"
+    ],
+    "PugMod.Loader:Loader:LoadDll:4": [
+      "if (!mod.Metadata.accessesExtraAssemblies)"
+    ],
+    "PugMod.Loader:Loader:LoadScripts:10-25": [
+      "if (mod.Metadata.accessesExtraAssemblies)",
+      "{",
+      "Assembly[] assembliesLoadedAtStart = _assembliesLoadedAtStart;",
+      "foreach (Assembly assembly in assembliesLoadedAtStart)",
+      "{",
+      "if (!assembly.IsDynamic && !string.IsNullOrEmpty(assembly.Location))",
+      "{",
+      "if (!File.Exists(assembly.Location))",
+      "{",
+      "UnityEngine.Debug.LogError(\"doesn't exist: \" + assembly.FullName + \"@\" + assembly.Location);",
+      "}",
+      "else",
+      "{",
+      "list.Add(new AssemblyReferenceFromFile(assembly.Location));",
+      "}",
+      "}"
     ],
     "PugMod.Loader:Loader:LoadScripts:28-61": [
       "List<string> list2 = new List<string>(scriptFiles.Count);",
@@ -4164,6 +4203,16 @@
     ],
     "PugMod.Loader:Loader:LoadScripts:61": [
       "ScriptAssembly scriptAssembly = scriptDomain.CompileAndLoadFiles(array, mod.Metadata.skipSafetyChecks ? ScriptSecurityMode.EnsureLoad : ScriptSecurityMode.UseSettings, list.ToArray());"
+    ],
+    "PugMod.Loader:Loader:LoadScripts:68-75": [
+      "if (!scriptAssembly.CompileResult.Success)",
+      "{",
+      "scriptAssembly.CompileResult.Errors.ToList().ForEach(delegate(CompilationError e)",
+      "{",
+      "UnityEngine.Debug.Log(e);",
+      "});",
+      "SetError(mod, ref error, ModLoadError.CompileFailed);",
+      "return false;"
     ],
     "PugMod.Loader:Loader:LoadScripts:78": [
       "if (!JobsPatch.Patch(scriptAssembly.SystemAssembly))"
@@ -4464,6 +4513,11 @@
     "PugMod.SDK.Runtime:ModAPIExtensions:GetNameChecked(Type):1": [
       "public static string GetNameChecked(this Type type)"
     ],
+    "PugMod.SDK.Runtime:ModAPIExtensions:GetNameChecked(Type):1-3": [
+      "public static string GetNameChecked(this Type type)",
+      "{",
+      "return type.Name;"
+    ],
     "PugProperties:PropertyLookupBuilder:AddProperty:12": [
       "UnityEngine.Debug.Log($\"replacing {name} at index {lookupIndex}\");"
     ],
@@ -4492,6 +4546,9 @@
     ],
     "RoslynCSharp.Compiler:CompilationResult:CreateErrors:7": [
       "if (!(id == \"CS1701\") && !(id == \"CS1702\") && diagnostic.Severity != DiagnosticSeverity.Hidden)"
+    ],
+    "RoslynCSharp.Compiler:RoslynCSharpCompiler:CompileFromSyntaxTree:27": [
+      "Stream stream = (generateInMemory ? ((Stream)new MemoryStream()) : ((Stream)new FileStream(text, FileMode.OpenOrCreate, FileAccess.ReadWrite)));"
     ],
     "RoslynCSharp:ScriptDomain:RegisterAssemblyImpl:15": [
       "RoslynCSharp.LogError(securityResult.GetAllText(reportAllOccurences: true));"
@@ -4595,6 +4652,25 @@
       "[HideInInspector]",
       "[FormerlySerializedAs(\"m_guid\")]",
       "private DataBlockAddress m_address;"
+    ],
+    "Trivial.CodeSecurity:CodeSecurityRestrictions:IsMemberReferenceAllowed:14-17": [
+      "if (0 == 0 && memberReferences.DefaultBehaviour == CodeSecurityBehaviour.Allow)",
+      "{",
+      "result = IsTypeReferenceAllowed(reference.DeclaringType);",
+      "}"
+    ],
+    "Trivial.CodeSecurity:MethodChecker:SecurityCheckCode:15": [
+      "if (methodDefinition.HasPInvokeInfo && !context.Validator.AllowPInvoke)"
+    ],
+    "Trivial.CodeSecurity:MethodReferenceChecker:SecurityCheckCode:3-7": [
+      "SecurityCheckCodeMethodReturn(context, methodReference.ReturnType, methodReference);",
+      "if (methodReference.HasParameters)",
+      "{",
+      "SecurityCheckCodeMethodParameters(context, methodReference.Parameters, methodReference);",
+      "}"
+    ],
+    "Trivial.CodeSecurity:TypeChecker:SecurityCheckCode:1": [
+      "public override void SecurityCheckCode(CodeSecurityContext context, TypeDefinition typeDefinition)"
     ],
     "Unity.Entities:10166-10186": [
       "protected virtual void OnCreate()",

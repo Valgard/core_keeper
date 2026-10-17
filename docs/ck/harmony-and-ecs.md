@@ -1080,12 +1080,12 @@ internal static class CharacterDataDiscoverySnapshot
 ```
 
 That example obtains the active character's GUID — in a process that hosts its
-own world; see below.
-`PlayerController.characterGuid` does not exist,
-`Manager.saves.GetCharacterGuid()` is out — `SaveManager` is on no deny list,
-but calls through `Manager.saves` have been *observed* to fail verification
-anyway (see [what is banned](sandbox.md#what-is-banned)) — and `HarmonyLib.Traverse` is banned as a
-reflection wrapper.
+own world; see below. `PlayerController.characterGuid` does not exist,
+`HarmonyLib.Traverse` is banned as a reflection wrapper, and
+`Manager.saves.GetCharacterGuid()` was passed over here because calls through
+`Manager.saves` were believed to fail verification — a belief that does not
+survive the code or the corpus (see [what is banned](sandbox.md#what-is-banned)), so that call is a candidate
+this passage never weighed.
 
 **Correction: `EntityManager.HasComponent<CharacterGuidCD>` plus
 `GetComponentData` does not trip the sandbox.** This passage used to list that
@@ -1556,9 +1556,8 @@ per-entity component reads mattered.
 ### Hooking the save
 
 To persist mod state in lockstep with CK's own save, Harmony-postfix
-**`SaveManager.WriteCharacter(int saveId)`**. It is patchable despite the
-`Manager.saves` verification failure observed above, for the same reason: the
-patch attribute never goes through `Manager.saves` at all.
+**`SaveManager.WriteCharacter(int saveId)`**. It is patchable: `SaveManager`
+lives in `Pug.Other`, inside the patch-target prefixes, and is on no deny list.
 
 **Name the overload — `nameof` alone is ambiguous here.** `SaveManager` declares
 both `WriteCharacter()` (`Pug.Other:SaveManager:WriteCharacter():1`) and

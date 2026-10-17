@@ -204,14 +204,17 @@ sandbox with explicit deny lists — seven namespaces (`System.IO.*`,
 `System.Diagnostics.*`, `System.Net.*`, `System.Runtime.InteropServices.*`,
 `System.Reflection.*`, `RoslynCSharp.*`, `Pug.Platform.*`), sixteen types
 (`System.AppDomain` plus fifteen `HarmonyLib.*` including `AccessTools` and
-`Traverse`), seven assemblies and two members. The complete list is data, not
+`Traverse`), seven assemblies and two members — the members listed but not
+enforced on their own — plus a P/Invoke ban. The complete list is data, not
 folklore: `Resources/Assets/Resources/RoslynCSharpSettings.asset` in the
-decompile. A violation fails the compile on first reference (`mod load error:
-CompileFailed`).
+decompile; how the verifier actually applies it is `docs/ck/sandbox.md`. A
+violation fails the compile on first reference (`mod load error:
+CompileFailed`). None of it applies to a mod with `skipSafetyChecks: true`.
 
 **This does not mean a mod cannot have a runtime config** — the sandbox
-inspects references in the mod's *own* source, so a call into an
-already-loaded trusted assembly costs nothing. Three ways out, in order of
+inspects references in the mod's *own* assembly, so what a call into an
+already-loaded trusted assembly does internally costs nothing — only the types
+in that call's own signature count. Three ways out, in order of
 preference:
 
 - **`API.ConfigFilesystem`** (`PugMod`) — the loader's own file API, and the

@@ -97,7 +97,9 @@ If the data matters, **read the file back** before you record the write as done
 The API is `byte[]` in and `byte[]` out, which means you serialise yourself.
 `Encoding.UTF8.GetBytes` / `GetString` is the normal way to get a string across
 that boundary, and `Newtonsoft.Json` covers the structured case — both are
-sandbox-legal, and CoreLib uses exactly that pair.
+sandbox-legal, and CoreLib uses exactly that pair. Newtonsoft needs
+`accessesExtraAssemblies` in the manifest, though, which CoreLib sets: without
+it the in-game compile has no reference to it ([the load-time sandbox](sandbox.md#what-is-not-banned)).
 
 Hand-packing a line-oriented format (`id:count;`) through `(byte)char` /
 `(char)byte` loops also works and is verified here, but treat it as a choice one
@@ -448,9 +450,8 @@ For per-character mod data, do not invent your own save moment. Harmony-postfix
 **`SaveManager.WriteCharacter(int saveId)`** — CK's real character-file write
 (`characterFiles[saveId].Write(EncodeJson(...))`). It fires on autosave *and* on
 "Save & Quit"; the no-argument `WriteCharacter()` overload delegates to it.
-`SaveManager` is on no deny list, and it is a perfectly patchable class — calls
-through `Manager.saves` are merely *observed* to fail verification, which a
-Harmony patch attribute never goes through in the first place (see [the load-time sandbox](sandbox.md#what-is-banned)).
+`SaveManager` is on no deny list, and it is a perfectly patchable class — it
+lives in `Pug.Other`, inside the patch-target prefixes (see [the load-time sandbox](sandbox.md#harmony-attributes-are-exempt--hook-bodies-are-not)).
 
 The symmetric load point is `CharacterData.OnAfterDeserialize` — with two limits
 since 1.3. Each existing character file is decoded once when `SaveManager`
