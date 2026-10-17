@@ -297,6 +297,46 @@ that is otherwise awkward to build: the file as the user's stored preference,
 the in-memory entry as what is in effect right now, and `Reload()` as the way
 back when the temporary authority goes away.
 
+#### Intercepting CoreLib's writes: replace `API.ConfigFilesystem`, do not patch
+
+`ConfigFile.Save()` serialises the **whole file from memory** — every bound
+entry through `GetSerializedValue()`, plus the lines it read but no entry claims
+(`OrphanedEntries`) — and writes it with a single `API.ConfigFilesystem.Write`.
+So a save of one entry rewrites every other entry of that file with its
+in-memory value, whoever triggered it.
+
+A mod that wants to hold back or alter such a write cannot do it with Harmony.
+`ConfigFile` lives in CoreLib, outside the five assembly prefixes the patch gate
+admits, and a refused target unbinds *all* of the mod's patches, not just that
+one ([the gate](sandbox.md#harmony-attributes-are-exempt--hook-bodies-are-not)).
+One level down it is shut as well: `StandaloneFilesystem`, the implementation
+behind `API.ConfigFilesystem`, is `[DisallowPatching]`
+(`Pug.Other:StandaloneFilesystem`).
+
+What is open is the field itself. `API.ConfigFilesystem` is a public static
+`IConfigFilesystem` that the game assigns once at startup
+(`Pug.Other:Manager:EarlyInit:48`), and CoreLib reads it afresh on every call
+rather than keeping a copy. A mod can therefore assign a wrapper in its own
+`EarlyInit` that holds the original, forwards all eleven members, and
+intercepts `Write(string, byte[])`: it may skip the write by not forwarding,
+or rewrite the bytes first. The wrapper is plain managed code over a PugMod
+interface, so the sandbox has nothing to refuse.
+
+Measured on 1.3.0.6-6e73 (2026-10-17): a probe wrapper saw 235 writes from 25
+files — CoreLib's own, PlacementPlus, and every settings-menu consumer among
+them — and none bypassed it. A write it skipped left the file on disk
+untouched, and a line it rewrote in the bytes arrived rewritten. Caveats:
+
+- It sees only writes issued after the mod's `EarlyInit`; earlier ones, in
+  practice startup saves, pass unseen.
+- A mod that cached the original instance bypasses it. None did in the 25 files
+  above, but nothing guarantees it, and mods stacking wrappers wrap each other
+  in load order.
+- It sees a path and bytes, not a caller. Naming who saved needs a convention
+  of your own, because `System.Diagnostics.StackTrace` is on the deny list.
+- An exception thrown from the wrapper breaks every mod's config writes, not
+  just yours; catch, log, and forward unchanged.
+
 ### 3. `skipSafetyChecks: true` — last resort
 
 Setting `skipSafetyChecks: true` in the ModBuilderSettings `.asset` disables
