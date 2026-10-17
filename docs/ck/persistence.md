@@ -317,7 +317,7 @@ behind `API.ConfigFilesystem`, is `[DisallowPatching]`
 
 What is open is the field itself. `API.ConfigFilesystem` is a public static
 `IConfigFilesystem` that the game assigns once at startup
-(`Pug.Other:Manager:EarlyInit:48`), and CoreLib reads it afresh on every call
+(`Pug.Other:Manager:EarlyInit:49`), and CoreLib reads it afresh on every call
 rather than keeping a copy. A mod can therefore assign a wrapper in its own
 `EarlyInit` that holds the original, forwards all eleven members, and
 intercepts `Write(string, byte[])`: it may skip the write by not forwarding,
