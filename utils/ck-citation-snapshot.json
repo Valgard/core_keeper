@@ -1128,11 +1128,14 @@
     "Pug.Other:Manager:EarlyInit:1": [
       "[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]"
     ],
-    "Pug.Other:Manager:EarlyInit:49": [
-      "FilesystemInterface filesystemInterface = new StandaloneFilesystem(text, _platformInterface);"
+    "Pug.Other:Manager:EarlyInit:50": [
+      "API.ConfigFilesystem = new StandaloneFilesystem(text, \"mods\", _platformInterface);"
     ],
     "Pug.Other:Manager:EarlyInit:63": [
       "API.Authoring = new ModAPIAuthoring();"
+    ],
+    "Pug.Other:Manager:EarlyInit:65": [
+      "API.Config = new ModAPIConfig(API.ConfigFilesystem);"
     ],
     "Pug.Other:Manager:EarlyInit:70-84": [
       "if (!num)",

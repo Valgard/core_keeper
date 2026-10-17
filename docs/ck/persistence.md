@@ -1,10 +1,11 @@
 # Storing configuration and state
 
-`System.IO` is denied to a mod's own sources — the whole namespace, down to
-purely in-memory types such as `MemoryStream` (see [the sandbox](sandbox.md)).
+`System.IO` is denied to a sandboxed mod's own sources — the whole namespace,
+down to purely in-memory types such as `MemoryStream` (see [the sandbox](sandbox.md)).
 That does not leave a mod without storage. The verification inspects references
-in *your* code, so a call into an already-trusted assembly costs nothing, and
-the loader ships a file API of its own for exactly this purpose.
+in *your* code, so what a call into an already-trusted assembly does internally
+costs nothing — only the types in that call's own signature count — and the
+loader ships a file API of its own for exactly this purpose.
 
 What follows is the three routes that gives you for state a mod writes at
 runtime, a fourth route for reading back a file a mod ships, what the rest of
@@ -50,7 +51,9 @@ into `mods/`:
 …/LocalLow/Pugstorm/Core Keeper/<platform>/<user-id>/mods/<ModName>/
 ```
 
-That is the client's path. On a dedicated server, everything before `mods/` is
+That is the client's path on the default Steam branch; on the `experimental`
+beta branch the client inserts an `experimental/` segment after `Core Keeper/`
+(`Pug.Other:SteamPlatform`). On a dedicated server, everything before `mods/` is
 the server's own save root instead — see [where the saves live](savegame-formats.md#where-the-saves-live).
 
 Four members are worth their implementation detail, which comes from
@@ -59,14 +62,20 @@ constructed from, on the client and on the dedicated server alike:
 
 - **`GetFileTime` is the only timestamp in the API**, and it is
   `File.GetLastWriteTimeUtc` underneath — **UTC**, so compare it against
-  `DateTime.UtcNow`. It is what a staleness check or a migration ("is my file
-  older than the save it belongs to?") has to be built on; nothing else here
-  reports a time. It has no passing-load evidence behind it, unlike the API's
-  well-trodden `Read`/`Write` pair — smoke-test it like any new surface.
+  `DateTime.UtcNow`. It is what a staleness check between files under `mods/`
+  ("has another mod rewritten its file since I last read it?") has to be built
+  on; nothing else here reports a time. It cannot date a save file: every path
+  is resolved against the `mods/` root and one that leaves it throws
+  `InvalidOperationException` (`Rel2Abs`). A missing file does not throw either
+  — .NET's `File.GetLastWriteTimeUtc` returns 1601-01-01 for it — so check
+  `FileExists` first. It has no passing-load evidence behind it, unlike the
+  API's well-trodden `Read`/`Write` pair — smoke-test it like any new surface.
 - **`GetFiles` recurses.** It enumerates with `SearchOption.AllDirectories` and
   returns paths relative to the API root with forward slashes — and it filters
   out `.pugbackup` and `.pugtmp` siblings, so the backups described [below](#the-pugbackup-sibling--a-free-beforeafter-diff) are
-  invisible to it. `Read` still opens them by name.
+  invisible to it. `Read` still opens them by name. A directory that does not
+  exist is not an empty result: `Directory.EnumerateFiles` throws, uncaught, so
+  guard with `DirectoryExists`.
 - **`GetAllFiles()` is `GetFiles("")`** — everything under the root, and that
   root is shared, so the result spans every mod that has ever written there. To
   see only your own, pass your mod's directory to `GetFiles`.
@@ -86,13 +95,18 @@ the first write.
 
 **Trap: a `Write` that did not throw is not a `Write` that landed.** The
 `StandaloneFilesystem.Write` path underneath ends in `catch (IOException) {
-Debug.LogError(...) }` with **no rethrow**, and its inner `File.Replace` /
-`File.Move` retry loop gives up after ten attempts with nothing but another
-`LogError`. A full disk, a file locked by something else, and the host-side
-filesystem faults covered in [platforms and hosts](platforms.md) are therefore
-all invisible to your mod: no exception, no return value, nothing to branch on.
-If the data matters, **read the file back** before you record the write as done
-— above all before caching any "content unchanged, skip the write" hash.
+Debug.LogError(...) }` with **no rethrow**. Its two inner loops — deleting the
+old backup, then `File.Replace` / `File.Move` — retry only a sharing violation,
+sleeping one second per attempt on the calling thread, and give up after ten
+attempts each with nothing but another `LogError`; any other `IOException` goes
+straight to that outer catch. A full disk, a file locked by something else
+(after up to twenty seconds of blocking), and the host-side filesystem faults
+covered in [platforms and hosts](platforms.md) that surface as an `IOException` are therefore
+invisible to your mod: no exception, no return value, nothing to branch on. What
+is not an `IOException` still escapes — an `UnauthorizedAccessException`, or the
+`InvalidOperationException` for a path outside the root. If the data matters,
+**read the file back** before you record the write as done — above all before
+caching any "content unchanged, skip the write" hash.
 
 The API is `byte[]` in and `byte[]` out, which means you serialise yourself.
 `Encoding.UTF8.GetBytes` / `GetString` is the normal way to get a string across
@@ -101,15 +115,15 @@ sandbox-legal, and CoreLib uses exactly that pair. Newtonsoft needs
 `accessesExtraAssemblies` in the manifest, though, which CoreLib sets: without
 it the in-game compile has no reference to it ([the load-time sandbox](sandbox.md#what-is-not-banned)).
 
-Hand-packing a line-oriented format (`id:count;`) through `(byte)char` /
+Hand-packing a line-oriented format (`id:count,…`) through `(byte)char` /
 `(char)byte` loops also works and is verified here, but treat it as a choice one
 mod made rather than as a requirement: that loop only round-trips characters
 below U+0100, and anything above truncates to its low byte without an error.
 
 That this is genuinely sufficient is not theory: CoreLib itself is a sandboxed
 source mod (`skipSafetyChecks: false`) with **zero** `System.IO` references,
-and it persists `CoreLib.cfg` and `KeyBindsActions.json` entirely through this
-API.
+and it persists `CoreLib.cfg` and its key-binding files (`KeyBindsActions.json`,
+`KeyBindsCategories.json`) entirely through this API.
 
 There is also **`API.Config`**, a typed store keyed by a `(mod, section, key)`
 triple — `Get<T>` / `TryGet<T>` / `Set<T>` / `Register<T>`, the last with a
@@ -123,19 +137,22 @@ getter of the entry `Register` hands back reads and parses that file on every
 access — it keeps the last read, but never answers from it. There is no change
 event. Read it once and keep the result: the published mod Rail Network
 (mod.io `6434348`) records in its source that two reads a frame were its whole
-7 ms UI-update cost, even on the title screen. Two more things follow from the
-getter. A missing or unparsable file reads as `default(T)`, not as the default
-you registered. And because a failed read also clears the entry's cached copy,
-the next assignment to `Value` dereferences nothing — so a hand-deleted or
-corrupted file turns the following write into an exception rather than a repair.
+UI-update cost of about 7 ms, even on the title screen — its author's
+measurement, not one taken here. Two more things follow from the getter. A
+missing or unparsable file reads as `default(T)`, not as the default you
+registered. And because a failed read also clears the entry's cached copy, the
+next assignment to `Value` dereferences nothing — so once a hand-deleted or
+corrupted file has been read, the following write is an exception rather than a
+repair.
 
 ### 2. CoreLib's `ConfigFile` — typed entries, at a price
 
 CoreLib's `ConfigFile` sits on top of the same `API.ConfigFilesystem` and adds
 typed entries, defaults, `AcceptableValueRange` constraints and a TOML-ish
 `.cfg` on disk. You buy that with a **hard CoreLib dependency**, which your mod
-must declare in its ModBuilderSettings `.asset` and which propagates to your
-mod.io listing — see [mod anatomy](mod-anatomy.md) and [publishing](publishing.md).
+must declare in its ModBuilderSettings `.asset` — see [mod anatomy](mod-anatomy.md).
+The mod.io listing keeps a dependency list of its own that does not follow the
+`.asset` by itself, so a publisher has to keep the two in step ([publishing](publishing.md#dependencies-exist-twice-and-the-two-do-not-know-each-other)).
 
 Take this route when the typed-entry ergonomics are worth the dependency, not
 because you assume route 1 cannot do it.
@@ -170,9 +187,12 @@ Five things to know before writing against that registry:
   `GetSerializedValue` returns is the on-disk form. A quote or a control
   character is visibly altered on the way out (`"` → `\"`, a newline → `\n`)
   and restored exactly on the way back — those round trip losslessly. A
-  **backslash** does neither: CoreLib's `Escape` emits it unchanged (a single
-  `@"\"`, where upstream BepInEx doubles it) while `Unescape` still consumes
-  it, so feeding `a\b` back through `SetSerializedValue` stores `a` + U+0008.
+  **backslash** followed by one of `Unescape`'s escape letters does neither:
+  CoreLib's `Escape` emits it unchanged (a single `@"\"`, where upstream
+  BepInEx doubles it) while `Unescape` still consumes it, so feeding `a\b` back
+  through `SetSerializedValue` stores `a` + U+0008. A backslash before any other
+  character survives, and a value shaped like a drive path (`C:\…`) skips
+  `Unescape` altogether.
   Silent corruption, not a re-read, and nothing throws. For display or
   comparison use `BoxedValue`, which is unescaped; for a write it is not simply
   "the raw one" — its setter clamps against `AcceptableValues`, fires
@@ -189,14 +209,20 @@ Five things to know before writing against that registry:
   values, clamping silently rather than rejecting. `AcceptableValueBase` is
   public and abstract, so a third party's own subclass is a second route. Code
   reading a *foreign* constrained entry therefore has to expect an enum with a
-  non-null `AcceptableValues`, and cannot tell which subclass it is without the
-  reflection the sandbox denies.
+  non-null `AcceptableValues`. Telling the subclasses apart needs no denied
+  reflection: `System.Type` is allowed ([the sandbox](sandbox.md#what-is-banned)), so
+  `AcceptableValues.GetType()` compared against a `typeof(…)` works, and the two
+  stock classes also differ in their public `ToDescriptionString()` text. That
+  is read from the sources, not compiled here.
 - **The owning mod's display name is not part of the public surface, and
   `ConfigFilePath` is not derived from it.** `ConfigFile`'s constructor takes
   the path as a literal argument — CoreLib itself passes
   `"CoreLib/CoreLib.cfg"`, a settings-menu framework built here passes
   `"<ModId>/config.cfg"` — so a third-party mod need not follow either shape,
-  and its first segment is only a convention to lean on, not a guarantee.
+  and its first segment is only a convention to lean on, not a guarantee. The
+  nearest thing to an owner on record is a header line in the file itself —
+  `## Settings file was created by plugin <name>`, the owner's internal name,
+  written only when the constructor was handed a `LoadedMod`.
 - **`BoxedValue` casts must be type-exact.** An `int` range entry is a boxed
   `int`, and `(float)` on it throws. Branch on `SettingType` — never on what
   the value looks like.
@@ -204,11 +230,14 @@ Five things to know before writing against that registry:
 **`Scope` carries access semantics, and one of them can crash you.**
 `ConfigEntryBase.Scope` is a `ConfigScope` holding an `accessLevel`
 (`ConfigAccessLevel.ViewOnly` / `Client` / `Server` / `Admin`), a
-`requireReload` flag meaning the change takes effect only after a restart, and a
-`Changeable()` method.
+`requireReload` flag declaring that the change takes effect only after a restart
+— a declaration only, since nothing in CoreLib reads it — and a `Changeable()`
+method.
 
-**Trap: `Changeable()` reads `Manager.main.player`.** On the title screen there
-is no player, so calling it there is a null-reference risk. Guard first:
+**Trap: `Changeable()` reads `Manager.main.player`.** For a `Server` or `Admin`
+entry it then dereferences that player (`player.guestMode`), so calling it while
+there is none — on the title screen, for one — is a null-reference risk; a null
+`Manager.main` throws at any level. Guard first:
 
 ```csharp
 if (Manager.main == null || Manager.main.player == null)
@@ -229,6 +258,10 @@ defaults to `ConfigAccessLevel.Server`. The overload that takes the level
 directly defaults to `Client`. **Omitting the scope is therefore not neutral: it
 declares a server-authoritative setting.** For a purely client-side mod that is
 the wrong claim, and it stays invisible until something actually reads the level.
+`ConfigScope.Empty` is also one `static readonly` instance shared by every
+scope-less entry in the process, and its fields are public and mutable — a
+consumer that assigns `entry.Scope.accessLevel` on one such entry changes it for
+all of them.
 
 **`ShouldSync` is `accessLevel > 0`**, so `ViewOnly` (`-1`) and `Client` (`0`)
 are excluded and `Server`/`Admin` included. A consumer of the scopes uses it to
@@ -242,62 +275,90 @@ scope is a declaration, not a lock: nothing in CoreLib prevents a write to a
 `ViewOnly` entry.
 
 **A dedicated server binds client-scoped entries too, and they mean nothing
-there.** The server loads mods the same way the client does, so every `Bind` runs
-and every entry lands in the server's own config file — including the ones
-describing a HUD that does not exist in that process. They are artifacts, not an
+there.** The server loads mods the same way the client does, so every `Bind` on
+a path the server executes — `EarlyInit`, `Init`, anything not behind
+client-only UI or a client world — runs there too, and its entry lands in the
+server's own config file whenever a save happens — including entries describing
+a HUD that does not exist in that process. They are artifacts, not an
 authoritative copy: the client's entry of the same name is a separate instance,
 and reconciling the two would overwrite something nobody asked about.
 
-**Every write saves the WHOLE file, and the first one happens inside
+**Every automatic save writes the WHOLE file, and the first one happens inside
 `ConfigEntryBase`'s constructor — before `Bind` has registered the entry.**
 Setting a value goes `ConfigEntry<T>.Value` → `OnSettingChanged` →
-`ConfigFile.Save()`, and `Save` walks every entry in that file asking each for
-`ToDescriptionString()` (`WriteDescription`). The constructor ends in
-`BoxedValue = defaultValue`, which trips that chain for any default differing
-from `default(T)`; only afterwards does `Bind` reach `Entries[definition] =
-entry`. Three consequences, none of them local to the entry that causes them:
+`ConfigFile.Save()` — unless the clamped new value equals the old one, which
+returns before anything is saved. `Save` asks every entry in that file for
+`GetSerializedValue()`, and, while `GenerateSettingDescriptions` is on (the
+default), for its description (`WriteDescription`) — which calls
+`AcceptableValues.ToDescriptionString()` on each entry that has a constraint. The
+constructor ends in `BoxedValue = defaultValue`, which trips that chain for any
+default differing from `default(T)`; only afterwards does `Bind` reach
+`Entries[definition] = entry`. Three consequences, none of them local to the
+entry that causes them:
 
-- **One entry that throws when described makes the whole file unwritable.**
-  Every other entry in it silently stops persisting — the in-memory value
-  changes, the `.cfg` does not.
-- **A second such entry is never registered at all.** Its constructor's save
-  hits the first one and throws before registration, so the entry does not
-  exist: no row, no error of its own, and any code that catches around `Bind`
-  sees only the exception, not the absence. Whatever enumerates that file is
-  then one entry short with nothing to say why.
+- **One entry that throws while being saved makes the whole file unwritable.**
+  Every other entry in it stops persisting — the in-memory value changes, the
+  `.cfg` does not. The exception is not swallowed on the way: it reaches
+  whoever assigned the value, and only `SetSerializedValue` — the path a
+  `Reload()` takes — catches it, logging it as a value that "could not be
+  parsed". A caller that catches around its own writes sees an exception that
+  names the other entry, not its own.
+- **Every later entry whose default differs from `default(T)` is never
+  registered at all.** Its constructor's save hits the broken entry and throws
+  before registration, so the entry does not exist: no row, no error of its own,
+  and any code that catches around `Bind` sees only the exception, not the
+  absence. Whatever enumerates that file is then short by as many entries, with
+  nothing to say why. An entry whose default equals `default(T)` skips the
+  constructor save, is registered, and then throws from `Bind`'s own save.
 - **A failed save leaves the new value in memory.** The assignment precedes
   the save, so a UI that re-reads after writing shows the change as having
   worked. Only the next launch disagrees.
 
-This bites specifically when a `AcceptableValueBase` subclass computes its
-description rather than returning a literal — a plausible thing to write, and
-the failure surfaces nowhere near it.
+This bites when an `AcceptableValueBase` subclass computes its description
+rather than returning a literal — a plausible thing to write, and the failure
+surfaces nowhere near it — and equally when a custom type converter registered
+with `TomlTypeConverter` throws from its `ConvertToString`.
 
 **Trap: another mod can switch your file's auto-save off.** The automatic saves
 above hang on one public flag, `ConfigFile.SaveOnConfigSet`, which defaults to
 `true` (`ConfigFile.cs:ConfigFile:SaveOnConfigSet:1`) and gates the save after a
 `Bind` (`ConfigFile.cs:ConfigFile:Bind(ConfigDefinition, …):26`) and the save
-after a value change (`ConfigFile.cs:ConfigFile:OnSettingChanged:6`) — not the
-constructor's own save or an explicit `Save()`. The registry hands every file to
-every mod, and General Mod Config Menu (mod.io modfile 8270186) sets the flag to
-`false` at three places: `ModConfigMenu.Awake`, which runs when its menu is
-created at the title screen, and `ConfigSyncSystem.OnCreate`, once per
-simulation world — both skip files whose `ConfigFilePath` starts with `CoreLib`
-— and `ModConfigMenu.RegisterFile`, with no such exception. It never sets it
-back, so in a process with that mod loaded a foreign settings UI writes the new
-value into memory and nothing reaches the disk; the next launch shows the old
-one. Measured on 1.3.0.6 with Mod Settings Menu v1, which relied on the
-auto-save: a changed setting did not survive a restart — on the title screen as
-well as in a world, which the `Awake` site explains — and disabling General Mod
-Config Menu alone made it stick. Call `ConfigFile.Save()` yourself after a write
-whose persistence matters; it is not gated by the flag.
+after a value change (`ConfigFile.cs:ConfigFile:OnSettingChanged:6`) — and with
+the latter also the save inside `ConfigEntryBase`'s constructor, which goes
+through that same `OnSettingChanged`. Only two saves ignore it: an explicit
+`Save()`, and the one `ConfigFile`'s own constructor makes for a file that does
+not exist yet when `saveOnInit` is set. The registry hands every file to every
+mod, and General Mod Config Menu (mod.io modfile 8270186) sets the flag to
+`false` at three places: `ModConfigMenu.Awake`, which in the measurement below
+ran when its menu was created at the title screen, and
+`ConfigSyncSystem.OnCreate`, once per simulation world — both skip files whose
+`ConfigFilePath` starts with `CoreLib` — and `ModConfigMenu.RegisterFile`, with
+no such exception. It never sets it back, so every file that already existed
+when those passes ran loses its auto-save for the rest of the process: a foreign
+settings UI writes the new value into memory and nothing reaches the disk; the
+next launch shows the old one. A file created after both passes keeps the flag
+as it was. Measured on 1.3.0.6 with Mod Settings Menu before 1.2.2, which relied
+on the auto-save: a changed setting did not survive a restart — on the title
+screen as well as in a world, which the `Awake` site explains — and disabling
+General Mod Config Menu alone made it stick. Call `ConfigFile.Save()` yourself
+after a write whose persistence matters; it is not gated by the flag.
 
-**Change notification and reloading are both there.** `ConfigFile.SettingChanged`
-and the per-entry `ConfigEntryBase.SettingChanged` fire on every write, and
-`ConfigFile.Reload()` re-reads the file from disk. Together they allow a split
-that is otherwise awkward to build: the file as the user's stored preference,
-the in-memory entry as what is in effect right now, and `Reload()` as the way
-back when the temporary authority goes away.
+**Change notification and reloading are both there, with limits.**
+`ConfigFile.SettingChanged` and the per-entry `ConfigEntry<T>.SettingChanged`
+fire on a write that changes the value — not on one whose clamped value equals
+the old one, and not at all when the save before them throws. The per-entry
+event is declared on `ConfigEntry<T>`, not on `ConfigEntryBase`, so code holding
+an entry from the registry cannot subscribe to it without knowing `T`; the
+file-level event is the one a foreign reader can use. `ConfigFile.Reload()`
+re-reads the file from disk, re-applying each value through
+`SetSerializedValue` — so every entry it changes fires the events and, with the
+flag on, triggers a full save mid-reload — leaves an entry missing from the file
+at its in-memory value, and throws when the file itself is missing. Together they
+allow a split that is otherwise awkward to build: the file as the user's stored
+preference, the in-memory entry as what is in effect right now, and `Reload()`
+as the way back when the temporary authority goes away. That split needs
+`SaveOnConfigSet` off for the file: with the default on, assigning the temporary
+value saves it over the stored preference, and there is nothing left to reload.
 
 #### Intercepting CoreLib's writes: replace `API.ConfigFilesystem`, do not patch
 
@@ -307,22 +368,29 @@ entry through `GetSerializedValue()`, plus the lines it read but no entry claims
 So a save of one entry rewrites every other entry of that file with its
 in-memory value, whoever triggered it.
 
-A mod that wants to hold back or alter such a write cannot do it with Harmony.
-`ConfigFile` lives in CoreLib, outside the five assembly prefixes the patch gate
-admits, and a refused target unbinds *all* of the mod's patches, not just that
-one ([the gate](sandbox.md#harmony-attributes-are-exempt--hook-bodies-are-not)).
+A sandboxed mod that wants to hold back or alter such a write cannot do it with
+Harmony. `ConfigFile` lives in CoreLib, outside the five assembly prefixes the
+patch gate admits, and a refused target means none of the mod's patches are
+applied, not just that one ([the gate](sandbox.md#harmony-attributes-are-exempt--hook-bodies-are-not)).
 One level down it is shut as well: `StandaloneFilesystem`, the implementation
 behind `API.ConfigFilesystem`, is `[DisallowPatching]`
-(`Pug.Other:StandaloneFilesystem`).
+(`Pug.Other:StandaloneFilesystem`). The gate runs only for a mod whose
+`skipSafetyChecks` is false (`PugMod.Loader:HarmonyBootstrap`), so a mod with
+honoured elevated access is not bound by either — at the cost route 3 below
+describes.
 
 What is open is the field itself. `API.ConfigFilesystem` is a public static
 `IConfigFilesystem` that the game assigns once at startup
-(`Pug.Other:Manager:EarlyInit:49`), and CoreLib reads it afresh on every call
-rather than keeping a copy. A mod can therefore assign a wrapper in its own
-`EarlyInit` that holds the original, forwards all eleven members, and
-intercepts `Write(string, byte[])`: it may skip the write by not forwarding,
-or rewrite the bytes first. The wrapper is plain managed code over a PugMod
-interface, so the sandbox has nothing to refuse.
+(`Pug.Other:Manager:EarlyInit:50`), and CoreLib reads it afresh on every call
+rather than keeping a copy. The game itself does keep one: `API.Config` is
+constructed a few lines later around the original instance
+(`Pug.Other:Manager:EarlyInit:65`) and holds it in a private field, so every
+`API.Config` write goes around a wrapper installed afterwards. Within that
+limit, a mod can assign a wrapper in its own `EarlyInit` that holds the
+original, forwards all eleven members, and intercepts `Write(string, byte[])`:
+it may skip the write by not forwarding, or rewrite the bytes first. The wrapper
+is plain managed code over a PugMod interface, so the sandbox has nothing to
+refuse.
 
 Measured on 1.3.0.6-6e73 (2026-10-17): a probe wrapper saw 235 writes from 25
 files — CoreLib's own, PlacementPlus, and every settings-menu consumer among
@@ -331,39 +399,51 @@ untouched, and a line it rewrote in the bytes arrived rewritten. Caveats:
 
 - It sees only writes issued after the mod's `EarlyInit`; earlier ones, in
   practice startup saves, pass unseen.
-- A mod that cached the original instance bypasses it. None did in the 25 files
-  above, but nothing guarantees it, and mods stacking wrappers wrap each other
-  in load order.
-- It sees a path and bytes, not a caller. Naming who saved needs a convention
-  of your own, because `System.Diagnostics.StackTrace` is on the deny list.
-- An exception thrown from the wrapper breaks every mod's config writes, not
-  just yours; catch, log, and forward unchanged.
+- Whatever cached the original instance bypasses it — the game's `API.Config`
+  above in every process. No mod behind the 25 files did, but nothing guarantees
+  it, and mods stacking wrappers wrap each other in load order.
+- It sees a path and bytes, not a caller. `System.Diagnostics.StackTrace` is on
+  the deny list, so the obvious way to name who saved is closed; a convention of
+  your own is the dependable one. `System.Environment.StackTrace`, a plain
+  `string` in an allowed namespace, is not on the list by the data, but whether
+  it yields a usable stack inside the game remains **unverified**.
+- An exception thrown from the wrapper reaches every caller whose write it
+  fails on, whichever mod that is — CoreLib's `Save` catches nothing; catch,
+  log, and forward unchanged.
 
 ### 3. `skipSafetyChecks: true` — last resort
 
 Setting `skipSafetyChecks: true` in the ModBuilderSettings `.asset` disables
-the verification entirely and gives you raw `System.IO`. It is for what the
-first two routes genuinely cannot express.
+the verification entirely — and the Harmony patch-target gate with it — and
+gives you raw `System.IO`. It is for what the first two routes genuinely cannot
+express.
 
-Two costs: you lose the guarantee that your mod is inspectable-by-construction,
-and the flag **feeds a derived mod.io tag** — the `Access Type` tag on your
-published listing is computed from it, so flipping the flag re-tags the mod on
-the next publish. See [publishing](publishing.md).
+It is honoured as written only for a side-loaded mod. The mod.io and Steam
+loaders force it back to `false` unless the listing carries the tag `Script
+(Elevated Access)` ([the tag table](troubleshooting.md)), and nothing in the SDK sets that tag from
+the flag — a publisher sets it by hand or with tooling of their own
+([publishing](publishing.md)). Two costs follow: you lose the guarantee that your mod is
+inspectable-by-construction, and your listing has to carry that tag, which
+exists to warn subscribers.
 
 ## Reading a file your mod ships
 
 The three routes above are all for state a mod **writes** at runtime — a config,
 a ledger, a cache. A file a mod **ships** — the `Conf/*.json` payload [mod anatomy](mod-anatomy.md#what-ships-and-what-the-loader-reads)
 lists as one of the five kinds a build produces — is a different question, and
-none of the three routes reach it: it never passes through
+neither of the first two routes reaches it: it never passes through
 `API.ConfigFilesystem`, because the loader never wrote it there in the first
-place.
+place. (Route 3's raw `System.IO` could read the install directory, at route 3's
+price.)
 
 `LoadedMod.GetFile(string path)` (`PugMod.SDK.Runtime:LoadedMod:GetFile:1`) is
 the answer. It resolves `path` against the mod's own install directory
-(`API.ModLoader.GetDirectory(ModId)`), rejects a path that escapes that
-directory, and returns the file's bytes with `File.ReadAllBytes` — all inside
-the trusted loader assembly, so referencing it costs nothing against [the sandbox](sandbox.md).
+(`API.ModLoader.GetDirectory(ModId)`) and returns the file's bytes with
+`File.ReadAllBytes` — all inside the trusted `PugMod.SDK.Runtime`, so
+referencing it costs nothing against [the sandbox](sandbox.md). It returns `null` in two
+cases: when the loader knows no directory for the mod, and, with a logged
+warning, for a path that escapes that directory. A file that does not exist is
+not one of them — `File.ReadAllBytes` throws, uncaught, into your code.
 
 Reach it off your own `LoadedMod`, [resolved the usual way](mod-anatomy.md#reaching-your-own-loadedmod-and-asset-bundle):
 
@@ -372,8 +452,11 @@ foreach (var mod in API.ModLoader.LoadedMods)
 {
     if (mod.Metadata.name == ModName)
     {
-        var bytes = mod.GetFile("Conf/settings.json");
-        var text = Encoding.UTF8.GetString(bytes);
+        var bytes = mod.GetFile("Conf/settings.json");   // throws if the file is missing
+        if (bytes != null)
+        {
+            var text = Encoding.UTF8.GetString(bytes);
+        }
         break;
     }
 }
@@ -381,10 +464,11 @@ foreach (var mod in API.ModLoader.LoadedMods)
 
 This needs no `dependencies` entry and no `accessesExtraAssemblies` — the
 payload already ships inside your own mod directory, and `GetFile` is a plain
-method on the trusted `LoadedMod` wrapper, not a shipped `.dll`. See [mod anatomy](mod-anatomy.md#there-is-no-mod-version-at-runtime)
-for `GetFile`'s other documented use — deriving a build identifier from the
-install directory's name, since no version field exists anywhere in the loader's
-view of a mod.
+method on the trusted `LoadedMod` wrapper, not a shipped `.dll`. The install
+directory `GetFile` reads from has a second documented use: [mod anatomy](mod-anatomy.md#there-is-no-mod-version-at-runtime)
+derives a build identifier from its name, read with `API.ModLoader.GetDirectory`
+rather than with `GetFile`, since no version field exists anywhere in the
+loader's view of a mod.
 
 **It works on any loaded mod, not only your own.** Nothing in `GetFile`
 (`PugMod.SDK.Runtime:LoadedMod:GetFile`) ties it to the caller: it returns null
@@ -398,9 +482,11 @@ This is read from the source, not yet exercised across mods.
 
 **`Conf/` is shared with the game's own data loaders.** At startup the game adds
 every loaded mod's `Conf/` folder that exists to `Config.ConfFolders`
-(`Pug.Other:ModManager:Init:24-27`), and five loaders in `Pug.Mods` read `*.json`
-from fixed subfolders of each (`Pug.Mods:Factions`, `Pug.Mods:Fishing`,
-`Pug.Mods:LootTable`, `Pug.Mods:SpawnTable`, `Pug.Mods:Talents`):
+(`Pug.Other:ModManager:Init:24-27`) — plus any `-confdir` folder from the
+command line, and none at all under `-safemode` — and five loaders in `Pug.Mods`
+read `*.json` from fixed subfolders of each (`Pug.Mods:Factions`,
+`Pug.Mods:Fishing`, `Pug.Mods:LootTable`, `Pug.Mods:SpawnTable`,
+`Pug.Mods:Talents`):
 
 | Subfolder | Depth read |
 |---|---|
@@ -408,8 +494,9 @@ from fixed subfolders of each (`Pug.Mods:Factions`, `Pug.Mods:Fishing`,
 | `Spawn/Initial`, `Spawn/Respawn` | every level below |
 
 A `.json` the table covers is game data, and the game parses it as such. Any
-other file — directly in `Conf/`, in a subfolder of another name, one level
-deeper than a top-level-only folder, or not `.json` at all — is left to you.
+other file — directly in `Conf/`, in a subfolder the table does not name
+(including one below a top-level-only folder, such as `Loot/Fishing` itself), or
+not `.json` at all — is left to you.
 
 ## What the rest of the catalogue does
 
@@ -438,8 +525,9 @@ settings legible to a generic settings UI or a config migration.
 Two shapes to avoid:
 
 - **A section whose keys are generated per user object is not a settings
-  schema.** One catalogue mod stores its map-marker labels that way; nothing
-  generic can render, validate or migrate it.
+  schema.** One catalogue mod stores its map-marker labels that way; a generic
+  UI can list the keys, but nothing generic can give them meaning, validate or
+  migrate them.
 - **Importing `CoreLib.Data.Configuration` without ever calling `.Bind(...)`**
   buys the dependency and configures nothing. Two mods in the survey do exactly
   this.
@@ -453,6 +541,23 @@ For per-character mod data, do not invent your own save moment. Harmony-postfix
 `SaveManager` is on no deny list, and it is a perfectly patchable class — it
 lives in `Pug.Other`, inside the patch-target prefixes (see [the load-time sandbox](sandbox.md#harmony-attributes-are-exempt--hook-bodies-are-not)).
 
+Three things the postfix has to allow for, all in the client tree's
+`SaveManager`:
+
+- **It runs more often than once per autosave.** The method is also called when
+  a game is started or continued from the character menu, after every world save
+  in a process that hosts the world (`SerializeWorldSystem`), from
+  `SaveManager.Deinit`, and at startup from `SaveManager.Init` for every
+  character file it upgraded.
+- **`saveId` is not always the active character** — the startup upgrade writes
+  each slot in turn — so key your data on `saveId`, not on the character in
+  play.
+- **A postfix runs even when nothing was written.** The method returns without
+  writing for a character from a newer game version (logging an error) and for
+  the active character once it has died, and a postfix still runs after both. On
+  a dedicated server the method only logs "Trying to write character as server"
+  — characters are the clients' files there.
+
 The symmetric load point is `CharacterData.OnAfterDeserialize` — with two limits
 since 1.3. Each existing character file is decoded once when `SaveManager`
 initialises at startup, not when the character is chosen; outside the benchmark
@@ -463,40 +568,51 @@ record as stored, not the upgraded one. [Correlating private state across two me
 has the call sites.
 
 **Trap: do not gate your save on a return-to-menu signal.** Hooking
-`SetCharacterId(-1)` and saving there looks equivalent and is not — a normal
-"Save & Quit" does not reliably call it. The file simply never appears, with no
-error and no log line: silent data loss. A character-switch save is a cheap
-backstop; a `Shutdown()` save is none, because the loader does not call
-`Shutdown` at game quit and in 1.3.0.6 never reloads a mod after startup
-([the lifecycle table](mod-anatomy.md#the-imod-lifecycle)). Let `WriteCharacter` be the trigger.
+`SetCharacterId(-1)` and saving there looks equivalent and is not — nothing in
+the game calls it with `-1`. Returning to the menu resets the field directly in
+`SaveManager.OnSceneUnload`, right after that method's own `WriteCharacter()`,
+so the hook never fires. The file simply never appears, with no error and no log
+line: silent data loss. A character-switch save is a cheap backstop; a
+`Shutdown()` save is none, because the loader does not call `Shutdown` at game
+quit and in 1.3.0.6 never reloads a mod after startup ([the lifecycle table](mod-anatomy.md#the-imod-lifecycle)). Let
+`WriteCharacter` be the trigger.
 
-Saving in lockstep rather than ahead of CK also avoids a post-crash desync
-where the game reverts the character to an older state while your file is
-newer.
+Saving in lockstep rather than ahead of CK also means your file and the
+character file are written at the same moments, so a crash cannot leave the
+character reverted to an older state while your file already holds a newer one.
 
 ### The cost of that hook is paid on the main thread
 
 **Trap: an unbounded persisted store turns every autosave into a frame spike.**
 A `WriteCharacter` postfix runs the full serialize-plus-write inline,
-synchronously, at every autosave. Measured on an 89 KB / 5503-entry ledger:
-12–37 ms per autosave — 8–24 ms to serialize, 4–13 ms to write. That was enough
-to push CK's **host simulation past its 55 ms budget** (the server tick, a
-different budget from the client's ~16.7 ms render frame)
-(`ServerUpdateFrequencyTracker` warnings; 626 of 1109 frames over budget in one
-session), which players experience as continuous rubber-banding rather than as
-the periodic hitch a heavy scan produces.
+synchronously, at every call — autosave and the other occasions listed above.
+Measured on 1.2.1.5 in one hosted session, on an 89 KB / 5503-entry ledger:
+12–37 ms per call — 8–24 ms to serialize, 4–13 ms to write — about ten times in
+a short session. The same session logged `ServerUpdateFrequencyTracker`
+warnings for CK's **host simulation** running past its 55 ms budget (the server
+tick, a different budget from the client's ~16.7 ms render frame) — 626 of 1109
+frames — and players felt continuous rubber-banding rather than the periodic
+hitch a heavy scan produces. After a round of changes shrank the store, skipped
+unchanged saves and reworked the scan, a later session showed 4 such frames. The
+changes went out together and were never measured apart, and the save figures
+alone do not account for the overruns — no single save reached 55 ms, and ten of
+them cannot make 626 slow frames. So the save is one measured cost in a host
+that was over budget for reasons not fully separated, not the isolated cause.
 
 So budget the serialize like any other frame operation, and keep the store small
 **at the source**. A radius-bounded self-heal only limits what it visits — it
 does not retroactively clear a backlog that is already on disk. The per-frame
 budget for scanning work is in [Harmony and ECS](harmony-and-ecs.md).
 
-### Eliding an unchanged write needs a 64-bit hash
+### Eliding an unchanged write: keep the bytes, or a 64-bit hash
 
-The obvious relief is to hash the serialized bytes and skip the write when the
-hash matches the previous one. Note what a collision costs here: **a skipped
-save that was needed** — silent data loss. The width of the hash *is* the
-safety margin, so hand-roll **FNV-1a/64**.
+The exact way to skip an unchanged write is to keep the previous serialized
+bytes and compare — no collision risk at all, at the cost of holding one copy
+of the store in memory. The obvious lighter relief is to hash the serialized
+bytes and skip the write when the hash matches the previous one. Note what a
+collision costs there: **a skipped save that was needed** — silent data loss.
+The width of the hash *is* the safety margin, so if you hash, hand-roll
+**FNV-1a/64**.
 
 - **Not `string.GetHashCode`.** 32 bits is not a negligible risk over a long
   session, and the value is not stable across runtimes.
