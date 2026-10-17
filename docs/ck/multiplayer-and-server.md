@@ -517,6 +517,35 @@ a second, admin-holding player.
 `ChatCommand`, `StartsWith("/")` — comes up empty across client and server
 assemblies; admin rights are granted through the UI and travel as the RPC above.
 
+**The server can read a sender's rights from the connection, and needs nothing
+from the client.** Every connection entity in the server world carries
+`ConnectionAdminLevelCD { int adminPrivileges; ulong onlineId }`, a public
+struct added when the player's start request is handled
+(`DedicatedServer/Pug.Other:StartGameRPCSystem_2FE3D5A9_LambdaJob_3_Job:OriginalLambdaBody:116`)
+and rewritten by `UpdatePlayerAdminFlag` whenever the admin list changes
+(`DedicatedServer/Pug.Other:NetworkingManager:UpdatePlayerAdminFlag:16`).
+Vanilla's own map RPCs gate on it exactly that way
+(`DedicatedServer/Pug.Other:ShareMapServerSystem_12B634E6_LambdaJob_0_Job:OriginalLambdaBody:5`),
+so a mod's RPC handler does the same with
+`ReceiveRpcCommandRequest.SourceConnection`: read the component off that entity,
+treat a missing one as 0, and take the world's guest flag from `WorldInfoCD`
+(`PugSimulationSystemBase.WorldInfo`,
+`Pug.Other:PugSimulationSystemBase:WorldInfo:1`). A sender is a guest when the
+flag is set and the privileges are below 1. The method vanilla itself uses,
+`NetworkingManager.GetAdminPrivileges`, is `internal` and not reachable. Never
+trust an `Entity` the client sends for this: it names an entity in the client's
+world and proves nothing about its owner.
+
+Measured 2026-10-17 against a 1.3.0.6-6e73 dedicated server, with a probe RPC
+logging what the handler resolved, the value equalled the `Admins.json` entry
+each time — a hand-written stage-2 entry (the only entry, so the bootstrap rule
+could not have fired) gave `2`; stage 1 gave `1`; a list holding only a foreign
+placeholder gave `0` — and the `PlayerGhost.adminPrivileges` of the same
+connection agreed. It also **followed a change inside one session**: after guest
+mode was switched on and the account's stage 1 was revoked, the next request
+read `privileges=0 … guest=True`, with no reconnect. So the lookup belongs in the
+handler, once per request, not in a cache taken at join.
+
 ### Check `[GhostField]` before assuming a write replicates
 
 Two things decide whether an ECS write reaches the other side, and you need
@@ -729,6 +758,33 @@ one above: `isConnected` is a plain settable `bool` property, and
 (`impl.ConnectedToDedicatedServer`) and returns `false` whenever there is no
 network at all. Neither distinguishes hosting from joining, which is precisely
 what `ServerWorld` does.
+
+**There is no host option to tell apart.** The title screen has no separate
+"host" entry: every locally started game is a host, so singleplayer and hosting
+are one mode, not a pair that a flag separates. Measured 2026-10-17 on
+1.3.0.6-6e73: both world events fire in the same frame with `ServerWorld` and
+`ClientWorld` set, `dedicated=False` and `offline=False` (`isConnected` follows
+15–30 frames later), and the local player is stage **2**, not `int.MaxValue`.
+`OfflineSession` is set only by the title button flagged `_forceOffline`
+(`Pug.Other:RadicalMainMenuOption_Singleplayer:OnActivated:4`) and by a failed
+network check, and it read `False` throughout that run — so it is no
+singleplayer test either.
+
+### `OnWorldCreated` fires before the connection exists
+
+A client that joins a remote server gets `API.Client.OnWorldCreated`
+(`Pug.Other:ECSManager:InitWorlds:12`) as soon as its own world is initialised,
+and that is **before** it is connected: the event reports `ServerWorld=False
+ClientWorld=True connected=False dedicated=False` with no connection entity.
+About 7–16 frames later the entity appears (`dedicated=True`), and
+`Manager.networking.isConnected` turns true 15–170 frames after the event (frame
+21234 → 21364, 38155 → 38208, 66282 → 66465 in five joins). `OnWorldDestroyed`
+(`Pug.Other:ECSManager:UnloadWorldsInternal:13`) fires on every leave with
+`isConnected` already false, and a rejoin repeats the whole cycle. A dedicated
+server fires only the server pair (`Pug.Other:ECSManager:InitWorlds:7`), at
+frame 0. So the pair brackets a session, but anything that needs the connection
+— a request to the server above all — has to wait for `isConnected` after the
+event, from a poll in `Update`; sending from the event itself goes nowhere.
 
 ### A mod-set mismatch reports a version error
 
