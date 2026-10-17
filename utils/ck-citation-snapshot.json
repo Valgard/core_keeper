@@ -84,6 +84,13 @@
     "DedicatedServer/Pug.Other:Manager:EarlyInit:1": [
       "[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]"
     ],
+    "DedicatedServer/Pug.Other:Manager:EarlyInit:70-74": [
+      "_modLoaders = new List<IModPlatform>();",
+      "if (!num)",
+      "{",
+      "_modLoaders.Add(new SideLoader());",
+      "}"
+    ],
     "DedicatedServer/Pug.Other:Manager:EarlyInit:73-76": [
       "_modLoaders.Add(new SideLoader());",
       "}",
@@ -1405,6 +1412,26 @@
     ],
     "Pug.Other:ModAPIModLoader:ApplyHarmonyPatch:1": [
       "public void ApplyHarmonyPatch(long modId, Type type)"
+    ],
+    "Pug.Other:ModAPIReflection:GetTypes:1-18": [
+      "public Type[] GetTypes(long modId)",
+      "{",
+      "List<Type> list = new List<Type>();",
+      "foreach (Loader.Mod mod in Loader.Instance.Mods)",
+      "{",
+      "foreach (ScriptAssembly loadedAssembly in mod.LoadedAssemblies)",
+      "{",
+      "try",
+      "{",
+      "list.AddRange(loadedAssembly.SystemAssembly.GetTypes());",
+      "}",
+      "catch (ReflectionTypeLoadException ex)",
+      "{",
+      "list.AddRange(ex.Types.Where((Type type) => type != null));",
+      "}",
+      "}",
+      "}",
+      "return list.ToArray();"
     ],
     "Pug.Other:ModAPIReflection:GetValue:6": [
       "throw new InvalidOperationException(\"Not allowed to access \" + memberInfo.Name);"
@@ -4028,6 +4055,16 @@
     "PugMod.Loader:DependencySorter:SortMods:23": [
       "UnityEngine.Debug.LogWarning(\"skipping mod \" + mod.Metadata.name + \" because of missing dependency: \" + dependency.modName);"
     ],
+    "PugMod.Loader:DependencySorter:SortMods:3-10": [
+      "Dictionary<string, Node> dictionary = new Dictionary<string, Node>();",
+      "foreach (Mod mod2 in mods)",
+      "{",
+      "dictionary[mod2.Metadata.name] = new Node",
+      "{",
+      "Mod = mod2",
+      "};",
+      "}"
+    ],
     "PugMod.Loader:DependencySorter:SortMods:38-43": [
       "foreach (ModMetadata.Dependency dependency2 in mod3.Metadata.dependencies)",
       "{",
@@ -4035,6 +4072,13 @@
       "{",
       "node.Dependencies.Add(value);",
       "}"
+    ],
+    "PugMod.Loader:DependencySorter:SortMods:57-61": [
+      "IOrderedEnumerable<Node> orderedEnumerable = dictionary.Values.OrderBy(delegate(Node node2)",
+      "{",
+      "string key = ((!string.IsNullOrEmpty(node2.Mod.Metadata.guid)) ? node2.Mod.Metadata.guid : (node2.Mod.Metadata.name ?? string.Empty));",
+      "int value2;",
+      "return (!rank.TryGetValue(key, out value2)) ? int.MaxValue : value2;"
     ],
     "PugMod.Loader:HarmonyBootstrap:Patch(string, Assembly, \u2026):3": [
       "if (safetyCheck)"
@@ -4063,6 +4107,9 @@
       "where p.GetCustomAttribute<DisallowPatching>() != null",
       "select p;",
       "_disallowedTypes = new HashSet<Type>(collection);"
+    ],
+    "PugMod.Loader:Loader:Add:15": [
+      "_needsReload = true;"
     ],
     "PugMod.Loader:Loader:AddEntitySystems:28": [
       "SystemBaseRegistry.AddUnmanagedSystemType(item.SystemType, BurstRuntime.GetHashCode64(item.SystemType), array[0], array[1], array[2], array[3], array[4], array[5], item.FullName, 0);"
@@ -4138,6 +4185,13 @@
     ],
     "PugMod.Loader:Loader:LoadDll:4": [
       "if (!mod.Metadata.accessesExtraAssemblies)"
+    ],
+    "PugMod.Loader:Loader:LoadDll:4-8": [
+      "if (!mod.Metadata.accessesExtraAssemblies)",
+      "{",
+      "UnityEngine.Debug.LogWarning(\"Tried to load dll for \" + mod.Metadata.name + \", but accessesExtraAssemblies not set\");",
+      "modLoadError = ModLoadError.InvalidAccess;",
+      "return false;"
     ],
     "PugMod.Loader:Loader:LoadScripts:10-25": [
       "if (mod.Metadata.accessesExtraAssemblies)",
@@ -4290,6 +4344,9 @@
     "PugMod.Loader:Loader:Reload:96": [
       "Assets = mod.LoadedAssets,"
     ],
+    "PugMod.Loader:Loader:Remove:27": [
+      "_needsReload = true;"
+    ],
     "PugMod.Loader:Loader:Update:1": [
       "public void Update()"
     ],
@@ -4319,6 +4376,9 @@
     ],
     "PugMod.Loader:RuntimeDataBlocks:GetInstanceAddress:4": [
       "return new Guid(sHA.ComputeHash(Encoding.UTF8.GetBytes($\"PugMod.RuntimeDataBlock:{modGuid}:{address}\")).AsSpan(0, 16));"
+    ],
+    "PugMod.Loader:SideLoader:Init:4": [
+      "Update();"
     ],
     "PugMod.Loader:SideLoader:Update:1-61": [
       "public void Update()",
@@ -4504,6 +4564,18 @@
     "PugMod.SDK.Runtime:ModAPIExtensions:GetMembersChecked:1": [
       "public static MemberInfo[] GetMembersChecked(this Type type)"
     ],
+    "PugMod.SDK.Runtime:ModAPIExtensions:GetMembersChecked:1-10": [
+      "public static MemberInfo[] GetMembersChecked(this Type type)",
+      "{",
+      "System.Reflection.MemberInfo[] members = type.GetMembers(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);",
+      "MemberInfo[] array = new MemberInfo[members.Length];",
+      "for (int i = 0; i < array.Length; i++)",
+      "{",
+      "array[i] = members[i];",
+      "}",
+      "return array;",
+      "}"
+    ],
     "PugMod.SDK.Runtime:ModAPIExtensions:GetMembersChecked:3": [
       "System.Reflection.MemberInfo[] members = type.GetMembers(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);"
     ],
@@ -4578,6 +4650,12 @@
     ],
     "ScriptableData:DataBlockAddress:NewAddress:3": [
       "return Guid.NewGuid();"
+    ],
+    "ScriptableData:ScriptableData:AddDataBlocksLoader:5-8": [
+      "if (string.Equals(s_dataBlockLoaders[i].Item1, name))",
+      "{",
+      "UnityEngine.Debug.LogError(\"Data block loader already added for key \" + name);",
+      "return;"
     ],
     "ScriptableData:ScriptableData:AddDataBlocksToRuntimeLists:1": [
       "private static void AddDataBlocksToRuntimeLists(IEnumerable<ScriptableDataBlock> dataBlocks)"

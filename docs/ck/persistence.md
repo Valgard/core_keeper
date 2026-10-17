@@ -465,9 +465,10 @@ has the call sites.
 **Trap: do not gate your save on a return-to-menu signal.** Hooking
 `SetCharacterId(-1)` and saving there looks equivalent and is not — a normal
 "Save & Quit" does not reliably call it. The file simply never appears, with no
-error and no log line: silent data loss. Keep a `Shutdown()` save and a
-character-switch save as cheap backstops, but let `WriteCharacter` be the
-trigger.
+error and no log line: silent data loss. A character-switch save is a cheap
+backstop; a `Shutdown()` save is none, because the loader does not call
+`Shutdown` at game quit and in 1.3.0.6 never reloads a mod after startup
+([the lifecycle table](mod-anatomy.md#the-imod-lifecycle)). Let `WriteCharacter` be the trigger.
 
 Saving in lockstep rather than ahead of CK also avoids a post-crash desync
 where the game reverts the character to an older state while your file is

@@ -176,9 +176,10 @@ from `Init` — a station's `canCraftObjects`, for one — belongs in the first
 `Update` if it has to see their entries: that is still before the world
 conversion that bakes the list. Measured in Complete Tools on 1.3.0.6, whose
 first `Update` found Caveling Divining Rod's Iron Workbench entry, written in
-that mod's `Init`, on client and dedicated server alike. A mod hot-reloaded
-later is the exception: its `Init` comes from a later loader update, after the
-others have long been updating.
+that mod's `Init`, on client and dedicated server alike. A mod reloaded
+later would be the exception — its `Init` would come from a later loader update,
+after the others have long been updating — but nothing in 1.3.0.6 triggers a
+reload after startup ([mod anatomy](mod-anatomy.md#the-imod-lifecycle)).
 
 `API.ConfigFilesystem` is initialised before any mod's `EarlyInit`, so reading
 configuration that early does work — see [storing configuration and state](persistence.md).
@@ -1230,7 +1231,7 @@ portability.
 | Field | Scope | Rule |
 |---|---|---|
 | `fileID` | portable | Derived from the class name. Identical on every install and every SDK clone. |
-| `guid` | per-SDK-clone | The `.meta` GUID of the DLL (e.g. `Pug.Other.dll.meta`), assigned randomly by the Unity Editor per clone. |
+| `guid` | treat as per-SDK-clone | The `.meta` GUID of the DLL (e.g. `Pug.Other.dll.meta`), which the SDK does not track for game DLLs; Update Game Files seeds it from `MetaFiles.zip` only when no `.meta` exists, and this machine's clone carries a different value than that seed. Whether two clones agree is open — [mod anatomy](mod-anatomy.md#the-two-guids-and-the-rules-for-hand-created-files). |
 
 For a **game-DLL component**, Unity computes the fileID as the first 4 bytes,
 little-endian signed int32, of `MD4("s\x00\x00\x00" + namespace + className)`

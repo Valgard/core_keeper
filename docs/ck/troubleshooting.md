@@ -226,8 +226,8 @@ see [mod anatomy](mod-anatomy.md).
 
 - The fault surfaces in the game's loader compile step, never in an Editor
   build.
-- The `Creating modified script files at …ModLoader\<Mod>` lines are the
-  **actual compile order** — and they are not the same as the `loaded mod …`
+- On a client, the `Creating modified script files at …ModLoader\<Mod>` lines
+  are the **actual compile order** — and they are not the same as the `loaded mod …`
   order. In a broken setup the dependent's line precedes CoreLib's.
 - **Verify at the shipped modfile, not at the source or the local cache.**
   Read-only mod.io REST works with the game's public `gameKey` (in
