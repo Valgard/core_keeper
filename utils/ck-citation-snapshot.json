@@ -2660,6 +2660,9 @@
       "}",
       "if (activate && !base.gameObject.activeSelf)"
     ],
+    "Pug.Other:PugText:Render(bool, \u2026):27": [
+      "UpdateStyleOverrides();"
+    ],
     "Pug.Other:PugText:Render(bool, \u2026):29": [
       "if (string.IsNullOrEmpty(textString))"
     ],
@@ -2702,6 +2705,9 @@
     ],
     "Pug.Other:PugText:Start:1": [
       "private void Start()"
+    ],
+    "Pug.Other:PugText:UpdateStyleOverrides:10": [
+      "style = styleOverride.style.GetCopy();"
     ],
     "Pug.Other:PugText:UpdateStyleOverrides:16-20": [
       "if (LocalizationManager.IsRight2Left && defaultStyle.invertHorizontalAlignment)",

@@ -1790,12 +1790,21 @@ the loader admits (see [the sandbox](sandbox.md)).
 
 **Colouring that line is not simple, and the working method is a trap.** Setting
 `style.color` (to `Color.yellow` and to an amber) before the render produced
-**white** text in both cases; why is **not established** — the fade effect reads
+**white** text in both cases, against expectation: the fade effect reads
 `style.color` every frame
 (`Pug.Other:PugTextEffectMaxFade:PugTextEffectLateUpdate:4`) and applies it
-(`Pug.Other:PugTextEffectMaxFade:PugTextEffectLateUpdate:15`), so a tint was
-the expected outcome. The inline tag `[#RRGGBBAA]text[/]` does colour its span,
-but only when `style.supportColorTags` is set on the instance
+(`Pug.Other:PugTextEffectMaxFade:PugTextEffectLateUpdate:15`). Why remains
+**unverified**. The code offers one candidate: `Render` calls
+`UpdateStyleOverrides` before it lays out any glyph
+(`Pug.Other:PugText:Render(bool, …):27`), which replaces `style`
+wholesale with a copy of the prefab's style override for the current language
+(`Pug.Other:PugText:UpdateStyleOverrides:10`), discarding a colour set before
+the render — but only if the chat text prefab carries an override for the
+language in use, and that prefab was not checked. The `AddInfoText` overload the
+recipe calls is not the cause: it passes `setColorFromRarity: false`, so the
+rarity colour that the long overload writes never comes into play. The inline
+tag `[#RRGGBBAA]text[/]` does colour its span, but only when
+`style.supportColorTags` is set on the instance
 (`Pug.Other:PugFont:Render:118`), and the coloured span **stayed fully visible
 after the rest of the line had faded out** — observed once, in one screenshot.
 The code explains the observation: the fade applies its alpha through
@@ -1804,9 +1813,9 @@ The code explains the observation: the fade applies its alpha through
 and alpha and never fades. Treat that as read, not as seen: only the persisting
 span was observed. The same skip applies to any `PugText` with
 `supportColorTags`, so a tag can also defeat a tint or dimming applied through
-`SetTempColor` on a menu row. Core Keeper has no yellow text or option state
-of its own to reuse: `OptionActiveState` is `INACTIVE`, `ACTIVE`, `GRAYED_OUT`,
-and vanilla's yellow is plain `Color.yellow` passed to `SetTempColor`.
+`SetTempColor` on a menu row. Core Keeper has no yellow text or option state of
+its own to reuse: `OptionActiveState` is `INACTIVE`, `ACTIVE`, `GRAYED_OUT`, and
+vanilla's yellow is plain `Color.yellow` passed to `SetTempColor`.
 
 ## Rebindable keybinds
 
