@@ -781,7 +781,7 @@ About 7–16 frames later the entity appears (`dedicated=True`), and
 21234 → 21364, 38155 → 38208, 66282 → 66465 in five joins). `OnWorldDestroyed`
 (`Pug.Other:ECSManager:UnloadWorldsInternal:13`) fires on every leave with
 `isConnected` already false, and a rejoin repeats the whole cycle. A dedicated
-server fires only the server pair (`Pug.Other:ECSManager:InitWorlds:7`), at
+server fires only the server pair (`DedicatedServer/Pug.Other:ECSManager:InitWorlds:7`), at
 frame 0. So the pair brackets a session, but anything that needs the connection
 — a request to the server above all — has to wait for `isConnected` after the
 event, from a poll in `Update`; sending from the event itself goes nowhere.

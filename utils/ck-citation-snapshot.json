@@ -31,6 +31,9 @@
     "DedicatedServer/Pug.Other:ECSManager:Init:31": [
       "Manager.mod.Authoring.ObjectProperties = entityQuery.GetSingleton<DatabaseCD>().ObjectPropertyLookup.AsEnum<ObjectID>();"
     ],
+    "DedicatedServer/Pug.Other:ECSManager:InitWorlds:7": [
+      "Manager.mod.Server.WorldCreated();"
+    ],
     "DedicatedServer/Pug.Other:ECSManager:PauseWorld:1-23": [
       "private void PauseWorld(World world)",
       "{",
@@ -130,6 +133,9 @@
     "DedicatedServer/Pug.Other:NetworkingManager:OnPlayerConnect:6": [
       "if (adminList.adminList.Count == 0 || isLocalPlayer)"
     ],
+    "DedicatedServer/Pug.Other:NetworkingManager:UpdatePlayerAdminFlag:16": [
+      "componentData2.adminPrivileges = GetAdminPrivileges(nativeArray2[j], Manager.ecs.ServerWorld, componentData2.onlineId);"
+    ],
     "DedicatedServer/Pug.Other:PlacementHandlerDigging:CanPlaceObjectAtPosition:131": [
       "bool flag9 = value.objectID != ObjectID.None && value.objectID == ObjectID.DiggingSpot;"
     ],
@@ -163,6 +169,9 @@
     ],
     "DedicatedServer/Pug.Other:SceneHandler:Awake:45": [
       "Manager.ecs.StartEcs(startClient: false, 0, frameWorkloadTimer, null);"
+    ],
+    "DedicatedServer/Pug.Other:ShareMapServerSystem_12B634E6_LambdaJob_0_Job:OriginalLambdaBody:5": [
+      "if (worldIsReadOnly && __ConnectionAdminLevelCD_ComponentLookup[sourceConnection].adminPrivileges <= 0)"
     ],
     "DedicatedServer/Pug.Other:StandaloneFilesystem:StandaloneFilesystem(string, PlatformInterface):1-17": [
       "public StandaloneFilesystem(string partition, PlatformInterface platformInterface)",
@@ -208,6 +217,9 @@
     ],
     "DedicatedServer/Pug.Other:StartGameRPCSystem:OnUpdate:41": [
       "UnityEngine.Debug.Log(\"Skipping load inventory by PlayerWasLastConnectedToThisServer\");"
+    ],
+    "DedicatedServer/Pug.Other:StartGameRPCSystem_2FE3D5A9_LambdaJob_3_Job:OriginalLambdaBody:116": [
+      "ecb.AddComponent(reqSrc.SourceConnection, new ConnectionAdminLevelCD"
     ],
     "DedicatedServer/PugMod.Loader:Loader:Load:11": [
       "text = Path.Combine(Application.temporaryCachePath, \"ModLoader\", \"DedicatedServer\", Guid.NewGuid().ToString());"
@@ -598,6 +610,21 @@
       "nonSerialized.discoveredObjects.Add(item);",
       "}"
     ],
+    "Pug.Other:ChatWindow:AddInfoText(string[], Rarity, \u2026):6": [
+      "pugText.Render(rewindEffectAnims: false);"
+    ],
+    "Pug.Other:ChatWindow:AddPugText:4": [
+      "activePools[type].Enqueue(text);"
+    ],
+    "Pug.Other:ChatWindow:AllocPugText:18": [
+      "pugText = UnityEngine.Object.Instantiate(textPrefabLookup[type], messageTextParentToUse).GetComponent<PugText>();"
+    ],
+    "Pug.Other:ChatWindow:AllocPugText:3": [
+      "Queue<PugText> queue = freePools[type];"
+    ],
+    "Pug.Other:ChatWindow:Awake:5": [
+      "textPrefabLookup.Add(textPrefab.type, textPrefab.prefab);"
+    ],
     "Pug.Other:ChestInventoryUI:ShowContainerUI:7": [
       "int state = activeWorldLabel.GetState();"
     ],
@@ -772,6 +799,9 @@
     "Pug.Other:ECSManager:InitWorld:1": [
       "private void InitWorld(World world)"
     ],
+    "Pug.Other:ECSManager:InitWorlds:12": [
+      "Manager.mod.Client.WorldCreated();"
+    ],
     "Pug.Other:ECSManager:OnEarlySceneUnload:3": [
       "if (ServerWorld != null)"
     ],
@@ -812,6 +842,9 @@
     ],
     "Pug.Other:ECSManager:TryCalculateGhostCollectionHash:20": [
       "num ^= buffer[i].Hash;"
+    ],
+    "Pug.Other:ECSManager:UnloadWorldsInternal:13": [
+      "Manager.mod.Client.WorldDestroyed();"
     ],
     "Pug.Other:ECSManager:UnloadWorldsInternal:23": [
       "ServerWorld = null;"
@@ -2474,6 +2507,9 @@
     "Pug.Other:PugFont:Render:116": [
       "i += 2;"
     ],
+    "Pug.Other:PugFont:Render:118": [
+      "else if (style.supportColorTags && TryGetColorFromHexAtPosition(formattedString, i, out color2))"
+    ],
     "Pug.Other:PugFont:Render:12-14": [
       "bool flag = LocalizationManager.IsRight2Left && localized;",
       "int num = ((!flag) ? 1 : (-1));",
@@ -2551,6 +2587,9 @@
     ],
     "Pug.Other:PugFont:charset:1": [
       "public string charset"
+    ],
+    "Pug.Other:PugSimulationSystemBase:WorldInfo:1": [
+      "protected WorldInfoCD WorldInfo => worldInfoSystem?.WorldInfo ?? default(WorldInfoCD);"
     ],
     "Pug.Other:PugText:Clear:1-25": [
       "public void Clear(bool temporaryClear = false, bool bypassSetActive = false)",
@@ -2658,6 +2697,9 @@
     "Pug.Other:PugText:SetFont:9": [
       "TextManager.FontInfo fontToUseForString = Manager.text.GetFontToUseForString(textString, newFontFace);"
     ],
+    "Pug.Other:PugText:SetTempColor:18": [
+      "if (!style.supportColorTags || glyphColorOverrides.Count <= i || !glyphColorOverrides[i])"
+    ],
     "Pug.Other:PugText:Start:1": [
       "private void Start()"
     ],
@@ -2676,6 +2718,12 @@
     ],
     "Pug.Other:PugTextEffect:Awake:3": [
       "_text = GetComponent<PugText>();"
+    ],
+    "Pug.Other:PugTextEffectMaxFade:PugTextEffectLateUpdate:15": [
+      "base.text.SetTempColor(color);"
+    ],
+    "Pug.Other:PugTextEffectMaxFade:PugTextEffectLateUpdate:4": [
+      "UnityEngine.Color color = base.text.style.color;"
     ],
     "Pug.Other:PugTextEffectMenuOption:OnDeselected:3-4": [
       "jumpCooloff.Start();",
@@ -2706,6 +2754,9 @@
     ],
     "Pug.Other:RadicalMainMenuOption_OpenMods:OpenModUI:1": [
       "private void OpenModUI()"
+    ],
+    "Pug.Other:RadicalMainMenuOption_Singleplayer:OnActivated:4": [
+      "Manager.networking.OfflineSession = _forceOffline;"
     ],
     "Pug.Other:RadicalMenu:Activate:29-42": [
       "else if (rememberSelectedIndex)",

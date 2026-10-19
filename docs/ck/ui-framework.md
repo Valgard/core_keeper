@@ -1747,10 +1747,11 @@ reset at the top of each call (`Pug.Other:MenuManager:HandleTypingInput:20`).
 `ChatWindow.AddInfoText` renders a line in the local chat without the network,
 but it takes a `MessageTextType` from a fixed enum and the prefab behind each
 value holds the text, so the call cannot carry free text on its own. A value
-outside the enum fails in `AllocPugText`, which indexes three private
+outside the enum fails in `AllocPugText`, which indexes two private
 dictionaries by type (`Pug.Other:ChatWindow:AllocPugText:3`,
-`Pug.Other:ChatWindow:AddPugText:4`) that `Awake` filled from the prefab list
-(`Pug.Other:ChatWindow:Awake:5`). Registering the value is enough to make it
+`Pug.Other:ChatWindow:AllocPugText:18`), and `AddPugText` then indexes a third
+(`Pug.Other:ChatWindow:AddPugText:4`) — all three filled by `Awake` from the
+prefab list (`Pug.Other:ChatWindow:Awake:5`). Registering the value is enough to make it
 work, and it needs no reflection:
 
 ~~~csharp
@@ -1791,6 +1792,7 @@ the loader admits (see [the sandbox](sandbox.md)).
 `style.color` (to `Color.yellow` and to an amber) before the render produced
 **white** text in both cases; why is **not established** — the fade effect reads
 `style.color` every frame
+(`Pug.Other:PugTextEffectMaxFade:PugTextEffectLateUpdate:4`) and applies it
 (`Pug.Other:PugTextEffectMaxFade:PugTextEffectLateUpdate:15`), so a tint was
 the expected outcome. The inline tag `[#RRGGBBAA]text[/]` does colour its span,
 but only when `style.supportColorTags` is set on the instance
