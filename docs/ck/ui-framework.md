@@ -1788,6 +1788,20 @@ four probe lines appeared and wrapped correctly in a locally started game and
 on a client of a dedicated server. Both patch targets are in `Pug.Other`, which
 the loader admits (see [the sandbox](sandbox.md)).
 
+**A line added on joining is wiped before anyone sees it.** `ChatWindow.Update`
+returns early while any menu is active (`Pug.Other:ChatWindow:Update:3`), and
+character select counts as one. Its first update in the world finds the new
+session's `NetworkCommSystem` and calls `ClearAll`
+(`Pug.Other:ChatWindow:Update:24`), which removes every line already rendered.
+So a mod reacting to the join — a sync arriving during character select — logs
+its line and shows nothing. Measured 2026-10-20 on 1.3.0.6-6e73 against a
+dedicated server: the line went missing every time. What worked was to queue
+the text and add it from a postfix on `Update` once the private `commSystem`
+(`___commSystem`) equals the client world's `NetworkCommSystem` and
+`messageTextParent` is active. At that point `ClearAll` has already run. A line
+queued for a session that has already ended should be dropped, or it surfaces
+on the next join.
+
 **Colouring that line is not simple, and the working method is a trap.** Setting
 `style.color` (to `Color.yellow` and to an amber) before the render produced
 **white** text in both cases, against expectation: the fade effect reads

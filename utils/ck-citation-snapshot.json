@@ -625,6 +625,12 @@
     "Pug.Other:ChatWindow:Awake:5": [
       "textPrefabLookup.Add(textPrefab.type, textPrefab.prefab);"
     ],
+    "Pug.Other:ChatWindow:Update:24": [
+      "ClearAll();"
+    ],
+    "Pug.Other:ChatWindow:Update:3": [
+      "if (Manager.menu.anyMenuWasActiveDuringThisUpdate || Manager.ecs.ClientWorld == null || Manager.sceneHandler.isIntro || Manager.sceneHandler.isOutro || Manager.sceneHandler.isTitle)"
+    ],
     "Pug.Other:ChestInventoryUI:ShowContainerUI:7": [
       "int state = activeWorldLabel.GetState();"
     ],
