@@ -987,6 +987,42 @@ its text without touching the buttons already on screen. That produces a dialog
 reading one thing and acting as another — the failure is invisible until someone
 presses the button.
 
+**The screen underneath is never told the dialog is there.** The shared popup,
+`Pop Up Menu` under `Pop Up Text` (`Global Objects (Main Manager).prefab`),
+carries `popsOtherActiveMenus: 0` against a default of `true`
+(`Pug.Other:RadicalMenu:popsOtherActiveMenus:1`). `PushMenu` deactivates the
+menu below only when the pushed one has the flag; otherwise it calls
+`OnMenuEnabled`, whose body is empty
+(`Pug.Other:MenuManager:PushMenu(RadicalMenu):9-16`,
+`Pug.Other:MenuManager:OnMenuEnabled:1-3`). `PopMenu` mirrors it and re-activates
+the menu below only after one that has the flag
+(`Pug.Other:MenuManager:PopMenu:6-8`). So a screen that raises the dialog gets
+no `Deactivate` when it opens and no `Activate` when it closes: it stays active
+underneath, and whatever its `Deactivate` would tear down stays up.
+
+**Closing the dialog is not neutral either.** The popup's own `Deactivate` is
+the base one, which calls `Manager.camera.ShowHUD(show: true)`
+(`Pug.Other:RadicalMenu:Deactivate:3-5`) — undoing what every menu's `Activate`
+does, which hides the HUD (`Pug.Other:RadicalMenu:Activate:9`). The
+screen's `Activate` does not run again, so the HUD layer is back in the UI
+camera's culling mask while the screen is still open. The same method calls
+`EnableDefaultMapCategory`, but its coroutine stands down while any menu is
+still on the stack
+(`Pug.Other:MenuManager:EnableDefaultMapCategoryCoroutine:4-7`). And a dialog
+opened with `secondOptionPopsAllMenus` closes the screen too when that option is
+pressed: `OnPopupActivated` follows its `PopMenu` with `PopAllMenus`
+(`Pug.Other:PopUpText:OnPopupActivated:5-8`).
+
+**React to the answer in the callback, but push or pop no menu from inside
+it.** On an option the callback runs before the dialog is popped: `OptionPressed`
+invokes it (`Pug.Other:PopUpText:OptionPressed(PopupResponse):9`) and only then
+comes `PopMenu` (`Pug.Other:PopUpText:OnPopupActivated:3-4`). On Back it runs
+inside the pop, from `RadicalPopUpMenu.Deactivate`
+(`Pug.Other:RadicalPopUpMenu:Deactivate:3-6`). Either way a menu pushed or popped
+from the callback re-enters the stack mid-pop, which is the trap above; defer it
+the same way. Updating the screen's own state there is fine. Read from the
+source, not checked in game.
+
 ### The confirm dialog has two independent hardening levels
 
 `StartNewDisplaySequence` guards a destructive answer twice over, and the two

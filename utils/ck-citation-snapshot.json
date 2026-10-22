@@ -1448,6 +1448,12 @@
     "Pug.Other:MenuManager:AttemptToPlayMenuSfx:6": [
       "sfxCooldownTimer.Start();"
     ],
+    "Pug.Other:MenuManager:EnableDefaultMapCategoryCoroutine:4-7": [
+      "if (menuStack.Count != 0)",
+      "{",
+      "yield break;",
+      "}"
+    ],
     "Pug.Other:MenuManager:HandleTypingInput:1": [
       "private bool HandleTypingInput()"
     ],
@@ -1525,6 +1531,26 @@
     ],
     "Pug.Other:MenuManager:LateUpdate:3": [
       "UpdateHelperButtons();"
+    ],
+    "Pug.Other:MenuManager:OnMenuEnabled:1-3": [
+      "public void OnMenuEnabled()",
+      "{",
+      "}"
+    ],
+    "Pug.Other:MenuManager:PopMenu:6-8": [
+      "if (menuStack.Count > 0 && radicalMenu.popsOtherActiveMenus)",
+      "{",
+      "ActivateTopMenu();"
+    ],
+    "Pug.Other:MenuManager:PushMenu(RadicalMenu):9-16": [
+      "if (topMenu != null && newMenu.popsOtherActiveMenus)",
+      "{",
+      "DeactivateTopMenu(pop: false);",
+      "}",
+      "else",
+      "{",
+      "OnMenuEnabled();",
+      "}"
     ],
     "Pug.Other:MenuManager:SelectOption:1": [
       "public void SelectOption(UIelement option)"
@@ -2535,6 +2561,19 @@
     "Pug.Other:PopUpOption:Update:3": [
       "if (_isHoldingToConfirm && (Manager.input.IsMenuInteractButtonPressed() || Manager.input.IsMenuMouseInteractButtonPressed()))"
     ],
+    "Pug.Other:PopUpText:OnPopupActivated:3-4": [
+      "OptionPressed(response);",
+      "Manager.menu.PopMenu();"
+    ],
+    "Pug.Other:PopUpText:OnPopupActivated:5-8": [
+      "if (source.PopsAllMenus)",
+      "{",
+      "Manager.menu.PopAllMenus();",
+      "}"
+    ],
+    "Pug.Other:PopUpText:OptionPressed(PopupResponse):9": [
+      "_optionsCallback?.Invoke(value);"
+    ],
     "Pug.Other:PopUpText:StartNewDisplaySequence:3": [
       "if (_priority > priority && textBackground.gameObject.activeSelf)"
     ],
@@ -2955,11 +2994,19 @@
     "Pug.Other:RadicalMenu:Activate:6": [
       "Manager.menu.AttemptToPlayMenuSfx(SfxID.FIXME_menu_select, 0.6f, 0f, reuse: false);"
     ],
+    "Pug.Other:RadicalMenu:Activate:9": [
+      "Manager.camera.ShowHUD(show: false);"
+    ],
     "Pug.Other:RadicalMenu:Awake:1": [
       "protected virtual void Awake()"
     ],
     "Pug.Other:RadicalMenu:CanActivateCurrentOption:1": [
       "public bool CanActivateCurrentOption()"
+    ],
+    "Pug.Other:RadicalMenu:Deactivate:3-5": [
+      "Manager.menu.EnableDefaultMapCategory();",
+      "base.gameObject.SetActive(value: false);",
+      "Manager.camera.ShowHUD(show: true);"
     ],
     "Pug.Other:RadicalMenu:Deactivate:4": [
       "base.gameObject.SetActive(value: false);"
@@ -3022,6 +3069,9 @@
     ],
     "Pug.Other:RadicalMenu:SkimRight:1": [
       "internal bool SkimRight()"
+    ],
+    "Pug.Other:RadicalMenu:popsOtherActiveMenus:1": [
+      "public bool popsOtherActiveMenus = true;"
     ],
     "Pug.Other:RadicalMenuOption:1": [
       "public abstract class RadicalMenuOption : UIelement"
@@ -3103,6 +3153,12 @@
     ],
     "Pug.Other:RadicalOptionsMenuOption_Slider:1": [
       "public class RadicalOptionsMenuOption_Slider : RadicalPauseMenuOption"
+    ],
+    "Pug.Other:RadicalPopUpMenu:Deactivate:3-6": [
+      "base.Deactivate(pop);",
+      "if (!popUpText.IsOptionPressed)",
+      "{",
+      "popUpText.OptionPressed(value: false);"
     ],
     "Pug.Other:RecipeInfo:18": [
       ""
