@@ -418,6 +418,11 @@ otherwise by the deny lists and the namespace rule above:
   unreleased v2 calls `System.Enum.GetNames(t)` in its foreign-config
   discovery; both pass on 1.3.0.6-6e73. Useful for deriving a settings
   dropdown's options from the enum instead of a hand-maintained array.
+- **A sprite built at runtime** — `Sprite.Create` over `Texture2D.whiteTexture`,
+  which gives a solid fill without shipping an image for it. Both are plain
+  `UnityEngine.CoreModule` API. A dev build of Mod Settings Menu that calls them
+  with `skipSafetyChecks: 0` logged `has passed code security verification` on
+  a client and on a dedicated server, on 1.3.0.6-6e73.
 
 ## Harmony attributes are exempt — hook bodies are not
 
