@@ -400,11 +400,11 @@ round in a matching state takes it along.
 - **A dedicated server needs a connected player.** An idle one sits at
   `timescale = 0` and never simulates (`docs/ck/harmony-and-ecs.md:600`; the
   mechanism — `ECSManager` pausing on no connection rather than a heuristic —
-  is `docs/ck/multiplayer-and-server.md:959-960`), so a probe there logs
+  is `docs/ck/multiplayer-and-server.md:1085-1086`), so a probe there logs
   nothing.
   To prove a patch is live server-side, log from the `[HarmonyPatch]` class's
   static constructor (`docs/ck/harmony-and-ecs.md:587`,
-  `docs/ck/multiplayer-and-server.md:883`) and read the log after a session
+  `docs/ck/multiplayer-and-server.md:1009`) and read the log after a session
   with a player connected.
 
 ### Requesting the round
