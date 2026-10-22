@@ -1803,24 +1803,48 @@ queued for a session that has already ended should be dropped, or it surfaces
 on the next join.
 
 **Colouring that line is not simple, and the working method is a trap.** Setting
-`style.color` (to `Color.yellow` and to an amber) before the render produced
-**white** text in both cases, against expectation: the fade effect reads
+`style.color` (to `Color.yellow` and to an amber) in the `AllocPugText` postfix
+produced **white** text in both cases, against expectation: the fade effect reads
 `style.color` every frame
 (`Pug.Other:PugTextEffectMaxFade:PugTextEffectLateUpdate:4`) and applies it
-(`Pug.Other:PugTextEffectMaxFade:PugTextEffectLateUpdate:15`). Why remains
-**unverified**. The code offers one candidate: `Render` calls
-`UpdateStyleOverrides` before it lays out any glyph
-(`Pug.Other:PugText:Render(bool, …):27`), which replaces `style`
-wholesale with a copy of the prefab's style override for the current language
-(`Pug.Other:PugText:UpdateStyleOverrides:10`), discarding a colour set before
-the render — but only if the chat text prefab carries an override for the
-language in use, and that prefab was not checked. The `AddInfoText` overload the
-recipe calls is not the cause: it passes `setColorFromRarity: false`, so the
-rarity colour that the long overload writes never comes into play. The inline
-tag `[#RRGGBBAA]text[/]` does colour its span, but only when
+(`Pug.Other:PugTextEffectMaxFade:PugTextEffectLateUpdate:15`). The code points
+at CoreLib, not at vanilla. CoreLib's command module patches the same method with
+a postfix that turns every new chat line white
+(`ChatWindowPatch.cs:ChatWindowPatch:OnAllocPugText:6`): its `style.color`
+(`ChatWindowPatch.cs:ChatWindowPatch:SetColor:3`), the private `defaultStyle`,
+and the glyphs (`ChatWindowPatch.cs:ChatWindowPatch:SetColor:8`). CoreLib
+applies that patch when a mod loads the module
+(`CommandModule.cs:CommandModule:SetHooks:3`). Two mods installed in the measured
+setup load it, Drill Faster and Refill Ore Boulders, both in `EarlyInit`, and the
+loader calls the first `EarlyInit` only after it has compiled and patched every
+mod (`PugMod.Loader:Loader:LoadScripts:84`, `PugMod.Loader:Loader:Reload:109`).
+Harmony runs postfixes of equal priority in the order they were applied
+(`0Harmony:PatchInfoSerialization:PriorityComparer:10`), so CoreLib's ran after
+the probe's, and its white is the colour that stayed. That the run loaded the
+module is inferred, not read: both mods are installed and switched on, but the
+run's log was not kept.
+
+Read from the code, vanilla on its own keeps a colour set there. The chat line's prefab
+carries no per-language style (`ChatMessageText.prefab:92`), so
+`UpdateStyleOverrides`, which `Render` calls before it lays out any glyph
+(`Pug.Other:PugText:Render(bool, …):27`), leaves `style` as it is, and the glyphs
+take their colour from it. The `AddInfoText` overload the recipe calls is no
+cause either: it passes `setColorFromRarity: false`, so the rarity colour that
+the long overload writes never comes into play. The way round CoreLib follows
+from the code and is unmeasured: colour the line after `AddInfoText` returns, the
+way that overload applies the rarity colour after the render — `style.color`,
+then `SetTempColor` (`Pug.Other:ChatWindow:AddInfoText(string[], Rarity, …):10`)
+— and the way CoreLib colours its own replies
+(`ChatWindowPatch.cs:ChatWindowPatch:SendMessage:8`). Set a colour on every
+line, white included: a line comes back from its pool with the style it last had
+(`Pug.Other:ChatWindow:AllocPugText:12`), and without the command module nothing
+resets it.
+
+The inline tag `[#RRGGBBAA]text[/]` does colour its span, but only when
 `style.supportColorTags` is set on the instance
-(`Pug.Other:PugFont:Render:118`), and the coloured span **stayed fully visible
-after the rest of the line had faded out** — observed once, in one screenshot.
+(`Pug.Other:PugFont:Render:118`), which the chat prefab leaves off
+(`ChatMessageText.prefab:88`). The coloured span **stayed fully visible after
+the rest of the line had faded out** — observed once, in one screenshot.
 The code explains the observation: the fade applies its alpha through
 `SetTempColor`, which skips every glyph a tag has coloured
 (`Pug.Other:PugText:SetTempColor:18`), so a tagged glyph carries its own colour

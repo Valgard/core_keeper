@@ -1,5 +1,26 @@
 {
   "citations": {
+    "ChatMessageText.prefab:88": [
+      "supportColorTags: 0"
+    ],
+    "ChatMessageText.prefab:92": [
+      "styleOverrides: []"
+    ],
+    "ChatWindowPatch.cs:ChatWindowPatch:OnAllocPugText:6": [
+      "SetColor(__result, Color.white);"
+    ],
+    "ChatWindowPatch.cs:ChatWindowPatch:SendMessage:8": [
+      "SetColor(pugText, color);"
+    ],
+    "ChatWindowPatch.cs:ChatWindowPatch:SetColor:3": [
+      "pugText.style.color = color;"
+    ],
+    "ChatWindowPatch.cs:ChatWindowPatch:SetColor:8": [
+      "pugText.color = color;"
+    ],
+    "CommandModule.cs:CommandModule:SetHooks:3": [
+      "CoreLibMod.Patch(typeof(ChatWindowPatch));"
+    ],
     "ConfigFile.cs:ConfigFile:Bind(ConfigDefinition, \u2026):26": [
       "if (SaveOnConfigSet)"
     ],
@@ -610,11 +631,17 @@
       "nonSerialized.discoveredObjects.Add(item);",
       "}"
     ],
+    "Pug.Other:ChatWindow:AddInfoText(string[], Rarity, \u2026):10": [
+      "pugText.style.color = color;"
+    ],
     "Pug.Other:ChatWindow:AddInfoText(string[], Rarity, \u2026):6": [
       "pugText.Render(rewindEffectAnims: false);"
     ],
     "Pug.Other:ChatWindow:AddPugText:4": [
       "activePools[type].Enqueue(text);"
+    ],
+    "Pug.Other:ChatWindow:AllocPugText:12": [
+      "pugText = queue.Dequeue();"
     ],
     "Pug.Other:ChatWindow:AllocPugText:18": [
       "pugText = UnityEngine.Object.Instantiate(textPrefabLookup[type], messageTextParentToUse).GetComponent<PugText>();"
@@ -2712,9 +2739,6 @@
     "Pug.Other:PugText:Start:1": [
       "private void Start()"
     ],
-    "Pug.Other:PugText:UpdateStyleOverrides:10": [
-      "style = styleOverride.style.GetCopy();"
-    ],
     "Pug.Other:PugText:UpdateStyleOverrides:16-20": [
       "if (LocalizationManager.IsRight2Left && defaultStyle.invertHorizontalAlignment)",
       "{",
@@ -4342,6 +4366,9 @@
     ],
     "PugMod.Loader:Loader:LoadScripts:78": [
       "if (!JobsPatch.Patch(scriptAssembly.SystemAssembly))"
+    ],
+    "PugMod.Loader:Loader:LoadScripts:84": [
+      "HarmonyPatchAssembly(mod, scriptAssembly, _harmony, _checker);"
     ],
     "PugMod.Loader:Loader:Reload:109": [
       "loadedMod2.EarlyInit();"
