@@ -1891,9 +1891,9 @@ Private fields are injected by the `___name` parameter convention, so the
 sandbox's ban on `AccessTools` costs nothing here. The line is rendered by the
 vanilla path (`Pug.Other:ChatWindow:AddInfoText(string[], Rarity, …):6`), so it
 stacks, wraps and fades like any other. Measured 2026-10-17 on 1.3.0.6-6e73:
-four probe lines appeared and wrapped correctly in a locally started game and
-on a client of a dedicated server. Both patch targets are in `Pug.Other`, which
-the loader admits (see [the sandbox](sandbox.md)).
+four probe lines appeared and wrapped correctly in a locally started game; on a
+client of a dedicated server a single line was sent, and it appeared. Both patch
+targets are in `Pug.Other`, which the loader admits (see [the sandbox](sandbox.md)).
 
 **A line added on joining is wiped before anyone sees it.** `ChatWindow.Update`
 returns early while any menu is active (`Pug.Other:ChatWindow:Update:3`), and
