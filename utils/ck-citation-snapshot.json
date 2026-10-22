@@ -15,6 +15,11 @@
     "ChatWindowPatch.cs:ChatWindowPatch:SetColor:3": [
       "pugText.style.color = color;"
     ],
+    "ChatWindowPatch.cs:ChatWindowPatch:SetColor:4-6": [
+      "var defaultStyle = pugText.GetValue<PugTextStyle>(\"defaultStyle\");",
+      "if (defaultStyle != null)",
+      "defaultStyle.color = color;"
+    ],
     "ChatWindowPatch.cs:ChatWindowPatch:SetColor:8": [
       "pugText.color = color;"
     ],
@@ -2802,6 +2807,9 @@
     "Pug.Other:PugSimulationSystemBase:WorldInfo:1": [
       "protected WorldInfoCD WorldInfo => worldInfoSystem?.WorldInfo ?? default(WorldInfoCD);"
     ],
+    "Pug.Other:PugText:Awake:6": [
+      "defaultStyle = style.GetCopy();"
+    ],
     "Pug.Other:PugText:Clear:1-25": [
       "public void Clear(bool temporaryClear = false, bool bypassSetActive = false)",
       "{",
@@ -2871,6 +2879,11 @@
       "}",
       "if (activate && !base.gameObject.activeSelf)"
     ],
+    "Pug.Other:PugText:Render(bool, \u2026):18-20": [
+      "if (!hasCalledAwake)",
+      "{",
+      "Awake();"
+    ],
     "Pug.Other:PugText:Render(bool, \u2026):27": [
       "UpdateStyleOverrides();"
     ],
@@ -2905,6 +2918,11 @@
     "Pug.Other:PugText:SetFont:19": [
       "else if (!ShouldForceLatinFont() && Manager.text.ShouldUseDynamicFont(newFontFace, localize))"
     ],
+    "Pug.Other:PugText:SetFont:3-5": [
+      "if (!hasCalledAwake)",
+      "{",
+      "Awake();"
+    ],
     "Pug.Other:PugText:SetFont:7": [
       "if (isWrittenToByUser)"
     ],
@@ -2917,12 +2935,32 @@
     "Pug.Other:PugText:Start:1": [
       "private void Start()"
     ],
-    "Pug.Other:PugText:UpdateStyleOverrides:16-20": [
+    "Pug.Other:PugText:UpdateStyleOverrides:16-26": [
       "if (LocalizationManager.IsRight2Left && defaultStyle.invertHorizontalAlignment)",
       "{",
       "if (defaultStyle.horizontalAlignment == PugTextStyle.HorizontalAlignment.left)",
       "{",
-      "style.horizontalAlignment = PugTextStyle.HorizontalAlignment.right;"
+      "style.horizontalAlignment = PugTextStyle.HorizontalAlignment.right;",
+      "}",
+      "else if (defaultStyle.horizontalAlignment == PugTextStyle.HorizontalAlignment.right)",
+      "{",
+      "style.horizontalAlignment = PugTextStyle.HorizontalAlignment.left;",
+      "}",
+      "}"
+    ],
+    "Pug.Other:PugText:UpdateStyleOverrides:4-15": [
+      "if (styleOverrides != null)",
+      "{",
+      "foreach (StyleOverride styleOverride in styleOverrides)",
+      "{",
+      "if (LocalizationManager.GetLanguageFromCode(Manager.prefs.language) == styleOverride.language.ToString())",
+      "{",
+      "style = styleOverride.style.GetCopy();",
+      "flag = true;",
+      "break;",
+      "}",
+      "}",
+      "}"
     ],
     "Pug.Other:PugText:localCharacterEndPositions:2": [
       "public List<Vector2> localCharacterEndPositions = new List<Vector2>();"
@@ -2953,6 +2991,9 @@
       "{",
       "spriteRenderer.color = (isValueText ? SELECTED_VALUE_COLOR : SELECTED_TEXT_COLOR);",
       "}"
+    ],
+    "Pug.Other:PugTextStyle:2": [
+      "public class PugTextStyle"
     ],
     "Pug.Other:RadicalCreditsMenu:SelectNextIndex:1": [
       "public override bool SelectNextIndex()"

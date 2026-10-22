@@ -1590,13 +1590,15 @@ is decided by the two doors described under [glyph positions](#glyph-positions-a
 **No shipped language is right-to-left, and that is the whole of what keeps the
 RTL machinery inert.** `rightToLeftXOffset` is added only while
 `LocalizationManager.IsRight2Left && localized`
-(`Pug.Other:PugFont:Render:12-14`), and `UpdateStyleOverrides` separately turns
-a `left` style into `right` under the same condition when the style sets
-`invertHorizontalAlignment` (`Pug.Other:PugText:UpdateStyleOverrides:16-20`) —
-21 of the 135 shipped prefabs carrying that field set it. `IsRight2Left` is
-I2's, tested against a 21-entry list (`ar-*`, `fa`, `he`, `ur`, `ji`), and none
-of the thirteen languages that reach it (`en`, `de`, `fr`, `pt-BR`, `it`, `ja`,
-`ko`, `ru`, `es`, `uk`, `zh-CN`, `zh-TW`, `th`) is on that list.
+(`Pug.Other:PugFont:Render:12-14`). `UpdateStyleOverrides` separately mirrors
+the alignment, `left` to `right` and `right` to `left`, on `IsRight2Left` alone
+— a text with `localize` off is flipped too — for a text with
+`invertHorizontalAlignment` set (`Pug.Other:PugText:UpdateStyleOverrides:16-26`);
+21 of the 145 prefabs in the 1.3.0.6-6e73 export that carry the field set it.
+`IsRight2Left` is I2's, tested against a 21-entry list (`ar-*`, `fa`, `he`,
+`ur`, `ji`), and none of the thirteen languages that reach it (`en`, `de`, `fr`,
+`pt-BR`, `it`, `ja`, `ko`, `ru`, `es`, `uk`, `zh-CN`, `zh-TW`, `th`) is on that
+list.
 
 **Do not read those thirteen off `I2Languages.asset`, and do not read them as
 fixed.** The importer calls `ClearAllData()` — which empties `mLanguages` — and
@@ -1611,6 +1613,32 @@ source). An `ar`, `he`, `fa`, `ur` or `ji` from any mod therefore flips
 `IsRight2Left`, turns an authored `left` row into a `right` one, and moves its
 `xMin` from `0` to `-width` without a prefab changing anywhere. The inertness is
 a property of what happens to be installed, not of the code — see also [the localisation table's format](localisation.md).
+
+**The flip follows the style a text woke up with, not the one it has.**
+`UpdateStyleOverrides` runs on every `Render` before a glyph is laid out
+(`Pug.Other:PugText:Render(bool, …):27`), and it tests three things. First, a
+`styleOverrides` entry for the current language replaces `style` wholesale with
+a copy of that entry's style (`Pug.Other:PugText:UpdateStyleOverrides:4-15`).
+None of the 1,492 `PugText`s in the 1.3.0.6-6e73 asset export carries one, but a
+filled list would undo every edit to `style` while that language is active. The
+flip's two tests then read `defaultStyle`, the copy of `style` that `Awake`
+takes (`Pug.Other:PugText:Awake:6`). A clone that woke up `left` or `right` with
+`invertHorizontalAlignment` set — and an active clone wakes inside `Instantiate`
+— is therefore re-mirrored from that value on every render, whatever its
+`style.horizontalAlignment` says by then, and clearing
+`style.invertHorizontalAlignment` stops nothing. One that woke up `center` is
+never flipped.
+
+Two kinds of edit do count. One is made before the clone wakes: kept inactive,
+with neither `Render` nor `SetFont` called on it, since both run a missing
+`Awake` themselves (`Pug.Other:PugText:Render(bool, …):18-20`,
+`Pug.Other:PugText:SetFont:3-5`). The other is made on `defaultStyle` itself.
+`PugTextStyle` is a class (`Pug.Other:PugTextStyle:2`), so the private field
+holds the live object the flip reads, and the loader's checked reflection
+reaches it: CoreLib fetches it through its `GetValue<T>` extension, a wrapper
+around `API.Reflection.GetValue`, to colour a chat line
+(`ChatWindowPatch.cs:ChatWindowPatch:SetColor:4-6`; see [resolving a private member](sandbox.md#reaching-a-private-member-resolving-it-is-only-half-the-job)).
+Read from the source; no shipped language exercises it.
 
 ### The typing path repeats keys on a timer of its own
 
