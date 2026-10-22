@@ -1080,6 +1080,22 @@
       "{",
       "i2LanguageData.AddLanguage(item.name, item.ISO6391);"
     ],
+    "Pug.Other:InheritPlacementFromUIComponent:GetUIComponentRenderWidth:1-8": [
+      "public override float GetUIComponentRenderWidth()",
+      "{",
+      "if (!inheritWidth)",
+      "{",
+      "return width;",
+      "}",
+      "return uiComponent.GetUIComponentRenderWidth();",
+      "}"
+    ],
+    "Pug.Other:InheritPlacementFromUIComponent:IsUIComponentRenderingDependentOnChildren:1-4": [
+      "protected override bool IsUIComponentRenderingDependentOnChildren()",
+      "{",
+      "return true;",
+      "}"
+    ],
     "Pug.Other:InputDependentSprite:GetSpriteRenderer:1": [
       "public SpriteRenderer GetSpriteRenderer()"
     ],
@@ -1213,6 +1229,9 @@
     ],
     "Pug.Other:InventoryUtility:GetRecipeInfo(PugDatabase.DatabaseBankCD, ObjectID, \u2026):3": [
       "if (PugDatabase.HasObject(objectId, databaseBankCD.databaseBankBlob))"
+    ],
+    "Pug.Other:LinearLayoutUIComponent:SpaceUIComponentChildren:3": [
+      "List<UIComponentMonoBehaviour> directUIComponentChildren = GetDirectUIComponentChildren();"
     ],
     "Pug.Other:ListConnectedPlayers:NavigateInternally:1": [
       "public override bool NavigateInternally(Direction.Id id)"
@@ -2879,6 +2898,9 @@
       "}",
       "if (activate && !base.gameObject.activeSelf)"
     ],
+    "Pug.Other:PugText:OnProfanityChecked:36": [
+      "MarkUIComponentAsDirty(render: true);"
+    ],
     "Pug.Other:PugText:Render(bool, \u2026):18-20": [
       "if (!hasCalledAwake)",
       "{",
@@ -3032,6 +3054,12 @@
       "SelectOptionIndex(num);",
       "}"
     ],
+    "Pug.Other:RadicalMenu:Activate:48-51": [
+      "if (autoPositioning)",
+      "{",
+      "UpdatePosition();",
+      "}"
+    ],
     "Pug.Other:RadicalMenu:Activate:6": [
       "Manager.menu.AttemptToPlayMenuSfx(SfxID.FIXME_menu_select, 0.6f, 0f, reuse: false);"
     ],
@@ -3040,6 +3068,9 @@
     ],
     "Pug.Other:RadicalMenu:Awake:1": [
       "protected virtual void Awake()"
+    ],
+    "Pug.Other:RadicalMenu:Awake:3": [
+      "GetComponentsInChildren(includeInactive: true, menuOptions);"
     ],
     "Pug.Other:RadicalMenu:CanActivateCurrentOption:1": [
       "public bool CanActivateCurrentOption()"
@@ -3060,6 +3091,13 @@
     ],
     "Pug.Other:RadicalMenu:GetSelectedMenuOption:1": [
       "public RadicalMenuOption GetSelectedMenuOption()"
+    ],
+    "Pug.Other:RadicalMenu:OnEnable:4-8": [
+      "if (_startCalled && shouldRenderDescendants)",
+      "{",
+      "RenderUIComponent(force: true);",
+      "RenderUIComponentOrphans(force: true);",
+      "}"
     ],
     "Pug.Other:RadicalMenu:SelectIndexInDirection:1": [
       "public bool SelectIndexInDirection(Direction.Id direction)"
@@ -3110,6 +3148,12 @@
     ],
     "Pug.Other:RadicalMenu:SkimRight:1": [
       "internal bool SkimRight()"
+    ],
+    "Pug.Other:RadicalMenu:Start:3-6": [
+      "if (shouldRenderDescendants)",
+      "{",
+      "RenderUIComponent(force: true);",
+      "RenderUIComponentOrphans(force: true);"
     ],
     "Pug.Other:RadicalMenu:popsOtherActiveMenus:1": [
       "public bool popsOtherActiveMenus = true;"
@@ -3517,6 +3561,27 @@
     ],
     "Pug.Other:TextManager:ShouldUseDynamicFont:8": [
       "flag = Manager.prefs.language == \"th\";"
+    ],
+    "Pug.Other:UIComponentMonoBehaviour:GetAllUIComponentChildren:4": [
+      "GetComponentsInChildren(list);"
+    ],
+    "Pug.Other:UIComponentMonoBehaviour:GetDirectUIComponentChildren:7-10": [
+      "if (child.gameObject.activeInHierarchy)",
+      "{",
+      "UIComponentMonoBehaviour component = child.GetComponent<UIComponentMonoBehaviour>();",
+      "if (component != null)"
+    ],
+    "Pug.Other:UIComponentMonoBehaviour:MarkUIComponentAsDirty:11-17": [
+      "if (component != null && component.IsUIComponentRenderingDependentOnChildren())",
+      "{",
+      "component.MarkUIComponentAsDirty(render);",
+      "}",
+      "else if (render)",
+      "{",
+      "RenderUIComponent();"
+    ],
+    "Pug.Other:UIComponentMonoBehaviour:RenderUIComponentOrphans:5": [
+      "if (allUIComponentChild != this && allUIComponentChild.transform.parent != null && allUIComponentChild.transform.parent.GetComponent<UIComponentMonoBehaviour>() == null)"
     ],
     "Pug.Other:UIManager:DeselectAnySelectedUIElement:1": [
       "public void DeselectAnySelectedUIElement()"

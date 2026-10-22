@@ -873,6 +873,49 @@ multiplied by `0.0625f` — one sixteenth, the units-per-pixel of CK's UI — be
 they reach a position. A `float` field invites reading it as world units, which
 would be sixteen times too much.
 
+**A layout sees its direct children only, and only those that are UI
+components.** `LinearLayoutUIComponent` spaces what
+`GetDirectUIComponentChildren` hands it
+(`Pug.Other:LinearLayoutUIComponent:SpaceUIComponentChildren:3`): every active
+child that has a `UIComponentMonoBehaviour` on its own GameObject
+(`Pug.Other:UIComponentMonoBehaviour:GetDirectUIComponentChildren:7-10`). A
+plain GameObject between the layout and a text — a holder made with `new
+GameObject()` — takes the text out of the layout: it is neither placed nor
+measured, and sits wherever its holder sits. A holder that is meant to take part
+needs a UI component of its own: a `WrapperUIComponent`, which reports its fixed
+`renderWidthPixels` × `renderHeightPixels`; an `InheritPlacementFromUIComponent`,
+which reports the size of the component it references, such as the text it
+holds (`Pug.Other:InheritPlacementFromUIComponent:GetUIComponentRenderWidth:1-8`),
+and counts as depending on its children
+(`Pug.Other:InheritPlacementFromUIComponent:IsUIComponentRenderingDependentOnChildren:1-4`),
+so a resize keeps travelling through it; or a nested `LinearLayoutUIComponent`,
+which measures what it holds.
+
+**A resize travels upwards over the same chain and stops at the same gap.** A
+`PugText` that renders calls `MarkUIComponentAsDirty(render: true)`
+(`Pug.Other:PugText:OnProfanityChecked:36`), which passes the mark from parent
+to parent for as long as each is a component whose rendering depends on its
+children — a `LinearLayoutUIComponent`, a `ScrollableUIComponent` or an
+`InheritPlacementFromUIComponent`, but not a `WrapperUIComponent` — and
+re-renders the last one it reaches
+(`Pug.Other:UIComponentMonoBehaviour:MarkUIComponentAsDirty:11-17`). Under a
+plain GameObject it ends at the text itself, so no layout re-flows when that
+text changes size, and an overlay hung under a plain GameObject inside a menu
+re-flows none of the menu's UI components either. The menu's own option layout
+is a separate mechanism that holders do not stop: `RadicalMenu.Awake` collects
+every `RadicalMenuOption` below it, inactive ones included
+(`Pug.Other:RadicalMenu:Awake:3`), and `Activate` repositions them through
+`UpdatePosition` while `autoPositioning` is on
+(`Pug.Other:RadicalMenu:Activate:48-51`). An overlay that carries a menu option
+and exists when the menu wakes is laid out with the menu's options, holder or
+not. A component stranded under a plain holder is not forgotten entirely: a
+`RadicalMenu` with `shouldRenderDescendants` renders every active component
+below it whose parent carries none, through `RenderUIComponentOrphans`
+(`Pug.Other:UIComponentMonoBehaviour:GetAllUIComponentChildren:4`,
+`Pug.Other:UIComponentMonoBehaviour:RenderUIComponentOrphans:5`), when it starts
+and whenever it is re-enabled (`Pug.Other:RadicalMenu:Start:3-6`,
+`Pug.Other:RadicalMenu:OnEnable:4-8`). Read from the source, not seen in game.
+
 **Since 1.3 a vertical layout places its children's `x` too, from pivots.** In
 1.2.1.5 a vertical `LinearLayoutUIComponent` wrote each child's `y` and left the
 `x` authored in the prefab alone. The exception was a `reversed` layout, which
