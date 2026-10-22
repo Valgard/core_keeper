@@ -39,6 +39,15 @@ Two consequences follow, and both surprise people arriving from mod.io:
   submit time, and no API can go back and change it — see below, because that
   sentence is easy to over-read.
 
+**There is no homepage field.** A mod.io profile has one (`homepage_url` in its
+API), the natural place for a link to a mod's source; a Workshop item has nothing
+equivalent. No `ISteamUGC` call sets a link of any kind, and the item's edit page
+has a *Links* section that offers six kinds only — Facebook, Twitter, YouTube,
+Polycount, Reddit and Sketchfab (seen in the web UI on 2026-10-22). That leaves
+the description for a link to the source code. A `[url]` tag there renders as a
+link, routed through Steam's link filter and with the domain appended in
+brackets, the same as in a change note (measured on a live item, 2026-10-22).
+
 ## A history entry has no version, and no title but the one you write
 
 There is no `SetItemVersion` anywhere in `ISteamUGC`, and `SubmitItemUpdate`
