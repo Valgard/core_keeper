@@ -148,6 +148,9 @@
     "DedicatedServer/Pug.Other:NetworkCommandServerSystem_59CC188E_LambdaJob_2_Job:OriginalLambdaBody:98": [
       "case NetworkCommand.RemoveAdmin:"
     ],
+    "DedicatedServer/Pug.Other:NetworkingManager:EmptyAdminAndBan:3": [
+      "adminList.adminList = new List<PlayerAdminEntry>();"
+    ],
     "DedicatedServer/Pug.Other:NetworkingManager:NetImplInit:53": [
       "List<PlayerAdminEntry> list = (from admin in adminList.adminList"
     ],
@@ -835,6 +838,9 @@
     "Pug.Other:ECSManager:InitWorlds:12": [
       "Manager.mod.Client.WorldCreated();"
     ],
+    "Pug.Other:ECSManager:InitWorlds:7": [
+      "Manager.mod.Server.WorldCreated();"
+    ],
     "Pug.Other:ECSManager:OnEarlySceneUnload:3": [
       "if (ServerWorld != null)"
     ],
@@ -856,6 +862,9 @@
     "Pug.Other:ECSManager:StartEcs:23": [
       "_allWorlds.Add(CreateServerWorld(\"ServerWorld\", worldId));"
     ],
+    "Pug.Other:ECSManager:StartEcs:30": [
+      "UnloadWorlds();"
+    ],
     "Pug.Other:ECSManager:StartEcs:35": [
       "BurstDisabler.ResetWorlds();"
     ],
@@ -875,6 +884,9 @@
     ],
     "Pug.Other:ECSManager:TryCalculateGhostCollectionHash:20": [
       "num ^= buffer[i].Hash;"
+    ],
+    "Pug.Other:ECSManager:UnloadWorldsInternal:12": [
+      "Manager.networking.StopClient(ClientWorld);"
     ],
     "Pug.Other:ECSManager:UnloadWorldsInternal:13": [
       "Manager.mod.Client.WorldDestroyed();"
@@ -1565,6 +1577,12 @@
     "Pug.Other:ModSourceMenuOption:OnActivated:4": [
       "switch (_sourceType)"
     ],
+    "Pug.Other:NetworkClientStartSystem:OnUpdate:113-116": [
+      "Manager.networking.isConnected = isConnected;",
+      "if (!isInGame)",
+      "{",
+      "return;"
+    ],
     "Pug.Other:NetworkClientStartSystem:OnUpdate:2": [
       "protected override void OnUpdate()"
     ],
@@ -1773,6 +1791,12 @@
     "Pug.Other:NetworkingManager:1": [
       "public class NetworkingManager : ManagerBase, INetworkStreamDriverConstructor"
     ],
+    "Pug.Other:NetworkingManager:HandleNoNetwork:12": [
+      "Manager.networking.OfflineSession = true;"
+    ],
+    "Pug.Other:NetworkingManager:HandleSideChannelMessage:4": [
+      "if (Manager.ecs.ServerWorld != null && Manager.ecs.ServerWorld.GetExistingSystemManaged<WorldInfoSystem>().WorldInfo.guestMode && GetAdminPrivileges(endpoint, 0uL) < 1)"
+    ],
     "Pug.Other:NetworkingManager:InitWorld:1": [
       "public void InitWorld(World world)"
     ],
@@ -1781,6 +1805,9 @@
     ],
     "Pug.Other:NetworkingManager:SetGuestMode:4": [
       "Entity entity = entityManager.CreateEntity(typeof(NetworkCommandRpc), typeof(SendRpcCommandRequest));"
+    ],
+    "Pug.Other:NetworkingManager:StartServer:5": [
+      "if (OfflineSession || !impl.isInitialized)"
     ],
     "Pug.Other:PaintToolSlot:1": [
       "public class PaintToolSlot : PlaceObjectSlot"
@@ -2466,6 +2493,10 @@
     "Pug.Other:PugDatabasePostConverter:PostConvert:41": [
       "if (!dictionary.TryGetValue(key, out var value))"
     ],
+    "Pug.Other:PugEcsExtensions:GetAdminLevelOnServer:3-4": [
+      "fromEntity.TryGetComponent(connectionEntity, out var componentData);",
+      "return componentData.adminPrivileges;"
+    ],
     "Pug.Other:PugFont:AddNewLinesToLinesExceedingMaxWidth:63-75": [
       "int num12 = gd.rect.width - num11;",
       "num10 += (float)num11 / pixelsPerUnit;",
@@ -2784,6 +2815,9 @@
     ],
     "Pug.Other:RadicalJoinGameMenu:Join:10": [
       "Manager.ecs.StartEcs(startClient: true, -1, frameWorkloadTimer, delegate(bool result)"
+    ],
+    "Pug.Other:RadicalJoinGameMenu:Join:19": [
+      "Manager.networking.Connect(connectionInfo, delegate(bool b)"
     ],
     "Pug.Other:RadicalMainMenuOption_OpenMods:Awake:10": [
       "Mods.OnModManagementEvent = (ModManagementEventDelegate)Delegate.Combine(Mods.OnModManagementEvent, new ModManagementEventDelegate(ModManagementEventCallback));"
@@ -3230,6 +3264,9 @@
       "if (!SteamUtils.ShowGamepadTextInput(hidden ? GamepadTextInputMode.Password : GamepadTextInputMode.Normal, GamepadTextInputLineMode.SingleLine, description, maxChars, currentText))",
       "{",
       "return false;"
+    ],
+    "Pug.Other:StorefrontFlagsUtility:MatchesCurrentStorefront:4": [
+      "storefrontFlags = StorefrontFlags.Steam;"
     ],
     "Pug.Other:TextInputField:Update:1-9": [
       "protected void Update()",
