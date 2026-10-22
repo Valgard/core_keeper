@@ -2091,6 +2091,90 @@ becomes visible at all once two rows of one menu produce *different* prompts;
 while every row asks for the same set, a frozen bar is indistinguishable from a
 working one.
 
+### Placing something against the bar
+
+The bar hangs off the UI camera itself. `MenuHelperButtons` is a direct child of
+`UI Camera` at local `(0, 0, 10)` — world `z = 0`, with the camera at `z = −10` —
+and its `container` sits at local `y = −7`, so the bar's centre line runs 7
+units below the centre of a screen ±8.4375 high (`Global Objects (Main
+Manager).prefab`). Each button is a root at `y = 0` in that container, with its
+glyph centred on the root and its label to the right.
+
+**The right end stays near `x = 13` and the bar grows leftwards.**
+`UpdateShowingButtons` puts every shown root at `x = 13`
+(`Pug.Other:MenuHelperButtons:UpdateShowingButtons:31`); `AlignActiveButtons`
+then walks the list from its last entry to its first and moves each root left
+by its own half glyph and label plus everything after it, with 0.875 between
+buttons, in 1/16 steps (`Pug.Other:MenuHelperButtons:AlignActiveButtons:35-45`).
+So even the last root leaves `x = 13`, and it is the last label that ends near
+there. The last entry of the list the bar is handed is the right-most button.
+That list is the top menu's `GetHelpButtonsToShow()` only when the menu sets
+`UseCustomHelpButtons` or has an option selected, and `defaultHelpButtons`
+otherwise (`Pug.Other:MenuManager:UpdateHelperButtons:14`,
+`Pug.Other:MenuManager:UpdateHelperButtons:21`); with no menu open it is
+`Manager.sceneHandler.helpButtonsToShow`
+(`Pug.Other:MenuManager:UpdateHelperButtons:27`). Where the left end lands
+depends on that list and on how long its translated labels are.
+
+**The top edge is set by the glyphs, and the prefab does not say how tall they
+are.** An `InputDependentSprite` picks each glyph per input device, in one of
+two kinds. Every controller glyph, and the keyboard's Navigate glyph, is a 20 ×
+23 px sprite drawn at native size (`Simple`) — 1.4375 units, so its top is at
+`−7 + 0.71875 = −6.28125`. Every other keyboard glyph is a key cap:
+`UpdateTextInsideButton` switches its renderer to `Sliced` and sizes it to the
+key's label plus `(0.5, 0.25)`
+(`Pug.Other:InputDependentSprite:UpdateTextInsideButton:19-20`), which with the
+shipped fonts stays below the 23-px glyphs. The serialised `m_Size` matches
+neither kind: it reads `1.375 × 1.875` on the Navigate renderer and `1 × 1` on
+the others. At runtime a key cap overwrites it, and every `Simple` glyph —
+Navigate included — gets `1 × 1` written back
+(`Pug.Other:InputDependentSprite:UpdateTextInsideButton:29-30`). Drawing ignores
+that value; the spacing above does not, because `AlignActiveButtons` takes each
+half glyph from `size.x` (`Pug.Other:MenuHelperButtons:AlignActiveButtons:38`,
+`Pug.Other:MenuHelperButtons:AlignActiveButtons:44`), so a 20-px glyph is spaced
+as if it were 16 px wide. Taking the serialised 1.875 as the glyph height puts
+the edge at `−6.0625`, 3.5 px above anything drawn. Read the renderers instead —
+`sprite.bounds` for a `Simple` one, `size` for a `Sliced` one.
+
+**All of it is public, so no reflection is involved.**
+`Manager.menu.menuHelperButtons` (`Pug.Other:MenuManager:menuHelperButtons:1`)
+holds one `HelpButton` per slot in the public fields `navigate`, `activate`,
+`back`, `refresh`, `openProfile`, `resetDefaults` and `calibrate`
+(`Pug.Other:MenuHelperButtons:31-43`); `HelpButton` is a public nested class
+whose `root`, `inputDependentSprite` and `description` are public fields
+(`Pug.Other:HelpButton:4-8`); and `InputDependentSprite.GetSpriteRenderer()` is
+public as well (`Pug.Other:InputDependentSprite:GetSpriteRenderer:1`).
+
+**Every refresh the bar does not skip costs it a frame.**
+`MenuManager.LateUpdate` refreshes it (`Pug.Other:MenuManager:LateUpdate:3`),
+and `UpdateShowingButtons` skips only when the list, `showKeyHints`, the
+language, keyboard-versus-controller and the Select variation all match the
+previous call (`Pug.Other:MenuHelperButtons:UpdateShowingButtons:3`). Otherwise
+`AlignActiveButtons` switches every shown root off, waits for the end of the
+frame and switches them back on
+(`Pug.Other:MenuHelperButtons:AlignActiveButtons:7-15`), then waits up to five
+more frames for every label to have a width before it moves anything
+(`Pug.Other:MenuHelperButtons:AlignActiveButtons:16-33`). A menu opening, a
+selection moving onto a row that asks for other buttons, a switch between
+keyboard and controller, a language change — each costs one frame without a
+bar, and a measurement of the *active* renderers gives the previous state before
+that `LateUpdate` and none after it.
+
+Measuring all seven glyphs, shown or not, gets past the empty frame, but a
+hidden glyph is not kept current. Its sprite and size are refreshed by
+`InputDependentSprite.Update` (`Pug.Other:InputDependentSprite:Update:3`), which
+an inactive root does not get, and by `UpdateShowingButtons` for the listed
+buttons only (`Pug.Other:MenuHelperButtons:UpdateShowingButtons:31-32`), so a
+hidden glyph keeps the device it was last shown under — or, never shown, the
+prefab's state. The edge still comes out at `y = −6.28125` in the camera's frame
+on either device, because Navigate's glyph is a 23-px sprite in every setting,
+the prefab's default included, and no glyph is taller. The blink is read from
+the source. The edge was checked in game only coarsely: on 1.3.0.6-6e73 under
+CrossOver, a box whose lower edge sat 0.25 above the edge measured this way
+cleared the bar on two different menus, in one mod. That shows the bar's top
+lies below the box and no more — 0.25 is wider than the 0.21875 between
+`−6.28125` and `−6.0625`, so it does not tell the two apart.
+
 ## Which input actions you can use inside a menu
 
 **Take `OpenProfile`, Rewired action id `223`.** Of the menu face-button actions

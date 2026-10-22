@@ -1053,6 +1053,13 @@
     "Pug.Other:HandleConnectRequestJob:Execute(Entity, \u2026):32": [
       "if (req.ghostCollectionHash != ghostCollectionHash)"
     ],
+    "Pug.Other:HelpButton:4-8": [
+      "public GameObject root;",
+      "",
+      "public InputDependentSprite inputDependentSprite;",
+      "",
+      "public PugText description;"
+    ],
     "Pug.Other:Helper:CheckForHit:475": [
       "ecb.AppendToBuffer(entity6, new AddPetExperienceBuffer"
     ],
@@ -1067,6 +1074,20 @@
       "foreach (LanguageDataBlock item in list)",
       "{",
       "i2LanguageData.AddLanguage(item.name, item.ISO6391);"
+    ],
+    "Pug.Other:InputDependentSprite:GetSpriteRenderer:1": [
+      "public SpriteRenderer GetSpriteRenderer()"
+    ],
+    "Pug.Other:InputDependentSprite:Update:3": [
+      "UpdateButtonAndText();"
+    ],
+    "Pug.Other:InputDependentSprite:UpdateTextInsideButton:19-20": [
+      "spriteRenderer.drawMode = SpriteDrawMode.Sliced;",
+      "spriteRenderer.size = new Vector2(optionalText.dimensions.width % 16f, optionalText.dimensions.height % 16f) + settings.extraButtonSizePadding;"
+    ],
+    "Pug.Other:InputDependentSprite:UpdateTextInsideButton:29-30": [
+      "spriteRenderer.size = new Vector2(1f, 1f);",
+      "spriteRenderer.drawMode = SpriteDrawMode.Simple;"
     ],
     "Pug.Other:InputManager:IsMenuBackButtonDown:5": [
       "return system.GetButtonDown(6);"
@@ -1331,6 +1352,71 @@
     "Pug.Other:MemoryManager:Init:5": [
       "Manager.RunAfterInitComplete(CreatePools());"
     ],
+    "Pug.Other:MenuHelperButtons:31-43": [
+      "public HelpButton navigate;",
+      "",
+      "public HelpButton activate;",
+      "",
+      "public HelpButton back;",
+      "",
+      "public HelpButton refresh;",
+      "",
+      "public HelpButton openProfile;",
+      "",
+      "public HelpButton resetDefaults;",
+      "",
+      "public HelpButton calibrate;"
+    ],
+    "Pug.Other:MenuHelperButtons:AlignActiveButtons:16-33": [
+      "int waitCount = 0;",
+      "while (waitCount < 5)",
+      "{",
+      "int num = 0;",
+      "foreach (HelpButton activeButton3 in activeButtons)",
+      "{",
+      "if (activeButton3.description.dimensions.width > 0f)",
+      "{",
+      "num++;",
+      "}",
+      "}",
+      "if (num == activeButtons.Count)",
+      "{",
+      "break;",
+      "}",
+      "waitCount++;",
+      "yield return Yielders.WaitForEndOfFrame();",
+      "}"
+    ],
+    "Pug.Other:MenuHelperButtons:AlignActiveButtons:35-45": [
+      "for (int num3 = activeButtons.Count - 1; num3 > 0; num3--)",
+      "{",
+      "HelpButton helpButton = activeButtons[num3];",
+      "float num4 = helpButton.inputDependentSprite.GetSpriteRenderer().size.x / 2f;",
+      "num2 -= num4 + helpButton.description.dimensions.width;",
+      "helpButton.root.transform.localPosition += new Vector3(num2, 0f, 0f).RoundToMultipleXY(0.0625f);",
+      "num2 -= num4 + 0.875f;",
+      "}",
+      "HelpButton helpButton2 = activeButtons[0];",
+      "num2 -= helpButton2.inputDependentSprite.GetSpriteRenderer().size.x / 2f + helpButton2.description.dimensions.width;",
+      "helpButton2.root.transform.localPosition += new Vector3(num2, 0f, 0f).RoundToMultipleXY(0.0625f);"
+    ],
+    "Pug.Other:MenuHelperButtons:AlignActiveButtons:38": [
+      "float num4 = helpButton.inputDependentSprite.GetSpriteRenderer().size.x / 2f;"
+    ],
+    "Pug.Other:MenuHelperButtons:AlignActiveButtons:44": [
+      "num2 -= helpButton2.inputDependentSprite.GetSpriteRenderer().size.x / 2f + helpButton2.description.dimensions.width;"
+    ],
+    "Pug.Other:MenuHelperButtons:AlignActiveButtons:7-15": [
+      "foreach (HelpButton activeButton in activeButtons)",
+      "{",
+      "activeButton.root.SetActive(value: false);",
+      "}",
+      "yield return Yielders.WaitForEndOfFrame();",
+      "foreach (HelpButton activeButton2 in activeButtons)",
+      "{",
+      "activeButton2.root.SetActive(value: true);",
+      "}"
+    ],
     "Pug.Other:MenuHelperButtons:Awake:8": [
       "helpButtonToGameObject.Add(HelpButtonTypes.RESET_DEFAULTS, resetDefaults);"
     ],
@@ -1339,6 +1425,16 @@
     ],
     "Pug.Other:MenuHelperButtons:UpdateShowingButtons:20": [
       "List<HelpButton> list = new List<HelpButton>();"
+    ],
+    "Pug.Other:MenuHelperButtons:UpdateShowingButtons:3": [
+      "if (showKeyHints == Manager.prefs.showKeyHints && previousLanguage == Manager.prefs.language && systemPrefersKeyboard == Manager.input.singleplayerInputModule.PrefersKeyboardAndMouse() && currentButtonsToShowing.SequenceEqual(buttonsToShow) && previousSelectButtonVariation == selectButtonVariation)"
+    ],
+    "Pug.Other:MenuHelperButtons:UpdateShowingButtons:31": [
+      "list[i].root.transform.localPosition = new Vector3(13f, 0f, 0f);"
+    ],
+    "Pug.Other:MenuHelperButtons:UpdateShowingButtons:31-32": [
+      "list[i].root.transform.localPosition = new Vector3(13f, 0f, 0f);",
+      "list[i].inputDependentSprite.UpdateButtonAndText();"
     ],
     "Pug.Other:MenuHelperButtons:UpdateShowingButtons:8": [
       "currentButtonsToShowing = buttonsToShow;"
@@ -1427,6 +1523,9 @@
     "Pug.Other:MenuManager:IsKeyDown:7": [
       "return true;"
     ],
+    "Pug.Other:MenuManager:LateUpdate:3": [
+      "UpdateHelperButtons();"
+    ],
     "Pug.Other:MenuManager:SelectOption:1": [
       "public void SelectOption(UIelement option)"
     ],
@@ -1458,6 +1557,12 @@
     "Pug.Other:MenuManager:UpdateHelperButtons:14": [
       "List<MenuHelperButtons.HelpButtonTypes> buttonsToShow = (topMenu.UseCustomHelpButtons ? topMenu.GetHelpButtonsToShow() : defaultHelpButtons);"
     ],
+    "Pug.Other:MenuManager:UpdateHelperButtons:21": [
+      "buttonsToShow = topMenu.GetHelpButtonsToShow();"
+    ],
+    "Pug.Other:MenuManager:UpdateHelperButtons:27": [
+      "menuHelperButtons.UpdateShowingButtons(Manager.sceneHandler.helpButtonsToShow, selectButtonVariation);"
+    ],
     "Pug.Other:MenuManager:UpdateInputAndApplyToCurrentMenu:1": [
       "public bool UpdateInputAndApplyToCurrentMenu()"
     ],
@@ -1475,6 +1580,9 @@
     ],
     "Pug.Other:MenuManager:UpdateInputAndApplyToCurrentMenu:73": [
       "AttemptToPlayMenuSfx(SfxID.FIXME_menu_select);"
+    ],
+    "Pug.Other:MenuManager:menuHelperButtons:1": [
+      "public MenuHelperButtons menuHelperButtons;"
     ],
     "Pug.Other:MenuManager:sfxCooldownTimer:1": [
       "private TimerSimple sfxCooldownTimer = new TimerSimple(0.05f, unscaled: true);"
