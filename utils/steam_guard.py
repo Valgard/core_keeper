@@ -49,6 +49,7 @@ import steam_retag
 # names 10 as its own next code, so the guard's two start past it.
 EXIT_CONTENT_MISMATCH = 11  # Steam's content does not match mod.io
 EXIT_UNVERIFIED = 12  # the comparison could not be made
+SIZE_UNREADABLE = "unreadable"  # steam-size: the item exists but its size could not be read
 
 # D3, verbatim but for one flag: `git status --porcelain -- unity localization
 # CHANGELOG.md` must print nothing. Untracked files count — ModBuilder collects
@@ -223,6 +224,11 @@ def _whole_number(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
+def _is_size(value: object) -> bool:
+    """A byte count mod.io can have meant: a whole number above 0, since no build is 0 bytes."""
+    return _whole_number(value) and value > 0  # type: ignore[operator]
+
+
 def modfile_for_version(ref: dict, version: str) -> dict | None:
     """The newest upload of `version`, by `date_added`, or None when mod.io has none.
 
@@ -360,7 +366,7 @@ def decide_pre_upload(
         return _unreadable("mod.io reports no live modfile")
     live_version = live.get("version")
     expected = live.get("filesize_uncompressed")
-    if not isinstance(live_version, str) or not _whole_number(expected):
+    if not isinstance(live_version, str) or not _is_size(expected):
         return _unreadable("the live modfile carries no version or no size")
     if live_version != version:
         return Verdict(
@@ -404,6 +410,7 @@ def compare_after_upload(
     attempts: int = 6,
     interval: float = 5.0,
     sleep: Callable[[float], None] = time.sleep,
+    before_unreadable: bool = False,
 ) -> tuple[int, str]:
     """Whether the Workshop item now holds what mod.io serves, as (exit code, sentence).
 
@@ -419,6 +426,12 @@ def compare_after_upload(
     - for a new item (`before` None), any read but the last — with no old size
       to tell a lagging read from a final one, a wrong nonzero size is
       concluded only once every attempt is used, from the last read.
+
+    `before_unreadable` is the third case: the item exists but its old size could
+    not be read, so `before` is None for want of an answer, not for want of an
+    item. A lagging read of the old size cannot then be told from other content,
+    so a nonzero read that is not `expected` is never concluded as 11 — it ends
+    the attempts like any unchanged size, in 12.
 
     A read equal to `expected` matches at once, even when it equals `before`: a
     re-upload of the same build changes nothing to wait for. With `before`
@@ -446,12 +459,14 @@ def compare_after_upload(
             return 0, f"the Workshop item matches mod.io ({expected} bytes)"
         if before is not None and last not in (None, 0, before):
             return mismatch(last)
-    if before is None and last not in (None, 0):
+    if before is None and not before_unreadable and last not in (None, 0):
         return mismatch(last)
     if last is None:
         why = "the item's size could not be read"
     elif last == 0:
         why = "Steam still reports no size for the item (0 B)"
+    elif before_unreadable:
+        why = f"the item reports {last} B, and its size from before the upload is unknown"
     else:
         why = f"the item still reports its size from before the upload ({before} B)"
     return (
@@ -552,12 +567,16 @@ def _cmd_pre_upload(repo: Path, mod_name: str, env: Mapping[str, str]) -> int:
 
 
 def _cmd_steam_size(repo: Path, mod_name: str, env: Mapping[str, str]) -> int:
-    """`steam-size`: print the item's current size, or nothing when there is no id or no answer."""
+    """`steam-size`: print the item's current size; nothing for no id, `unreadable` for no answer.
+
+    The two silences mean different things to post-upload: no id is a new item,
+    whose first reads are judged by the new-item rule; an id with no answer is
+    an existing item whose old size is unknown, which must never end in 11.
+    """
     file_id = steam_identity.read_file_id(steam_identity.asset_path(repo, mod_name))
     if file_id is not None:
         size = steam_size(Path(__file__).resolve().parent, env, file_id)
-        if size is not None:
-            print(size)
+        print(SIZE_UNREADABLE if size is None else size)
     return 0
 
 
@@ -577,7 +596,7 @@ def _cmd_post_upload(repo: Path, mod_name: str, env: Mapping[str, str]) -> int:
         return EXIT_UNVERIFIED
     modfile = modfile_for_version(ref, version)
     expected = modfile.get("filesize_uncompressed") if modfile else None
-    if not _whole_number(expected):
+    if not _is_size(expected):
         print(f"could not verify: mod.io has no size on record for version {version}")
         return EXIT_UNVERIFIED
     file_id = steam_identity.read_file_id(steam_identity.asset_path(repo, mod_name))
@@ -586,9 +605,13 @@ def _cmd_post_upload(repo: Path, mod_name: str, env: Mapping[str, str]) -> int:
         return EXIT_UNVERIFIED
     raw = env.get("CK_STEAM_SIZE_BEFORE", "").strip()
     before = int(raw) if raw.isdigit() else None
+    before_unreadable = raw == SIZE_UNREADABLE
     utils_dir = Path(__file__).resolve().parent
     code, message = compare_after_upload(
-        expected, before, lambda: steam_size(utils_dir, env, file_id)
+        expected,
+        before,
+        lambda: steam_size(utils_dir, env, file_id),
+        before_unreadable=before_unreadable,
     )
     print(message)
     return code

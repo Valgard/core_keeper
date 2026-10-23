@@ -1000,3 +1000,76 @@ def test_cli_steam_size_prints_nothing_without_an_id(tmp_path):
     repo, env = _cli_mod(tmp_path, "{}")
     done = _cli("steam-size", str(repo), env=env)
     assert (done.returncode, done.stdout) == (0, "")
+
+
+def test_an_existing_item_with_an_unreadable_before_is_never_a_mismatch():
+    """I2: the old size is unknown, so a lagging old read cannot be told from other content — 12."""
+    code, message = steam_guard.compare_after_upload(
+        742, None, lambda: 500, attempts=3, sleep=_no_sleep, before_unreadable=True
+    )
+    assert code == 12
+    assert "before the upload" in message
+
+
+def test_an_unreadable_before_still_matches_when_the_size_arrives():
+    """An unknown old size does not stop a read equal to mod.io's from matching."""
+    reads = iter([500, 742])
+    out = steam_guard.compare_after_upload(
+        742, None, lambda: next(reads), attempts=3, sleep=_no_sleep, before_unreadable=True
+    )
+    assert out[0] == 0
+
+
+def test_cli_steam_size_prints_a_sentinel_for_an_unreadable_existing_item(
+    monkeypatch, tmp_path, capsys
+):
+    """An item with an id whose size cannot be read prints `unreadable`, not nothing; exit 0."""
+    repo = tmp_path / "m"
+    asset = repo / "unity" / "Mod" / "Mod_Steam.asset"
+    asset.parent.mkdir(parents=True)
+    asset.write_text("MonoBehaviour:\n  fileId: 123\n")
+    monkeypatch.setattr(steam_guard, "steam_size", lambda *_a: None)
+    assert steam_guard._cmd_steam_size(repo, "Mod", {}) == 0
+    assert capsys.readouterr().out.strip() == "unreadable"
+    monkeypatch.setattr(steam_guard, "steam_size", lambda *_a: 80420)
+    assert steam_guard._cmd_steam_size(repo, "Mod", {}) == 0
+    assert capsys.readouterr().out.strip() == "80420"
+
+
+def test_cli_post_upload_unreadable_before_with_a_stale_read_is_12(monkeypatch, tmp_path, capsys):
+    """CK_STEAM_SIZE_BEFORE=unreadable and a last read at some old size: 12, never 11."""
+    repo, env = _cli_mod(tmp_path, json.dumps(REF_LIVE_100))
+    asset = repo / "unity" / "Mod" / "Mod_Steam.asset"
+    asset.parent.mkdir(parents=True)
+    asset.write_text("MonoBehaviour:\n  fileId: 123\n")
+    monkeypatch.setattr(steam_guard, "steam_size", lambda *_a: 55)
+    monkeypatch.setattr(steam_guard.time, "sleep", _no_sleep)
+    code = steam_guard._cmd_post_upload(repo, "Mod", {**env, "CK_STEAM_SIZE_BEFORE": "unreadable"})
+    assert code == 12
+    capsys.readouterr()
+    code = steam_guard._cmd_post_upload(repo, "Mod", {**env, "CK_STEAM_SIZE_BEFORE": ""})
+    assert code == 11
+
+
+@pytest.mark.parametrize("size", [0, None, "100", True, -5])
+def test_pre_upload_refuses_a_modio_size_that_is_no_size(tmp_path, size):
+    """A live modfile size of 0 (or missing, non-numeric) is no size: unreadable, not compared."""
+    ref = json.loads(json.dumps(REF_LIVE_100))
+    ref["files"]["data"][0]["filesize_uncompressed"] = size
+    ref["mod"]["modfile"]["filesize_uncompressed"] = size
+    verdict = _decide(content=tmp_path, ref=ref, content_size=0 if size == 0 else 100)
+    assert not verdict.proceed
+    assert "no size" in verdict.message
+
+
+@pytest.mark.parametrize("size", [0, None, "100"])
+def test_post_upload_is_12_when_modio_has_no_size(tmp_path, size, monkeypatch):
+    """A mod.io size of 0 (or missing, non-numeric) leaves the comparison unmade: 12."""
+    ref = json.loads(json.dumps(REF_LIVE_100))
+    ref["files"]["data"][0]["filesize_uncompressed"] = size
+    repo, env = _cli_mod(tmp_path, json.dumps(ref))
+    asset = repo / "unity" / "Mod" / "Mod_Steam.asset"
+    asset.parent.mkdir(parents=True)
+    asset.write_text("MonoBehaviour:\n  fileId: 123\n")
+    monkeypatch.setattr(steam_guard, "steam_size", lambda *_a: 0)
+    assert steam_guard._cmd_post_upload(repo, "Mod", env) == 12
