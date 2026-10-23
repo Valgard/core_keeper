@@ -291,6 +291,18 @@ Also in `utils/`:
   `localization/localization.yaml` and templates raw `.asset` YAML for each
   language (Option II: raw asset templating). Used by every localised mod (all
   but `simple-crafting-pool-extender`); ItemChecklist was the pilot.
+- **`video_frames.py`** — `probe`, `sheet` and `frame` over a screen recording
+  (`uv run utils/video_frames.py sheet "<recording>.mov" --fps 2`): a contact
+  sheet of tiles, or one frame, each labelled with its time into the video and,
+  when the file name carries the start time (the macOS `Bildschirmaufnahme …` /
+  `Screen Recording …` form), a wall-clock time good to about a second, for
+  matching against screenshot names or another recording. A tile shows what
+  was on screen at its label's time even across the long gaps of these
+  variable-frame-rate files. Needs `ffmpeg`; labels are drawn with Pillow
+  because the Homebrew build has no `drawtext`. Output goes to
+  `$TMPDIR/video-frames/<name>/` — `--out` is the one way it lands elsewhere —
+  and sheets are named by window, rate and crop, so an overview and a zoom
+  coexist.
 
 `core_keeper/` is itself a git repo, but its `.gitignore` is an allowlist: it
 tracks only the shared, machine-agnostic files — `utils/`, the docs
