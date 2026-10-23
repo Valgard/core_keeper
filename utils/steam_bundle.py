@@ -332,13 +332,13 @@ def check_prerequisites(repo_root: Path, env: Mapping[str, str]) -> list[dict] |
     twice in one process printed each warning twice, which reads as two separate
     skips of two different entries.
 
-    Deliberately excludes the built content folder: on the normal path that is
-    the directory CLIPublishHelper creates for this very run, so it genuinely
-    cannot exist yet — it is the one thing here that the mod.io build produces
-    rather than the repository. (The claim used to be made of MOD_INSTALL_PATH,
-    which no build in the publish path ever writes; that folder was checkable
-    all along, and reading it was the bug this exclusion now correctly
-    describes.)
+    Deliberately excludes the built content folder: on both of upload.sh's
+    paths that is the directory CLIPublishHelper creates for this very run, so
+    it genuinely cannot exist yet — it is the one thing here that the build
+    produces rather than the repository. (The claim used to be made of
+    MOD_INSTALL_PATH, which no build in the publish path ever writes; that
+    folder was checkable all along, and reading it was the bug this exclusion
+    now correctly describes.)
 
     Call this before that build starts — mod.io's own release cannot be undone
     once it has happened, so a missing steam-description.txt or an unresolvable
@@ -373,7 +373,10 @@ def check_prerequisites(repo_root: Path, env: Mapping[str, str]) -> list[dict] |
     # Here, in the preflight, so that a checkout missing an id main records is
     # caught before anything is sent: the normal publish then skips Steam and
     # leaves its mod.io release alone, and --steam-only aborts. Found later, a
-    # missing Workshop id would already have created a second item.
+    # missing Workshop id would already have created a second item. A missing
+    # mod.io id never gets this far through upload.sh, which stops the whole
+    # run on it first (`steam_guard.py modio-id`): there it would cost a second
+    # mod.io profile, which no Steam skip prevents.
     gaps = steam_identity.id_gaps(repo_root, mod_name)
     if gaps:
         raise ValueError("\n".join(gaps))
@@ -395,11 +398,13 @@ def _check_tag_sources(env: Mapping[str, str]) -> str:
         raise ValueError("MOD_NAME is not set")
 
     # Checked here because --steam-only is the one path that reaches a publish
-    # without CLIPublishHelper, which is where this is otherwise enforced. Steam
-    # discards a tag value it does not know without a word, and an unset variable
-    # sends no value at all — so an unchecked publish puts up an item with no
-    # category tags and reports success. Tested for what comes OUT of the split,
-    # not for the variable being set: "|" is neither empty nor a category.
+    # without CLIPublishHelper's tag sync, which is where this is otherwise
+    # enforced: its Steam-only mode builds and reads mod.io but syncs no tags.
+    # Steam discards a tag value it does not know without a word, and an unset
+    # variable sends no value at all — so an unchecked publish puts up an item
+    # with no category tags and reports success. Tested for what comes OUT of
+    # the split, not for the variable being set: "|" is neither empty nor a
+    # category.
     if not category_tags(env.get("CK_MODIO_TYPE", "")):
         raise ValueError(
             "CK_MODIO_TYPE names no category — pipe-separated mod.io 'Type' tags, "
@@ -467,23 +472,24 @@ def build_bundle(
     changelog_path = repo_root / "CHANGELOG.md"
     version, changelog = release or parse_changelog(changelog_path.read_text())
 
-    # The directory mod.io was just published from, when this run published to
-    # mod.io at all. CLIPublishHelper builds into a fresh temporary one per run
-    # and uploads exactly that, so anything else here would put a different
-    # build on Steam than the one the version number refers to.
+    # The folder this submit ships, named by the caller and never guessed.
+    # upload.sh sets it to the directory CLIPublishHelper built in this very
+    # run — the one mod.io was published from, or under --steam-only the build
+    # of the invoking checkout — or, under --steam-only, to an override folder
+    # steam_guard has already checked against mod.io. steam_backfill sets it to
+    # a modfile downloaded from mod.io.
     #
-    # MOD_INSTALL_PATH is the fallback, not the source: only build.sh writes
-    # there, so it holds the last *local* build. That is the right answer for
-    # --steam-only, where no mod.io build ran, and the wrong one everywhere
-    # else — which is what it used to be used for.
+    # There is no fallback. There used to be one, MOD_INSTALL_PATH/<Mod>: the
+    # folder every build.sh run writes, from whichever checkout ran last.
+    # --steam-only shipped it under the checkout's version, and the Workshop
+    # served an unreleased build as a release for eleven days.
     reported = env.get("CK_STEAM_CONTENT")
-    if reported:
-        content = Path(reported)
-    else:
-        install_path = env.get("MOD_INSTALL_PATH")
-        if not install_path:
-            raise ValueError("MOD_INSTALL_PATH is not set")
-        content = Path(install_path) / mod_name
+    if not reported:
+        raise ValueError(
+            "CK_STEAM_CONTENT is not set — the caller names the folder to publish; "
+            "nothing falls back to MOD_INSTALL_PATH"
+        )
+    content = Path(reported)
     if not content.is_dir():
         raise ValueError(f"no built content at {content} — build the mod first")
 

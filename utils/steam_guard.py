@@ -16,7 +16,9 @@ do about it:
   (`decide_pre_upload`).
 
 The ids a checkout may be missing are `steam_identity.id_gaps`, because the
-Steam preflight in `steam_bundle` needs them too and must not import this.
+Steam preflight in `steam_bundle` needs them too and must not import this; the
+`modio-id` command only hands upload.sh the mod.io half, which stops a whole
+run rather than just its Steam stage.
 
 Pure apart from asking git and the file system, and kept apart from
 `upload.sh` for the reason `steam_result.py` was moved out of it: a shell
@@ -474,6 +476,21 @@ def _version(repo: Path) -> str:
     return version
 
 
+def _cmd_modio_id(repo: Path, mod_name: str, env: Mapping[str, str]) -> int:
+    """`modio-id`: refuse a checkout that lacks the mod.io id `main` records; 0 when it does not.
+
+    Run by upload.sh before anything reaches mod.io, in every mode: on modId 0
+    a normal publish creates a second mod.io profile, and that is not a Steam
+    problem a skipped Steam stage could contain. The Workshop-id gap is left to
+    the Steam preflight (`steam_identity.id_gaps` has both).
+    """
+    gaps = steam_identity.id_gaps(repo, mod_name, modio_only=True)
+    if gaps:
+        print("\n".join(gaps), file=sys.stderr)
+        return 1
+    return 0
+
+
 def _cmd_pre_upload(repo: Path, mod_name: str, env: Mapping[str, str]) -> int:
     """`pre-upload`: print the verdict on the content bound for Steam; 0 proceeds, 1 refuses."""
     ref = load_reference(Path(env.get("CK_MODIO_REF", "")))
@@ -551,7 +568,7 @@ def main(argv: list[str], env: Mapping[str, str] | None = None) -> int:
     """Dispatch `steam_guard.py <command> <repo>` (or `combine <steam_rc> <guard_rc>`)."""
     env = os.environ if env is None else env
     usage = (
-        "usage: steam_guard.py checkout|pre-upload|steam-size|post-upload <repo>"
+        "usage: steam_guard.py checkout|modio-id|pre-upload|steam-size|post-upload <repo>"
         " | combine <steam_rc> <guard_rc>"
     )
     if len(argv) == 4 and argv[1] == "combine":
@@ -573,6 +590,7 @@ def main(argv: list[str], env: Mapping[str, str] | None = None) -> int:
         print(describe_commit(repo))
         return 0
     commands = {
+        "modio-id": _cmd_modio_id,
         "pre-upload": _cmd_pre_upload,
         "steam-size": _cmd_steam_size,
         "post-upload": _cmd_post_upload,

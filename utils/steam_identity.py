@@ -210,7 +210,9 @@ def _on_branch(repo_root: Path, branch: str, asset: Path) -> str | None:
     return shown.stdout if shown.returncode == 0 else None
 
 
-def id_gaps(repo_root: Path, mod_name: str, branch: str = "main") -> list[str]:
+def id_gaps(
+    repo_root: Path, mod_name: str, branch: str = "main", *, modio_only: bool = False
+) -> list[str]:
     """One message per identity asset whose id this checkout lacks while `branch` records one.
 
     Release tags commonly predate the commits that record the ids — the
@@ -226,6 +228,11 @@ def id_gaps(repo_root: Path, mod_name: str, branch: str = "main") -> list[str]:
       the asset; under --steam-only the mod merely looks as if it were not on
       mod.io, and nothing is compared with what mod.io serves.
 
+    The two are therefore refused at different depths. A Workshop-id gap only
+    has to keep Steam from running, which the Steam preflight does. A mod.io-id
+    gap has to stop the whole run before mod.io is touched, so upload.sh asks
+    for it alone first — `modio_only` — through `steam_guard.py modio-id`.
+
     The checkout counts as having no id when the file is missing or records 0.
     Only a definite id on `branch` makes a gap: a branch that does not exist,
     a file it does not have, or git failing altogether claims nothing, the same
@@ -236,27 +243,25 @@ def id_gaps(repo_root: Path, mod_name: str, branch: str = "main") -> list[str]:
     Reads the working tree, not HEAD: what a publish from here would use is
     what is on disk.
     """
-    checks = (
-        (
-            asset_path(repo_root, mod_name),
-            FILE_ID,
-            2,
-            "Workshop id",
-            "published from this checkout, the mod would get a SECOND Workshop item beside it",
-        ),
-        (
-            modio_asset_path(repo_root, mod_name),
-            modio_api.MODIO_ID,
-            1,
-            "mod.io id",
-            "a normal publish from this checkout would take the mod for a new one: "
-            "CLIPublishHelper would call CreateModProfile and create a SECOND mod.io profile "
-            "(hidden, with this release uploaded to it) and write that profile's id into "
-            "this asset",
-        ),
+    workshop = (
+        asset_path(repo_root, mod_name),
+        FILE_ID,
+        2,
+        "Workshop id",
+        "published from this checkout, the mod would get a SECOND Workshop item beside it",
+    )
+    modio = (
+        modio_asset_path(repo_root, mod_name),
+        modio_api.MODIO_ID,
+        1,
+        "mod.io id",
+        "a normal publish from this checkout would take the mod for a new one: "
+        "CLIPublishHelper would call CreateModProfile and create a SECOND mod.io profile "
+        "(hidden, with this release uploaded to it) and write that profile's id into "
+        "this asset",
     )
     gaps = []
-    for asset, pattern, group, label, consequence in checks:
+    for asset, pattern, group, label, consequence in (modio,) if modio_only else (workshop, modio):
         try:
             here = asset.read_text(encoding="utf-8")
         except FileNotFoundError:

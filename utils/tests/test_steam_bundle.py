@@ -98,13 +98,14 @@ def _repo(tmp_path, asset=ASSET, changelog=CHANGELOG, description: str | None = 
 
 
 def _env(tmp_path, **overrides):
+    """A publish environment whose run reported a build, as upload.sh's Steam stage has it."""
     content = tmp_path / "build" / "DisableDurability"
     content.mkdir(parents=True, exist_ok=True)
     env = {
         "MOD_NAME": "DisableDurability",
         "CK_MODIO_TYPE": "Item|Overhaul|Quality of Life",
         "CK_GAME_VERSION": "1.3.0.2 1.3.0.1 1.2.1.5",
-        "MOD_INSTALL_PATH": str(tmp_path / "build"),
+        "CK_STEAM_CONTENT": str(content),
     }
     env.update(overrides)
     return env
@@ -113,9 +114,9 @@ def _env(tmp_path, **overrides):
 def _preflight_env(**overrides):
     """Exactly what `check_prerequisites` needs, and deliberately nothing more.
 
-    No MOD_INSTALL_PATH and no built content folder, unlike `_env` above: the
-    preflight's whole purpose is to run BEFORE the mod.io build, so a fixture
-    that quietly supplied one would stop the tests here from proving that.
+    No CK_STEAM_CONTENT and no built content folder, unlike `_env` above: the
+    preflight's whole purpose is to run BEFORE the build, so a fixture that
+    quietly supplied one would stop the tests here from proving that.
     """
     return {
         "MOD_NAME": "DisableDurability",
@@ -420,10 +421,10 @@ def test_an_existing_mod_keeps_its_visibility(tmp_path):
 
 
 def test_check_prerequisites_passes_without_a_built_content_folder(tmp_path):
-    """check_prerequisites() must be callable before the mod.io build runs.
+    """check_prerequisites() must be callable before the build runs.
 
-    That is the whole point: it runs when MOD_INSTALL_PATH/<mod> does not
-    exist yet.
+    That is the whole point: it runs before the run has a content folder at
+    all.
     """
     repo = _repo(tmp_path)
 
@@ -490,7 +491,7 @@ def test_build_bundle_calls_check_prerequisites_first(tmp_path):
     surfaces.
     """
     repo = _repo(tmp_path, description=None)
-    env = _env(tmp_path, MOD_INSTALL_PATH=str(tmp_path / "nowhere"))
+    env = _env(tmp_path, CK_STEAM_CONTENT=str(tmp_path / "nowhere"))
 
     with pytest.raises(ValueError, match=re.escape("steam-description.txt")):
         steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
@@ -536,17 +537,20 @@ def test_the_content_is_the_build_modio_published_when_one_is_reported(tmp_path)
     assert bundle["contentPath"] == str(published)
 
 
-def test_without_a_reported_build_the_local_install_is_used(tmp_path):
-    """--steam-only runs no mod.io build, so there is no fresh directory to point at.
+def test_without_a_reported_build_the_bundle_refuses(tmp_path):
+    """No CK_STEAM_CONTENT is an error, never a fallback to some other folder.
 
-    The last local build is the only thing there is to publish.
+    The fallback used to be MOD_INSTALL_PATH — whichever build was left there
+    last, from any checkout — and --steam-only shipped exactly that under the
+    checkout's version. A folder that is there and holds a build must not
+    change the answer.
     """
     repo = _repo(tmp_path)
-    env = _env(tmp_path)
+    env = _env(tmp_path, MOD_INSTALL_PATH=str(tmp_path / "build"))
+    del env["CK_STEAM_CONTENT"]
 
-    bundle = steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
-
-    assert bundle["contentPath"] == str(tmp_path / "build" / "DisableDurability")
+    with pytest.raises(ValueError, match="CK_STEAM_CONTENT is not set"):
+        steam_bundle.build_bundle(repo, env, tmp_path / "p.png")
 
 
 def test_a_missing_content_folder_is_reported(tmp_path):
@@ -558,7 +562,7 @@ def test_a_missing_content_folder_is_reported(tmp_path):
     for an unrelated message.
     """
     repo = _repo(tmp_path)
-    env = _env(tmp_path, MOD_INSTALL_PATH=str(tmp_path / "nowhere"))
+    env = _env(tmp_path, CK_STEAM_CONTENT=str(tmp_path / "nowhere"))
 
     with pytest.raises(ValueError, match="no built content at"):
         steam_bundle.build_bundle(repo, env, tmp_path / "p.png")

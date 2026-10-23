@@ -29,21 +29,29 @@
 # release for anything that changes what the mod does. Steam has no equivalent
 # edit for a shipped change note, so this mode is mod.io-only — Steam is skipped.
 #
+# Before anything else reaches out — in every mode, --dry-run included — a
+# checkout that lacks the mod.io id its mod repo's main records is refused
+# (steam_guard.py modio-id). Release tags often predate the commit that
+# recorded the id, and on modId 0 CLIPublishHelper takes the mod for a new one
+# and creates a SECOND mod.io profile; skipping Steam would not prevent that.
+#
 # --no-steam publishes to mod.io only. --steam-only skips mod.io and publishes
 # to Steam only (the two contradict each other). Before mod.io even starts, a
 # preflight checks the repository-side inputs a Steam publish needs: MOD_NAME,
-# a CK_MODIO_TYPE that names at least one category, the ModBuilderSettings
-# .asset, steam-description.txt, a CHANGELOG.md whose topmost "## [x.y.z]"
-# entry parses, Editor/logo.png, a recognizable <Mod>_Steam.asset, and a
-# Workshop id for every dependency the .asset marks `required` (an
-# unresolvable OPTIONAL one only warns and is skipped).
+# a CK_MODIO_TYPE that names at least one category, a CK_GAME_VERSION whose
+# every value has three numeric parts, the ModBuilderSettings .asset,
+# steam-description.txt, a CHANGELOG.md whose topmost "## [x.y.z]" entry
+# parses, Editor/logo.png, a recognizable <Mod>_Steam.asset, no Workshop or
+# mod.io id that main records and this checkout lacks, and a Workshop id for
+# every dependency the .asset marks `required` (an unresolvable OPTIONAL one
+# only warns and is skipped).
 #
 # It is not a check of everything the stage needs, and should not be read as
 # one: libsteam_api.dylib under SDK_PATH, a working dotnet toolchain and a
 # signed-in Steam client are all independent of the build and all unchecked
 # here -- they surface from ck-workshop or its MSBuild step instead. What IS
-# excluded on purpose is the built content folder: on the normal path mod.io's
-# own build creates it, so at preflight time it genuinely cannot exist yet.
+# excluded on purpose is the built content folder: this run's own build
+# creates it, later, so at preflight time it genuinely cannot exist yet.
 #
 # On failure it SKIPS Steam and lets the mod.io release proceed
 # rather than aborting the run, since that release is what the invocation is
@@ -55,24 +63,59 @@
 # a Steam failure is reported and reflected in the exit code instead of being
 # treated as fatal.
 #
+# --steam-only builds what it publishes: the checkout it was started in, in this
+# run, through CLIPublishHelper's Steam-only mode — the same publish build, then
+# a read of what mod.io holds, and no mod.io write of any kind. It never reads
+# MOD_INSTALL_PATH. That folder holds whatever build.sh made last, from any
+# checkout, and it used to be what --steam-only shipped: on 2026-10-11 it put an
+# unreleased build on the Workshop under the checkout's version, for eleven days.
+# Before Unity starts, the checkout is refused when unity/, localization/ or
+# CHANGELOG.md has uncommitted changes, or CHANGELOG.md has notes under
+# [Unreleased] — either way the build would not be the release its version
+# names (steam_guard.py checkout, which also prints the commit it builds from).
+# After the build and before anything is sent, the folder is held against
+# mod.io (steam_guard.py pre-upload): for a mod on mod.io, this version has to
+# be the live one there and the folder its size, or nothing is sent — so
+# --steam-only catches up a release mod.io already has and never runs ahead of
+# it. A mod not on mod.io is published uncompared, and the run says so.
+#
+# CK_STEAM_CONTENT=<dir> with --steam-only replaces the build with that folder —
+# the repair route, for a release today's toolchain no longer rebuilds byte for
+# byte. It is announced, Unity still runs (to read mod.io, not to build), and it
+# is accepted only when mod.io serves this version at exactly that folder's size
+# and the folder lies outside MOD_INSTALL_PATH. Any other run ignores an
+# inherited CK_STEAM_CONTENT, and says so.
+#
 # Exit codes past the usual 0 and 1 — this script's own:
 #   7  published, but an OPTIONAL Steam dependency did not sync
 #   8  the mod.io release is done; Steam never started, its preflight failed
 #   9  published, but a REQUIRED Steam dependency may be missing from the item
+#  11  published, but the Workshop item does not match mod.io's modfile of this
+#      version: Steam serves other content than mod.io under the same number
+#  12  published, but that comparison could not be made (see the run's output)
 #
 # 7 and 9 both mean the item is live and something about its dependency list is
 # wrong; they are separate because the cost to a subscriber is not the same —
 # a missing optional dependency loses them a convenience, a missing required one
 # loses them a mod that does not run.
 #
+# 11 and 12 come from the check after every real Steam upload (steam_guard.py
+# post-upload): the item's size on Steam against mod.io's for this version.
+# Equal size is strong evidence of the same build, not proof. On the normal path
+# both destinations get one folder, so it shows delivery, not that the build was
+# right. 11 outranks 0, 7, 9 and 130; 12 outranks only 0; neither masks a Steam
+# failure (steam_guard.combine_exit). Both leave the item live — nothing can be
+# undone at that point, so the code says precisely what happened.
+#
 # Every other non-zero code is passed through from whatever produced it, so this
 # list is not exhaustive by design: 2-6 come from utils/ck-workshop (its own
-# header says what each means), 124 from either `timeout` in here, and 130 when
+# header says what each means), 124 from any `timeout` in here, and 130 when
 # a Ctrl-C killed the `tee` in the Steam pipeline (see STEAM_RESULT below — the
 # publish itself survives that, and so does this script).
 #
 # Required env vars (set in the mod's .envrc):
-#   UNITY_BIN, SDK_PATH, MOD_NAME, CK_GAME_VERSION, MOD_SUMMARY
+#   UNITY_BIN, SDK_PATH, MOD_NAME, CK_GAME_VERSION — and MOD_SUMMARY, except
+#   under --steam-only, which writes nothing to mod.io
 #
 # A mod with a discord-post.md also needs CK_DISCORD_TAGS; it is checked
 # before Unity starts and printed, rendered, after a successful publish.
@@ -91,8 +134,9 @@ set -euo pipefail
 # surfaced as an MSBuild error inside `dotnet run`, minutes later, instead of
 # here in a second.
 #
-# UNITY_BIN/CK_GAME_VERSION/MOD_SUMMARY really are mod.io- and Unity-specific
-# and stay down there.
+# UNITY_BIN and CK_GAME_VERSION are checked further down, beside the one that
+# depends on a flag: MOD_SUMMARY really is mod.io-specific and stays exempt
+# under --steam-only.
 : "${MOD_NAME:?must be set — see .envrc.example}"
 : "${SDK_PATH:?must be set — see .envrc.example}"
 
@@ -150,6 +194,32 @@ if [ "$STEAM_ONLY" = "1" ] && { [ "$CHANGELOG_ONLY" = "1" ] || [ "$PROFILE_ONLY"
     exit 1
 fi
 
+# Only this script sets these two. CK_STEAM_OVERRIDE makes CLIPublishHelper skip
+# the Steam-only build, and PUBLISH_STEAM_ONLY turns a publish into a run that
+# writes nothing to mod.io — either one inherited from the shell would change
+# what a run does without a word.
+unset CK_STEAM_OVERRIDE PUBLISH_STEAM_ONLY
+
+# CK_STEAM_CONTENT names the folder the Steam stage uploads; this run sets it
+# from its own build further down. A value already in the environment came from
+# outside: the override under --steam-only (the repair route — a mod.io modfile
+# downloaded by hand), or a leftover from such a repair session. The two cannot
+# be told apart, so under --steam-only every such value is taken as the
+# override — announced here, and accepted only if the check against mod.io
+# before the upload holds. On any other run it would replace the folder mod.io
+# was just published from, so it is dropped, loudly.
+STEAM_OVERRIDE=0
+if [ -n "${CK_STEAM_CONTENT:-}" ]; then
+    if [ "$STEAM_ONLY" = "1" ]; then
+        STEAM_OVERRIDE=1
+        export CK_STEAM_OVERRIDE=1
+        echo "Content: $CK_STEAM_CONTENT (override from CK_STEAM_CONTENT — checked against mod.io before the upload)"
+    else
+        echo "! CK_STEAM_CONTENT is set from outside — ignored; Steam gets the folder this run builds." >&2
+        unset CK_STEAM_CONTENT
+    fi
+fi
+
 UTILS_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Whether the Steam preflight below has anything to check — that is this
@@ -177,20 +247,23 @@ if [ ! -d "$SDK_PATH/Assets" ]; then
     exit 1
 fi
 
-# mod.io needs a Unity batchmode build; Steam publishes whatever that build
-# produced, and under --steam-only the last local one in MOD_INSTALL_PATH,
-# so it needs no Unity of its own. --steam-only skips the whole mod.io block
-# below, so none of ITS requirements apply here — but SDK_PATH is not one of
-# them, which is why it is checked above rather than inside this guard.
-if [ "$STEAM_ONLY" != "1" ]; then
-    : "${UNITY_BIN:?must be set — see .envrc.example}"
-    : "${CK_GAME_VERSION:?must be set — see .envrc.example}"
-    : "${MOD_SUMMARY:?must be set — see .envrc.example}"
+# Every run starts Unity: mod.io's publish builds there, and so does
+# --steam-only, which publishes only what it built itself — or, with the
+# override, still reads mod.io there, with the plugin's login. It used to be
+# exempt, back when it shipped the last local build out of MOD_INSTALL_PATH
+# instead. CK_GAME_VERSION is needed by both destinations' tags.
+: "${UNITY_BIN:?must be set — see .envrc.example}"
+: "${CK_GAME_VERSION:?must be set — see .envrc.example}"
 
-    if [ ! -x "$UNITY_BIN" ]; then
-        echo "ERROR: \$UNITY_BIN is not executable: $UNITY_BIN" >&2
-        exit 1
-    fi
+if [ ! -x "$UNITY_BIN" ]; then
+    echo "ERROR: \$UNITY_BIN is not executable: $UNITY_BIN" >&2
+    exit 1
+fi
+
+# The profile summary is the one requirement that is mod.io's alone, and
+# --steam-only writes nothing there.
+if [ "$STEAM_ONLY" != "1" ]; then
+    : "${MOD_SUMMARY:?must be set — see .envrc.example}"
 fi
 
 # The CLIPublishHelper reads these from the environment. MOD_CALLER_CWD is the anchor every
@@ -208,19 +281,44 @@ export CK_UTILS_DIR="$UTILS_DIR"
 [ "$PROFILE_ONLY" = "1" ] && export PUBLISH_PROFILE_ONLY=1
 [ "$CHANGELOG_ONLY" = "1" ] && export PUBLISH_CHANGELOG_ONLY=1
 
-# Where CLIPublishHelper reports the directory it just built for mod.io, so the
-# Steam stage can upload that exact directory. It builds into a fresh temporary
-# one per run — deliberately, so a publish can never ship stale Generated/
-# assets — and the Steam stage used to read MOD_INSTALL_PATH instead, which
-# only build.sh ever writes. The two were never the same folder: Steam would
-# have shipped whatever was last built locally, labelled with the version
+# A checkout without the mod.io id its main records stops here, whatever the
+# mode — the one id check that cannot wait for the Steam preflight below. With
+# modId 0, CLIPublishHelper takes the mod for a new one and calls
+# CreateModProfile: a SECOND mod.io profile, with this release uploaded to it
+# and its id written into the asset. A failed Steam preflight only skips Steam,
+# which would not stop that. --dry-run is refused too, so that it predicts the
+# real run, and so are --profile-only and --changelog-only: those cannot create
+# a profile (both Fail on modId 0), but they would get there only after a Unity
+# start, advising "run a normal publish first" — the run that would duplicate
+# it. A git that cannot answer claims no gap (steam_identity.id_gaps); a
+# crashed check stops the run, since passing it is what costs the profile.
+if ! python3 "$UTILS_DIR/steam_guard.py" modio-id "$REPO_ROOT"; then
+    echo "ERROR: stopped before anything reached mod.io (see above)." >&2
+    exit 1
+fi
+
+# Where CLIPublishHelper reports the directory it just built, so the Steam
+# stage can upload that exact directory — the one mod.io was published from, or
+# under --steam-only the one this run built for Steam alone. It builds into a
+# fresh temporary one per run — deliberately, so a publish can never ship stale
+# Generated/ assets — and the Steam stage used to read MOD_INSTALL_PATH instead,
+# which only build.sh ever writes. The two were never the same folder: Steam
+# would have shipped whatever was last built locally, labelled with the version
 # mod.io was publishing from somewhere else.
 BUILD_DIR_FILE="$(mktemp -t ck-build-dir.XXXXXX)"
 export CK_BUILD_DIR_OUT="$BUILD_DIR_FILE"
+# Where CLIPublishHelper records what mod.io holds for the mod — after the
+# upload on the normal path, after the build (or, with the override, instead of
+# one) under --steam-only — for steam_guard.py to hold the Steam content
+# against. Created here because CLIPublishHelper only writes to it: a run that
+# never got that far leaves it empty, which the guard reads as "could not be
+# compared", never as a pass.
+MODIO_REF_FILE="$(mktemp -t ck-modio-ref.XXXXXX)"
+export CK_MODIO_REF_OUT="$MODIO_REF_FILE"
 # Set here rather than in the Steam stage: that stage arms its own EXIT trap
 # for its scratch directory, and a second `trap … EXIT` would replace this one
 # instead of adding to it.
-trap 'rm -f "$BUILD_DIR_FILE"' EXIT
+trap 'rm -f "$BUILD_DIR_FILE" "$MODIO_REF_FILE"' EXIT
 
 # Steam preflight — before mod.io, not after: mod.io's own release cannot be
 # undone once it has happened, so a missing steam-description.txt or an
@@ -367,6 +465,56 @@ print(' '.join(json.load(open(sys.argv[1]))['versions']))
     fi
 else
     echo "Skipping mod.io (--steam-only)."
+
+    # The checkout first, before a Unity start costs minutes: uncommitted
+    # changes under unity/ or localization/ or to CHANGELOG.md, or notes under
+    # [Unreleased], mean the build would not be the release its version names.
+    # The override path is checked too — its version label still comes from
+    # this checkout's CHANGELOG.md. On a pass this prints the commit, so the
+    # log can say which checkout a published build came from, which nothing
+    # could after the incident.
+    if ! steam_commit="$(python3 "$UTILS_DIR/steam_guard.py" checkout "$REPO_ROOT")"; then
+        echo "ERROR: this checkout is not the release it would be published as (see above)." >&2
+        exit 1
+    fi
+    echo "  Checkout: $steam_commit"
+
+    # The same steps as the publish build above, for the same reasons. link.sh
+    # points the SDK's symlink at THIS checkout — the incident's build came from
+    # another worktree's link — and runs for the override too: CLIPublishHelper
+    # reads the mod.io id from the linked <Mod>_modio.asset, so a stale link
+    # would report another checkout's id. The touch makes Unity recompile, so
+    # DOTS codegen runs and DotsCodegen.Check inside the build passes the
+    # folder that is uploaded; the override builds nothing and skips it.
+    "$UTILS_DIR/link.sh" "$REPO_ROOT" >/dev/null
+    if [ "$STEAM_OVERRIDE" != "1" ] && [ -d "$REPO_ROOT/unity/$MOD_NAME" ]; then
+        find "$REPO_ROOT/unity/$MOD_NAME" -name '*.cs' -exec touch {} +
+    fi
+
+    if [ "$STEAM_OVERRIDE" = "1" ]; then
+        echo "Reading what mod.io holds for $MOD_NAME — no build, CK_STEAM_CONTENT supplies the content..."
+    else
+        echo "Building $MOD_NAME for the Steam Workshop, then reading what mod.io holds for it..."
+    fi
+
+    # PUBLISH_STEAM_ONLY selects CLIPublishHelper's Steam-only mode: the
+    # publish build (BuildInto, shared with the normal path), then the mod.io
+    # reference into CK_MODIO_REF_OUT. A mod.io read that fails does not fail
+    # this run — it lands in the reference, where steam_guard.py refuses on it
+    # and can say why. As in the publish above: no -quit, timeout for a hang.
+    if PUBLISH_STEAM_ONLY=1 timeout 600 "$UNITY_BIN" \
+            -batchmode \
+            -nographics \
+            -projectPath "$SDK_PATH" \
+            -executeMethod CoreKeeperModUtils.CLIPublishHelper.Publish \
+            -logFile -; then
+        echo "✓ Steam-only Unity run complete."
+    else
+        code=$?
+        [ "$code" = "124" ] && echo "✗ Steam-only Unity run timed out." >&2 \
+                            || echo "✗ Steam-only Unity run failed (exit $code). Check the log above." >&2
+        exit "$code"
+    fi
 fi
 
 # --- Steam Workshop -----------------------------------------------------------
@@ -407,6 +555,55 @@ else
     echo
     echo "Publishing $MOD_NAME to the Steam Workshop${PUBLISH_DRY_RUN:+ (dry run)}..."
 
+    # The folder Steam gets, from exactly two sources: the directory
+    # CLIPublishHelper reported for THIS run's build (see CK_BUILD_DIR_OUT
+    # above) — the one mod.io was published from, or under --steam-only the
+    # build of this checkout — or, under --steam-only, the override announced
+    # at the top. Nothing else. There used to be a third, MOD_INSTALL_PATH, and
+    # that is the folder the incident shipped; steam_bundle no longer falls back
+    # to it either, so an unset CK_STEAM_CONTENT fails there too. Decided before
+    # the scratch files below exist, so a refusal leaves none of them behind.
+    if [ -s "$BUILD_DIR_FILE" ]; then
+        CK_STEAM_CONTENT="$(cat "$BUILD_DIR_FILE")"
+        export CK_STEAM_CONTENT
+        if [ "$STEAM_ONLY" = "1" ]; then
+            echo "  Content: the build this run made from the checkout above"
+        else
+            echo "  Content: the build mod.io was published from"
+        fi
+    elif [ "$STEAM_OVERRIDE" = "1" ]; then
+        # The DOTS check runs inside the build (DotsCodegen.Check), against the
+        # folder it builds. The override has no build, and checking it against
+        # Library/ScriptAssemblies/<Mod>.dll — what the bash call here used to
+        # do, on MOD_INSTALL_PATH — would compare a downloaded modfile with the
+        # assembly compiled from the checkout. What it does carry is what
+        # mod.io serves for this version, which the size check below holds it
+        # to.
+        echo "  DOTS codegen check skipped: the override is a mod.io modfile; the compiled assembly belongs to the checkout, not to it."
+    else
+        # A Unity run that exits 0 has always reported its folder, so this is a
+        # helper that broke, not a state to publish around. Exit 1, not 2-6:
+        # those belong to ck-workshop in this script.
+        echo "ERROR: no build directory was reported — nothing to publish." >&2
+        exit 1
+    fi
+
+    # --steam-only only, and before anything is assembled or sent: the folder
+    # against what mod.io holds for this checkout's version (steam_guard.py,
+    # decide_pre_upload). A mod on mod.io must have this version live there,
+    # at exactly this folder's size; an override must also lie outside
+    # MOD_INSTALL_PATH; a mod not on mod.io goes through uncompared, and the
+    # verdict says so. The normal path has no such check before its upload —
+    # mod.io was just published from this very folder — and is compared
+    # after it instead, below.
+    if [ "$STEAM_ONLY" = "1" ]; then
+        echo "  Holding the content against mod.io..."
+        if ! CK_MODIO_REF="$MODIO_REF_FILE" python3 "$UTILS_DIR/steam_guard.py" pre-upload "$REPO_ROOT"; then
+            echo "ERROR: refused before the upload (see above) — nothing was sent to Steam." >&2
+            exit 1
+        fi
+    fi
+
     # A scratch directory rather than a bare mktemp file: build_bundle wants a
     # .png path for the preview, and mktemp has no portable way to hand it one
     # directly. A trap rather than an rm at the bottom of this branch: a signal
@@ -417,8 +614,8 @@ else
     # STEAM_RESULT just below), so neither could have skipped the rm.
     STEAM_TMP="$(mktemp -d -t ck-workshop.XXXXXX)"
     # Replaces the earlier trap rather than adding to it, so it has to clean up
-    # both — bash keeps one handler per signal.
-    trap 'rm -rf "$STEAM_TMP"; rm -f "$BUILD_DIR_FILE"' EXIT
+    # everything that one did — bash keeps one handler per signal.
+    trap 'rm -rf "$STEAM_TMP"; rm -f "$BUILD_DIR_FILE" "$MODIO_REF_FILE"' EXIT
     STEAM_PREVIEW="$STEAM_TMP/preview.png"
 
     # Deliberately NOT inside $STEAM_TMP, and deliberately not on that trap.
@@ -454,28 +651,6 @@ else
     # can overwrite it, which a fixed path would.
     STEAM_RESULT="$(mktemp "${TMPDIR:-/tmp}/ck-workshop-$MOD_NAME-result.XXXXXX")"
     steam_rc=0
-
-    # The directory mod.io was just published from, reported by CLIPublishHelper
-    # (see CK_BUILD_DIR_OUT above). Empty under --steam-only, where no mod.io
-    # build ran at all — there the last local build is the only thing to
-    # publish, and steam_bundle falls back to MOD_INSTALL_PATH for it.
-    if [ -s "$BUILD_DIR_FILE" ]; then
-        CK_STEAM_CONTENT="$(cat "$BUILD_DIR_FILE")"
-        export CK_STEAM_CONTENT
-        echo "  Content: the build mod.io was published from"
-    else
-        # That last local build was never checked by CLIPublishHelper, and it may
-        # be one build.sh rejected for missing DOTS codegen -- the rejection does
-        # not remove it. A Workshop entry cannot be taken back, so check it here,
-        # before the first Steam call. Exit 1, not build.sh's 4: codes 2-6 belong
-        # to ck-workshop in this script.
-        if ! python3 "$UTILS_DIR/check_dots_codegen.py" \
-                "$SDK_PATH/Library/ScriptAssemblies/$MOD_NAME.dll" \
-                "${MOD_INSTALL_PATH:?must be set for --steam-only}/$MOD_NAME"; then
-            echo "ERROR: the local build is not publishable — rebuild with utils/build.sh first." >&2
-            exit 1
-        fi
-    fi
 
     # Everything a publish needs is derivable from files already in the repo
     # (see steam_bundle.py) — this only serialises that derivation as JSON.
@@ -514,6 +689,19 @@ PY
         # comment above), not utils/ck-workshop/ or its build output, so the
         # copied steam_appid.txt alone would not be found through this call.
         readonly STEAM_APP_ID="1621690"
+
+        # The item's size before the upload, for the comparison after it: Steam
+        # reports the new size only some time after a submit, and a read that
+        # still returns this one means "not updated yet", not a verdict. Empty
+        # for an item that does not exist yet, or when Steam cannot be read —
+        # both only mean there is nothing to wait out. Not in a dry run, which
+        # sends nothing and so compares nothing. The read goes through
+        # `ck-workshop --read-item`, whose output shows up here.
+        if [ "${PUBLISH_DRY_RUN:-}" != "1" ]; then
+            echo "  Reading the Workshop item's current size, for the check after the upload..."
+            CK_STEAM_SIZE_BEFORE="$(python3 "$UTILS_DIR/steam_guard.py" steam-size "$REPO_ROOT" || true)"
+            export CK_STEAM_SIZE_BEFORE
+        fi
 
         # stdout+stderr share one file here on purpose: unlike the bundle build
         # above, nothing downstream captures this stream directly — it is
@@ -559,10 +747,11 @@ PY
             # not be swallowed, for the same reason.
             write_rc=0
             # The bundle rides along so the asset can be filled in completely,
-            # not just with the id: the SDK window reads selectedPath and tags
-            # from it, and both are already derived here. Through the
-            # environment rather than as an argument because it carries the
-            # whole Workshop description.
+            # not just with the id: the SDK window reads the tags from it, and
+            # they are already derived here. (Its selectedPath is cleared, not
+            # filled — no folder of this run outlives it; see steam_result.py.)
+            # Through the environment rather than as an argument because it
+            # carries the whole Workshop description.
             #
             # A script rather than the heredoc this used to be: it is the step
             # that decides whether write_file_id runs at all, and inline it was
@@ -577,16 +766,50 @@ PY
                 [ "$steam_rc" = "0" ] && steam_rc=$write_rc
             fi
 
+            # The item against mod.io, once the upload is in: Steam's size of
+            # the item against mod.io's filesize_uncompressed for this version
+            # (steam_guard.py post-upload, which re-reads for a bounded time
+            # until the size moves off CK_STEAM_SIZE_BEFORE). Only where the
+            # upload may have gone through — 0, 7 and 9 are a live item, and
+            # 130 is a killed `tee` after which the upload ran on to its end
+            # (see STEAM_RESULT above). 2-6 and 124 sent nothing or failed
+            # midway, and a failed persist (write_rc) leaves no id to read.
+            #
+            # On the normal path both destinations got this one folder, so a
+            # match shows delivery — Steam holds what mod.io holds — and says
+            # nothing about whether the build was right. Under --steam-only the
+            # check that matters ran before the upload; this one confirms it.
+            #
+            # combine_exit owns the precedence: a mismatch (11) outranks 0, 7, 9
+            # and 130, an unmade comparison (12) outranks only 0, and a guard
+            # that crashed counts as an unmade comparison. Should combine itself
+            # fail — the interpreter that just ran the guard — the run reports
+            # 12 rather than a success nobody checked; without the `||`,
+            # `set -e` would end the script here with Python's code, skipping
+            # the STEAM_RESULT clean-up below.
+            case "$steam_rc" in
+                0|7|9|130)
+                    echo "  Comparing the Workshop item with mod.io..."
+                    guard_rc=0
+                    CK_MODIO_REF="$MODIO_REF_FILE" \
+                        python3 "$UTILS_DIR/steam_guard.py" post-upload "$REPO_ROOT" || guard_rc=$?
+                    steam_rc="$(python3 "$UTILS_DIR/steam_guard.py" combine "$steam_rc" "$guard_rc")" || steam_rc=12
+                    ;;
+            esac
+
             # 7 and 9 are both "the item is live, its dependency list is not
             # right" — ck-workshop splits them by what it costs a subscriber,
             # and the catch-all would report either as a failed publish, which
-            # is the one thing they are not. Anything genuinely unrecognised
-            # still lands there: 2-6 from ck-workshop, 124 from `timeout`, 130
-            # from a Ctrl-C'd `tee`.
+            # is the one thing they are not. 11 and 12 are live items too, so
+            # the same holds for them. Anything genuinely unrecognised still
+            # lands there: 2-6 from ck-workshop, 124 from `timeout`, 130 from a
+            # Ctrl-C'd `tee`.
             case "$steam_rc" in
                 0) echo "✓ Steam Workshop publish complete." ;;
                 7) echo "! Steam Workshop publish complete, but an optional dependency did not sync (see above)." >&2 ;;
                 9) echo "! Steam Workshop publish complete, but a REQUIRED dependency may be missing from the item (see above)." >&2 ;;
+                11) echo "✗ Steam Workshop publish complete, but the item does NOT match mod.io's modfile of this version (see above)." >&2 ;;
+                12) echo "! Steam Workshop publish complete, but it could not be compared with mod.io (see above)." >&2 ;;
                 *) echo "✗ Steam Workshop publish failed (exit $steam_rc)." >&2 ;;
             esac
         fi

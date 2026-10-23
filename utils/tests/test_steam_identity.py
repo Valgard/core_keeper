@@ -619,6 +619,18 @@ def test_id_gap_when_the_checkout_has_no_asset_at_all(tmp_path):
 
 
 @needs_git
+def test_id_gaps_modio_only_leaves_the_workshop_gap_out(tmp_path):
+    """`modio_only` reports the mod.io gap alone, for the check that stops a whole run on it."""
+    root, (release, _) = _history(tmp_path, (0, 0), (3790345467, 6119768))
+    tree = _checkout_at(root, release, tmp_path)
+
+    gaps = steam_identity.id_gaps(tree, MOD, modio_only=True)
+
+    assert len(gaps) == 1
+    assert "mod.io id" in gaps[0] and "6119768" in gaps[0]
+
+
+@needs_git
 def test_no_id_gap_for_a_mod_never_published(tmp_path):
     """Zero on both sides is a mod that is simply new, not a checkout that lost anything."""
     root, _ = _history(tmp_path, (0, 0))

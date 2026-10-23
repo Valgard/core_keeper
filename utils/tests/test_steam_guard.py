@@ -825,6 +825,37 @@ def test_cli_checkout_prints_the_commit_or_the_problems(repo):
     assert "Stray.cs" in dirty.stderr
 
 
+@needs_git
+def test_cli_modio_id_refuses_only_a_missing_modio_id(repo):
+    """`modio-id` exits 1 when main records a mod.io id the checkout lacks, and only then.
+
+    upload.sh runs it before anything reaches mod.io, in every mode: on modId 0
+    a normal publish has CLIPublishHelper call CreateModProfile and create a
+    second mod.io profile. A missing Workshop id is not its business — the
+    Steam preflight refuses that one, and on the normal path it must only skip
+    Steam, not stop the mod.io release.
+    """
+    modio = repo / "unity" / "Mod" / "Editor" / "Mod_modio.asset"
+    modio.parent.mkdir()
+    modio.write_text("MonoBehaviour:\n  modId: 6119768\n")
+    steam = repo / "unity" / "Mod" / "Mod_Steam.asset"
+    steam.write_text("MonoBehaviour:\n  fileId: 3790345467\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "record the ids")
+    env = {"MOD_NAME": "Mod"}
+    assert _cli("modio-id", str(repo), env=env).returncode == 0
+
+    steam.write_text("MonoBehaviour:\n  fileId: 0\n")
+    workshop_gap_only = _cli("modio-id", str(repo), env=env)
+    assert (workshop_gap_only.returncode, workshop_gap_only.stderr) == (0, "")
+
+    modio.write_text("MonoBehaviour:\n  modId: 0\n")
+    done = _cli("modio-id", str(repo), env=env)
+    assert done.returncode == 1
+    assert "6119768" in done.stderr and "SECOND mod.io profile" in done.stderr
+    assert "Workshop id" not in done.stderr
+
+
 def _cli_mod(tmp_path, ref_text):
     """A mod directory with a 100-byte build, a changelog and a reference file."""
     repo = tmp_path / "m"
