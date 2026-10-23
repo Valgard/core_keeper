@@ -702,16 +702,19 @@ PY
 
         # The item's size before the upload, for the comparison after it: Steam
         # reports the new size only some time after a submit, and a read that
-        # still returns this one means "not updated yet", not a verdict. Empty
-        # for an item that does not exist yet, or when Steam cannot be read.
-        # That is not "nothing to wait out": with no old size to recognise a
-        # lagging read by, the comparison uses every attempt and judges a
-        # wrong size from the last read only, and it never takes a read of 0
-        # for a size — no uploaded build is 0 bytes, so a 0 is a size Steam is
-        # not reporting yet (steam_guard.compare_after_upload). Not in a dry
-        # run, which sends
-        # nothing and so compares nothing. The read goes through
-        # `ck-workshop --read-item`, whose output shows up here.
+        # still returns this one means "not updated yet", not a verdict. Three
+        # answers reach steam_guard.py post-upload through CK_STEAM_SIZE_BEFORE:
+        # a number; nothing, for an item that does not exist yet; and
+        # `unreadable`, for an item that exists but whose size could not be read.
+        # With no old size to recognise a lagging read by, the comparison uses
+        # every attempt and never takes a read of 0 for a size (no uploaded
+        # build is 0 bytes, so a 0 is a size Steam is not reporting yet); a new
+        # item's wrong nonzero size is judged from the last read, and an
+        # existing item with an unreadable old size never ends as a mismatch,
+        # only as 12 (steam_guard.compare_after_upload). Not in a dry run, which
+        # sends nothing and so compares nothing. The read is the public Web
+        # API's `file_size` (steam_guard.steam_size); a hidden item is presumed
+        # invisible to it (unverified) and would read as unreadable.
         if [ "${PUBLISH_DRY_RUN:-}" != "1" ]; then
             echo "  Reading the Workshop item's current size, for the check after the upload..."
             CK_STEAM_SIZE_BEFORE="$(python3 "$UTILS_DIR/steam_guard.py" steam-size "$REPO_ROOT" || true)"

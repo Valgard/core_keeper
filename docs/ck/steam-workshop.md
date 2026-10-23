@@ -327,15 +327,18 @@ whose content is a folder has none: `SizeBytes` came back **0** for the public
 item Caveling Divining Rod (2026-10-24), whichever way it was read. The public
 Web API's `GetPublishedFileDetails` reports `file_size` for that same item as a
 string, `"80420"` — the content's byte total, equal to mod.io's
-`filesize_uncompressed` for the version published. Measured on that one item;
-the equality with mod.io was compared across all 16 mods here during the
-incident investigation.
+`filesize_uncompressed` for the version published. Everything here is one
+measurement on that one public item on 2026-10-24; the equality with mod.io was
+compared for every mod here during the incident investigation, but that
+comparison did not look at how the UGC query behaves on those items.
 
 So a check that asks "does Steam hold what mod.io holds" has to read the Web
-API. The query answers 0 for every folder-content item, and 0 is
-indistinguishable from "Steam has not reported a size yet". The Web API cannot
-see an item that is still hidden, which is what a freshly created one is: it
-answers `result` other than 1 until the item is made visible.
+API. The UGC query probably answers 0 for other folder-content items too —
+**unverified** beyond the one item — and a 0 is indistinguishable from "Steam
+has not reported a size yet". Whether the Web API can see an item that is still
+hidden, which is what a freshly created one is, is **unverified**: the
+expectation is a `result` other than 1 until the item is made visible, but no
+hidden item has been read.
 
 ## Attaching a child twice reports failure
 
