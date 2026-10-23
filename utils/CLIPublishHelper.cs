@@ -1268,6 +1268,8 @@ namespace CoreKeeperModUtils
             return null;
         }
 
+        private const int ReadTimeoutSeconds = 30;
+
         // One GET with the plugin's login: done(body, null) on success, done(null,
         // reason) otherwise. The token travels in a header only, so no reason built
         // here can contain it.
@@ -1283,6 +1285,8 @@ namespace CoreKeeperModUtils
                 request = UnityWebRequest.Get(url);
                 request.SetRequestHeader("Authorization", "Bearer " + token);
                 request.SetRequestHeader("Accept", "application/json");
+                // Unity sets no timeout: a stalled read after a finished release must end as an error, not in upload.sh's exit 124.
+                request.timeout = ReadTimeoutSeconds;
                 operation = request.SendWebRequest();
             }
             catch (Exception e)
@@ -1298,7 +1302,9 @@ namespace CoreKeeperModUtils
                 try
                 {
                     if (request.result != UnityWebRequest.Result.Success)
-                        problem = $"HTTP {request.responseCode}, {request.error}: {ModioReference.Excerpt(request.downloadHandler?.text)}";
+                        problem =
+                            $"HTTP {request.responseCode}, {request.error} (reads time out after {ReadTimeoutSeconds} s): "
+                            + ModioReference.Excerpt(request.downloadHandler?.text);
                     else
                         body = request.downloadHandler.text;
                 }
