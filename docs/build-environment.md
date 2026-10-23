@@ -130,6 +130,35 @@ recompiling would pass — which cannot happen through an edit, because the edit
 itself triggers the recompile. When the check fires, touch a source file by hand
 and build again.
 
+## A mod build reproduces byte for byte
+
+`upload.sh --steam-only` compares the size of the build it just made with the
+`filesize_uncompressed` mod.io holds for that version, and refuses on a
+mismatch. That is only sound if rebuilding a released commit gives the released
+bytes, so it was measured on 2026-10-23, in the Steam-only build mode:
+
+- **Same commit, same toolchain.** caveling-divining-rod's `main`, identical
+  in `unity/`, `localization/` and `CHANGELOG.md` to its 1.2.1 release, built
+  twice: 13 files and 80420 bytes each time, every file byte-identical — to
+  each other, to the folder that 1.2.1 was published from twelve days earlier,
+  and in total to mod.io's `filesize_uncompressed`.
+- **Across an SDK update.** sign-labels 1.0.0, published on 2026-10-01, rebuilt
+  from its tag after the SDK update of 2026-10-08 (`6753598`): 60624 bytes,
+  mod.io's figure for that modfile.
+
+Two conditions belong to the result. The recompile `touch` above is part of
+it: two map-markers-enhanced publish builds from 2026-10-07, made while one
+commit was the newest, differ — the earlier one lacks `Scripts/Generated/`,
+built before the `touch` existed. And a build from a git worktree needs that
+worktree's own `.envrc` (it is gitignored, so a new worktree has none): without
+it direnv loads the main checkout's, `LOC_OUT` points there, and
+`LocalizationGenerator` stops the build because the linked tree holds no
+generated localisation.
+
+Two mods and one SDK update are evidence, not a law. A game or SDK update that
+changes how bundles are written would show up as a refused `--steam-only` for
+an older release; the refusal says so and names the override.
+
 ## `Access token is unavailable` is noise, not a diagnosis
 
 ```
