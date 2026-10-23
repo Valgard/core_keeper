@@ -2,8 +2,9 @@
 // core_keeper/utils/CLIPublishHelper.cs — shared by every mod via a link.sh
 // symlink into <Mod>/Editor/. Mod identity from MOD_NAME (set in the mod's
 // .envrc). Builds the mod and drives the mod.io plugin to create/update the
-// profile and upload a modfile. mod.io calls are async, so upload.sh omits
-// -quit and this class calls EditorApplication.Exit on every path.
+// profile and upload a modfile — or, under PUBLISH_STEAM_ONLY, builds and
+// reads mod.io without writing to it. mod.io calls are async, so upload.sh
+// omits -quit and this class calls EditorApplication.Exit on every path.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -65,6 +66,16 @@ namespace CoreKeeperModUtils
                 if (_profileOnly && _changelogOnly)
                 {
                     Fail("--profile-only and --changelog-only are separate modes; pick one.");
+                    return;
+                }
+                // upload.sh refuses this combination too, but the two mod.io modes are
+                // checked before the Steam-only one below, so an inherited
+                // PUBLISH_PROFILE_ONLY would otherwise turn a run that promises to write
+                // nothing to mod.io into one that edits the profile and its tags.
+                var steamOnly = Environment.GetEnvironmentVariable("PUBLISH_STEAM_ONLY") == "1";
+                if (steamOnly && (_profileOnly || _changelogOnly))
+                {
+                    Fail("--steam-only writes nothing to mod.io, so it cannot run with --profile-only or --changelog-only.");
                     return;
                 }
                 // Both resolved rather than read raw, because Unity's working directory is not
@@ -139,60 +150,103 @@ namespace CoreKeeperModUtils
                     return;
                 }
 
-                // Regenerate native TextDataBlock loc assets from localization.yaml
-                // before the bundle build, mirroring CLIBuildHelper.Build — the
-                // publish path must never ship the stale Generated/ assets that
-                // happen to be on disk (that shipped 1.3.0 without the Iter-40
-                // tracker-tooltip terms). No-op when LOC_YAML/LOC_OUT are unset,
-                // and skipped above for --profile-only (no build). See the
-                // reference_ck_mod_loc_csv_persistence project memory.
-                LocalizationGenerator.GenerateFromEnv();
-
-                _buildDir = Path.Combine(Application.temporaryCachePath, Guid.NewGuid().ToString());
-                Directory.CreateDirectory(_buildDir);
-
-                // Reported so a later stage of the same run can publish THIS
-                // build rather than guessing where one might be. The Steam
-                // stage used to read MOD_INSTALL_PATH, which only build.sh
-                // ever writes — so it shipped whatever was last built locally,
-                // or nothing at all, while mod.io shipped this directory.
-                // Nothing depends on the file when the variable is unset.
-                var buildDirOut = Environment.GetEnvironmentVariable("CK_BUILD_DIR_OUT");
-                if (!string.IsNullOrEmpty(buildDirOut))
+                // Steam-only: the publish build, then a read of what mod.io holds for
+                // this mod — and no mod.io write of any kind. upload.sh --steam-only
+                // ships this build to the Workshop, so it has to be made exactly as a
+                // publish makes one (BuildInto is that shared step); the reference
+                // file is what utils/steam_guard.py compares it against.
+                //
+                // With CK_STEAM_OVERRIDE the folder comes from outside and nothing is
+                // built, but Unity still runs for the read: it is made with the
+                // plugin's login, see WriteModioReference.
+                if (steamOnly)
                 {
-                    File.WriteAllText(buildDirOut, _buildDir);
+                    // Read, never create. ResolveSettingsAndPublish creates a missing
+                    // <Mod>_modio.asset, which is right before a first mod.io release
+                    // and wrong here: this run releases nothing on mod.io, so the asset
+                    // would record a mod.io identity that does not exist, and it would
+                    // appear as a new untracked file in the mod repo. Missing and
+                    // modId 0 mean the same thing — not on mod.io.
+                    var modIoAsset = AssetDatabase.LoadAssetAtPath<ModSettings>(_modIoSettingsPath);
+                    var steamModId = modIoAsset != null ? modIoAsset.modId : 0;
+                    var useOverride = Environment.GetEnvironmentVariable("CK_STEAM_OVERRIDE") == "1";
+                    Debug.Log(
+                        "[CLIPublishHelper] steam-only: "
+                            + (useOverride ? "no build (CK_STEAM_OVERRIDE supplies the content)" : "building")
+                            + $", then reading mod.io for modId {steamModId}. Nothing is written to mod.io."
+                    );
+                    if (useOverride)
+                        WriteModioReference(steamModId, Succeed);
+                    else
+                        BuildInto(settings, () => WriteModioReference(steamModId, Succeed));
+                    return;
                 }
 
-                ModBuilder.BuildMod(
-                    settings,
-                    _buildDir,
-                    buildOk =>
-                    {
-                        if (!buildOk)
-                        {
-                            Fail("Build failed");
-                            return;
-                        }
-                        // Before anything leaves the machine: a modfile cannot be taken back.
-                        var assembly = Path.Combine(Application.dataPath, "..", "Library", "ScriptAssemblies", _modName + ".dll");
-                        if (!DotsCodegen.Check(assembly, _buildDir, out var codegen, out var skipped))
-                        {
-                            Fail(codegen);
-                            return;
-                        }
-                        if (skipped)
-                            Debug.LogWarning($"[CLIPublishHelper] {codegen}");
-                        else
-                            Debug.Log($"[CLIPublishHelper] {codegen}");
-                        OnBuilt();
-                    },
-                    installInSubDirectory: false
-                );
+                BuildInto(settings, OnBuilt);
             }
             catch (Exception e)
             {
                 Fail($"Exception: {e}");
             }
+        }
+
+        /// <summary>
+        /// The publish build, shared by the normal publish and --steam-only so that both
+        /// ship a folder made the same way. Calls <paramref name="onBuilt"/> once the build
+        /// has passed the DOTS codegen check; any failure ends the run through Fail.
+        /// </summary>
+        private static void BuildInto(ModBuilderSettings settings, Action onBuilt)
+        {
+            // Regenerate native TextDataBlock loc assets from localization.yaml
+            // before the bundle build, mirroring CLIBuildHelper.Build — the
+            // publish path must never ship the stale Generated/ assets that
+            // happen to be on disk (that shipped 1.3.0 without the Iter-40
+            // tracker-tooltip terms). No-op when LOC_YAML/LOC_OUT are unset,
+            // and never reached by --profile-only or --changelog-only, which do
+            // not build. See the reference_ck_mod_loc_csv_persistence project memory.
+            LocalizationGenerator.GenerateFromEnv();
+
+            _buildDir = Path.Combine(Application.temporaryCachePath, Guid.NewGuid().ToString());
+            Directory.CreateDirectory(_buildDir);
+
+            // Reported so a later stage of the same run can publish THIS
+            // build rather than guessing where one might be. The Steam
+            // stage used to read MOD_INSTALL_PATH, which only build.sh
+            // ever writes — so it shipped whatever was last built locally,
+            // or nothing at all, while mod.io shipped this directory.
+            // Nothing depends on the file when the variable is unset.
+            var buildDirOut = Environment.GetEnvironmentVariable("CK_BUILD_DIR_OUT");
+            if (!string.IsNullOrEmpty(buildDirOut))
+            {
+                File.WriteAllText(buildDirOut, _buildDir);
+            }
+
+            ModBuilder.BuildMod(
+                settings,
+                _buildDir,
+                buildOk =>
+                {
+                    if (!buildOk)
+                    {
+                        Fail("Build failed");
+                        return;
+                    }
+                    // Before anything leaves the machine: neither a modfile nor a
+                    // Workshop update can be taken back.
+                    var assembly = Path.Combine(Application.dataPath, "..", "Library", "ScriptAssemblies", _modName + ".dll");
+                    if (!DotsCodegen.Check(assembly, _buildDir, out var codegen, out var skipped))
+                    {
+                        Fail(codegen);
+                        return;
+                    }
+                    if (skipped)
+                        Debug.LogWarning($"[CLIPublishHelper] {codegen}");
+                    else
+                        Debug.Log($"[CLIPublishHelper] {codegen}");
+                    onBuilt();
+                },
+                installInSubDirectory: false
+            );
         }
 
         /// <summary>
@@ -1073,6 +1127,193 @@ namespace CoreKeeperModUtils
             return null;
         }
 
+        // ---- the mod.io reference: what mod.io holds, for the Steam guard ----
+
+        // utils/steam_guard.py checks that the folder going to the Workshop matches
+        // what mod.io serves for the same version, and this file is where it learns
+        // what that is. Both modes write it: the normal publish after its upload,
+        // --steam-only after its build (or, with CK_STEAM_OVERRIDE, without one).
+        // The shapes are ModioReference's, at the end of this file.
+        //
+        // Read with the plugin's OAuth token rather than the public game key that
+        // UpdateChangelogOnly reads with: a first release's profile stays hidden until
+        // its owner makes it visible, and the owner's login is what may read it then.
+        //
+        // It never calls Fail. On the normal path the mod.io release has already
+        // happened, and failing now would undo nothing — the reason the Steam stage
+        // never fails it either. On --steam-only the decision belongs to the guard,
+        // which refuses on "error" and can say why, where an exit code could not. So
+        // every failure becomes the error shape, and the run carries on.
+        private static void WriteModioReference(long modId, Action then)
+        {
+            var path = Environment.GetEnvironmentVariable("CK_MODIO_REF_OUT");
+            if (string.IsNullOrEmpty(path))
+            {
+                then();
+                return;
+            }
+
+            void Finish(string json)
+            {
+                try
+                {
+                    File.WriteAllText(path, json);
+                    Debug.Log($"[CLIPublishHelper] mod.io reference for modId {modId} written to {path}.");
+                }
+                catch (Exception e)
+                {
+                    // The file stays as upload.sh created it — empty, which is not
+                    // JSON, so no reader can take it for an answer from mod.io.
+                    Debug.LogError($"[CLIPublishHelper] could not write the mod.io reference to {path}: {e.Message}");
+                }
+                then();
+            }
+
+            void FinishWithError(string reason)
+            {
+                Debug.LogWarning($"[CLIPublishHelper] mod.io reference for modId {modId}: {reason}");
+                Finish(ModioReference.Error(modId, reason));
+            }
+
+            // Not on mod.io by the repository's own record, so there is nothing to ask.
+            if (modId == 0)
+            {
+                Finish(ModioReference.NotOnModio());
+                return;
+            }
+
+            string modUrl = null;
+            string token = null;
+            string problem;
+            try
+            {
+                problem = PrepareModioRead(modId, out modUrl, out token);
+            }
+            catch (Exception e)
+            {
+                problem = $"could not prepare the mod.io read: {e.Message}";
+            }
+            if (problem != null)
+            {
+                FinishWithError(problem);
+                return;
+            }
+
+            GetAuthenticated(
+                modUrl,
+                token,
+                (modBody, modProblem) =>
+                {
+                    if (modProblem != null)
+                    {
+                        FinishWithError($"reading the mod failed: {modProblem}");
+                        return;
+                    }
+                    // Newest first and the API's largest page: the guard looks a version
+                    // up in this list, and a mod here has far fewer modfiles than that.
+                    GetAuthenticated(
+                        $"{modUrl}/files?_sort=-date_added&_limit=100",
+                        token,
+                        (filesBody, filesProblem) =>
+                        {
+                            if (filesProblem != null)
+                            {
+                                FinishWithError($"reading its modfiles failed: {filesProblem}");
+                                return;
+                            }
+                            string json;
+                            string invalid;
+                            try
+                            {
+                                json = ModioReference.Read(modId, modBody, filesBody, out invalid);
+                            }
+                            catch (Exception e)
+                            {
+                                // Not expected — the composition is pure and tested — but this
+                                // runs in a web request's callback, where an escaping exception
+                                // would end nothing and leave the run waiting for its timeout.
+                                invalid = $"could not compose the reference: {e.Message}";
+                                json = ModioReference.Error(modId, invalid);
+                            }
+                            if (invalid != null)
+                                Debug.LogWarning($"[CLIPublishHelper] mod.io reference for modId {modId}: {invalid}");
+                            Finish(json);
+                        }
+                    );
+                }
+            );
+        }
+
+        // The endpoint and the token for WriteModioReference, or the reason there are
+        // none. --steam-only reaches this without OnBuilt, so the plugin may not be
+        // initialised yet — and InitializeForUser is what loads both the server
+        // settings and the persisted login.
+        private static string PrepareModioRead(long modId, out string modUrl, out string token)
+        {
+            modUrl = null;
+            token = null;
+            if (!ModIOUnity.IsInitialized())
+            {
+                var init = ModIOUnity.InitializeForUser("PugModSDKUser");
+                if (!init.Succeeded())
+                    return $"mod.io init failed: {init.message}";
+            }
+            var server = ModIO.Implementation.Settings.server;
+            if (string.IsNullOrEmpty(server.serverURL))
+                return "mod.io server settings are empty — cannot resolve the API endpoint";
+            token = ReadOAuthToken();
+            if (string.IsNullOrEmpty(token))
+                return "no OAuth token — log in via the SDK window";
+            modUrl = $"{server.serverURL}/games/{server.gameId}/mods/{modId}";
+            return null;
+        }
+
+        // One GET with the plugin's login: done(body, null) on success, done(null,
+        // reason) otherwise. The token travels in a header only, so no reason built
+        // here can contain it.
+        private static void GetAuthenticated(string url, string token, Action<string, string> done)
+        {
+            // Sent inside the try and subscribed outside it: an exception here must
+            // become a reason rather than reach Publish's catch, which would Fail, and
+            // done must not run twice if a completed operation calls it at once.
+            UnityWebRequest request = null;
+            UnityWebRequestAsyncOperation operation;
+            try
+            {
+                request = UnityWebRequest.Get(url);
+                request.SetRequestHeader("Authorization", "Bearer " + token);
+                request.SetRequestHeader("Accept", "application/json");
+                operation = request.SendWebRequest();
+            }
+            catch (Exception e)
+            {
+                request?.Dispose();
+                done(null, $"could not send the request: {e.Message}");
+                return;
+            }
+            operation.completed += _ =>
+            {
+                string body = null;
+                string problem = null;
+                try
+                {
+                    if (request.result != UnityWebRequest.Result.Success)
+                        problem = $"HTTP {request.responseCode}, {request.error}: {ModioReference.Excerpt(request.downloadHandler?.text)}";
+                    else
+                        body = request.downloadHandler.text;
+                }
+                catch (Exception e)
+                {
+                    problem = $"could not read the response: {e.Message}";
+                }
+                finally
+                {
+                    request.Dispose();
+                }
+                done(body, problem);
+            };
+        }
+
         private static void Upload(ModSettings modIo)
         {
             var file = new ModfileDetails
@@ -1092,7 +1333,7 @@ namespace CoreKeeperModUtils
                         return;
                     }
                     Debug.Log($"[CLIPublishHelper] Uploaded {_modName} v{_version}. " + "Review and set the profile visible on mod.io.");
-                    Succeed();
+                    WriteModioReference(modIo.modId, Succeed);
                 }
             );
         }
@@ -1394,6 +1635,7 @@ namespace CoreKeeperModUtils
 {
     using System;
     using System.Collections.Generic;
+    using System.Globalization;
     using System.IO;
 
     // Whether a build is about to ship without the DOTS codegen its systems need.
@@ -1497,5 +1739,262 @@ namespace CoreKeeperModUtils
                 version += ".0";
             return version;
         }
+    }
+
+    // The JSON that CK_MODIO_REF_OUT receives — what mod.io holds for a mod — in
+    // one of three shapes:
+    //
+    //   {"modId": 0}                                 the repository records no mod.io id
+    //   {"modId": N, "mod": {…}, "files": {…}}       mod.io's two response bodies, verbatim
+    //   {"modId": N, "error": "…"}                   the read failed, and why
+    //
+    // Its reader, utils/steam_guard.py, refuses on "error", so the one promise it
+    // depends on is that the file parses whatever mod.io answered. The bodies are
+    // spliced in as they came, which is why they are checked first: a body that is
+    // not a JSON object turns the whole reference into the error shape instead of
+    // into a file nothing can parse.
+    internal static class ModioReference
+    {
+        // Deep enough for any mod.io response by a wide margin; the limit only keeps a
+        // pathological body from exhausting the stack.
+        private const int MaxDepth = 64;
+
+        public static string NotOnModio() => "{\"modId\": 0}";
+
+        public static string Error(long modId, string reason) => $"{{\"modId\": {Id(modId)}, \"error\": {Quote(reason)}}}";
+
+        // The read shape, or the error shape when a body is not a JSON object;
+        // `invalid` then says which and why, and is null otherwise.
+        public static string Read(long modId, string modBody, string filesBody, out string invalid)
+        {
+            invalid = null;
+            if (!IsJsonObject(modBody))
+                invalid = $"mod.io's answer for the mod is not a JSON object: {Excerpt(modBody)}";
+            else if (!IsJsonObject(filesBody))
+                invalid = $"mod.io's answer for the modfiles is not a JSON object: {Excerpt(filesBody)}";
+            if (invalid != null)
+                return Error(modId, invalid);
+            return $"{{\"modId\": {Id(modId)}, \"mod\": {modBody.Trim()}, \"files\": {filesBody.Trim()}}}";
+        }
+
+        // A JSON string literal. Everything outside printable ASCII is escaped, so the
+        // parts written here read the same under any encoding the reader assumes.
+        public static string Quote(string text)
+        {
+            var sb = new System.Text.StringBuilder("\"");
+            foreach (var c in text ?? string.Empty)
+            {
+                switch (c)
+                {
+                    case '"':
+                        sb.Append("\\\"");
+                        break;
+                    case '\\':
+                        sb.Append("\\\\");
+                        break;
+                    case '\n':
+                        sb.Append("\\n");
+                        break;
+                    case '\r':
+                        sb.Append("\\r");
+                        break;
+                    case '\t':
+                        sb.Append("\\t");
+                        break;
+                    default:
+                        if (c < ' ' || c > '~')
+                            sb.Append("\\u").Append(((int)c).ToString("x4", CultureInfo.InvariantCulture));
+                        else
+                            sb.Append(c);
+                        break;
+                }
+            }
+            return sb.Append('"').ToString();
+        }
+
+        // The start of a response body, for a message; mod.io explains a refusal there.
+        public static string Excerpt(string body, int max = 300)
+        {
+            var text = (body ?? string.Empty).Trim();
+            if (text.Length == 0)
+                return "(empty body)";
+            return text.Length <= max ? text : text.Substring(0, max) + "…";
+        }
+
+        // Strict RFC 8259, top level an object. Nothing is built from the result —
+        // it only decides whether the text can be spliced into the reference as is.
+        public static bool IsJsonObject(string text)
+        {
+            if (text == null)
+                return false;
+            var i = SkipWhitespace(text, 0);
+            if (i >= text.Length || text[i] != '{' || !ScanValue(text, ref i, 0))
+                return false;
+            return SkipWhitespace(text, i) == text.Length;
+        }
+
+        private static string Id(long modId) => modId.ToString(CultureInfo.InvariantCulture);
+
+        private static int SkipWhitespace(string s, int i)
+        {
+            while (i < s.Length && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r'))
+                i++;
+            return i;
+        }
+
+        private static bool ScanValue(string s, ref int i, int depth)
+        {
+            i = SkipWhitespace(s, i);
+            if (i >= s.Length)
+                return false;
+            switch (s[i])
+            {
+                case '{':
+                    return ScanContainer(s, ref i, depth, '}', keyed: true);
+                case '[':
+                    return ScanContainer(s, ref i, depth, ']', keyed: false);
+                case '"':
+                    return ScanString(s, ref i);
+                case 't':
+                    return ScanLiteral(s, ref i, "true");
+                case 'f':
+                    return ScanLiteral(s, ref i, "false");
+                case 'n':
+                    return ScanLiteral(s, ref i, "null");
+                default:
+                    return ScanNumber(s, ref i);
+            }
+        }
+
+        // An object (keyed) or an array, from its opening bracket at s[i].
+        private static bool ScanContainer(string s, ref int i, int depth, char close, bool keyed)
+        {
+            if (depth >= MaxDepth)
+                return false;
+            i = SkipWhitespace(s, i + 1);
+            if (i < s.Length && s[i] == close)
+            {
+                i++;
+                return true;
+            }
+            while (true)
+            {
+                if (keyed)
+                {
+                    i = SkipWhitespace(s, i);
+                    if (i >= s.Length || s[i] != '"' || !ScanString(s, ref i))
+                        return false;
+                    i = SkipWhitespace(s, i);
+                    if (i >= s.Length || s[i] != ':')
+                        return false;
+                    i++;
+                }
+                if (!ScanValue(s, ref i, depth + 1))
+                    return false;
+                i = SkipWhitespace(s, i);
+                if (i >= s.Length)
+                    return false;
+                if (s[i] == close)
+                {
+                    i++;
+                    return true;
+                }
+                if (s[i] != ',')
+                    return false;
+                i++;
+            }
+        }
+
+        // From the opening quote at s[i] to just past the closing one.
+        private static bool ScanString(string s, ref int i)
+        {
+            for (i++; i < s.Length; i++)
+            {
+                var c = s[i];
+                if (c == '"')
+                {
+                    i++;
+                    return true;
+                }
+                if (c < ' ')
+                    return false;
+                if (c != '\\')
+                    continue;
+                if (++i >= s.Length)
+                    return false;
+                switch (s[i])
+                {
+                    case '"':
+                    case '\\':
+                    case '/':
+                    case 'b':
+                    case 'f':
+                    case 'n':
+                    case 'r':
+                    case 't':
+                        break;
+                    case 'u':
+                        if (i + 4 >= s.Length)
+                            return false;
+                        for (var k = 1; k <= 4; k++)
+                            if (!IsHexDigit(s[i + k]))
+                                return false;
+                        i += 4;
+                        break;
+                    default:
+                        return false;
+                }
+            }
+            return false;
+        }
+
+        private static bool ScanLiteral(string s, ref int i, string word)
+        {
+            if (i + word.Length > s.Length || string.CompareOrdinal(s, i, word, 0, word.Length) != 0)
+                return false;
+            i += word.Length;
+            return true;
+        }
+
+        private static bool ScanNumber(string s, ref int i)
+        {
+            if (s[i] == '-')
+                i++;
+            if (i >= s.Length)
+                return false;
+            if (s[i] == '0')
+                i++;
+            else if (s[i] >= '1' && s[i] <= '9')
+                i = SkipDigits(s, i);
+            else
+                return false;
+            if (i < s.Length && s[i] == '.')
+            {
+                var fraction = ++i;
+                i = SkipDigits(s, i);
+                if (i == fraction)
+                    return false;
+            }
+            if (i < s.Length && (s[i] == 'e' || s[i] == 'E'))
+            {
+                i++;
+                if (i < s.Length && (s[i] == '+' || s[i] == '-'))
+                    i++;
+                var exponent = i;
+                i = SkipDigits(s, i);
+                if (i == exponent)
+                    return false;
+            }
+            return true;
+        }
+
+        private static int SkipDigits(string s, int i)
+        {
+            while (i < s.Length && s[i] >= '0' && s[i] <= '9')
+                i++;
+            return i;
+        }
+
+        private static bool IsHexDigit(char c) => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
     }
 }
