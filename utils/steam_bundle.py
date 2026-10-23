@@ -370,6 +370,14 @@ def check_prerequisites(repo_root: Path, env: Mapping[str, str]) -> list[dict] |
 
     steam_identity.ensure_recognizable(steam_identity.asset_path(repo_root, mod_name))
 
+    # Here, in the preflight, so that a checkout missing an id main records is
+    # caught before anything is sent: the normal publish then skips Steam and
+    # leaves its mod.io release alone, and --steam-only aborts. Found later, a
+    # missing Workshop id would already have created a second item.
+    gaps = steam_identity.id_gaps(repo_root, mod_name)
+    if gaps:
+        raise ValueError("\n".join(gaps))
+
     return resolve_dependencies(
         parse_dependencies(asset_text),
         Path(env["STEAM_DEPS_MAP"]) if env.get("STEAM_DEPS_MAP") else None,

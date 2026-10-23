@@ -1,0 +1,378 @@
+"""Decide whether a Steam publish may go out as the release it names.
+
+The incident this exists for: `upload.sh --steam-only` uploaded whatever build
+had last been left in a shared folder, labelled with the checkout's version.
+Nothing failed and nothing said so — the Workshop simply served other content
+than mod.io under the same version. So every way a run can publish something
+other than the release it names gets a rule here, and each refusal says what to
+do about it:
+
+- the checkout: uncommitted changes under `unity/`, `localization/` or to
+  `CHANGELOG.md`, or notes under `## [Unreleased]`, mean the build is not the
+  release its version label claims (`checkout_problems`);
+- the content against mod.io: the version must be on mod.io and live there,
+  and the folder must have the size mod.io serves for it; an override folder is
+  accepted only on those terms and never from `MOD_INSTALL_PATH`
+  (`decide_pre_upload`).
+
+The ids a checkout may be missing are `steam_identity.id_gaps`, because the
+Steam preflight in `steam_bundle` needs them too and must not import this.
+
+Pure apart from asking git and the file system, and kept apart from
+`upload.sh` for the reason `steam_result.py` was moved out of it: a shell
+script cannot be handed a fixture, and these are exactly the decisions a test
+has to be able to put every case to. What mod.io holds arrives as the reference
+file Unity writes (`CLIPublishHelper`, `ModioReference`), read here and never
+fetched, so nothing in this module talks to mod.io or Steam.
+"""
+
+import json
+import os
+import stat
+import subprocess
+from pathlib import Path
+from typing import NamedTuple
+
+import steam_bundle
+import steam_identity
+
+# upload.sh and ck-workshop share one exit-code space; ck-workshop's header
+# names 10 as its own next code, so the guard's two start past it.
+EXIT_CONTENT_MISMATCH = 11  # Steam's content does not match mod.io
+EXIT_UNVERIFIED = 12  # the comparison could not be made
+
+# D3, verbatim but for one flag: `git status --porcelain -- unity localization
+# CHANGELOG.md` must print nothing. Untracked files count — ModBuilder collects
+# by folder, not by git status, so a stray file under unity/ ships — and
+# ignored ones do not: those are the link helpers, .DS_Store and generated
+# output that every checkout carries. `--untracked-files=normal` pins the first
+# half: `status.showUntrackedFiles = no` in anyone's config would otherwise
+# hide them, and git says nothing when it does.
+D3_PATHS = ("unity", "localization", "CHANGELOG.md")
+
+HIDDEN_HINT = "if the profile is still hidden, make it visible on mod.io and re-run"
+
+
+class Verdict(NamedTuple):
+    """Whether the run may publish, and the sentence the operator reads either way."""
+
+    proceed: bool
+    message: str
+
+
+def dirty_paths(repo_root: Path) -> list[str]:
+    """The porcelain lines of D3's `git status` — empty for a clean checkout.
+
+    Raises RuntimeError when git cannot answer: an unanswered D3 is not a
+    clean one, and turning it into an empty list would pass exactly the
+    checkout this check exists to stop.
+    """
+    try:
+        completed = steam_identity.run_git(
+            repo_root, "status", "--porcelain", "--untracked-files=normal", "--", *D3_PATHS
+        )
+    except (OSError, subprocess.SubprocessError) as err:
+        raise RuntimeError(f"git could not be run: {err}") from err
+    if completed.returncode != 0:
+        raise RuntimeError(completed.stderr.strip() or f"git exited {completed.returncode}")
+    return [line for line in completed.stdout.splitlines() if line.strip()]
+
+
+def checkout_problems(repo_root: Path) -> list[str]:
+    """Everything that makes this checkout something other than the release it is labelled as.
+
+    One message per dirty path, so a run lists all of them at once rather
+    than one per attempt; one more for notes under `## [Unreleased]`, which
+    say the repository is past its newest release even when every change is
+    committed. An empty `## [Unreleased]` heading kept by habit is no problem.
+    """
+    problems = []
+    try:
+        lines = dirty_paths(repo_root)
+    except RuntimeError as err:
+        problems.append(
+            f"could not ask git whether {', '.join(D3_PATHS)} are committed in {repo_root} "
+            f"({err}) — refusing rather than publishing a build nobody checked."
+        )
+    else:
+        problems.extend(
+            f"uncommitted: {line} — commit it or remove it first. This run builds what is "
+            "on disk and labels it with the checkout's version, so the two have to agree."
+            for line in lines
+        )
+
+    try:
+        changelog = (repo_root / "CHANGELOG.md").read_text(encoding="utf-8")
+    except (OSError, ValueError) as err:
+        problems.append(
+            f"CHANGELOG.md could not be read ({err}) — it supplies the version this build "
+            "would be labelled with."
+        )
+    else:
+        if steam_bundle.unreleased_notes(changelog):
+            problems.append(
+                "CHANGELOG.md has notes under [Unreleased] — this checkout is past its newest "
+                "release, so its build is not the release it would be labelled as. Release it "
+                "first (upload.sh without --steam-only), or run --steam-only from the commit "
+                "of the release."
+            )
+    return problems
+
+
+def describe_commit(repo_root: Path) -> str:
+    """The commit a run builds from, for the log: hash, branch or "detached HEAD", and the path.
+
+    The path is the checkout's own, resolved — a linked worktree's, not the
+    main checkout's — because which checkout the build came from is what the
+    incident left nobody able to say. It refuses nothing, so a git failure
+    becomes a description that says so rather than an exception.
+    """
+    where = Path(repo_root).resolve()
+    try:
+        head = steam_identity.run_git(repo_root, "rev-parse", "--short", "HEAD")
+        branch = steam_identity.run_git(repo_root, "symbolic-ref", "--short", "-q", "HEAD")
+    except (OSError, subprocess.SubprocessError) as err:
+        return f"unknown commit — git could not be run: {err} ({where})"
+    if head.returncode != 0:
+        return f"unknown commit — {head.stderr.strip() or 'git rev-parse failed'} ({where})"
+    short = head.stdout.strip()
+    if branch.returncode == 0 and branch.stdout.strip():
+        return f"{short} on {branch.stdout.strip()} ({where})"
+    return f"{short}, detached HEAD ({where})"
+
+
+def folder_size(path: Path) -> int:
+    """The byte total of the regular files under `path`: what Steam and mod.io both report.
+
+    Measured: Steam's `file_size`, mod.io's `filesize_uncompressed` and this
+    total agree for the folder a mod was published from. Symlinks inside are
+    neither counted nor followed — a link is not content the upload carries as
+    such. `path` itself is followed when it is one, since that is the folder
+    the caller named. A missing folder raises rather than measuring 0, and so
+    does an unreadable subfolder: a size short by a subtree is a wrong size.
+    """
+    if not Path(path).is_dir():
+        raise FileNotFoundError(f"no content folder at {path}")
+
+    def _raise(err: OSError) -> None:
+        raise err
+
+    total = 0
+    for directory, _, files in os.walk(path, onerror=_raise):
+        for name in files:
+            info = os.lstat(os.path.join(directory, name))
+            if stat.S_ISREG(info.st_mode):
+                total += info.st_size
+    return total
+
+
+def load_reference(path: Path) -> dict:
+    """The mod.io reference Unity wrote, or the error shape when there is nothing usable in it.
+
+    Unity writes one of three shapes (see `ModioReference` in
+    CLIPublishHelper.cs). What arrives here can also be an empty file — upload.sh
+    creates it up front, and a Unity run that crashed or timed out never fills
+    it — or something unparsable. Those become `{"modId": None, "error": …}`,
+    which `decide_pre_upload` refuses with the reason, instead of an exception
+    that ends the run without one. Read as UTF-8: mod.io's bodies are, whatever
+    the locale says.
+    """
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except (OSError, ValueError) as err:
+        return {"modId": None, "error": f"{path} could not be read: {err}"}
+    if not text.strip():
+        return {
+            "modId": None,
+            "error": f"{path} is empty — the Unity run ended before it recorded what mod.io holds",
+        }
+    try:
+        data = json.loads(text)
+    except ValueError as err:
+        return {"modId": None, "error": f"{path} is not JSON: {err}"}
+    if not isinstance(data, dict):
+        return {"modId": None, "error": f"{path} does not hold a JSON object"}
+    return data
+
+
+def live_modfile(ref: dict) -> dict | None:
+    """The modfile mod.io serves today — the profile's `modfile` — or None when it has none."""
+    mod = ref.get("mod") if isinstance(ref, dict) else None
+    modfile = mod.get("modfile") if isinstance(mod, dict) else None
+    return modfile if isinstance(modfile, dict) and modfile.get("id") else None
+
+
+def _modfiles(ref: dict) -> list | None:
+    """The reference's modfile list, or None when the reference has none to give."""
+    files = ref.get("files") if isinstance(ref, dict) else None
+    data = files.get("data") if isinstance(files, dict) else None
+    return data if isinstance(data, list) else None
+
+
+def _whole_number(value: object) -> bool:
+    """An int that came from JSON as a number — not a bool, which Python counts as one."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def modfile_for_version(ref: dict, version: str) -> dict | None:
+    """The newest upload of `version`, by `date_added`, or None when mod.io has none.
+
+    One version can be uploaded twice; the later upload is the one that
+    replaced the earlier, so it is the one that counts.
+    """
+    candidates = [
+        entry
+        for entry in _modfiles(ref) or []
+        if isinstance(entry, dict) and entry.get("version") == version
+    ]
+    return max(
+        candidates,
+        key=lambda entry: tuple(
+            entry.get(key) if _whole_number(entry.get(key)) else 0 for key in ("date_added", "id")
+        ),
+        default=None,
+    )
+
+
+def _inside(path: Path, root: Path) -> bool:
+    """Whether `path` is `root` or lies under it, however either was spelled.
+
+    Both are resolved first — relative, a trailing slash, `..`, a symlink —
+    and then compared by component, so `install-2` is not inside `install`.
+    resolve() keeps the case that was typed, though, and macOS's default
+    volume is case-insensitive, so each existing ancestor is also asked
+    whether it IS `root` on disk.
+    """
+    path, root = Path(path).resolve(), Path(root).resolve()
+    if path.is_relative_to(root):
+        return True
+    if not root.exists():
+        return False
+    for candidate in (path, *path.parents):
+        try:
+            if candidate.exists() and os.path.samefile(candidate, root):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def _unreadable(why: str) -> Verdict:
+    """The fail-closed refusal for a reference that does not say what mod.io holds."""
+    return Verdict(
+        False,
+        f"the mod.io reference could not be read ({why}) — without it this content cannot be "
+        f"compared with mod.io, so nothing is sent. Re-run once mod.io answers; {HIDDEN_HINT}.",
+    )
+
+
+def decide_pre_upload(
+    *,
+    version: str,
+    ref: dict,
+    content: Path,
+    content_size: int,
+    override: bool,
+    install_path: Path | None,
+) -> Verdict:
+    """Whether `content` may go to Steam as `version`, judged against what mod.io serves.
+
+    The rules, in order — the first that applies decides:
+
+    1. An override inside MOD_INSTALL_PATH is refused, whatever its size: that
+       folder holds whichever build was left there last.
+    2. A mod not on mod.io (`modId` 0) proceeds uncompared, and says so; an
+       override for it is refused, since nothing can vouch for one.
+    3. A reference that records a failed read — or, Ruling R4, is not the
+       shape a successful one has — is refused: fail closed.
+    4. A version mod.io does not have is refused (D7): mod.io comes first.
+    5. A version mod.io has but no longer serves is refused: the checkout is
+       behind it.
+    6. A size other than the live modfile's is refused; for a build, the
+       refusal names the toolchain as the likely cause and the override as the
+       repair, since builds of one commit reproduce byte for byte.
+    7. Otherwise the content matches mod.io and proceeds.
+
+    `content_size` is passed in rather than measured here so that the rules
+    stay a function of their inputs; `folder_size` is the measure.
+    """
+    if override and install_path is not None and _inside(content, install_path):
+        return Verdict(
+            False,
+            f"{content} lies inside MOD_INSTALL_PATH ({install_path}) — MOD_INSTALL_PATH is "
+            "never a source: it holds whichever build was left there last, whatever its size. "
+            "Point CK_STEAM_CONTENT at the modfile downloaded from mod.io instead.",
+        )
+
+    if not isinstance(ref, dict) or "modId" not in ref:
+        return _unreadable("it records no modId")
+    mod_id = ref["modId"]
+    if _whole_number(mod_id) and mod_id == 0:
+        if override:
+            return Verdict(
+                False,
+                "a mod not on mod.io has no override: CK_STEAM_CONTENT is accepted only when "
+                "mod.io's modfile of this version can vouch for it. Unset it, and --steam-only "
+                "builds this checkout instead.",
+            )
+        return Verdict(
+            True,
+            "not on mod.io — no comparison: the repository records no mod.io id, so there is "
+            "no modfile to check this build against.",
+        )
+
+    if "error" in ref:
+        return _unreadable(f"reading mod.io failed: {ref['error']}")
+
+    modfiles = _modfiles(ref)
+    if modfiles is None:
+        return _unreadable("it holds no modfile list")
+    # Kept as strings only, and counted against the list: a modfile without a
+    # version — or with a number where mod.io writes a string — is a reference
+    # this guard cannot read, and the join below must never meet one.
+    versions = [
+        entry["version"]
+        for entry in modfiles
+        if isinstance(entry, dict) and isinstance(entry.get("version"), str)
+    ]
+    if len(versions) != len(modfiles):
+        return _unreadable("a modfile in it has no version")
+    if version not in versions:
+        known = ", ".join(dict.fromkeys(versions)) or "none"
+        return Verdict(
+            False,
+            f"version {version} is not on mod.io (it has: {known}) — publish to mod.io first "
+            "(upload.sh without --steam-only). A mod on mod.io does not run ahead of it on Steam.",
+        )
+
+    live = live_modfile(ref)
+    if live is None:
+        return _unreadable("mod.io reports no live modfile")
+    live_version = live.get("version")
+    expected = live.get("filesize_uncompressed")
+    if not isinstance(live_version, str) or not _whole_number(expected):
+        return _unreadable("the live modfile carries no version or no size")
+    if live_version != version:
+        return Verdict(
+            False,
+            f"mod.io's live version is {live_version}; this checkout is behind it (its "
+            f"CHANGELOG.md names {version}). Run from a checkout of {live_version}.",
+        )
+
+    if content_size != expected:
+        if override:
+            return Verdict(
+                False,
+                f"the folder does not match what mod.io serves: {content} holds "
+                f"{content_size} B, mod.io's {live_version} is {expected} B. Download that "
+                "modfile again and point CK_STEAM_CONTENT at it.",
+            )
+        return Verdict(
+            False,
+            f"this build ({content_size} B) differs from mod.io's {live_version} "
+            f"({expected} B); after an SDK or game-asset update a rebuild can differ — repair "
+            "with the override: download the modfile, "
+            "`CK_STEAM_CONTENT=<dir> upload.sh --steam-only`.",
+        )
+
+    return Verdict(True, f"matches mod.io ({content_size} bytes)")

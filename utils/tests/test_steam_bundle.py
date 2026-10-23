@@ -7,6 +7,8 @@ module exists to make impossible.
 """
 
 import re
+import shutil
+import subprocess
 
 import new_mod
 import pytest
@@ -443,6 +445,32 @@ def test_check_prerequisites_reports_an_unrecognized_identity_asset(tmp_path):
     identity.write_text("this is not a Steam asset at all\n")
 
     with pytest.raises(ValueError, match="fileId"):
+        steam_bundle.check_prerequisites(repo, _preflight_env())
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+def test_check_prerequisites_refuses_a_checkout_missing_an_id_main_has(tmp_path):
+    """A Workshop id that main records and this checkout lacks stops the preflight.
+
+    Here rather than later in the Steam stage, so the normal publish skips
+    Steam (exit 8) before its mod.io release instead of creating a second
+    Workshop item after it; under --steam-only the same raise aborts the run.
+    """
+    repo = _repo(tmp_path)
+    identity = repo / "unity" / "DisableDurability" / "DisableDurability_Steam.asset"
+    identity.write_text("MonoBehaviour:\n  fileId: 3790345467\n")
+    for args in (
+        ["init", "-q", "-b", "main"],
+        ["config", "user.email", "test@example.invalid"],
+        ["config", "user.name", "Test"],
+        ["config", "commit.gpgsign", "false"],
+        ["add", "-A"],
+        ["commit", "-q", "-m", "published"],
+    ):
+        subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+    identity.write_text("MonoBehaviour:\n  fileId: 0\n")
+
+    with pytest.raises(ValueError, match="3790345467"):
         steam_bundle.check_prerequisites(repo, _preflight_env())
 
 

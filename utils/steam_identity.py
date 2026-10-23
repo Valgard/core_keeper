@@ -32,6 +32,8 @@ import sys
 import uuid
 from pathlib import Path
 
+import modio_api
+
 # Long enough that a cold index or a network-backed checkout answers, short
 # enough that a publish never stalls on a question it is allowed not to answer.
 GIT_TIMEOUT_SECONDS = 10
@@ -105,6 +107,41 @@ def asset_path(repo_root: Path, mod_name: str) -> Path:
     return repo_root / "unity" / mod_name / f"{mod_name}_Steam.asset"
 
 
+def modio_asset_path(repo_root: Path, mod_name: str) -> Path:
+    """Where a mod repo keeps its mod.io identity asset, the one CLIPublishHelper publishes with.
+
+    The mod.io counterpart of `asset_path`, for the same reason: a reader that
+    builds the path differently from the writer reads nothing, and "no mod.io
+    id" is not harmless either — it makes a mod on mod.io look like one that is
+    not, which skips every comparison with what mod.io serves.
+    """
+    return repo_root / "unity" / mod_name / "Editor" / f"{mod_name}_modio.asset"
+
+
+def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """Run git against `repo_root`, with the caller's GIT_* variables removed.
+
+    GIT_DIR and GIT_INDEX_FILE outrank -C, so inherited they would have git
+    answer about whatever repository invoked the publish rather than the
+    mod's. Measured: a tracked asset then reports untracked, and a warning that
+    fires on a correctly committed asset is one the author stops reading. Same
+    defence check_docs_wrapping.markdown_files documents.
+
+    Raises what subprocess.run raises (no git binary, a timeout); a non-zero
+    exit is returned, not raised, because what it means differs per caller.
+    """
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    return subprocess.run(
+        ["git", "-C", str(repo_root), *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=GIT_TIMEOUT_SECONDS,
+        env=env,
+    )
+
+
 def read_file_id(asset: Path) -> int | None:
     """The stored id, or None when there is none — a missing asset, or a zero.
 
@@ -141,27 +178,8 @@ def is_tracked(asset: Path) -> bool | None:
     """
     if shutil.which("git") is None:
         return None
-    # GIT_DIR and GIT_INDEX_FILE outrank -C, so inherited they would have git
-    # answer about whatever repository invoked the publish rather than the
-    # mod's. Measured: a tracked asset then reports untracked, and a warning
-    # that fires on a correctly committed asset is one the author stops
-    # reading. Same defence check_docs_wrapping.markdown_files documents.
-    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     try:
-        completed = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(asset.parent),
-                "ls-files",
-                "--error-unmatch",
-                "--",
-                asset.name,
-            ],
-            capture_output=True,
-            timeout=GIT_TIMEOUT_SECONDS,
-            env=env,
-        )
+        completed = run_git(asset.parent, "ls-files", "--error-unmatch", "--", asset.name)
     except (OSError, subprocess.SubprocessError):
         return None
     # Measured against git 2.x: 0 = in the index, 1 = "did not match any
@@ -169,6 +187,87 @@ def is_tracked(asset: Path) -> bool | None:
     # a reading this does not have, and guessing at one here would turn a
     # note into a false alarm.
     return {0: True, 1: False}.get(completed.returncode)
+
+
+def _stored_id(text: str | None, pattern: re.Pattern[str], group: int) -> int:
+    """The id an identity asset's text records; 0 for no text, no such line, or a zero."""
+    match = pattern.search(text or "")
+    return int(match.group(group)) if match else 0
+
+
+def _on_branch(repo_root: Path, branch: str, asset: Path) -> str | None:
+    """The asset's text as `branch` has it, or None when git cannot show it.
+
+    `./` makes the path relative to repo_root itself rather than to the
+    repository's top level, which is the same thing for a mod repo and stays
+    right if a caller ever hands in a subdirectory.
+    """
+    relative = asset.relative_to(repo_root).as_posix()
+    try:
+        shown = run_git(repo_root, "show", f"{branch}:./{relative}")
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return shown.stdout if shown.returncode == 0 else None
+
+
+def id_gaps(repo_root: Path, mod_name: str, branch: str = "main") -> list[str]:
+    """One message per identity asset whose id this checkout lacks while `branch` records one.
+
+    Release tags commonly predate the commits that record the ids — the
+    Workshop id is written by the first Steam publish, after the release
+    commit — so a checkout of a release can be missing an id that the mod's
+    `main` already has. Both cost something different and both are silent:
+
+    - no Workshop id: the publish creates a SECOND Workshop item beside the
+      live one, indistinguishable from it (see the module docstring);
+    - no mod.io id: the mod looks as if it were not on mod.io, so the run
+      compares nothing with what mod.io serves.
+
+    The checkout counts as having no id when the file is missing or records 0.
+    Only a definite id on `branch` makes a gap: a branch that does not exist,
+    a file it does not have, or git failing altogether claims nothing, the same
+    rule `is_tracked` follows — this check adds a refusal only where it can say
+    exactly what is missing. A checkout that HAS an id `branch` lacks is a
+    first release not merged yet, and fine.
+
+    Reads the working tree, not HEAD: what a publish from here would use is
+    what is on disk.
+    """
+    checks = (
+        (
+            asset_path(repo_root, mod_name),
+            FILE_ID,
+            2,
+            "Workshop id",
+            "published from this checkout, the mod would get a SECOND Workshop item beside it",
+        ),
+        (
+            modio_asset_path(repo_root, mod_name),
+            modio_api.MODIO_ID,
+            1,
+            "mod.io id",
+            "this checkout would pass for a mod that is not on mod.io, and every comparison "
+            "with what mod.io serves would be skipped",
+        ),
+    )
+    gaps = []
+    for asset, pattern, group, label, consequence in checks:
+        try:
+            here = asset.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            here = None
+        if _stored_id(here, pattern, group):
+            continue
+        there = _stored_id(_on_branch(repo_root, branch, asset), pattern, group)
+        if not there:
+            continue
+        relative = asset.relative_to(repo_root).as_posix()
+        gaps.append(
+            f"{asset} records no {label}, but {branch} has {there} — {consequence}. "
+            f"Bring it into this checkout first: git checkout {branch} -- {relative}, "
+            "then commit it."
+        )
+    return gaps
 
 
 def ensure_recognizable(asset: Path) -> None:

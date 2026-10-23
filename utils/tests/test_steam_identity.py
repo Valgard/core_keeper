@@ -507,3 +507,166 @@ def test_a_bad_asset_is_refused_before_it_is_judged_on_tracking(repo, capsys):
         steam_identity.ensure_recognizable(repo)
 
     assert capsys.readouterr().err == ""
+
+
+# --- does this checkout carry the ids main already has? ---------------------
+#
+# Release tags commonly predate the commits that record the ids, so a checkout
+# of one — the repair route — can lack an id that main has. Built as real
+# histories under tmp_path: what is checked is `git show <branch>:<path>`
+# against a checkout that is behind it, which a mock could only restate.
+
+MOD = "DisableDurability"
+MODIO_ASSET = "MonoBehaviour:\n  m_Name: DisableDurability_modio\n  modId: {mod_id}\n"
+
+
+def _git(root, *args):
+    return subprocess.run(
+        ["git", "-C", str(root), *args], check=True, capture_output=True, text=True, env=GIT_ENV
+    ).stdout
+
+
+def _write_ids(root, *, file_id=None, mod_id=None):
+    """Write either identity asset into a checkout; None leaves that one alone."""
+    if file_id is not None:
+        steam = steam_identity.asset_path(root, MOD)
+        steam.parent.mkdir(parents=True, exist_ok=True)
+        steam.write_text(ASSET.replace("fileId: 3790345467", f"fileId: {file_id}"))
+    if mod_id is not None:
+        modio = steam_identity.modio_asset_path(root, MOD)
+        modio.parent.mkdir(parents=True, exist_ok=True)
+        modio.write_text(MODIO_ASSET.format(mod_id=mod_id))
+
+
+def _history(tmp_path, *commits):
+    """A mod repo on `main` with one commit per `(file_id, mod_id)` pair, and each commit's hash."""
+    root = tmp_path / "mod"
+    root.mkdir()
+    _git(root, "init", "-q", "-b", "main")
+    _git(root, "config", "user.email", "test@example.invalid")
+    _git(root, "config", "user.name", "Test")
+    _git(root, "config", "commit.gpgsign", "false")
+    hashes = []
+    for index, (file_id, mod_id) in enumerate(commits):
+        _write_ids(root, file_id=file_id, mod_id=mod_id)
+        (root / "CHANGELOG.md").write_text(f"commit {index}\n")
+        _git(root, "add", "-A")
+        _git(root, "commit", "-q", "-m", f"commit {index}")
+        hashes.append(_git(root, "rev-parse", "HEAD").strip())
+    return root, hashes
+
+
+def _checkout_at(root, commit, tmp_path):
+    """A linked worktree detached at `commit` — the shape of a checkout of a release tag."""
+    tree = tmp_path / "at-release"
+    _git(root, "worktree", "add", "-q", "--detach", str(tree), commit)
+    return tree
+
+
+def test_the_modio_asset_path_is_where_a_mod_repo_keeps_it(tmp_path):
+    """modio_asset_path is unity/<Mod>/Editor/<Mod>_modio.asset, where CLIPublishHelper reads it."""
+    assert (
+        steam_identity.modio_asset_path(tmp_path, MOD)
+        == tmp_path / "unity" / MOD / "Editor" / f"{MOD}_modio.asset"
+    )
+
+
+@needs_git
+def test_id_gap_when_the_checkout_predates_the_steam_id(tmp_path):
+    """A Workshop id main recorded after the release this checkout sits on is a gap.
+
+    Published from here, the zero id would create a second Workshop item.
+    """
+    root, (release, _) = _history(tmp_path, (0, 6119768), (3790345467, None))
+    tree = _checkout_at(root, release, tmp_path)
+
+    gaps = steam_identity.id_gaps(tree, MOD)
+
+    assert len(gaps) == 1
+    assert "Workshop id" in gaps[0] and "3790345467" in gaps[0] and "main" in gaps[0]
+    assert str(steam_identity.asset_path(tree, MOD)) in gaps[0]
+
+
+@needs_git
+def test_id_gap_when_the_checkout_predates_the_modio_id(tmp_path):
+    """A mod.io id main has and the checkout lacks is a gap too.
+
+    Without it the run would take the mod for one that is not on mod.io and
+    skip every comparison with it.
+    """
+    root, (release, _) = _history(tmp_path, (3790345467, 0), (None, 6119768))
+    tree = _checkout_at(root, release, tmp_path)
+
+    gaps = steam_identity.id_gaps(tree, MOD)
+
+    assert len(gaps) == 1
+    assert "mod.io id" in gaps[0] and "6119768" in gaps[0]
+
+
+@needs_git
+def test_id_gap_when_the_checkout_has_no_asset_at_all(tmp_path):
+    """A checkout from before the asset existed has no id either: a missing file reads as none."""
+    root, (release, _) = _history(tmp_path, (None, None), (3790345467, 6119768))
+    tree = _checkout_at(root, release, tmp_path)
+
+    assert len(steam_identity.id_gaps(tree, MOD)) == 2
+
+
+@needs_git
+def test_no_id_gap_for_a_mod_never_published(tmp_path):
+    """Zero on both sides is a mod that is simply new, not a checkout that lost anything."""
+    root, _ = _history(tmp_path, (0, 0))
+
+    assert steam_identity.id_gaps(root, MOD) == []
+
+
+@needs_git
+def test_no_id_gap_when_the_checkout_has_the_id_main_lacks(tmp_path):
+    """A first release's branch has its ids and is not merged yet: nothing is missing here."""
+    root, _ = _history(tmp_path, (0, 0))
+    _git(root, "switch", "-q", "-c", "first-release")
+    _write_ids(root, file_id=3790345467, mod_id=6119768)
+    _git(root, "commit", "-qam", "record the ids")
+
+    assert steam_identity.id_gaps(root, MOD) == []
+
+
+@needs_git
+def test_no_id_gap_when_both_carry_the_id(tmp_path):
+    """The main checkout itself, with both ids: the ordinary case."""
+    root, _ = _history(tmp_path, (3790345467, 6119768))
+
+    assert steam_identity.id_gaps(root, MOD) == []
+
+
+@needs_git
+def test_no_id_gap_without_the_branch(tmp_path):
+    """No `main` to compare with is no gap: the check only ever adds a refusal it can justify."""
+    root, _ = _history(tmp_path, (0, 0))
+    _git(root, "branch", "-q", "-m", "main", "trunk")
+
+    assert steam_identity.id_gaps(root, MOD) == []
+
+
+def test_no_id_gap_outside_a_repository(tmp_path):
+    """Where git cannot answer at all, nothing is claimed — the same rule as is_tracked's None."""
+    _write_ids(tmp_path, file_id=0, mod_id=0)
+
+    assert steam_identity.id_gaps(tmp_path, MOD) == []
+
+
+@needs_git
+# GIT_DIR is git's own environment variable name, not a choice of ours.
+def test_id_gaps_ignores_an_inherited_GIT_DIR(tmp_path, monkeypatch):  # noqa: N802
+    """An inherited GIT_DIR must not make main's ids vanish by asking a decoy repository.
+
+    The costly wrong answer is "no gap": the run would then publish from a
+    checkout without a Workshop id and create a second item.
+    """
+    root, (release, _) = _history(tmp_path, (0, 0), (3790345467, 6119768))
+    tree = _checkout_at(root, release, tmp_path)
+    decoy = tmp_path / "decoy"
+    subprocess.run(["git", "init", "-q", str(decoy)], check=True, env=GIT_ENV)
+    monkeypatch.setenv("GIT_DIR", str(decoy / ".git"))
+
+    assert len(steam_identity.id_gaps(tree, MOD)) == 2
