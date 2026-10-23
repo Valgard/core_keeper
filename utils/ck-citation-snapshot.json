@@ -609,6 +609,15 @@
     "Pug.Other:ButtonUIElement:optionToSelectOnHover:1": [
       "public UIelement optionToSelectOnHover;"
     ],
+    "Pug.Other:CameraManager:ShowHUD:3-9": [
+      "if (show)",
+      "{",
+      "uiCamera.cullingMask |= 1 << ObjectLayerID.HUD;",
+      "}",
+      "else",
+      "{",
+      "uiCamera.cullingMask &= ~(1 << ObjectLayerID.HUD);"
+    ],
     "Pug.Other:Casting:CageCattle:1": [
       "private static bool CageCattle(StateUpdateAspect stateUpdateAspect, SharedStateUpdateData sharedStateUpdateData, LookupStateUpdateData lookupStateUpdateData)"
     ],
@@ -1463,6 +1472,11 @@
     "Pug.Other:MenuHelperButtons:UpdateShowingButtons:8": [
       "currentButtonsToShowing = buttonsToShow;"
     ],
+    "Pug.Other:MenuManager:ActivateTopMenu:5-7": [
+      "if (!(topMenu is RadicalPopUpMenu))",
+      "{",
+      "Manager.ui.TemporarilyDisableGameplayUI();"
+    ],
     "Pug.Other:MenuManager:AttemptToPlayMenuSfx:1": [
       "public void AttemptToPlayMenuSfx(SfxID sfx, float pitch = 1f, float pitchDev = 0f, bool reuse = true, float volume = 1f)"
     ],
@@ -1471,6 +1485,11 @@
     ],
     "Pug.Other:MenuManager:AttemptToPlayMenuSfx:6": [
       "sfxCooldownTimer.Start();"
+    ],
+    "Pug.Other:MenuManager:DeactivateTopMenu:5-7": [
+      "if (menuStackCount <= 1)",
+      "{",
+      "Manager.ui.EnableTemporarilyDisabledGameplayUI();"
     ],
     "Pug.Other:MenuManager:EnableDefaultMapCategoryCoroutine:4-7": [
       "if (menuStack.Count != 0)",
@@ -1560,6 +1579,15 @@
       "public void OnMenuEnabled()",
       "{",
       "}"
+    ],
+    "Pug.Other:MenuManager:PopAllMenus:11": [
+      "Manager.ui.EnableTemporarilyDisabledGameplayUI();"
+    ],
+    "Pug.Other:MenuManager:PopAllMenus:12": [
+      "menuStack.Clear();"
+    ],
+    "Pug.Other:MenuManager:PopMenu:4": [
+      "DeactivateTopMenu(pop: true);"
     ],
     "Pug.Other:MenuManager:PopMenu:6-8": [
       "if (menuStack.Count > 0 && radicalMenu.popsOtherActiveMenus)",
@@ -3239,6 +3267,9 @@
     "Pug.Other:RadicalOptionsMenuOption_Slider:1": [
       "public class RadicalOptionsMenuOption_Slider : RadicalPauseMenuOption"
     ],
+    "Pug.Other:RadicalPopUpMenu:Deactivate:3": [
+      "base.Deactivate(pop);"
+    ],
     "Pug.Other:RadicalPopUpMenu:Deactivate:3-6": [
       "base.Deactivate(pop);",
       "if (!popUpText.IsOptionPressed)",
@@ -3357,6 +3388,16 @@
     ],
     "Pug.Other:SeederSlot:PlaceItem:82": [
       "valueRW.positionLastPlacedAt = x.ToInt3();"
+    ],
+    "Pug.Other:SelectSessionMenu:ClearMenuOptions:8": [
+      "base.Activate();"
+    ],
+    "Pug.Other:SelectSessionMenu:RefreshSessions:3-7": [
+      "if (!_isRefreshingSessions)",
+      "{",
+      "_isRefreshingSessions = true;",
+      "UnityEngine.Debug.Log(\"Refresh Sessions\");",
+      "ClearMenuOptions();"
     ],
     "Pug.Other:SelectedEquipmentChangeSystem:OnUpdate:2-5": [
       "public void OnUpdate(ref SystemState state)",

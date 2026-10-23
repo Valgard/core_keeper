@@ -1043,17 +1043,40 @@ the menu below only after one that has the flag
 no `Deactivate` when it opens and no `Activate` when it closes: it stays active
 underneath, and whatever its `Deactivate` would tear down stays up.
 
-**Closing the dialog is not neutral either.** The popup's own `Deactivate` is
-the base one, which calls `Manager.camera.ShowHUD(show: true)`
-(`Pug.Other:RadicalMenu:Deactivate:3-5`) — undoing what every menu's `Activate`
-does, which hides the HUD (`Pug.Other:RadicalMenu:Activate:9`). The
-screen's `Activate` does not run again, so the HUD layer is back in the UI
-camera's culling mask while the screen is still open. The same method calls
-`EnableDefaultMapCategory`, but its coroutine stands down while any menu is
-still on the stack
-(`Pug.Other:MenuManager:EnableDefaultMapCategoryCoroutine:4-7`). And a dialog
-opened with `secondOptionPopsAllMenus` closes the screen too when that option is
-pressed: `OnPopupActivated` follows its `PopMenu` with `PopAllMenus`
+**Closing the dialog is not neutral either, but it leaves the game's HUD
+hidden.** The popup's `Deactivate` override calls the base one first
+(`Pug.Other:RadicalPopUpMenu:Deactivate:3`), and that calls
+`Manager.camera.ShowHUD(show: true)` (`Pug.Other:RadicalMenu:Deactivate:3-5`),
+the counterpart of the `ShowHUD(false)` that `RadicalMenu.Activate` runs
+(`Pug.Other:RadicalMenu:Activate:9`). Every other game menu's override calls
+that base directly; `SelectSessionMenu`'s reaches it through a helper, and not
+at all while a session refresh it started is still running
+(`Pug.Other:SelectSessionMenu:RefreshSessions:3-7`,
+`Pug.Other:SelectSessionMenu:ClearMenuOptions:8`). A mod's override reaches it
+only by calling the base. `ShowHUD` does nothing but add or remove the `HUD`
+layer in the UI camera's culling mask (`Pug.Other:CameraManager:ShowHUD:3-9`).
+It is not what keeps the game's HUD hidden while a menu is open; that is the
+scale multiplier of [the modal-window section](#suppressing-the-gameplay-ui-while-a-modal-window-is-open). `ActivateTopMenu` sets it for
+every menu that is not a `RadicalPopUpMenu`
+(`Pug.Other:MenuManager:ActivateTopMenu:5-7`), and `DeactivateTopMenu`, which
+the dialog's `PopMenu` runs before the pop (`Pug.Other:MenuManager:PopMenu:4`),
+restores it only while at most one menu is on the stack
+(`Pug.Other:MenuManager:DeactivateTopMenu:5-7`), which the screen below rules
+out. Only an option that pops every menu brings the HUD back, since
+`PopAllMenus` restores the multiplier unconditionally
+(`Pug.Other:MenuManager:PopAllMenus:11`) — and it empties the whole menu stack,
+the screen included (`Pug.Other:MenuManager:PopAllMenus:12`).
+Consistent with that on 1.3.0.6-6e73 under CrossOver: with a mod's settings
+screen underneath, no HUD showed after either answer, confirm or cancel, in a
+full-window recording of each — though that screen's own opaque, full-view
+background would have hidden the HUD too, so the recordings do not tell the two
+causes apart. What `ShowHUD(true)` alone reaches is content on the `HUD` layer
+that nothing else holds back; read from the source, not seen in game.
+`RadicalMenu.Deactivate` also calls `EnableDefaultMapCategory`, whose coroutine
+checks once, a tenth of a second later, and does nothing if a menu is still on
+the stack (`Pug.Other:MenuManager:EnableDefaultMapCategoryCoroutine:4-7`). And a
+dialog opened with `secondOptionPopsAllMenus` closes the screen too when that
+option is pressed: `OnPopupActivated` follows its `PopMenu` with `PopAllMenus`
 (`Pug.Other:PopUpText:OnPopupActivated:5-8`).
 
 **React to the answer in the callback, but push or pop no menu from inside
