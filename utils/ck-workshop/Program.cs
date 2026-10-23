@@ -52,6 +52,8 @@
 // failed" by it — a state this tool cannot report, since in it the tool never
 // runs. Taking 8 here would merge two outcomes an operator has to tell apart,
 // so a new code goes past it; 9 is now taken, and the next one is 10.
+// 11 and 12 are upload.sh's own, after the Steam stage: 11 Steam's content does
+// not match mod.io, 12 the comparison could not be made.
 
 using System;
 using System.Collections.Generic;
@@ -563,6 +565,7 @@ internal static class Program
                             owner = item.Owner.Id.Value,
                             metadata = item.Metadata,
                             metadataQueried = true,
+                            sizeBytes = item.SizeBytes,
                         }
                     )
                 );
