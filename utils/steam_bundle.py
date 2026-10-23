@@ -23,7 +23,12 @@ import steam_changenote
 import steam_identity
 import steam_preview
 
-CHANGELOG_ENTRY = re.compile(r"^##\s*\[([^\]]+)\]", re.MULTILINE)
+# One rule for both platforms: this is the pattern `TryParseChangelog` in
+# `CLIPublishHelper.cs` uses on the mod.io side, so a heading is a version on
+# Steam exactly when it is one on mod.io.
+CHANGELOG_ENTRY = re.compile(r"^##\s*\[(\d+\.\d+\.\d+)\]", re.MULTILINE)
+UNRELEASED_ENTRY = re.compile(r"^##\s*\[Unreleased\][^\n]*$", re.MULTILINE | re.IGNORECASE)
+LEVEL_TWO_HEADING = re.compile(r"^##\s", re.MULTILINE)
 DEPENDENCY = re.compile(r"^\s*-\s*modName:\s*(\S+)\s*\n\s*required:\s*(\d+)", re.MULTILINE)
 
 # requiredOn is a [Flags] enum: None=0, Client=1, Server=2, ClientAndServer=3.
@@ -34,6 +39,10 @@ APPLICATION_TYPE = ((1, "Client"), (2, "Server"))
 
 def changelog_entries(text: str) -> list[tuple[str, str]]:
     """Every '## [x.y.z]' entry as (version, body), in file order — newest first.
+
+    Numeric versions only, the same rule mod.io's parser applies: the Steam
+    label has to equal the mod.io one, and a mod such as complete-tools opens
+    its changelog with '## [Unreleased]', which must never become a version.
 
     Split out from `parse_changelog` below, which needs only the first one, so
     that a caller wanting a specific release's notes does not re-implement the
@@ -59,11 +68,34 @@ def changelog_entries(text: str) -> list[tuple[str, str]]:
 
 
 def parse_changelog(text: str) -> tuple[str, str]:
-    """The topmost '## [x.y.z]' entry: its version and its body."""
+    """The topmost '## [x.y.z]' entry: its version and its body.
+
+    An '## [Unreleased]' section above it is skipped, as on mod.io; see
+    `unreleased_notes` for how a caller finds out that one has content.
+    """
     entries = changelog_entries(text)
     if not entries:
         raise ValueError("CHANGELOG.md has no '## [x.y.z]' entry")
     return entries[0]
+
+
+def unreleased_notes(text: str) -> str:
+    """The body of an '## [Unreleased]' section sitting above the topmost release.
+
+    "" when there is none or it is empty. Notes there mean the repository is
+    ahead of its newest numeric entry, so a build made from it is not the build
+    that entry describes. Below the topmost release such a heading is history,
+    not pending work, and is ignored.
+    """
+    unreleased = UNRELEASED_ENTRY.search(text)
+    if unreleased is None:
+        return ""
+    release = CHANGELOG_ENTRY.search(text)
+    if release is not None and release.start() < unreleased.start():
+        return ""
+    following = LEVEL_TWO_HEADING.search(text, unreleased.end())
+    end = following.start() if following else len(text)
+    return text[unreleased.end() : end].strip()
 
 
 def _read_metadata(asset_text: str) -> dict[str, int | str]:

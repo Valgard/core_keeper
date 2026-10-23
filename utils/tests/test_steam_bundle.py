@@ -1010,3 +1010,27 @@ def test_tag_bundle_refuses_what_a_publish_would_refuse(tmp_path):
 
     with pytest.raises(ValueError, match="CK_GAME_VERSION"):
         steam_bundle.tag_bundle(repo, _env(tmp_path, CK_GAME_VERSION=""))
+
+
+def test_an_unreleased_heading_is_not_a_version():
+    """mod.io's parser takes numeric headings only; Steam must label the same version."""
+    text = (
+        "# Changelog\n\n## [Unreleased]\n\n### Fixed\n\n- x\n\n## [1.0.0] - 2026-10-10\n\nfirst\n"
+    )
+    assert steam_bundle.parse_changelog(text) == ("1.0.0", "first")
+
+
+def test_unreleased_notes_returns_the_section_above_the_release():
+    """Pending notes above the topmost release are what --steam-only will refuse on."""
+    text = "## [Unreleased]\n\n### Fixed\n\n- x\n\n## [1.0.0]\n\nfirst\n"
+    assert steam_bundle.unreleased_notes(text) == "### Fixed\n\n- x"
+
+
+def test_an_empty_unreleased_heading_has_no_notes():
+    """A bare heading is a placeholder, not pending work."""
+    assert steam_bundle.unreleased_notes("## [Unreleased]\n\n## [1.0.0]\n\nfirst\n") == ""
+
+
+def test_no_unreleased_heading_has_no_notes():
+    """Without the heading there is nothing pending."""
+    assert steam_bundle.unreleased_notes("## [1.0.0]\n\nfirst\n") == ""
