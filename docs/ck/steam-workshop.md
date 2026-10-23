@@ -320,6 +320,23 @@ points **at**. Reading *it* to find out whether children come back populated
 asks the wrong item — what is needed is one that **has** a dependency, not one
 that **is** one.
 
+## An item's size: the UGC query says 0, the Web API says the content total
+
+A UGC query's `SizeBytes` is the size of the item's primary file, and an item
+whose content is a folder has none: `SizeBytes` came back **0** for the public
+item Caveling Divining Rod (2026-10-24), whichever way it was read. The public
+Web API's `GetPublishedFileDetails` reports `file_size` for that same item as a
+string, `"80420"` — the content's byte total, equal to mod.io's
+`filesize_uncompressed` for the version published. Measured on that one item;
+the equality with mod.io was compared across all 16 mods here during the
+incident investigation.
+
+So a check that asks "does Steam hold what mod.io holds" has to read the Web
+API. The query answers 0 for every folder-content item, and 0 is
+indistinguishable from "Steam has not reported a size yet". The Web API cannot
+see an item that is still hidden, which is what a freshly created one is: it
+answers `result` other than 1 until the item is made visible.
+
 ## Attaching a child twice reports failure
 
 `AddDependency` returns **false** for a child the item already carries. The
