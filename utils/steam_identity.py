@@ -220,8 +220,11 @@ def id_gaps(repo_root: Path, mod_name: str, branch: str = "main") -> list[str]:
 
     - no Workshop id: the publish creates a SECOND Workshop item beside the
       live one, indistinguishable from it (see the module docstring);
-    - no mod.io id: the mod looks as if it were not on mod.io, so the run
-      compares nothing with what mod.io serves.
+    - no mod.io id: a normal publish takes the mod for a new one —
+      CLIPublishHelper calls CreateModProfile on modId 0 — and creates a
+      SECOND mod.io profile, uploads the release to it and writes its id into
+      the asset; under --steam-only the mod merely looks as if it were not on
+      mod.io, and nothing is compared with what mod.io serves.
 
     The checkout counts as having no id when the file is missing or records 0.
     Only a definite id on `branch` makes a gap: a branch that does not exist,
@@ -246,8 +249,10 @@ def id_gaps(repo_root: Path, mod_name: str, branch: str = "main") -> list[str]:
             modio_api.MODIO_ID,
             1,
             "mod.io id",
-            "this checkout would pass for a mod that is not on mod.io, and every comparison "
-            "with what mod.io serves would be skipped",
+            "a normal publish from this checkout would take the mod for a new one: "
+            "CLIPublishHelper would call CreateModProfile and create a SECOND mod.io profile "
+            "(hidden, with this release uploaded to it) and write that profile's id into "
+            "this asset",
         ),
     )
     gaps = []
@@ -264,8 +269,8 @@ def id_gaps(repo_root: Path, mod_name: str, branch: str = "main") -> list[str]:
         relative = asset.relative_to(repo_root).as_posix()
         gaps.append(
             f"{asset} records no {label}, but {branch} has {there} — {consequence}. "
-            f"Bring it into this checkout first: git checkout {branch} -- {relative}, "
-            "then commit it."
+            f"Bring {asset.name} over from {branch} before publishing: "
+            f"git checkout {branch} -- {relative}, then commit it."
         )
     return gaps
 

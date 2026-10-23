@@ -289,8 +289,9 @@ def decide_pre_upload(
     5. A version mod.io has but no longer serves is refused: the checkout is
        behind it.
     6. A size other than the live modfile's is refused; for a build, the
-       refusal names the toolchain as the likely cause and the override as the
-       repair, since builds of one commit reproduce byte for byte.
+       refusal names both causes — a checkout that is not the released state,
+       or a toolchain that changed since — and the override as the repair,
+       since builds of one commit reproduce byte for byte.
     7. Otherwise the content matches mod.io and proceeds.
 
     `content_size` is passed in rather than measured here so that the rules
@@ -367,12 +368,20 @@ def decide_pre_upload(
                 f"{content_size} B, mod.io's {live_version} is {expected} B. Download that "
                 "modfile again and point CK_STEAM_CONTENT at it.",
             )
+        # Two causes, the likelier first. Builds of one commit reproduce byte
+        # for byte (docs/build-environment.md), so a difference means either a
+        # checkout that is not the released state — closing an id gap by
+        # bringing <Mod>_Steam.asset over from main is enough, because the
+        # asset's path ships in the bundle's .assetbundle.manifest — or a
+        # toolchain that moved since the release.
         return Verdict(
             False,
             f"this build ({content_size} B) differs from mod.io's {live_version} "
-            f"({expected} B); after an SDK or game-asset update a rebuild can differ — repair "
-            "with the override: download the modfile, "
-            "`CK_STEAM_CONTENT=<dir> upload.sh --steam-only`.",
+            f"({expected} B). Either this checkout is not the released state — an asset "
+            "brought over from main, such as <Mod>_Steam.asset to close an id gap, is enough, "
+            "since its path ships in the bundle's .assetbundle.manifest — or the toolchain "
+            "changed since the release (an SDK or game-asset update). Repair with the "
+            "override: download the modfile, `CK_STEAM_CONTENT=<dir> upload.sh --steam-only`.",
         )
 
     return Verdict(True, f"matches mod.io ({content_size} bytes)")

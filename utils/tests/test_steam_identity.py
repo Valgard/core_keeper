@@ -585,14 +585,17 @@ def test_id_gap_when_the_checkout_predates_the_steam_id(tmp_path):
     assert len(gaps) == 1
     assert "Workshop id" in gaps[0] and "3790345467" in gaps[0] and "main" in gaps[0]
     assert str(steam_identity.asset_path(tree, MOD)) in gaps[0]
+    assert f"git checkout main -- unity/{MOD}/{MOD}_Steam.asset" in gaps[0]
 
 
 @needs_git
 def test_id_gap_when_the_checkout_predates_the_modio_id(tmp_path):
-    """A mod.io id main has and the checkout lacks is a gap too.
+    """A mod.io id main has and the checkout lacks is a gap, and the message names its real cost.
 
-    Without it the run would take the mod for one that is not on mod.io and
-    skip every comparison with it.
+    That cost is not a skipped comparison: a normal publish on modId 0 has
+    CLIPublishHelper call CreateModProfile, so the mod gets a SECOND mod.io
+    profile. The message must say so and tell the operator which file to
+    bring over from main.
     """
     root, (release, _) = _history(tmp_path, (3790345467, 0), (None, 6119768))
     tree = _checkout_at(root, release, tmp_path)
@@ -601,6 +604,9 @@ def test_id_gap_when_the_checkout_predates_the_modio_id(tmp_path):
 
     assert len(gaps) == 1
     assert "mod.io id" in gaps[0] and "6119768" in gaps[0]
+    assert "CreateModProfile" in gaps[0] and "SECOND mod.io profile" in gaps[0]
+    assert f"Bring {MOD}_modio.asset over from main before publishing" in gaps[0]
+    assert f"git checkout main -- unity/{MOD}/Editor/{MOD}_modio.asset" in gaps[0]
 
 
 @needs_git

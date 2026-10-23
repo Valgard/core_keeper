@@ -318,16 +318,21 @@ def test_a_superseded_version_is_refused(tmp_path):
 
 
 def test_a_rebuild_with_another_size_is_refused_and_points_to_the_override(tmp_path):
-    """A build of the live version whose size differs is refused, and the refusal names the repair.
+    """A build of the live version whose size differs is refused, naming both causes and the repair.
 
     Builds of one commit reproduce byte for byte (measured, Ruling R6), so a
-    difference means the toolchain moved since the release — and the way out
-    is the release's own modfile through the override.
+    difference means either a checkout that is not the released state — the
+    likelier cause, e.g. `<Mod>_Steam.asset` brought over from main to close
+    an id gap, whose path ships in the bundle manifest — or a toolchain that
+    moved since the release. The way out is the same for both: the release's
+    own modfile through the override.
     """
     verdict = _decide(content=tmp_path, content_size=101)
 
     assert not verdict.proceed
     assert "101 B" in verdict.message and "100 B" in verdict.message
+    assert "this checkout is not the released state" in verdict.message
+    assert "<Mod>_Steam.asset" in verdict.message
     assert "SDK or game-asset update" in verdict.message
     assert "CK_STEAM_CONTENT=<dir> upload.sh --steam-only" in verdict.message
 
