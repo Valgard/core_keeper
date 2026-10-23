@@ -109,10 +109,19 @@ def main(argv: list[str], env: Mapping[str, str] | None = None) -> int:
     # saying it twice per publish is how it stops being read.
     created_the_asset = not asset.is_file()
 
-    # The fields only the SDK window reads. Each falls back to None — leave
-    # what is already there — rather than to a blank: modOwner is 0 whenever
-    # Steam was not initialised, and a bundle that could not be parsed is no
-    # reason to erase a path and a tag list that were right before this run.
+    # The fields only the SDK window reads. modOwner and tags fall back to None
+    # — leave what is already there — rather than to a blank: modOwner is 0
+    # whenever Steam was not initialised, and a bundle that could not be parsed
+    # is no reason to erase a tag list that was right before this run.
+    #
+    # selectedPath is the exception, and is cleared unconditionally. The SDK
+    # window uploads from that folder (SteamWorkshopTab.cs,
+    # SelectSteamWorkshopModSettings), but the pipeline has no folder that
+    # outlives the run: the content path is a temporary cache directory macOS
+    # clears at reboot, and the shared MOD_INSTALL_PATH drop it replaced is what
+    # caused an incident. Recording either only commits a throwaway machine path
+    # into a tracked file, so the window's Steam upload button stays disabled
+    # for these mods rather than aimed at a folder that may not exist.
     bundle = {}
     with contextlib.suppress(ValueError):
         bundle = json.loads(env.get("CK_STEAM_BUNDLE") or "{}")
@@ -122,7 +131,7 @@ def main(argv: list[str], env: Mapping[str, str] | None = None) -> int:
             asset,
             file_id,
             mod_owner=result.get("modOwner") or None,
-            selected_path=bundle.get("contentPath") or None,
+            selected_path="",
             tags=bundle.get("tags"),
         )
     except Exception as err:

@@ -241,6 +241,25 @@ def test_omitted_fields_are_left_exactly_as_they_were(tmp_path):
     assert "tags:\n  - Client\n  - Script\n" in text
 
 
+def test_an_empty_selected_path_clears_the_field(tmp_path):
+    """An empty selected_path clears the field, which is not the same as omitting it.
+
+    None leaves the stored value alone; "" is a value, and it is what the
+    publish passes. The field is written as the scaffold template has it,
+    `selectedPath: ` with one trailing space, so a cleared asset does not
+    differ from a freshly scaffolded one.
+    """
+    asset = tmp_path / "DisableDurability_Steam.asset"
+    asset.write_text(ASSET)
+
+    steam_identity.write_file_id(asset, 4242424242, selected_path="")
+
+    text = asset.read_text()
+    assert "  selectedPath: \n" in text
+    assert "/var/folders" not in text
+    assert "tags:\n  - Client\n  - Script\n" in text
+
+
 def test_an_empty_tag_list_is_written_as_the_sdk_writes_it(tmp_path):
     """An empty tag list is written as the single-line `tags: []`, matching the SDK's own shape.
 

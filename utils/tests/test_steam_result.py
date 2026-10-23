@@ -195,8 +195,9 @@ def test_a_failed_update_re_saves_the_id_and_says_so(scenario, capsys):
 def test_an_unparsable_bundle_still_saves_the_id(scenario, capsys):
     """An unparsable CK_STEAM_BUNDLE must not cost the id.
 
-    It must also not blank out a path and a tag list that were already
-    right in the asset before this run.
+    It must also not blank out a tag list that was already right in the
+    asset before this run; selectedPath is cleared either way, since that
+    does not depend on the bundle.
     """
     code, asset = scenario(
         result_line(4242424242, created=False, success=True) + "\n",
@@ -206,7 +207,8 @@ def test_an_unparsable_bundle_still_saves_the_id(scenario, capsys):
     assert code == 0
     assert steam_identity.read_file_id(asset) == 4242424242
     text = asset.read_text()
-    assert "selectedPath: /old/path/DisableDurability" in text
+    assert "  selectedPath: \n" in text
+    assert "/old/path" not in text
     assert "tags:\n  - Client\n  - Script\n" in text
     assert "Workshop item 4242424242 (updated)" in capsys.readouterr().out
 
@@ -270,16 +272,32 @@ def test_a_later_json_object_without_a_fileId_does_not_displace_it(scenario):  #
 def test_the_bundle_fills_the_fields_only_the_sdk_window_reads(scenario):
     """The fields only the SDK window reads are filled from two different sources.
 
-    modOwner comes from the result object and selectedPath from
-    CK_STEAM_BUNDLE — a publish is the only point that knows their current
-    values.
+    modOwner comes from the result object and tags from CK_STEAM_BUNDLE — a
+    publish is the only point that knows their current values. selectedPath is
+    deliberately not among them; see the next test.
     """
     code, asset = scenario(result_line(4242424242, created=True, success=True) + "\n")
 
     assert code == 0
     text = asset.read_text()
     assert "modOwner: 10000000000000000" in text
-    assert "selectedPath: /builds/DisableDurability" in text
+    assert "tags:\n  - " in text
+
+
+def test_a_publish_clears_selected_path(scenario):
+    """A publish writes selectedPath empty, never the content folder of the run.
+
+    The SDK window uploads from that folder, and the pipeline has none that
+    outlives the run: the content path is a temporary cache directory, so
+    recording it would only commit a throwaway machine path.
+    """
+    code, asset = scenario(result_line(4242424242, created=False, success=True) + "\n")
+
+    assert code == 0
+    text = asset.read_text()
+    assert "  selectedPath: \n" in text
+    assert "/builds/DisableDurability" not in text
+    assert "/old/path" not in text
 
 
 def test_a_zero_mod_owner_leaves_the_stored_one_alone(scenario):

@@ -11,7 +11,9 @@ the SDK window reads. They are written when the caller can supply them, so that
 an asset this pipeline created is complete in the window too, rather than one
 the window shows half-filled. Each is optional and left untouched when omitted:
 a caller without a live Steam session cannot know modOwner, and having none is
-no reason to erase one that is already there.
+no reason to erase one that is already there. An empty string is a value, not
+an omission: it clears the field, which is what the publish does to
+selectedPath.
 
 modName stays ours to write only on creation. It is the window's lookup key and
 goes stale by design (#11); rewriting it on every publish would fight the window
@@ -298,9 +300,10 @@ def write_file_id(
     The optional fields are the ones only the SDK window reads. Each is left
     exactly as found when not given, because a caller that cannot determine a
     value (modOwner needs a live Steam session) must not blank out one that is
-    already there. Passed, they are written on both paths: the window's own
-    copies go stale — `selectedPath` still named the pre-MOD_INSTALL_PATH build
-    directory — and a publish is the moment the current values are known.
+    already there. Passed, they are written on both paths; `""` clears a field
+    (`selectedPath: ` with one trailing space, as the scaffold template has it).
+    The publish passes it for selectedPath, because no build folder outlives a
+    run for the window to upload from.
     """
     creating = not asset.is_file()
     if creating:
