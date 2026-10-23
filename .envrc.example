@@ -57,12 +57,13 @@ export SDK_PATH="/path/to/core_keeper/CoreKeeperModSDK"
 # That <ModName> subdirectory is also what the SDK's Steam Workshop tab matches
 # on — it picks its content folder by EndsWith() on the PascalCase mod name.
 #
-# A publish does NOT read this. CLIPublishHelper builds into a fresh temporary
-# directory of its own and uploads that to mod.io, and the Steam stage now
-# uploads the same one. The single exception is --steam-only, where no mod.io
-# build runs and the last local build here is the only thing there is to
-# publish. Reading it on the normal path is what once put a stale build on
-# Steam under the version number mod.io published from elsewhere.
+# A publish never reads this. CLIPublishHelper builds into a fresh temporary
+# directory of its own and uploads that to mod.io, and the Steam stage uploads
+# the same one. --steam-only makes a build of its own the same way, from the
+# checkout it runs in; it used to ship the last local build from here instead,
+# which on 2026-10-11 put an unreleased build on Steam under a released version
+# number. A CK_STEAM_CONTENT override that points into this folder is refused,
+# whatever it holds (docs/publishing.md).
 export MOD_INSTALL_BASE_PATH="$HOME/Library/Caches"
 export MOD_INSTALL_PATH="$MOD_INSTALL_BASE_PATH/CoreKeeperMods"
 
