@@ -118,11 +118,12 @@ REST API directly: `docs/publishing.md`.
 
 The same `upload.sh` run also publishes to the **Steam Workshop**, against
 that same build output — skippable with `--no-steam`, or run alone with
-`--steam-only`. A Steam failure never undoes a mod.io release that has
-already gone out, and `--changelog-only`/`--profile-only` skip Steam
-entirely, since neither has a Steam-side equivalent yet. It needs a one-time
-per-SDK-clone setup step, below; everything else — the two flags, where the
-description and preview come from, dependency resolution — is
+`--steam-only`, which then builds the checkout itself and checks the result
+against mod.io before sending it. A Steam failure never undoes a mod.io
+release that has already gone out, and `--changelog-only`/`--profile-only`
+skip Steam entirely, since neither has a Steam-side equivalent yet. It needs a
+one-time per-SDK-clone setup step, below; everything else — the two flags,
+where the description and preview come from, dependency resolution — is
 `docs/publishing.md`.
 
 A mod that has been on mod.io for a while arrives on the Workshop with a change

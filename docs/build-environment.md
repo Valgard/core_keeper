@@ -102,8 +102,8 @@ have been replaced by codegen` at the first system update. The mechanism is in [
 The dangerous case is a publish: a second attempt after a failed one, or a
 release after a documentation-only commit, would upload exactly such a build.
 
-Both build paths therefore do the same two things, and a Steam-only publish
-does the second:
+Both build paths therefore do the same two things, and `upload.sh --steam-only`
+does both too, because it builds through the publish path:
 
 - **Before Unity starts**, `utils/build.sh` and `utils/upload.sh` touch every
   `.cs` under the mod's `unity/<Mod>/`, which makes Unity recompile the mod and
@@ -111,15 +111,18 @@ does the second:
 - **After the build**, the result is checked: when the compiled
   `Library/ScriptAssemblies/<Mod>.dll` contains `DOTSCompilerGenerated` and the
   built mod has no `Scripts/Generated/*.g.cs`, the run stops. `build.sh` does it
-  through `utils/check_dots_codegen.py` and exits **4**; a publish does it inside
-  `CLIPublishHelper`, between the build and the first mod.io call, because
-  `upload.sh` builds in its own Unity session and never goes through
-  `build.sh`. `upload.sh --steam-only` publishes the last local build, which
-  nothing else checked — possibly one `build.sh` just rejected, since the
-  rejection leaves it in place — so it runs the same script before the first
-  Steam call. A mod's own `Generated/DevFlags.generated.cs` does not count — only
-  `*.g.cs` is codegen. A compiled assembly that cannot be found (not named after
-  `MOD_NAME`) skips the check with a warning; one that cannot be read fails it.
+  through `utils/check_dots_codegen.py` and exits **4**; a publish does it
+  inside `CLIPublishHelper`, between the build and the first mod.io call,
+  because `upload.sh` builds in its own Unity session and never goes through
+  `build.sh`. `upload.sh --steam-only` makes that same publish build and is
+  checked inside it; it no longer ships the last local build, which nothing had
+  checked and which could be one `build.sh` had just rejected. Its override,
+  `CK_STEAM_CONTENT` pointing at a downloaded mod.io modfile, has no build and
+  so no check — the compiled assembly belongs to the checkout, not to that
+  folder — and the run says so. A mod's own `Generated/DevFlags.generated.cs`
+  does not count — only `*.g.cs` is codegen. A compiled assembly that cannot be
+  found (not named after `MOD_NAME`) skips the check with a warning; one that
+  cannot be read fails it.
 
 The touch is the remedy and the check the net under it: both failure runs it was
 tested with (a build and a publish dry run, each with the touch disabled) were

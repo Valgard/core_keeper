@@ -85,9 +85,10 @@ changelog; use a real release for anything that changes what the mod does.
 `utils/upload.sh` publishes to two destinations from one command. mod.io runs as
 described above; Steam publishing — `utils/steam_bundle.py` assembling a publish
 bundle, handed as JSON to the `utils/ck-workshop` .NET tool, which makes the
-Steamworks calls — runs afterward, against that same build output. How the
-Workshop itself behaves as a platform (one item rather than a profile/modfile
-split, its tag groups, the preview size limit, the macOS native-library gap) is [`docs/ck/steam-workshop.md`](ck/steam-workshop.md);
+Steamworks calls — runs afterward, against that same build output
+(`--steam-only` makes a build of its own, below). How the Workshop itself
+behaves as a platform (one item rather than a profile/modfile split, its tag
+groups, the preview size limit, the macOS native-library gap) is [`docs/ck/steam-workshop.md`](ck/steam-workshop.md);
 this section covers only what this repository's pipeline does with it.
 
 **The Workshop item's id lives in `unity/<MOD_NAME>/<MOD_NAME>_Steam.asset`,
@@ -117,15 +118,22 @@ mod *is*, so it must not name one that is not meant to survive. Restore the
 appearing in `git diff` on this asset is not by itself something to commit — the
 question is which kind of item produced it.
 
-**The publish fills that asset in completely, not just its id.** `modOwner`,
-`selectedPath` and `tags` are read by the SDK window alone, and a publish is
-the moment their current values are known — so the window finds a usable asset
-instead of a half-filled one. It also keeps them from rotting: the window's own
-`selectedPath` still named the pre-`MOD_INSTALL_PATH` build directory until a
-publish corrected it. `modOwner` comes back from `ck-workshop`, since it needs
-a live Steam session; the other two are already in the publish bundle. Each is
+**The publish fills that asset in, not just its id — and clears one field.**
+`modOwner` and `tags` are read by the SDK window alone, and a publish is the
+moment their current values are known — so the window finds a usable asset
+instead of a half-filled one. `modOwner` comes back from `ck-workshop`, since it
+needs a live Steam session; the tags are already in the publish bundle. Each is
 written only when its value is known, so a run that cannot determine one leaves
 what is there rather than blanking it.
+
+`selectedPath` is written empty, on every publish. The window uploads from that
+folder with its own Steam button, and this pipeline has no folder that outlives
+a run: what a publish used to record there was the folder it had just uploaded
+— a temporary cache directory macOS clears at reboot, or, from the old
+`--steam-only`, the shared `MOD_INSTALL_PATH` folder (below). Either one only
+committed a throwaway machine path into a tracked file, and the second aimed the
+window at the folder of an incident. The accepted cost: the window's Steam
+upload button stays disabled for these mods.
 
 Two consequences worth knowing. `modOwner` is the author's SteamID64, and the
 asset sits in the folder ModBuilder collects the mod from — but its *contents*
@@ -177,22 +185,70 @@ twice with nothing to order them by.
 `--no-steam` publishes to mod.io only; `--steam-only` skips mod.io and
 publishes to Steam alone. `upload.sh` refuses to run with both set.
 
+**`--steam-only` builds what it publishes.** It runs the publish build of the
+checkout it was started in — `CLIPublishHelper`'s Steam-only mode: the same
+build step, then a read of what mod.io holds, and no mod.io write of any kind —
+and uploads exactly that folder. It never reads `MOD_INSTALL_PATH`. That folder
+holds whatever `build.sh` made last, from any checkout or worktree, and it used
+to be what this mode shipped: on 2026-10-11 it put an unreleased build of Mod
+Settings Menu on the Workshop labelled 1.2.2, and Steam players got
+`CompileFailed` for eleven days. The version label and the content came from two
+unrelated places, and nothing tied them together.
+
+Three refusals now do, all with exit 1 and all before anything is sent:
+
+- **The checkout**, before Unity starts: uncommitted changes under `unity/` or
+  `localization/` or to `CHANGELOG.md` — untracked files included, because
+  ModBuilder collects a mod's files by folder — or notes under
+  `## [Unreleased]`. Either way the build would not be the release its version
+  names. A passing checkout prints the commit it builds from.
+- **The version against mod.io**, for a mod that has a mod.io id: the topmost
+  `CHANGELOG.md` version must be the one mod.io serves now. Absent from mod.io,
+  the mod would run ahead of it on Steam; present but superseded, the checkout
+  is behind. A mod.io that cannot be read is a refusal as well, never "not on
+  mod.io" — that is decided from the repository alone, by a missing or zero
+  `modId` in `<Mod>_modio.asset`.
+- **The size against mod.io**: the folder's byte total must equal the live
+  modfile's `filesize_uncompressed`. That is only sound because [a mod build reproduces byte for byte](build-environment.md#a-mod-build-reproduces-byte-for-byte);
+  the refusal names the two likely causes — a checkout that is not the released
+  state, or a toolchain that changed since the release — and the override below
+  as the repair.
+
+A mod with no mod.io id is published uncompared, and the run says so. For such
+a mod a clean checkout at the wrong commit still goes through; the printed
+commit is the only trace of what was built.
+
+**`CK_STEAM_CONTENT` is the override, and it is held to the same comparison.**
+Set from outside under `--steam-only`, it replaces the build with the folder it
+names — the repair route for a release the current toolchain no longer rebuilds,
+typically mod.io's own modfile for that version, downloaded and unpacked by
+hand. The run announces it, still starts Unity (to read mod.io with the owner's
+login, not to build), and accepts the folder only when the comparison above can
+run and holds: the mod is on mod.io, this version is live there, the folder has
+its size — and it does not lie inside `MOD_INSTALL_PATH`, which is never a
+source, whatever its size. A mod not on mod.io has no override. The DOTS codegen
+check is skipped on this path, and the run says why: it reads the assembly
+compiled from the checkout, which says nothing about a downloaded folder. Any
+other run ignores an inherited `CK_STEAM_CONTENT`, and says so; its Steam stage
+uses only the folder the run built.
+
 **A Steam preflight runs before mod.io, and a failure there skips Steam instead
 of aborting the run.** `steam_bundle.check_prerequisites` validates the
 repository-side inputs a Steam publish needs: `MOD_NAME`, a `CK_MODIO_TYPE` that
 names at least one category, a `CK_GAME_VERSION` whose every value has three
 numeric parts, the ModBuilderSettings `.asset`, `steam-description.txt`, a
 `CHANGELOG.md` whose topmost `## [x.y.z]` entry parses, `Editor/logo.png`, a
-recognizable `<Mod>_Steam.asset`, and a Workshop id for every dependency the
-`.asset` marks `required` — an unresolvable *optional* one only warns.
+recognizable `<Mod>_Steam.asset`, no id that the mod repo's `main` records and
+this checkout lacks (below), and a Workshop id for every dependency the `.asset`
+marks `required` — an unresolvable *optional* one only warns.
 
 It is not a check of everything the stage needs, and reading it as one is how a
 gap goes unnoticed: `libsteam_api.dylib`, a working `dotnet` toolchain and a
 signed-in Steam client are equally independent of the build and none of them is
 checked here — they surface from `ck-workshop` or its MSBuild step instead. What
-*is* left out on purpose is the built content folder: on the normal path
-mod.io's own build creates it, so at preflight time it genuinely cannot exist
-yet. It runs first, not merely early, for the same reason the modfile upload
+*is* left out on purpose is the built content folder: this run's own build
+creates it, later, so at preflight time it genuinely cannot exist yet. It runs
+first, not merely early, for the same reason the modfile upload
 itself cannot: once that release goes out it cannot be undone, so a missing file
 or an unresolved dependency has to surface while skipping still costs nothing.
 On failure it prints why and continues into the mod.io release with the Steam
@@ -203,6 +259,28 @@ says so. `--steam-only` is the one case with no mod.io release for that skip to
 protect, so there a failed preflight aborts the run instead — publishing nothing
 while reporting success would be worse than the previous behaviour.
 
+**Both identity assets are checked against the mod repo's `main`, and the two
+gaps are refused at different depths.** Release tags commonly predate the commit
+that records an id — the Workshop id is written by the first Steam publish,
+after the release commit — so a checkout of a release can lack an id that
+`main` already has, and a publish from it would not know. Only a definite id on
+`main` makes a gap; a checkout that has an id `main` lacks is a first release
+not merged yet, and fine. Each refusal names the file and the `git checkout
+main -- …` that brings it over.
+
+- **A missing Workshop id** would make the publish create a second Workshop item
+  beside the live one. It is part of the preflight above, so on the normal path
+  it skips Steam with exit 8 and leaves the mod.io release alone, and under
+  `--steam-only` it aborts.
+- **A missing mod.io id** costs more, and on mod.io: on `modId` 0
+  `CLIPublishHelper` takes the mod for a new one, calls `CreateModProfile`, and
+  uploads the release to a second, hidden mod.io profile. Skipping Steam would
+  not prevent that, so this gap stops the whole run with exit 1 before anything
+  reaches mod.io — in every mode, `--dry-run` included, so that a dry run
+  predicts the real one. Under `--steam-only` it would merely make the mod look
+  as if it were not on mod.io and skip every comparison with it, and it is
+  refused there too.
+
 **Steam runs second and can never fail the mod.io publish.** By the time it
 starts, the mod.io release has already happened and cannot be undone, so a Steam
 failure is reported — and reflected in the exit code — rather than treated as
@@ -210,6 +288,26 @@ fatal: aborting at that point would reverse nothing and only hide what had
 already succeeded. The preflight above upholds that same invariant at its own,
 earlier point in the run, exit code included; it uses a distinct one because
 "Steam never started" and "Steam started and failed" are worth telling apart.
+
+**After every upload, the Workshop item is compared with mod.io.** Steam's size
+of the item is read before the submit and again after it — re-read for a
+bounded time, because Steam reports a new size only a while after the submit —
+and held against mod.io's `filesize_uncompressed` for the version just
+published. A different size ends the run in **exit 11**; a comparison that
+could not be made — Steam unreadable, the item still at its old size, mod.io's
+side of it unknown — in **exit 12**. A mod not on mod.io is not compared, and
+the run says so; a dry run sent nothing and compares nothing.
+
+What it shows is narrower than it looks. Equal size is the measure both
+platforms already agree on — when the incident was found, Steam's `file_size`
+equalled mod.io's `filesize_uncompressed` for every other mod here, while that
+one's two sizes differed sixfold — so it is strong evidence of the same build,
+not proof: two different builds can share a size. On the normal path both
+destinations receive one folder, so a match shows delivery, that Steam holds
+what mod.io holds, and nothing about whether that build was right; a wrong but
+consistent build, one carrying a dev flag say, passes. Under `--steam-only` the
+check against the incident's kind of error is the one before the upload; this
+one confirms the delivery.
 
 **The exit codes exist to keep outcomes apart that all leave the item live.**
 Nothing can be undone at that point, so saying precisely what happened is the
@@ -220,12 +318,19 @@ only thing left:
 | 7 | published, but an **optional** dependency did not attach |
 | 8 | the mod.io release is done; Steam never started, its preflight failed |
 | 9 | published, but a **required** dependency may be missing from the item |
+| 11 | published, but the item's size differs from mod.io's modfile of this version |
+| 12 | published, but the comparison with mod.io could not be made |
 
 7 and 9 are the same API failure with different consequences: an optional
 dependency that did not attach costs a subscriber a convenience, a required one
-costs them a mod that does not run. Codes 2–6 come straight through from
-`utils/ck-workshop` — its own header says what each means — and 124 is a
-`timeout` firing, on either destination.
+costs them a mod that does not run. 11 and 12 come from the comparison above,
+and its precedence is `steam_guard.combine_exit`: a mismatch outranks 0, 7, 9
+and 130 (a Ctrl-C that killed the `tee`, after which the upload ran on to its
+end, so the comparison still runs), 12 outranks only 0, and neither masks a
+Steam failure. Codes 2–6 come straight through from `utils/ck-workshop` — its
+own header says what each means — and 124 is a `timeout` firing, on either
+destination. The refusals before anything is sent, `upload.sh`'s own, are all
+exit 1.
 
 `--changelog-only` and `--profile-only` skip Steam outright rather than
 attempting an equivalent: the former edits a mod.io modfile's changelog text,
