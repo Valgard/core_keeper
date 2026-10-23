@@ -555,6 +555,8 @@ internal static class Program
                     return 4;
                 }
 
+                // No size is reported: SizeBytes measured 0 for an item whose content is a
+                // folder (2026-10-24). upload.sh reads the public Web API's file_size instead.
                 Console.WriteLine(
                     JsonSerializer.Serialize(
                         new
@@ -565,7 +567,6 @@ internal static class Program
                             owner = item.Owner.Id.Value,
                             metadata = item.Metadata,
                             metadataQueried = true,
-                            sizeBytes = item.SizeBytes,
                         }
                     )
                 );

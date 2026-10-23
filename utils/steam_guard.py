@@ -25,7 +25,9 @@ Pure apart from asking git and the file system, and kept apart from
 script cannot be handed a fixture, and these are exactly the decisions a test
 has to be able to put every case to. What mod.io holds arrives as the reference
 file Unity writes (`CLIPublishHelper`, `ModioReference`), read here and never
-fetched, so nothing in this module talks to mod.io or Steam.
+fetched, so nothing in this module talks to mod.io. The one thing it asks
+Steam is an item's size (`steam_size`), from the public Web API — the Steam
+session's own UGC query reports 0 for an item whose content is a folder.
 """
 
 import json
@@ -41,6 +43,7 @@ from typing import NamedTuple
 
 import steam_bundle
 import steam_identity
+import steam_retag
 
 # upload.sh and ck-workshop share one exit-code space; ck-workshop's header
 # names 10 as its own next code, so the guard's two start past it.
@@ -477,15 +480,24 @@ def combine_exit(steam_rc: int, guard_rc: int) -> int:
 
 
 def steam_size(utils_dir: Path, env: Mapping[str, str], file_id: int) -> int | None:
-    """The item's size in bytes as the Workshop reports it now, or None on any failure."""
-    try:
-        import steam_backfill
+    """The item's size in bytes as the public Web API reports it now, or None on any failure.
 
-        item = steam_backfill.read_item(Path(utils_dir), dict(env), file_id)
+    The Web API's `file_size`, a string, which for a folder-content item is the
+    content's byte total and equals mod.io's `filesize_uncompressed`. Not the
+    Steam session's UGC query: its `SizeBytes` measured 0 for such an item.
+    None covers a network error, an unexpected shape, a `result` other than 1
+    — deleted, or hidden: the item a first publish has just created is hidden,
+    and the API cannot see it — and a `file_size` that is not a whole number.
+    `utils_dir` and `env` are kept for the callers' sake; nothing here needs them.
+    """
+    try:
+        details = steam_retag.item_details(file_id)
+        if details.get("result") != 1:
+            return None
+        raw = details.get("file_size")
+        return int(raw) if isinstance(raw, str) and raw.isdigit() else None
     except Exception:
         return None
-    size = item.get("sizeBytes") if isinstance(item, dict) else None
-    return size if _whole_number(size) else None
 
 
 def _version(repo: Path) -> str:

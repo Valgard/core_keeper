@@ -292,17 +292,22 @@ already succeeded. The preflight above upholds that same invariant at its own,
 earlier point in the run, exit code included; it uses a distinct one because
 "Steam never started" and "Steam started and failed" are worth telling apart.
 
-**After every upload, the Workshop item is compared with mod.io.** Steam's size
-of the item is read before the submit and again after it — re-read for a bounded
-time, because Steam reports a new size only a while after the submit — and held
-against mod.io's `filesize_uncompressed` for the version just published. A read
-of 0 is never taken as a size: no uploaded build is 0 bytes, so it can only be a
-size Steam is not reporting yet. A new item has no size from before to recognise
-a lagging read by, so for it a wrong size is judged only from the last read. A
-different size ends the run in **exit 11**; a comparison that could not be made
-— Steam unreadable, the item still at its old size or at 0, mod.io's side of it
-unknown — in **exit 12**. A mod not on mod.io is not compared, and the run says
-so; a dry run sent nothing and compares nothing.
+**After every upload, the Workshop item is compared with mod.io.** The item's
+size is read before the submit and again after it — from the public Web API's
+`file_size`, not through the Steam session, whose UGC query reports 0 for a
+folder's content ([measured](ck/steam-workshop.md#an-items-size-the-ugc-query-says-0-the-web-api-says-the-content-total)). It is re-read for a bounded time, because Steam
+reports a new size only a while after the submit, and held against mod.io's
+`filesize_uncompressed` for the version just published. A read of 0 is never
+taken as a size: no uploaded build is 0 bytes, so it can only be a size Steam is
+not reporting yet. A new item has no size from before to recognise a lagging
+read by, so for it a wrong size is judged only from the last read. The Web API
+cannot see an item that is still hidden, and a first publish creates its item
+hidden, so there every read fails and the run ends in 12 — the comparison could
+not be made, which is an honest answer and no fault of the release. A different
+size ends the run in **exit 11**; a comparison that could not be made — Steam
+unreadable, the item still at its old size or at 0, mod.io's side of it unknown
+— in **exit 12**. A mod not on mod.io is not compared, and the run says so; a
+dry run sent nothing and compares nothing.
 
 What it shows is narrower than it looks. Equal size is the measure both
 platforms already agree on — when the incident was found, Steam's `file_size`

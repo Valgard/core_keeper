@@ -49,17 +49,28 @@ VERIFY_ATTEMPTS = 6
 VERIFY_INTERVAL = 5
 
 
-def live_tags(file_id: int) -> list[str]:
-    """The tags a Workshop item carries right now, from the public Web API."""
+def item_details(file_id: int) -> dict:
+    """One Workshop item's entry from the public Web API, as the API gives it.
+
+    Raises ValueError for a response in another shape, which the callers treat
+    as an unreadable answer rather than a crash. Whether the entry describes
+    the item (its `result`) is for the caller to judge.
+    """
     body = urllib.parse.urlencode({"itemcount": 1, "publishedfileids[0]": file_id}).encode()
     with urllib.request.urlopen(DETAILS_URL, body, timeout=30) as response:
         payload = json.load(response)
-    # A response in another shape is an unreadable answer, not a crash: the
-    # caller treats ValueError as "this mod failed" and moves on to the next.
     try:
         details = payload["response"]["publishedfiledetails"][0]
     except (KeyError, IndexError, TypeError) as err:
         raise ValueError(f"Workshop item {file_id}: unexpected Web API response ({err!r})") from err
+    if not isinstance(details, dict):
+        raise ValueError(f"Workshop item {file_id}: unexpected Web API response ({details!r})")
+    return details
+
+
+def live_tags(file_id: int) -> list[str]:
+    """The tags a Workshop item carries right now, from the public Web API."""
+    details = item_details(file_id)
     # result 1 is k_EResultOK. Anything else is an item the API will not
     # describe — deleted, banned, or an id that was never an item.
     if details.get("result") != 1:

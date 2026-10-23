@@ -831,31 +831,48 @@ def test_combine_exit(steam_rc, guard_rc, final):
     assert steam_guard.combine_exit(steam_rc, guard_rc) == final
 
 
-def test_steam_size_reads_sizebytes(monkeypatch, tmp_path):
-    """The size comes from the item's `sizeBytes`."""
-    import steam_backfill
+def _details(monkeypatch, result):
+    """Make the Web API reader return `result`, or raise it when it is an exception."""
+    import steam_retag
 
-    monkeypatch.setattr(steam_backfill, "read_item", lambda utils, env, fid: {"sizeBytes": 742})
-    assert steam_guard.steam_size(tmp_path, {}, 1) == 742
+    def fake(file_id):
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    monkeypatch.setattr(steam_retag, "item_details", fake)
 
 
-@pytest.mark.parametrize("item", [None, {}, {"sizeBytes": "742"}, {"sizeBytes": True}, []])
-def test_steam_size_is_none_for_anything_else(monkeypatch, tmp_path, item):
-    """A missing item, field or non-integer is "unreadable", not a number."""
-    import steam_backfill
+def test_steam_size_reads_file_size_string(monkeypatch, tmp_path):
+    """The size is the Web API's `file_size`, which arrives as a string."""
+    _details(monkeypatch, {"result": 1, "file_size": "80420"})
+    assert steam_guard.steam_size(tmp_path, {}, 1) == 80420
 
-    monkeypatch.setattr(steam_backfill, "read_item", lambda utils, env, fid: item)
+
+@pytest.mark.parametrize(
+    "details",
+    [
+        {"result": 9, "file_size": "80420"},
+        {"result": 1},
+        {"result": 1, "file_size": "lots"},
+        {"result": 1, "file_size": None},
+        {"result": 1, "file_size": True},
+        {"result": 1, "file_size": "-5"},
+        {},
+        None,
+        [],
+    ],
+)
+def test_steam_size_is_none_for_anything_else(monkeypatch, tmp_path, details):
+    """A hidden or deleted item, or a missing or non-numeric size, is unreadable."""
+    _details(monkeypatch, details)
     assert steam_guard.steam_size(tmp_path, {}, 1) is None
 
 
-def test_steam_size_is_none_when_the_reader_raises(monkeypatch, tmp_path):
-    """A reader that blows up is an unreadable size."""
-    import steam_backfill
-
-    def boom(*_args):
-        raise OSError("no ck-workshop")
-
-    monkeypatch.setattr(steam_backfill, "read_item", boom)
+@pytest.mark.parametrize("error", [OSError("offline"), ValueError("shape"), TimeoutError()])
+def test_steam_size_is_none_when_the_fetch_raises(monkeypatch, tmp_path, error):
+    """A network error or an unexpected response shape is an unreadable size."""
+    _details(monkeypatch, error)
     assert steam_guard.steam_size(tmp_path, {}, 1) is None
 
 
