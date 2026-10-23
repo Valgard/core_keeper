@@ -404,17 +404,36 @@ def compare_after_upload(
 ) -> tuple[int, str]:
     """Whether the Workshop item now holds what mod.io serves, as (exit code, sentence).
 
-    `before` is the item's size from before the upload. Steam's size lags the
-    upload, so a read that still equals `before` is "not updated yet", not a
-    verdict: it is retried up to `attempts` times, `interval` seconds apart. A
-    read that is neither `before` nor `expected` is final — the item changed
-    and holds other content (11). Running out of attempts on an unreadable or
-    unchanged size leaves the comparison unmade (12). A read equal to
-    `expected` matches even when it equals `before`: a re-upload of the same
-    build changes nothing to wait for.
+    `before` is the item's size from before the upload, None for an item that
+    did not exist yet (or could not be read). Steam's size lags the upload, so
+    reads are retried up to `attempts` times, `interval` seconds apart, and
+    what counts as "not updated yet" rather than a verdict is:
+
+    - a read equal to `before`, the item's old size;
+    - a read of 0, which is never taken as a size: no uploaded build is 0
+      bytes, so a 0 is a size Steam is not reporting yet — a new item's first
+      reads are the expected case, though that is not measured;
+    - for a new item (`before` None), any read but the last — with no old size
+      to tell a lagging read from a final one, a wrong nonzero size is
+      concluded only once every attempt is used, from the last read.
+
+    A read equal to `expected` matches at once, even when it equals `before`: a
+    re-upload of the same build changes nothing to wait for. With `before`
+    known, a nonzero read that is neither `before` nor `expected` is final —
+    the item changed and holds other content (11). Running out of attempts on
+    an unreadable, zero or unchanged size leaves the comparison unmade (12).
     """
     if expected is None:
         return 0, "not compared: mod.io has no size to compare the Workshop item with."
+
+    def mismatch(size: int) -> tuple[int, str]:
+        return (
+            EXIT_CONTENT_MISMATCH,
+            f"the Workshop item holds {size} B, mod.io's modfile is {expected} B — Steam "
+            "serves other content than mod.io under this version. Re-publish from the "
+            "released checkout, or with CK_STEAM_CONTENT set to mod.io's modfile.",
+        )
+
     last: int | None = None
     for attempt in range(attempts):
         if attempt:
@@ -422,15 +441,14 @@ def compare_after_upload(
         last = read_size()
         if last == expected:
             return 0, f"the Workshop item matches mod.io ({expected} bytes)"
-        if last is not None and last != before:
-            return (
-                EXIT_CONTENT_MISMATCH,
-                f"the Workshop item holds {last} B, mod.io's modfile is {expected} B — Steam "
-                "serves other content than mod.io under this version. Re-publish from the "
-                "released checkout, or with CK_STEAM_CONTENT set to mod.io's modfile.",
-            )
+        if before is not None and last not in (None, 0, before):
+            return mismatch(last)
+    if before is None and last not in (None, 0):
+        return mismatch(last)
     if last is None:
         why = "the item's size could not be read"
+    elif last == 0:
+        why = "Steam still reports no size for the item (0 B)"
     else:
         why = f"the item still reports its size from before the upload ({before} B)"
     return (

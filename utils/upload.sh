@@ -703,9 +703,14 @@ PY
         # The item's size before the upload, for the comparison after it: Steam
         # reports the new size only some time after a submit, and a read that
         # still returns this one means "not updated yet", not a verdict. Empty
-        # for an item that does not exist yet, or when Steam cannot be read —
-        # both only mean there is nothing to wait out. Not in a dry run, which
-        # sends nothing and so compares nothing. The read goes through
+        # for an item that does not exist yet, or when Steam cannot be read.
+        # That is not "nothing to wait out": with no old size to recognise a
+        # lagging read by, the comparison uses every attempt and judges a
+        # wrong size from the last read only, and it never takes a read of 0
+        # for a size — no uploaded build is 0 bytes, so a 0 is a size Steam is
+        # not reporting yet (steam_guard.compare_after_upload). Not in a dry
+        # run, which sends
+        # nothing and so compares nothing. The read goes through
         # `ck-workshop --read-item`, whose output shows up here.
         if [ "${PUBLISH_DRY_RUN:-}" != "1" ]; then
             echo "  Reading the Workshop item's current size, for the check after the upload..."
@@ -779,7 +784,7 @@ PY
             # The item against mod.io, once the upload is in: Steam's size of
             # the item against mod.io's filesize_uncompressed for this version
             # (steam_guard.py post-upload, which re-reads for a bounded time
-            # until the size moves off CK_STEAM_SIZE_BEFORE). Only where the
+            # while the size is still CK_STEAM_SIZE_BEFORE or 0). Only where the
             # upload may have gone through — 0, 7 and 9 are a live item, and
             # 130 is a killed `tee` after which the upload ran on to its end
             # (see STEAM_RESULT above). 2-6 and 124 sent nothing or failed

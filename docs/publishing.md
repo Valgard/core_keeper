@@ -293,13 +293,16 @@ earlier point in the run, exit code included; it uses a distinct one because
 "Steam never started" and "Steam started and failed" are worth telling apart.
 
 **After every upload, the Workshop item is compared with mod.io.** Steam's size
-of the item is read before the submit and again after it — re-read for a
-bounded time, because Steam reports a new size only a while after the submit —
-and held against mod.io's `filesize_uncompressed` for the version just
-published. A different size ends the run in **exit 11**; a comparison that
-could not be made — Steam unreadable, the item still at its old size, mod.io's
-side of it unknown — in **exit 12**. A mod not on mod.io is not compared, and
-the run says so; a dry run sent nothing and compares nothing.
+of the item is read before the submit and again after it — re-read for a bounded
+time, because Steam reports a new size only a while after the submit — and held
+against mod.io's `filesize_uncompressed` for the version just published. A read
+of 0 is never taken as a size: no uploaded build is 0 bytes, so it can only be a
+size Steam is not reporting yet. A new item has no size from before to recognise
+a lagging read by, so for it a wrong size is judged only from the last read. A
+different size ends the run in **exit 11**; a comparison that could not be made
+— Steam unreadable, the item still at its old size or at 0, mod.io's side of it
+unknown — in **exit 12**. A mod not on mod.io is not compared, and the run says
+so; a dry run sent nothing and compares nothing.
 
 What it shows is narrower than it looks. Equal size is the measure both
 platforms already agree on — when the incident was found, Steam's `file_size`

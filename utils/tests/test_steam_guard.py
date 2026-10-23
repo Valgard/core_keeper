@@ -732,6 +732,71 @@ def test_no_expected_size_is_not_compared():
     assert steam_guard.compare_after_upload(None, 5, lambda: 5)[0] == 0
 
 
+class _Reads:
+    """A Steam size reader that replays `values`, repeating the last, and counts its calls."""
+
+    def __init__(self, *values):
+        self.values = list(values)
+        self.calls = 0
+
+    def __call__(self):
+        value = self.values[min(self.calls, len(self.values) - 1)]
+        self.calls += 1
+        return value
+
+
+def test_a_new_item_reading_zero_until_its_size_shows_is_a_match():
+    """A first publish has no size before it, and Steam may report 0 until the content shows.
+
+    0 is "not yet", not the item's size — no uploaded build is 0 bytes. Before
+    this rule, a first 0 ended a correct first publish in exit 11.
+    """
+    reads = _Reads(0, 0, 742)
+    out = steam_guard.compare_after_upload(742, None, reads, attempts=6, sleep=_no_sleep)
+    assert out[0] == 0
+    assert reads.calls == 3
+
+
+def test_a_new_item_that_stays_at_zero_is_unverified():
+    """A size that never shows is a comparison not made (12), never a mismatch."""
+    reads = _Reads(0)
+    code, message = steam_guard.compare_after_upload(742, None, reads, attempts=4, sleep=_no_sleep)
+    assert code == 12
+    assert reads.calls == 4
+    assert "0 B" in message
+
+
+def test_a_new_item_with_a_wrong_size_is_a_mismatch_only_after_the_last_read():
+    """Without a size from before, nothing tells a lagging read from a final one.
+
+    So a wrong nonzero size is concluded only once every attempt is used, from
+    the last read.
+    """
+    reads = _Reads(811)
+    out = steam_guard.compare_after_upload(742, None, reads, attempts=5, sleep=_no_sleep)
+    assert out[0] == 11
+    assert reads.calls == 5
+
+
+def test_a_new_item_whose_wrong_read_settles_on_the_right_size_is_a_match():
+    """An early wrong size on a new item is waited out, not judged."""
+    reads = _Reads(811, 742)
+    assert steam_guard.compare_after_upload(742, None, reads, attempts=5, sleep=_no_sleep)[0] == 0
+
+
+def test_a_new_item_whose_last_read_fails_is_unverified():
+    """The verdict on a new item is the last read's: unreadable there is 12, whatever came first."""
+    reads = _Reads(811, 811, None)
+    assert steam_guard.compare_after_upload(742, None, reads, attempts=3, sleep=_no_sleep)[0] == 12
+
+
+@pytest.mark.parametrize(("values", "code"), [((0, 742), 0), ((0,), 12)])
+def test_a_zero_read_of_a_known_item_is_never_a_mismatch(values, code):
+    """With a size from before, 0 is neither that size nor mod.io's — and still only "not yet"."""
+    reads = _Reads(*values)
+    assert steam_guard.compare_after_upload(742, 500, reads, attempts=3, sleep=_no_sleep)[0] == code
+
+
 def test_the_retry_sleeps_between_reads_only():
     """Attempts are spaced by the interval, with no sleep before the first read."""
     sleeps = []
