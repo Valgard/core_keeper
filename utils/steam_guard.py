@@ -30,6 +30,10 @@ import json
 import os
 import stat
 import subprocess
+import sys
+import time
+from collections.abc import Callable
+from collections.abc import Mapping
 from pathlib import Path
 from typing import NamedTuple
 
@@ -385,3 +389,203 @@ def decide_pre_upload(
         )
 
     return Verdict(True, f"matches mod.io ({content_size} bytes)")
+
+
+def compare_after_upload(
+    expected: int | None,
+    before: int | None,
+    read_size: Callable[[], int | None],
+    *,
+    attempts: int = 6,
+    interval: float = 5.0,
+    sleep: Callable[[float], None] = time.sleep,
+) -> tuple[int, str]:
+    """Whether the Workshop item now holds what mod.io serves, as (exit code, sentence).
+
+    `before` is the item's size from before the upload. Steam's size lags the
+    upload, so a read that still equals `before` is "not updated yet", not a
+    verdict: it is retried up to `attempts` times, `interval` seconds apart. A
+    read that is neither `before` nor `expected` is final — the item changed
+    and holds other content (11). Running out of attempts on an unreadable or
+    unchanged size leaves the comparison unmade (12). A read equal to
+    `expected` matches even when it equals `before`: a re-upload of the same
+    build changes nothing to wait for.
+    """
+    if expected is None:
+        return 0, "not compared: mod.io has no size to compare the Workshop item with."
+    last: int | None = None
+    for attempt in range(attempts):
+        if attempt:
+            sleep(interval)
+        last = read_size()
+        if last == expected:
+            return 0, f"the Workshop item matches mod.io ({expected} bytes)"
+        if last is not None and last != before:
+            return (
+                EXIT_CONTENT_MISMATCH,
+                f"the Workshop item holds {last} B, mod.io's modfile is {expected} B — Steam "
+                "serves other content than mod.io under this version. Re-publish from the "
+                "released checkout, or with CK_STEAM_CONTENT set to mod.io's modfile.",
+            )
+    if last is None:
+        why = "the item's size could not be read"
+    else:
+        why = f"the item still reports its size from before the upload ({before} B)"
+    return (
+        EXIT_UNVERIFIED,
+        f"could not verify the Workshop item against mod.io ({expected} B): {why} after "
+        f"{attempts} reads. Check the item's size on Steam by hand.",
+    )
+
+
+def combine_exit(steam_rc: int, guard_rc: int) -> int:
+    """The one exit code for a run whose Steam stage and guard each ended with their own.
+
+    A failure of the Steam stage itself (2-6, 124) is what happened first and
+    wins. Otherwise a content mismatch (11) outranks everything — it says the
+    item is live with the wrong content, whatever else is also true; 12 outranks
+    only success. Any other guard code is a guard that crashed, which is the
+    comparison not having been made: 12.
+    """
+    if steam_rc in (2, 3, 4, 5, 6, 124):
+        return steam_rc
+    if guard_rc == EXIT_CONTENT_MISMATCH:
+        return EXIT_CONTENT_MISMATCH
+    if guard_rc != 0 and steam_rc == 0:
+        return EXIT_UNVERIFIED
+    return steam_rc
+
+
+def steam_size(utils_dir: Path, env: Mapping[str, str], file_id: int) -> int | None:
+    """The item's size in bytes as the Workshop reports it now, or None on any failure."""
+    try:
+        import steam_backfill
+
+        item = steam_backfill.read_item(Path(utils_dir), dict(env), file_id)
+    except Exception:
+        return None
+    size = item.get("sizeBytes") if isinstance(item, dict) else None
+    return size if _whole_number(size) else None
+
+
+def _version(repo: Path) -> str:
+    """The topmost CHANGELOG.md version — what the run labels its release with."""
+    version, _ = steam_bundle.parse_changelog((repo / "CHANGELOG.md").read_text(encoding="utf-8"))
+    return version
+
+
+def _cmd_pre_upload(repo: Path, mod_name: str, env: Mapping[str, str]) -> int:
+    """`pre-upload`: print the verdict on the content bound for Steam; 0 proceeds, 1 refuses."""
+    ref = load_reference(Path(env.get("CK_MODIO_REF", "")))
+    try:
+        version = _version(repo)
+    except (OSError, ValueError) as err:
+        print(f"CHANGELOG.md names no version for this run: {err}", file=sys.stderr)
+        return 1
+    content = Path(env.get("CK_STEAM_CONTENT", ""))
+    override = bool(env.get("CK_STEAM_OVERRIDE"))
+    install = env.get("MOD_INSTALL_PATH")
+    try:
+        size = folder_size(content)
+    except OSError as err:
+        if ref.get("modId") != 0:
+            print(f"the content could not be measured: {err}", file=sys.stderr)
+            return 1
+        size = 0  # not on mod.io: nothing to compare it with
+    verdict = decide_pre_upload(
+        version=version,
+        ref=ref,
+        content=content,
+        content_size=size,
+        override=override,
+        install_path=Path(install) if install else None,
+    )
+    print(verdict.message, file=None if verdict.proceed else sys.stderr)
+    return 0 if verdict.proceed else 1
+
+
+def _cmd_steam_size(repo: Path, mod_name: str, env: Mapping[str, str]) -> int:
+    """`steam-size`: print the item's current size, or nothing when there is no id or no answer."""
+    file_id = steam_identity.read_file_id(steam_identity.asset_path(repo, mod_name))
+    if file_id is not None:
+        size = steam_size(Path(__file__).resolve().parent, env, file_id)
+        if size is not None:
+            print(size)
+    return 0
+
+
+def _cmd_post_upload(repo: Path, mod_name: str, env: Mapping[str, str]) -> int:
+    """`post-upload`: compare the item with mod.io after the upload; the exit code says how."""
+    ref = load_reference(Path(env.get("CK_MODIO_REF", "")))
+    if ref.get("modId") == 0:
+        print("not compared: not on mod.io — there is no modfile to check the item against.")
+        return 0
+    if "error" in ref:
+        print(f"could not verify: the mod.io reference is unusable ({ref['error']})")
+        return EXIT_UNVERIFIED
+    try:
+        version = _version(repo)
+    except (OSError, ValueError) as err:
+        print(f"could not verify: CHANGELOG.md names no version ({err})")
+        return EXIT_UNVERIFIED
+    modfile = modfile_for_version(ref, version)
+    expected = modfile.get("filesize_uncompressed") if modfile else None
+    if not _whole_number(expected):
+        print(f"could not verify: mod.io has no size on record for version {version}")
+        return EXIT_UNVERIFIED
+    file_id = steam_identity.read_file_id(steam_identity.asset_path(repo, mod_name))
+    if file_id is None:
+        print("could not verify: no Workshop item id is recorded, so there is no item to read")
+        return EXIT_UNVERIFIED
+    raw = env.get("CK_STEAM_SIZE_BEFORE", "").strip()
+    before = int(raw) if raw.isdigit() else None
+    utils_dir = Path(__file__).resolve().parent
+    code, message = compare_after_upload(
+        expected, before, lambda: steam_size(utils_dir, env, file_id)
+    )
+    print(message)
+    return code
+
+
+def main(argv: list[str], env: Mapping[str, str] | None = None) -> int:
+    """Dispatch `steam_guard.py <command> <repo>` (or `combine <steam_rc> <guard_rc>`)."""
+    env = os.environ if env is None else env
+    usage = (
+        "usage: steam_guard.py checkout|pre-upload|steam-size|post-upload <repo>"
+        " | combine <steam_rc> <guard_rc>"
+    )
+    if len(argv) == 4 and argv[1] == "combine":
+        try:
+            print(combine_exit(int(argv[2]), int(argv[3])))
+        except ValueError:
+            print(usage, file=sys.stderr)
+            return 2
+        return 0
+    if len(argv) != 3:
+        print(usage, file=sys.stderr)
+        return 2
+    command, repo = argv[1], Path(argv[2])
+    if command == "checkout":
+        problems = checkout_problems(repo)
+        if problems:
+            print("\n".join(problems), file=sys.stderr)
+            return 1
+        print(describe_commit(repo))
+        return 0
+    commands = {
+        "pre-upload": _cmd_pre_upload,
+        "steam-size": _cmd_steam_size,
+        "post-upload": _cmd_post_upload,
+    }
+    if command not in commands:
+        print(usage, file=sys.stderr)
+        return 2
+    mod_name = env.get("MOD_NAME", "")
+    if not mod_name:
+        print("MOD_NAME is not set", file=sys.stderr)
+        return 2
+    return commands[command](repo, mod_name, env)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

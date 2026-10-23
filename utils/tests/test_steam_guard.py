@@ -16,6 +16,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -682,3 +683,207 @@ def test_folder_size_of_a_missing_folder_raises(tmp_path):
 def test_the_exit_codes_are_the_ones_reserved_for_the_guard():
     """11 and 12 sit past ck-workshop's own range in the code space both tools share."""
     assert (steam_guard.EXIT_CONTENT_MISMATCH, steam_guard.EXIT_UNVERIFIED) == (11, 12)
+
+
+# --- after the upload: the item against mod.io, and the exit code --------------
+
+
+def _no_sleep(_seconds):
+    """A sleep that does not wait."""
+
+
+def test_old_size_then_new_size_is_a_match():
+    """Steam lags the upload: reads of the old size are retried until the new one shows."""
+    reads = iter([500, 500, 742])
+    out = steam_guard.compare_after_upload(
+        742, 500, lambda: next(reads), attempts=3, sleep=_no_sleep
+    )
+    assert out[0] == 0
+
+
+def test_a_new_wrong_size_is_a_mismatch():
+    """A size that is neither the old one nor mod.io's is final."""
+    assert steam_guard.compare_after_upload(742, 500, lambda: 811, sleep=_no_sleep)[0] == 11
+
+
+def test_still_the_old_size_is_unverified():
+    """An item that never changed size leaves the comparison unmade."""
+    assert (
+        steam_guard.compare_after_upload(742, 500, lambda: 500, attempts=2, sleep=_no_sleep)[0]
+        == 12
+    )
+
+
+def test_unreadable_is_unverified():
+    """No answer from Steam is not a match."""
+    assert (
+        steam_guard.compare_after_upload(742, None, lambda: None, attempts=2, sleep=_no_sleep)[0]
+        == 12
+    )
+
+
+def test_same_size_reupload_matches_at_once():
+    """Re-uploading the same build changes nothing to wait for."""
+    assert steam_guard.compare_after_upload(742, 742, lambda: 742, sleep=_no_sleep)[0] == 0
+
+
+def test_no_expected_size_is_not_compared():
+    """Without a size from mod.io there is nothing to compare."""
+    assert steam_guard.compare_after_upload(None, 5, lambda: 5)[0] == 0
+
+
+def test_the_retry_sleeps_between_reads_only():
+    """Attempts are spaced by the interval, with no sleep before the first read."""
+    sleeps = []
+    steam_guard.compare_after_upload(
+        742, 500, lambda: 500, attempts=3, interval=2.5, sleep=sleeps.append
+    )
+    assert sleeps == [2.5, 2.5]
+
+
+@pytest.mark.parametrize(
+    ("steam_rc", "guard_rc", "final"),
+    [
+        (0, 0, 0),
+        (0, 11, 11),
+        (7, 11, 11),
+        (9, 11, 11),
+        (130, 11, 11),
+        (0, 12, 12),
+        (7, 12, 7),
+        (3, 11, 3),
+        (5, 11, 5),
+        (124, 12, 124),
+        (0, 1, 12),
+        (0, 2, 12),
+        (7, 1, 7),
+        (3, 1, 3),
+        (3, 2, 3),
+    ],
+)
+def test_combine_exit(steam_rc, guard_rc, final):
+    """The Steam stage's own failure wins; otherwise 11 over 12, and a crashed guard is 12."""
+    assert steam_guard.combine_exit(steam_rc, guard_rc) == final
+
+
+def test_steam_size_reads_sizebytes(monkeypatch, tmp_path):
+    """The size comes from the item's `sizeBytes`."""
+    import steam_backfill
+
+    monkeypatch.setattr(steam_backfill, "read_item", lambda utils, env, fid: {"sizeBytes": 742})
+    assert steam_guard.steam_size(tmp_path, {}, 1) == 742
+
+
+@pytest.mark.parametrize("item", [None, {}, {"sizeBytes": "742"}, {"sizeBytes": True}, []])
+def test_steam_size_is_none_for_anything_else(monkeypatch, tmp_path, item):
+    """A missing item, field or non-integer is "unreadable", not a number."""
+    import steam_backfill
+
+    monkeypatch.setattr(steam_backfill, "read_item", lambda utils, env, fid: item)
+    assert steam_guard.steam_size(tmp_path, {}, 1) is None
+
+
+def test_steam_size_is_none_when_the_reader_raises(monkeypatch, tmp_path):
+    """A reader that blows up is an unreadable size."""
+    import steam_backfill
+
+    def boom(*_args):
+        raise OSError("no ck-workshop")
+
+    monkeypatch.setattr(steam_backfill, "read_item", boom)
+    assert steam_guard.steam_size(tmp_path, {}, 1) is None
+
+
+GUARD = Path(steam_guard.__file__)
+
+
+def _cli(*args, env=None):
+    return subprocess.run(
+        [sys.executable, str(GUARD), *args],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, **(env or {})},
+    )
+
+
+def test_cli_combine_prints_the_combined_code():
+    """`combine` prints combine_exit's answer."""
+    done = _cli("combine", "0", "11")
+    assert (done.returncode, done.stdout.strip()) == (0, "11")
+
+
+@needs_git
+def test_cli_checkout_prints_the_commit_or_the_problems(repo):
+    """`checkout` prints the commit on a clean checkout and one line per problem otherwise."""
+    clean = _cli("checkout", str(repo))
+    assert clean.returncode == 0
+    assert "on main" in clean.stdout
+    (repo / "unity" / "Mod" / "Stray.cs").write_text("x\n")
+    dirty = _cli("checkout", str(repo))
+    assert dirty.returncode == 1
+    assert "Stray.cs" in dirty.stderr
+
+
+def _cli_mod(tmp_path, ref_text):
+    """A mod directory with a 100-byte build, a changelog and a reference file."""
+    repo = tmp_path / "m"
+    repo.mkdir()
+    (repo / "CHANGELOG.md").write_text("## [1.0.0] - 2026-10-01\n\nfirst\n")
+    build = tmp_path / "build"
+    build.mkdir()
+    (build / "a.bin").write_bytes(b"x" * 100)
+    ref = tmp_path / "ref.json"
+    ref.write_text(ref_text)
+    env = {"MOD_NAME": "Mod", "CK_STEAM_CONTENT": str(build), "CK_MODIO_REF": str(ref)}
+    return repo, env
+
+
+def test_cli_pre_upload_proceeds_on_a_matching_build(tmp_path):
+    """`pre-upload` exits 0 when the folder has the live modfile's size."""
+    repo, env = _cli_mod(tmp_path, json.dumps(REF_LIVE_100))
+    done = _cli("pre-upload", str(repo), env=env)
+    assert done.returncode == 0, done.stderr
+    assert "matches mod.io" in done.stdout
+
+
+def test_cli_pre_upload_refuses_a_wrong_size_and_an_empty_reference(tmp_path):
+    """`pre-upload` exits 1 on a size mismatch and on a reference with nothing in it."""
+    repo, env = _cli_mod(tmp_path, json.dumps(REF_LIVE_100 | {"files": REF_LIVE_100["files"]}))
+    (Path(env["CK_STEAM_CONTENT"]) / "b.bin").write_bytes(b"y")
+    assert _cli("pre-upload", str(repo), env=env).returncode == 1
+    Path(env["CK_MODIO_REF"]).write_text("")
+    done = _cli("pre-upload", str(repo), env=env)
+    assert done.returncode == 1
+    assert "empty" in done.stderr
+
+
+@pytest.mark.parametrize("ref_text", ["", "not json", "[]", "{}", '{"modId": 7}'])
+def test_cli_post_upload_never_crashes_on_an_unusable_reference(tmp_path, ref_text):
+    """R4: no usable reference means the comparison could not be made — exit 12, with a message."""
+    repo, env = _cli_mod(tmp_path, ref_text)
+    done = _cli("post-upload", str(repo), env=env)
+    assert done.returncode == 12
+    assert "Traceback" not in done.stderr
+    assert done.stdout.strip()
+
+
+def test_cli_post_upload_for_a_mod_not_on_modio_is_not_compared(tmp_path):
+    """`modId` 0 exits 0 and says it compared nothing."""
+    repo, env = _cli_mod(tmp_path, json.dumps({"modId": 0}))
+    done = _cli("post-upload", str(repo), env=env)
+    assert done.returncode == 0
+    assert "not compared" in done.stdout
+
+
+def test_cli_post_upload_without_a_recorded_item_is_unverified(tmp_path):
+    """A matching modfile but no persisted Workshop id exits 12."""
+    repo, env = _cli_mod(tmp_path, json.dumps(REF_LIVE_100))
+    assert _cli("post-upload", str(repo), env=env).returncode == 12
+
+
+def test_cli_steam_size_prints_nothing_without_an_id(tmp_path):
+    """No item id: no output, exit 0."""
+    repo, env = _cli_mod(tmp_path, "{}")
+    done = _cli("steam-size", str(repo), env=env)
+    assert (done.returncode, done.stdout) == (0, "")
