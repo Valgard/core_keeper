@@ -64,7 +64,7 @@
 # treated as fatal.
 #
 # --steam-only builds what it publishes: the checkout it was started in, in this
-# run, through CLIPublishHelper's Steam-only mode — the same publish build, then
+# run, through CLIPublishHelper.PublishSteamOnly — the same publish build, then
 # a read of what mod.io holds, and no mod.io write of any kind. It never reads
 # MOD_INSTALL_PATH. That folder holds whatever build.sh made last, from any
 # checkout, and it used to be what --steam-only shipped: on 2026-10-11 it put an
@@ -194,10 +194,13 @@ if [ "$STEAM_ONLY" = "1" ] && { [ "$CHANGELOG_ONLY" = "1" ] || [ "$PROFILE_ONLY"
     exit 1
 fi
 
-# Only this script sets these two. CK_STEAM_OVERRIDE makes CLIPublishHelper skip
-# the Steam-only build, and PUBLISH_STEAM_ONLY turns a publish into a run that
-# writes nothing to mod.io — either one inherited from the shell would change
-# what a run does without a word.
+# Neither may come in from the shell. CK_STEAM_OVERRIDE makes CLIPublishHelper
+# skip the Steam-only build, and only the override announced below sets it —
+# inherited, it would change what a run does without a word. PUBLISH_STEAM_ONLY
+# is no longer set by anything: Steam-only is an entry point of its own now
+# (PublishSteamOnly, below), and CLIPublishHelper.Publish refuses the variable
+# so that an old caller cannot turn into a mod.io release. A leftover in the
+# shell would only make a normal publish fail on that refusal.
 unset CK_STEAM_OVERRIDE PUBLISH_STEAM_ONLY
 
 # CK_STEAM_CONTENT names the folder the Steam stage uploads; this run sets it
@@ -497,16 +500,23 @@ else
         echo "Building $MOD_NAME for the Steam Workshop, then reading what mod.io holds for it..."
     fi
 
-    # PUBLISH_STEAM_ONLY selects CLIPublishHelper's Steam-only mode: the
-    # publish build (BuildInto, shared with the normal path), then the mod.io
-    # reference into CK_MODIO_REF_OUT. A mod.io read that fails does not fail
-    # this run — it lands in the reference, where steam_guard.py refuses on it
-    # and can say why. As in the publish above: no -quit, timeout for a hang.
-    if PUBLISH_STEAM_ONLY=1 timeout 600 "$UNITY_BIN" \
+    # PublishSteamOnly: the publish build (BuildInto, shared with the normal
+    # path), then the mod.io reference into CK_MODIO_REF_OUT. A mod.io read
+    # that fails does not fail this run — it lands in the reference, where
+    # steam_guard.py refuses on it and can say why. As in the publish above: no
+    # -quit, timeout for a hang.
+    #
+    # Its own entry point, not Publish with a mode variable, because of the
+    # stale editor assembly (docs/publishing.md, "Known build gotcha"):
+    # -executeMethod runs whichever mod's compiled copy of the helper sorts
+    # first, and a copy from before the Steam-only mode would read no variable
+    # and do a full mod.io release. A copy without PublishSteamOnly cannot run
+    # this at all, so a stale one fails closed — nothing sent — instead.
+    if timeout 600 "$UNITY_BIN" \
             -batchmode \
             -nographics \
             -projectPath "$SDK_PATH" \
-            -executeMethod CoreKeeperModUtils.CLIPublishHelper.Publish \
+            -executeMethod CoreKeeperModUtils.CLIPublishHelper.PublishSteamOnly \
             -logFile -; then
         echo "✓ Steam-only Unity run complete."
     else

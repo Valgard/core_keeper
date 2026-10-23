@@ -1,10 +1,10 @@
 #if PUG_USE_MODIO
 // core_keeper/utils/CLIPublishHelper.cs — shared by every mod via a link.sh
 // symlink into <Mod>/Editor/. Mod identity from MOD_NAME (set in the mod's
-// .envrc). Builds the mod and drives the mod.io plugin to create/update the
-// profile and upload a modfile — or, under PUBLISH_STEAM_ONLY, builds and
-// reads mod.io without writing to it. mod.io calls are async, so upload.sh
-// omits -quit and this class calls EditorApplication.Exit on every path.
+// .envrc). Publish builds the mod and drives the mod.io plugin to create/update
+// the profile and upload a modfile; PublishSteamOnly builds and reads mod.io
+// without writing to it. mod.io calls are async, so upload.sh omits -quit and
+// this class calls EditorApplication.Exit on every path.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -37,7 +37,52 @@ namespace CoreKeeperModUtils
         private static ModBuilderSettings _builder;
         private static string _depsMapPath;
 
+        /// <summary>
+        /// upload.sh's entry point for a mod.io release, and for --profile-only and
+        /// --changelog-only. A Steam-only run has an entry point of its own,
+        /// <see cref="PublishSteamOnly"/>.
+        /// </summary>
         public static void Publish()
+        {
+            // Steam-only used to be a mode of this method, picked by PUBLISH_STEAM_ONLY.
+            // It is a method of its own now (PublishSteamOnly says why), so the variable
+            // arriving here means a caller that still expects the old switch — and falling
+            // through would turn that caller's Steam-only run into a mod.io release.
+            if (Environment.GetEnvironmentVariable("PUBLISH_STEAM_ONLY") == "1")
+            {
+                Fail(
+                    "PUBLISH_STEAM_ONLY=1 reached Publish, the mod.io release entry point. A Steam-only run calls "
+                        + "CoreKeeperModUtils.CLIPublishHelper.PublishSteamOnly; refusing rather than releasing to mod.io."
+                );
+                return;
+            }
+            Run(steamOnly: false);
+        }
+
+        /// <summary>
+        /// upload.sh --steam-only's entry point: the publish build of the linked checkout (or,
+        /// with CK_STEAM_OVERRIDE, no build), then a read of what mod.io holds into
+        /// CK_MODIO_REF_OUT — and no mod.io write of any kind.
+        /// </summary>
+        public static void PublishSteamOnly()
+        {
+            // An entry point rather than a mode of Publish, because of the stale editor
+            // assembly (docs/publishing.md, "Known build gotcha"): this class compiles into
+            // every linked mod's Editor assembly, -executeMethod runs whichever copy sorts
+            // first, and the other mods' copies stay compiled from whatever helper they last
+            // saw until each mod is re-linked. Were Steam-only a mode of Publish chosen by a
+            // variable, a copy from before that mode would not read the variable and go
+            // straight to BuildInto → OnBuilt: a full mod.io release, from the one run
+            // documented to write nothing to mod.io — and on the override path a release of
+            // a build already known not to match the released one. A copy without this
+            // method has nothing to run instead: -executeMethod cannot resolve it, and the
+            // run ends with nothing sent, whether Unity exits on that or upload.sh's 600 s
+            // timeout ends it — and should Unity exit 0 regardless, upload.sh finds no build
+            // directory and no mod.io reference, and refuses before the upload.
+            Run(steamOnly: true);
+        }
+
+        private static void Run(bool steamOnly)
         {
             try
             {
@@ -70,9 +115,9 @@ namespace CoreKeeperModUtils
                 }
                 // upload.sh refuses this combination too, but the two mod.io modes are
                 // checked before the Steam-only one below, so an inherited
-                // PUBLISH_PROFILE_ONLY would otherwise turn a run that promises to write
-                // nothing to mod.io into one that edits the profile and its tags.
-                var steamOnly = Environment.GetEnvironmentVariable("PUBLISH_STEAM_ONLY") == "1";
+                // PUBLISH_PROFILE_ONLY would otherwise turn a PublishSteamOnly run, which
+                // promises to write nothing to mod.io, into one that edits the profile
+                // and its tags.
                 if (steamOnly && (_profileOnly || _changelogOnly))
                 {
                     Fail("--steam-only writes nothing to mod.io, so it cannot run with --profile-only or --changelog-only.");

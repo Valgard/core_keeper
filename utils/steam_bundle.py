@@ -399,7 +399,8 @@ def _check_tag_sources(env: Mapping[str, str]) -> str:
 
     # Checked here because --steam-only is the one path that reaches a publish
     # without CLIPublishHelper's tag sync, which is where this is otherwise
-    # enforced: its Steam-only mode builds and reads mod.io but syncs no tags.
+    # enforced: its Steam-only entry point builds and reads mod.io but syncs no
+    # tags.
     # Steam discards a tag value it does not know without a word, and an unset
     # variable sends no value at all — so an unchecked publish puts up an item
     # with no category tags and reports success. Tested for what comes OUT of

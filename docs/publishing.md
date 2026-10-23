@@ -186,14 +186,17 @@ twice with nothing to order them by.
 publishes to Steam alone. `upload.sh` refuses to run with both set.
 
 **`--steam-only` builds what it publishes.** It runs the publish build of the
-checkout it was started in — `CLIPublishHelper`'s Steam-only mode: the same
-build step, then a read of what mod.io holds, and no mod.io write of any kind —
-and uploads exactly that folder. It never reads `MOD_INSTALL_PATH`. That folder
-holds whatever `build.sh` made last, from any checkout or worktree, and it used
-to be what this mode shipped: on 2026-10-11 it put an unreleased build of Mod
-Settings Menu on the Workshop labelled 1.2.2, and Steam players got
-`CompileFailed` for eleven days. The version label and the content came from two
-unrelated places, and nothing tied them together.
+checkout it was started in — `CLIPublishHelper.PublishSteamOnly`: the same build
+step, then a read of what mod.io holds, and no mod.io write of any kind — and
+uploads exactly that folder. That is an entry point of its own rather than a
+mode of `Publish`, because of the stale editor assembly in the gotcha below: a
+copy compiled before it existed lacks the method, so the run fails closed with
+nothing sent instead of falling through to a mod.io release. It never reads
+`MOD_INSTALL_PATH`. That folder holds whatever `build.sh` made last, from any
+checkout or worktree, and it used to be what this mode shipped: on 2026-10-11 it
+put an unreleased build of Mod Settings Menu on the Workshop labelled 1.2.2, and
+Steam players got `CompileFailed` for eleven days. The version label and the
+content came from two unrelated places, and nothing tied them together.
 
 Three refusals now do, all with exit 1 and all before anything is sent:
 
