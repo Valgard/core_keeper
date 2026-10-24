@@ -573,8 +573,8 @@ def test_the_modio_asset_path_is_where_a_mod_repo_keeps_it(tmp_path):
 
 @pytest.mark.parametrize(
     ("text", "expected"),
-    [(MODIO_ASSET.format(mod_id=6119768), 6119768), (MODIO_ASSET.format(mod_id=0), 0), ("x\n", 0)],
-    ids=["id", "zero", "no-line"],
+    [(MODIO_ASSET.format(mod_id=6119768), 6119768), (MODIO_ASSET.format(mod_id=0), 0)],
+    ids=["id", "zero"],
 )
 def test_read_modio_id_is_the_recorded_id_or_zero(tmp_path, text, expected):
     """The checkout's own mod.io id, with 0 for "none" — the reference's own spelling of it."""
@@ -583,6 +583,22 @@ def test_read_modio_id_is_the_recorded_id_or_zero(tmp_path, text, expected):
     asset.write_text(text)
 
     assert steam_identity.read_modio_id(asset) == expected
+
+
+@pytest.mark.parametrize("text", ["", "x\n", "MonoBehaviour:\n  m_Name: Mod\n"])
+def test_read_modio_id_raises_for_an_asset_with_no_id_line(tmp_path, text):
+    """An existing asset with no `modId:` line is unreadable, not "no id".
+
+    Empty, truncated, an LFS pointer or reformatted: Unity reads 0 from such a
+    file too, and 0 on both sides would pass for "not on mod.io" — an
+    uncompared publish that nothing reports.
+    """
+    asset = steam_identity.modio_asset_path(tmp_path, MOD)
+    asset.parent.mkdir(parents=True)
+    asset.write_text(text)
+
+    with pytest.raises(ValueError, match="modId"):
+        steam_identity.read_modio_id(asset)
 
 
 def test_read_modio_id_of_a_missing_asset_is_zero(tmp_path):
@@ -748,14 +764,41 @@ def test_no_id_gap_outside_a_repository_but_a_warning(tmp_path, capsys):
 
 
 @needs_git
-def test_id_gaps_warns_when_main_lacks_the_file(tmp_path, capsys):
-    """A main without the asset cannot be compared with either; only that asset is warned about."""
+def test_id_gaps_does_not_warn_when_main_simply_lacks_the_file(tmp_path, capsys):
+    """A main without the asset is a definite "no id on main": no gap, and nothing to warn about.
+
+    The warning is for a git that could not answer; here it answered, and a
+    warning that fires on a healthy repository trains the reader to skip the
+    one that matters.
+    """
     root, _ = _history(tmp_path, (3790345467, None))
 
     assert steam_identity.id_gaps(root, MOD) == []
-    err = capsys.readouterr().err
-    assert f"could not compare {MOD}_modio.asset with main" in err
-    assert f"{MOD}_Steam.asset" not in err
+    assert capsys.readouterr().err == ""
+
+
+@needs_git
+def test_id_gaps_still_warns_when_git_fails_for_another_reason(tmp_path, capsys, monkeypatch):
+    """A git that errors — a timeout, a refused directory — is not an answer, and is said so."""
+    root, _ = _history(tmp_path, (3790345467, 6119768))
+
+    def timed_out(*_args, **_kwargs):
+        raise subprocess.TimeoutExpired("git", 10)
+
+    monkeypatch.setattr(steam_identity, "run_git", timed_out)
+
+    assert steam_identity.id_gaps(root, MOD) == []
+    assert capsys.readouterr().err.count("could not compare") == 2
+
+
+@needs_git
+def test_main_unasked_names_why_main_could_not_be_asked_about_the_modio_id(tmp_path):
+    """`main_unasked` is the reason git gave, for the asset the not-on-mod.io verdict rests on."""
+    root, _ = _history(tmp_path, (0, 0))
+    assert steam_identity.main_unasked(root, MOD) is None
+    _git(root, "branch", "-q", "-m", "main", "trunk")
+
+    assert steam_identity.main_unasked(root, MOD)
 
 
 @needs_git

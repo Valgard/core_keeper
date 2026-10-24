@@ -132,6 +132,7 @@ def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     exit is returned, not raised, because what it means differs per caller.
     """
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env["LC_ALL"] = "C"  # callers match git's English wording
     return subprocess.run(
         ["git", "-C", str(repo_root), *args],
         capture_output=True,
@@ -151,13 +152,19 @@ def read_modio_id(asset: Path) -> int:
     Only a missing file reads as 0 for a file that cannot be read; anything
     else that stops the read raises, for `read_file_id`'s reason — a mod on
     mod.io whose id merely could not be read must not look like one that is
-    not on mod.io, which skips every comparison with what mod.io serves.
+    not on mod.io, which skips every comparison with what mod.io serves. That
+    includes a file that reads fine but has no `modId:` line (empty, truncated,
+    an LFS pointer): Unity reads 0 from it as well, and 0 on both sides would
+    pass for "not on mod.io". Raises ValueError for it.
     """
     try:
         text = asset.read_text(encoding="utf-8")
     except FileNotFoundError:
         return 0
-    return _stored_id(text, modio_api.MODIO_ID, 1)
+    match = modio_api.MODIO_ID.search(text)
+    if match is None:
+        raise ValueError(f"{asset.name} has no 'modId:' line — expected a mod.io settings asset")
+    return int(match.group(1))
 
 
 def read_file_id(asset: Path) -> int | None:
@@ -216,10 +223,14 @@ def _stored_id(text: str | None, pattern: re.Pattern[str], group: int) -> int:
 def _on_branch(repo_root: Path, branch: str, asset: Path) -> tuple[str | None, str | None]:
     """The asset's text as `branch` has it, as `(text, None)` — or `(None, why)` when git cannot.
 
-    `why` is git's own first line ("does not exist in 'main'", "invalid
-    object name", "not a git repository") or the exception that stopped git,
-    so a caller can say why the comparison was not made without having to
-    tell the cases apart itself.
+    A branch that simply has no such file is a definite answer — "no id
+    there" — and comes back as `("", None)`, empty text, so it neither warns
+    nor makes a gap. `why` is for a git that could not answer: its own first
+    line ("invalid object name", "not a git repository") or the exception that
+    stopped git, so a caller can say why the comparison was not made without
+    having to tell the cases apart itself. git's wording is matched under
+    LC_ALL=C, which run_git sets, since a translated message would otherwise
+    read as a failure.
 
     `./` makes the path relative to repo_root itself rather than to the
     repository's top level, which is the same thing for a mod repo and stays
@@ -232,6 +243,8 @@ def _on_branch(repo_root: Path, branch: str, asset: Path) -> tuple[str | None, s
         return None, f"git could not be run: {err}"
     if shown.returncode == 0:
         return shown.stdout, None
+    if "does not exist in" in shown.stderr or "exists on disk, but not in" in shown.stderr:
+        return "", None
     lines = shown.stderr.strip().splitlines()
     return None, lines[0] if lines else f"git exited {shown.returncode}"
 
@@ -279,10 +292,11 @@ def id_gaps(
     Only a definite id on `branch` makes a gap: a branch that does not exist,
     a file it does not have, or git failing altogether claims nothing, the same
     rule `is_tracked` follows — this check adds a refusal only where it can say
-    exactly what is missing. It does not stay silent about it, though: each
-    asset `branch` could not be asked about gets one warning on stderr, since
-    a gap would then go unnoticed. A checkout that HAS an id `branch` lacks is
-    a first release not merged yet, and fine.
+    exactly what is missing. A file the branch simply lacks is a definite "no
+    id there" and is silent. A branch that could not be asked at all — it does
+    not exist, git failed or timed out — is not: each such asset gets one
+    warning on stderr, since a gap would then go unnoticed. A checkout that HAS
+    an id `branch` lacks is a first release not merged yet, and fine.
 
     Reads the working tree, not HEAD: what a publish from here would use is
     what is on disk.
@@ -345,6 +359,17 @@ def id_gaps(
                 f"{branch} first."
             )
     return gaps
+
+
+def main_unasked(repo_root: Path, mod_name: str, branch: str = "main") -> str | None:
+    """Why `branch` could not be asked about the mod.io asset, or None when it could.
+
+    What `id_gaps` warns about once per asset, for a caller that wants to
+    repeat it later — upload.sh does, at the end of a `--steam-only` run that
+    published "not on mod.io", where the first warning has long scrolled away
+    under Unity's log.
+    """
+    return _on_branch(repo_root, branch, modio_asset_path(repo_root, mod_name))[1]
 
 
 def ensure_recognizable(asset: Path) -> None:

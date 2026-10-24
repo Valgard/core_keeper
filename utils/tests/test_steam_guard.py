@@ -15,6 +15,7 @@ file's assumptions about it.
 import http.client
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -461,8 +462,23 @@ REF_TWICE_OLDER_LIVE = {
 
 
 def test_reference_modfile_is_the_live_one_when_it_carries_the_version():
-    """The live modfile wins over a newer upload of the same version: it is what mod.io serves."""
-    assert steam_guard.reference_modfile(REF_TWICE_OLDER_LIVE, "1.0.0")["id"] == 2
+    """Preferring the live modfile, it wins over a newer upload of the same version.
+
+    That is what mod.io serves — the question `--steam-only` asks.
+    """
+    ref = REF_TWICE_OLDER_LIVE
+    assert steam_guard.reference_modfile(ref, "1.0.0", prefer_live=True)["id"] == 2
+
+
+def test_reference_modfile_is_the_newest_upload_when_the_live_one_is_not_preferred():
+    """On the normal path this run's upload is the newest one, whatever mod.io serves yet.
+
+    The live modfile may still be an older upload of the same version until
+    mod.io processes the new one; held against it, a correct delivery would
+    read as a mismatch.
+    """
+    ref = REF_TWICE_OLDER_LIVE
+    assert steam_guard.reference_modfile(ref, "1.0.0", prefer_live=False)["id"] == 3
 
 
 def test_reference_modfile_falls_back_to_the_newest_upload_of_the_version():
@@ -470,12 +486,12 @@ def test_reference_modfile_falls_back_to_the_newest_upload_of_the_version():
     ref = json.loads(json.dumps(REF_TWICE_OLDER_LIVE))
     ref["mod"]["modfile"] = {"id": 1, "version": "0.9.0", "filesize_uncompressed": 90}
 
-    assert steam_guard.reference_modfile(ref, "1.0.0")["id"] == 3
-    assert steam_guard.reference_modfile(ref, "2.0.0") is None
+    assert steam_guard.reference_modfile(ref, "1.0.0", prefer_live=True)["id"] == 3
+    assert steam_guard.reference_modfile(ref, "2.0.0", prefer_live=True) is None
 
 
 def test_pre_upload_judges_a_version_uploaded_twice_by_the_live_upload(tmp_path):
-    """Pre- and post-upload pick the same modfile, so a pass before cannot end in a false 11."""
+    """Pre-upload, and post-upload under `--steam-only`, pick the same modfile: the live one."""
     assert _decide(content=tmp_path, ref=REF_TWICE_OLDER_LIVE, content_size=100).proceed
     assert not _decide(content=tmp_path, ref=REF_TWICE_OLDER_LIVE, content_size=101).proceed
 
@@ -907,7 +923,7 @@ def _compare(expected, before, reads, attempts=6):
 
 
 def test_old_size_then_new_size_is_a_match():
-    """Steam lags the upload: reads of the old size are retried until the new one shows."""
+    """A read of the old size is retried: Steam may report the new one a while after the submit."""
     assert _compare(742, 500, _Reads(500, 500, 742), attempts=3)[0] == 0
 
 
@@ -1109,6 +1125,13 @@ def test_parse_size_before(raw, parsed):
     assert steam_guard.parse_size_before(raw) == parsed
 
 
+@pytest.mark.parametrize("raw", ["unreadable", "none", "742"])
+def test_parse_size_before_is_quiet_for_the_tokens_steam_size_prints(capsys, raw):
+    """`unreadable`, `none` and a size are valid answers, not a producer that changed."""
+    steam_guard.parse_size_before(raw)
+    assert capsys.readouterr().err == ""
+
+
 def test_parse_size_before_names_a_value_it_does_not_know(capsys):
     """An unrecognised value is reported once, so a changed producer does not go unnoticed."""
     assert steam_guard.parse_size_before("garbage") is UNKNOWN
@@ -1235,6 +1258,7 @@ GUARD_ENV = (
     "CK_STEAM_CONTENT",
     "CK_MODIO_REF",
     "CK_STEAM_SIZE_BEFORE",
+    "CK_STEAM_ONLY",
     "MOD_INSTALL_PATH",
     "MOD_NAME",
 )
@@ -1256,6 +1280,36 @@ def test_cli_combine_prints_the_combined_code():
     """`combine` prints combine_exit's answer."""
     done = _cli("combine", "0", "11")
     assert (done.returncode, done.stdout.strip()) == (0, "11")
+
+
+@pytest.mark.parametrize(
+    "args",
+    [("combine", "x", "11"), ("combine", "0", ""), ("combine", "0"), ("combine", "0", "1", "2")],
+    ids=["non-numeric", "empty", "one-argument", "three-arguments"],
+)
+def test_cli_combine_with_a_bad_argument_exits_2_and_prints_no_code(args):
+    """A bad argument is a usage error: exit 2 with a message, never an exit 0 with no code.
+
+    upload.sh reads whatever `combine` prints as the run's exit code.
+    """
+    done = _cli(*args)
+    assert done.returncode == 2
+    assert done.stdout == ""
+    assert "usage" in done.stderr
+
+
+def test_upload_sh_compares_exactly_the_steam_codes_the_guard_lists():
+    """The `case` list in upload.sh is a copy of COMPARABLE_STEAM_CODES; the two must not drift.
+
+    A code upload.sh compares that the guard does not list would pass through
+    `combine` untouched and drop an 11 without a word.
+    """
+    script = (Path(steam_guard.__file__).parent / "upload.sh").read_text()
+    match = re.search(r"^\s*((?:\d+\|)+\d+)\)\n\s*echo \"  Comparing", script, re.MULTILINE)
+    assert match, "the comparable-code case in upload.sh was not found"
+    assert (
+        tuple(int(code) for code in match.group(1).split("|")) == steam_guard.COMPARABLE_STEAM_CODES
+    )
 
 
 def test_cli_refuses_an_unknown_command_and_a_missing_mod_name(tmp_path):
@@ -1545,14 +1599,31 @@ def test_cli_post_upload_matches_the_uncompressed_size_of_this_version(
     assert reads.calls == 1
 
 
-def test_cli_post_upload_compares_the_live_upload_of_a_version_uploaded_twice(
-    monkeypatch, tmp_path
-):
-    """Post-upload picks the modfile pre-upload judged: the live one, not a newer upload of it."""
+def test_cli_post_upload_under_steam_only_compares_the_live_upload(monkeypatch, tmp_path):
+    """Under --steam-only (CK_STEAM_ONLY=1) post-upload picks the modfile pre-upload judged.
+
+    The live one, not a newer upload of the same version: pre-upload required
+    it live, and Steam got a build of exactly that size.
+    """
+    repo, env = _cli_mod(tmp_path, json.dumps(REF_TWICE_OLDER_LIVE))
+    _workshop_id(repo)
+    env |= {"CK_STEAM_ONLY": "1"}
+
+    assert _post_upload(monkeypatch, repo, env, _Reads(100), "500") == 0
+    assert _post_upload(monkeypatch, repo, env, _Reads(101), "500") == 11
+
+
+def test_cli_post_upload_on_the_normal_path_compares_the_newest_upload(monkeypatch, tmp_path):
+    """Without CK_STEAM_ONLY this run uploaded the version, so its newest upload is the reference.
+
+    mod.io's live pointer may still name an older upload of the same version;
+    Steam, handed this run's folder, must not be held against that one.
+    """
     repo, env = _cli_mod(tmp_path, json.dumps(REF_TWICE_OLDER_LIVE))
     _workshop_id(repo)
 
-    assert _post_upload(monkeypatch, repo, env, _Reads(100), "500") == 0
+    assert _post_upload(monkeypatch, repo, env, _Reads(101), "500") == 0
+    assert _post_upload(monkeypatch, repo, env, _Reads(100), "500") == 11
 
 
 def test_cli_post_upload_parses_a_numeric_before(monkeypatch, tmp_path):
@@ -1638,3 +1709,164 @@ def test_cli_steam_size_prints_unreadable_when_the_asset_cannot_be_read(tmp_path
 
     assert (done.returncode, done.stdout) == (0, "unreadable\n")
     assert "Mod_Steam.asset" in done.stderr
+
+
+def test_cli_pre_upload_refuses_a_checkout_that_records_no_id_when_unity_read_one(tmp_path):
+    """No `<Mod>_modio.asset` in the checkout, mod.io id 7 from Unity: refused, not trusted.
+
+    Falling back to Unity's id would take another checkout's asset, seen
+    through a re-pointed SDK link, for this one's.
+    """
+    repo, env = _cli_mod(tmp_path, json.dumps(REF_LIVE_100), modio_id=None)
+
+    done = _cli("pre-upload", str(repo), env=env)
+
+    assert done.returncode == 1
+    assert "records no mod.io id" in done.stderr
+
+
+def test_cli_post_upload_when_the_checkout_records_no_id_but_unity_read_one_is_12(tmp_path):
+    """The same disagreement after the upload is an unmade comparison — 12, not 0."""
+    repo, env = _cli_mod(tmp_path, json.dumps(REF_LIVE_100), modio_id=None)
+    _workshop_id(repo)
+
+    done = _cli("post-upload", str(repo), env=env)
+
+    assert done.returncode == 12
+    assert "records no mod.io id" in done.stdout
+
+
+def test_cli_post_upload_with_an_unreadable_modio_asset_is_12(tmp_path):
+    """A `<Mod>_modio.asset` that cannot be read leaves the comparison unmade: 12, not 0."""
+    repo, env = _cli_mod(tmp_path, json.dumps(REF_LIVE_100), modio_id=None)
+    (repo / "unity" / "Mod" / "Editor" / "Mod_modio.asset").mkdir(parents=True)
+    _workshop_id(repo)
+
+    done = _cli("post-upload", str(repo), env=env)
+
+    assert done.returncode == 12
+    assert "Mod_modio.asset" in done.stdout
+
+
+def test_cli_post_upload_with_a_modio_asset_without_an_id_line_is_12(tmp_path):
+    """An existing asset with no `modId:` line is unreadable: 12, never a "not on mod.io" 0."""
+    repo, env = _cli_mod(tmp_path, json.dumps({"modId": 0}), modio_id=None)
+    asset = repo / "unity" / "Mod" / "Editor" / "Mod_modio.asset"
+    asset.parent.mkdir(parents=True)
+    asset.write_text("")
+
+    done = _cli("post-upload", str(repo), env=env)
+
+    assert done.returncode == 12
+    assert "modId" in done.stdout
+
+
+def test_cli_post_upload_with_an_unreadable_steam_asset_is_12(tmp_path):
+    """A `<Mod>_Steam.asset` that cannot be read is no "no item": 12, not 0."""
+    repo, env = _cli_mod(tmp_path, json.dumps(REF_LIVE_100))
+    (repo / "unity" / "Mod" / "Mod_Steam.asset").mkdir(parents=True)
+
+    done = _cli("post-upload", str(repo), env=env)
+
+    assert done.returncode == 12
+    assert "Mod_Steam.asset" in done.stdout
+
+
+def test_cli_post_upload_with_a_changelog_without_a_version_is_12(tmp_path):
+    """A CHANGELOG.md that names no version leaves nothing to look up: 12, not 0."""
+    repo, env = _cli_mod(tmp_path, json.dumps(REF_LIVE_100))
+    _workshop_id(repo)
+    (repo / "CHANGELOG.md").write_text("nothing released yet\n")
+
+    done = _cli("post-upload", str(repo), env=env)
+
+    assert done.returncode == 12
+    assert "CHANGELOG.md" in done.stdout
+
+
+def test_cli_post_upload_with_an_unreadable_changelog_is_12(tmp_path):
+    """A CHANGELOG.md that is not there at all is the same: 12."""
+    repo, env = _cli_mod(tmp_path, json.dumps(REF_LIVE_100))
+    _workshop_id(repo)
+    (repo / "CHANGELOG.md").unlink()
+
+    assert _cli("post-upload", str(repo), env=env).returncode == 12
+
+
+@pytest.mark.parametrize("modio_id", [7, 0], ids=["on-modio", "not-on-modio"])
+def test_cli_pre_upload_refuses_when_the_changelog_names_no_version(tmp_path, modio_id):
+    """Without a version the run cannot say what it publishes, on mod.io or off it: refused."""
+    ref = REF_LIVE_100 if modio_id else {"modId": 0}
+    repo, env = _cli_mod(tmp_path, json.dumps(ref), modio_id=modio_id)
+    (repo / "CHANGELOG.md").write_text("nothing released yet\n")
+
+    done = _cli("pre-upload", str(repo), env=env)
+
+    assert done.returncode == 1
+    assert "CHANGELOG.md" in done.stderr
+
+
+REF_COMPRESSED_40 = {
+    "modId": 7,
+    "mod": {"modfile": {"id": 2, "version": "1.0.0", "filesize": 40, "filesize_uncompressed": 100}},
+    "files": {
+        "data": [
+            {
+                "id": 2,
+                "version": "1.0.0",
+                "filesize": 40,
+                "filesize_uncompressed": 100,
+                "date_added": 2,
+            }
+        ]
+    },
+}
+
+
+def test_cli_pre_upload_compares_the_uncompressed_size_not_the_download(tmp_path):
+    """mod.io carries two sizes; the folder's byte total is the uncompressed one.
+
+    A build of 40 bytes equals the compressed download and must be refused; a
+    switch to `filesize` would pass it and refuse the right build.
+    """
+    repo, env = _cli_mod(tmp_path, json.dumps(REF_COMPRESSED_40))
+    assert _cli("pre-upload", str(repo), env=env).returncode == 0
+
+    (Path(env["CK_STEAM_CONTENT"]) / "a.bin").write_bytes(b"x" * 40)
+    done = _cli("pre-upload", str(repo), env=env)
+
+    assert done.returncode == 1
+    assert "differs from mod.io" in done.stderr
+
+
+def test_cli_unasked_main_repeats_the_warning_for_a_mod_taken_as_not_on_modio(tmp_path):
+    """No git answer from `main`, no mod.io id recorded: one line saying what that rests on.
+
+    The `main` comparison is the only thing that would have caught a checkout
+    that lost its id; when it could not be made, "not on mod.io" is this
+    checkout's word alone, and upload.sh repeats that at the end of the run.
+    """
+    repo, env = _cli_mod(tmp_path, json.dumps({"modId": 0}), modio_id=0)
+
+    done = _cli("unasked-main", str(repo), env=env)
+
+    assert done.returncode == 0
+    assert len(done.stdout.strip().splitlines()) == 1
+    assert "main" in done.stdout and "not on mod.io" in done.stdout
+
+
+def test_cli_unasked_main_is_quiet_for_a_mod_that_has_an_id(tmp_path):
+    """A mod with a recorded id was not taken as "not on mod.io", so there is nothing to repeat."""
+    repo, env = _cli_mod(tmp_path, json.dumps(REF_LIVE_100), modio_id=7)
+
+    done = _cli("unasked-main", str(repo), env=env)
+
+    assert (done.returncode, done.stdout) == (0, "")
+
+
+@needs_git
+def test_cli_unasked_main_is_quiet_when_main_was_asked(repo):
+    """A git that answered — here: main has no such asset — leaves nothing to repeat."""
+    done = _cli("unasked-main", str(repo), env={"MOD_NAME": "Mod"})
+
+    assert (done.returncode, done.stdout) == (0, "")

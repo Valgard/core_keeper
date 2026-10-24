@@ -276,17 +276,20 @@ while reporting success would be worse than the previous behaviour.
 **Both identity assets are checked against the mod repo's `main`, and the two
 gaps are refused at different depths.** Release tags commonly predate the commit
 that records an id — the Workshop id is written by the first Steam publish,
-after the release commit — so a checkout of a release can lack an id that
-`main` already has, and a publish from it would not know. A checkout whose id
-differs from `main`'s, both non-zero, is refused the same way: the publish would
-go to that other item or profile — a rehearsal item a release tag still names,
-say. Where the move to a new item is deliberate, record it on `main` first. Only
-a definite id on `main` makes a gap; a checkout that has an id `main` lacks is a
-first release not merged yet, and fine. Where `main` cannot be asked — no such
-branch, no such file on it, git failing — nothing is refused, but the run prints
-a warning per asset that the comparison was not made. Each refusal names the
-file and the `git checkout main -- …` that brings it over; commit it before a
-`--steam-only` run, whose checkout refusal counts the uncommitted asset.
+after the release commit — so a checkout of a release can lack an id that `main`
+already has, and a publish from it would not know. A checkout whose id differs
+from `main`'s, both non-zero, is refused the same way: the publish would go to
+that other item or profile — a rehearsal item a release tag still names, say.
+Where the move to a new item is deliberate, record it on `main` first. Only a
+definite id on `main` makes a gap; a checkout that has an id `main` lacks is a
+first release not merged yet, and fine. A `main` that simply has no such file is
+a definite "no id there": silent. Where `main` cannot be asked at all — no such
+branch, git failing or timing out — nothing is refused, but the run prints a
+warning per asset that the comparison was not made, and a `--steam-only` run
+that then publishes "not on mod.io" repeats it as the last line of its output,
+below Unity's log. Each refusal names the file and the `git checkout main -- …`
+that brings it over; commit it before a `--steam-only` run, whose checkout
+refusal counts the uncommitted asset.
 
 - **A missing Workshop id** would make the publish create a second Workshop item
   beside the live one. It is part of the preflight above, so on the normal path
@@ -316,12 +319,17 @@ size is read before the submit and again after it — from the public Web API's
 one folder-content item it was [measured](ck/steam-workshop.md#an-items-size-the-ugc-query-says-0-the-web-api-says-the-content-total) on. It is re-read for a bounded time,
 because Steam is expected to report a new size only a while after the submit
 (not measured for the size; the Web API's tag reads can lag), and held against
-mod.io's `filesize_uncompressed` for the version just published — the same
-modfile the check before the upload uses: the live one when it carries that
-version, else the newest upload of it. A read of 0 is never taken as a size: no
-uploaded build is 0 bytes, so it can only be a size Steam is not reporting yet.
-Every failed read prints its cause — a network or certificate error, the
-`result` the Web API answered — so a broken read does not pass for a slow Steam.
+mod.io's `filesize_uncompressed` for the version just published. Which modfile
+that is depends on the run: under `--steam-only` the one the check before the
+upload used — the live one when it carries that version, else the newest upload
+of it — and on the normal path the newest upload of the version, which is this
+run's own, since mod.io's live pointer may still name an older upload of the
+same version for a while (not measured). `upload.sh` tells the guard which run
+it is with `CK_STEAM_ONLY=1`, and drops the variable when it comes in from
+outside. A read of 0 is never taken as a size: no uploaded build is 0 bytes, so
+it can only be a size Steam is not reporting yet. Every failed read prints its
+cause — a network or certificate error, the `result` the Web API answered — so a
+broken read does not pass for a slow Steam.
 
 What is known of the item before the upload is one of three states: its size, a
 new item (no Workshop id recorded yet), or unknown — the read failed, answered

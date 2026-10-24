@@ -370,13 +370,14 @@ def check_prerequisites(repo_root: Path, env: Mapping[str, str]) -> list[dict] |
 
     steam_identity.ensure_recognizable(steam_identity.asset_path(repo_root, mod_name))
 
-    # Here, in the preflight, so that a checkout missing an id main records is
-    # caught before anything is sent: the normal publish then skips Steam and
-    # leaves its mod.io release alone, and --steam-only aborts. Found later, a
-    # missing Workshop id would already have created a second item. A missing
-    # mod.io id never gets this far through upload.sh, which stops the whole
-    # run on it first (`steam_guard.py modio-id`): there it would cost a second
-    # mod.io profile, which no Steam skip prevents.
+    # Here, in the preflight, so that a checkout whose id is missing or differs
+    # from the one main records is caught before anything is sent: the normal
+    # publish then skips Steam and leaves its mod.io release alone, and
+    # --steam-only aborts. Found later, a missing Workshop id would already have
+    # created a second item. A mod.io id that is missing or other than main's
+    # never gets this far through upload.sh, which stops the whole run on it
+    # first (`steam_guard.py modio-id`): there it would cost a second mod.io
+    # profile, or an upload to another one, which no Steam skip prevents.
     gaps = steam_identity.id_gaps(repo_root, mod_name)
     if gaps:
         raise ValueError("\n".join(gaps))

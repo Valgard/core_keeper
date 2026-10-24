@@ -314,19 +314,26 @@ def modfile_for_version(ref: dict, version: str) -> dict | None:
     )
 
 
-def reference_modfile(ref: dict, version: str) -> dict | None:
-    """The modfile of `version` the Steam content is held against, before the upload and after it.
+def reference_modfile(ref: dict, version: str, *, prefer_live: bool) -> dict | None:
+    """The modfile of `version` the Steam content is held against.
 
-    The live modfile when it carries `version` — that is what mod.io serves,
-    even when the same version was uploaded again and the older upload made
-    live by hand — and otherwise the newest upload of `version`, which is the
-    case right after a normal publish whose upload mod.io has not made live
-    yet. One definition for both checks, so a pass before the upload cannot
-    turn into a mismatch after it by looking at another modfile.
+    With `prefer_live` — `--steam-only`, before the upload and after it — the
+    live modfile when it carries `version`: that is what mod.io serves, even
+    when the same version was uploaded again and the older upload made live by
+    hand, and it is the one pre-upload required, so a pass before the upload
+    cannot turn into a mismatch after it by looking at another modfile.
+    Otherwise, and without `prefer_live`, the newest upload of `version`.
+
+    The normal path passes False after its own upload: Steam was handed the
+    folder that upload came from, which is the newest one, while mod.io's live
+    pointer may still name an older upload of the same version until the new
+    one is processed (not measured; the code does not assume it cannot).
+    Compared with that older one, a correct delivery would read as a mismatch.
     """
-    live = live_modfile(ref)
-    if live is not None and live.get("version") == version:
-        return live
+    if prefer_live:
+        live = live_modfile(ref)
+        if live is not None and live.get("version") == version:
+            return live
     return modfile_for_version(ref, version)
 
 
@@ -559,7 +566,7 @@ def decide_pre_upload(
             f"mod.io — run from a checkout of {live_version} — or an older modfile was made "
             f"live again on mod.io, in which case make {version} live there first.",
         )
-    modfile = reference_modfile(ref, version)
+    modfile = reference_modfile(ref, version, prefer_live=True)
     expected = modfile.get("filesize_uncompressed") if modfile else None
     if not _is_size(expected):
         return _unreadable("the live modfile carries no size")
@@ -602,14 +609,15 @@ def parse_size_before(raw: str | None) -> int | SizeBefore:
     — is unknown rather than a new item: a new item is the one state allowed to
     conclude a mismatch with no size from before, so it has to be said
     explicitly, never inferred from silence. A value that is none of the three
-    tokens is named on stderr, so a producer that changed does not go unseen.
+    tokens is named on stderr, so a producer that changed does not go unseen;
+    `unreadable` is one of the three and says nothing.
     """
     text = (raw or "").strip()
     if text.isascii() and text.isdecimal() and int(text) > 0:
         return int(text)
     if text == SizeBefore.NEW_ITEM.value:
         return SizeBefore.NEW_ITEM
-    if text != SizeBefore.UNKNOWN.value:
+    if text != SizeBefore.UNKNOWN.value:  # the valid token needs no warning
         print(
             f"  ! CK_STEAM_SIZE_BEFORE={text!r} is not a size — the item's size before the "
             "upload counts as unknown.",
@@ -826,6 +834,32 @@ def _cmd_modio_id(repo: Path, mod_name: str, env: Mapping[str, str]) -> int:
     return 0
 
 
+def _cmd_unasked_main(repo: Path, mod_name: str, env: Mapping[str, str]) -> int:
+    """`unasked-main`: one line when "not on mod.io" rests on a `main` that was never asked; exit 0.
+
+    The mod.io id is the one id whose loss `main` alone can reveal. When git
+    could not be asked and the checkout records none, a `--steam-only` run
+    publishes uncompared on this checkout's word, and the warning
+    `id_gaps` printed about it sits before Unity's whole log — so upload.sh
+    asks again at the very end, where the verdict is read. It says nothing
+    otherwise: a mod with a recorded id was not taken as "not on mod.io", and
+    a `main` that answered has nothing to repeat. Its own failure to read the
+    asset is the pre- and post-upload checks' to report, not this line's.
+    """
+    try:
+        recorded = steam_identity.read_modio_id(steam_identity.modio_asset_path(repo, mod_name))
+    except (OSError, ValueError):
+        return 0
+    why = steam_identity.main_unasked(repo, mod_name) if recorded == 0 else None
+    if why is not None:
+        print(
+            f"! This run took {mod_name} for a mod not on mod.io and compared nothing with "
+            f"mod.io, on this checkout's word alone: main could not be asked whether it "
+            f"records a mod.io id ({why}).",
+        )
+    return 0
+
+
 def _cmd_pre_upload(repo: Path, mod_name: str, env: Mapping[str, str]) -> int:
     """`pre-upload`: print the verdict on the content bound for Steam; 0 proceeds, 1 refuses."""
     ref = load_reference(Path(env.get("CK_MODIO_REF", "")))
@@ -917,7 +951,9 @@ def _cmd_post_upload(repo: Path, mod_name: str, env: Mapping[str, str]) -> int:
     except (OSError, ValueError) as err:
         print(f"could not verify: CHANGELOG.md names no version ({err})")
         return EXIT_UNVERIFIED
-    modfile = reference_modfile(ref, version)
+    # --steam-only held the content against the live modfile before the upload,
+    # so the same one counts here; on the normal path this run's own upload does.
+    modfile = reference_modfile(ref, version, prefer_live=env.get("CK_STEAM_ONLY") == "1")
     expected = modfile.get("filesize_uncompressed") if modfile else None
     if not _is_size(expected):
         print(f"could not verify: mod.io has no size on record for version {version}")
@@ -944,8 +980,8 @@ def main(argv: list[str], env: Mapping[str, str] | None = None) -> int:
     """Dispatch `steam_guard.py <command> <repo>` (or `combine <steam_rc> <guard_rc>`)."""
     env = os.environ if env is None else env
     usage = (
-        "usage: steam_guard.py checkout|modio-id|pre-upload|steam-size|post-upload <repo>"
-        " | combine <steam_rc> <guard_rc>"
+        "usage: steam_guard.py checkout|modio-id|pre-upload|unasked-main|steam-size|post-upload"
+        " <repo> | combine <steam_rc> <guard_rc>"
     )
     if len(argv) == 4 and argv[1] == "combine":
         try:
@@ -968,6 +1004,7 @@ def main(argv: list[str], env: Mapping[str, str] | None = None) -> int:
     commands = {
         "modio-id": _cmd_modio_id,
         "pre-upload": _cmd_pre_upload,
+        "unasked-main": _cmd_unasked_main,
         "steam-size": _cmd_steam_size,
         "post-upload": _cmd_post_upload,
     }

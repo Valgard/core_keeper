@@ -30,10 +30,11 @@
 # edit for a shipped change note, so this mode is mod.io-only — Steam is skipped.
 #
 # Before anything else reaches out — in every mode, --dry-run included — a
-# checkout that lacks the mod.io id its mod repo's main records is refused
-# (steam_guard.py modio-id). Release tags often predate the commit that
-# recorded the id, and on modId 0 CLIPublishHelper takes the mod for a new one
-# and creates a SECOND mod.io profile; skipping Steam would not prevent that.
+# checkout whose mod.io id is missing or differs from the one its mod repo's
+# main records is refused (steam_guard.py modio-id). Release tags often predate
+# the commit that recorded the id, and on modId 0 CLIPublishHelper takes the
+# mod for a new one and creates a SECOND mod.io profile; on another id it
+# uploads to that other profile. Skipping Steam would prevent neither.
 #
 # --no-steam publishes to mod.io only. --steam-only skips mod.io and publishes
 # to Steam only (the two contradict each other). Before mod.io even starts, a
@@ -42,8 +43,8 @@
 # every value has three numeric parts, the ModBuilderSettings .asset,
 # steam-description.txt, a CHANGELOG.md whose topmost "## [x.y.z]" entry
 # parses, Editor/logo.png, a recognizable <Mod>_Steam.asset, no Workshop or
-# mod.io id that main records and this checkout lacks, and a Workshop id for
-# every dependency the .asset marks `required` (an unresolvable OPTIONAL one
+# mod.io id that main records and this checkout lacks or records otherwise,
+# and a Workshop id for every dependency the .asset marks `required` (an unresolvable OPTIONAL one
 # only warns and is skipped).
 #
 # It is not a check of everything the stage needs, and should not be read as
@@ -204,7 +205,12 @@ fi
 # (PublishSteamOnly, below), and CLIPublishHelper.Publish refuses the variable
 # so that an old caller cannot turn into a mod.io release. A leftover in the
 # shell would only make a normal publish fail on that refusal.
-unset CK_STEAM_OVERRIDE PUBLISH_STEAM_ONLY
+unset CK_STEAM_OVERRIDE PUBLISH_STEAM_ONLY CK_STEAM_ONLY
+# Which kind of run this is, for steam_guard.py post-upload: it picks the mod.io
+# modfile the item is compared with by it (--steam-only: the live one, which
+# pre-upload judged; otherwise the newest upload of the version, this run's own).
+# Exported only when set here, never inherited — see the unset above.
+[ "$STEAM_ONLY" = "1" ] && export CK_STEAM_ONLY=1
 
 # CK_STEAM_CONTENT names the folder the Steam stage uploads; this run sets it
 # from its own build further down. A value already in the environment came from
@@ -287,17 +293,19 @@ export CK_UTILS_DIR="$UTILS_DIR"
 [ "$PROFILE_ONLY" = "1" ] && export PUBLISH_PROFILE_ONLY=1
 [ "$CHANGELOG_ONLY" = "1" ] && export PUBLISH_CHANGELOG_ONLY=1
 
-# A checkout without the mod.io id its main records stops here, whatever the
-# mode — the one id check that cannot wait for the Steam preflight below. With
-# modId 0, CLIPublishHelper takes the mod for a new one and calls
-# CreateModProfile: a SECOND mod.io profile, with this release uploaded to it
-# and its id written into the asset. A failed Steam preflight only skips Steam,
-# which would not stop that. --dry-run is refused too, so that it predicts the
+# A checkout whose mod.io id is missing or differs from the one its main
+# records stops here, whatever the mode — the one id check that cannot wait for
+# the Steam preflight below. With modId 0, CLIPublishHelper takes the mod for a
+# new one and calls CreateModProfile: a SECOND mod.io profile, with this release
+# uploaded to it and its id written into the asset; with another id it uploads
+# to that other profile. A failed Steam preflight only skips Steam, which would
+# stop neither. --dry-run is refused too, so that it predicts the
 # real run, and so are --profile-only and --changelog-only: those cannot create
 # a profile (both Fail on modId 0), but they would get there only after a Unity
 # start, advising "run a normal publish first" — the run that would duplicate
-# it. A git that cannot answer claims no gap (steam_identity.id_gaps); a
-# crashed check stops the run, since passing it is what costs the profile.
+# it. A git that cannot answer claims no gap, but warns (steam_identity.id_gaps;
+# a --steam-only run repeats the warning at its end when it matters); a crashed
+# check stops the run, since passing it is what costs the profile.
 if ! python3 "$UTILS_DIR/steam_guard.py" modio-id "$REPO_ROOT"; then
     echo "ERROR: stopped before anything reached mod.io (see above)." >&2
     exit 1
@@ -814,11 +822,11 @@ PY
             # and 130, an unmade comparison (12) outranks only 0, and a guard
             # that crashed counts as an unmade comparison. Should combine itself
             # fail — the interpreter that just ran the guard — or print anything
-            # but a number, the same rule holds without it: 12 replaces only a
-            # 0, so a run never reports a success nobody checked, and a 7, 9 or
-            # 130 stays what it was. Inside the `if`, a failure cannot trip
-            # `set -e`, which would end the script with Python's code and skip
-            # the STEAM_RESULT clean-up below.
+            # but a number, the rule is applied here instead and the run says
+            # so: 11 stands whatever the Steam code was, and 12 replaces only
+            # a 0, so a run never reports a success nobody checked. Inside the
+            # `if`, a failure cannot trip `set -e`, which would end the script
+            # with Python's code and skip the STEAM_RESULT clean-up below.
             case "$steam_rc" in
                 0|7|9|130)
                     echo "  Comparing the Workshop item with mod.io..."
@@ -828,8 +836,13 @@ PY
                     if combined="$(python3 "$UTILS_DIR/steam_guard.py" combine "$steam_rc" "$guard_rc")" \
                             && [[ "$combined" =~ ^[0-9]+$ ]]; then
                         steam_rc="$combined"
-                    elif [ "$steam_rc" = "0" ]; then
-                        steam_rc=12
+                    else
+                        echo "! Could not combine the Steam exit code ($steam_rc) with the comparison's ($guard_rc) — applying the rule here." >&2
+                        if [ "$guard_rc" = "11" ]; then
+                            steam_rc=11
+                        elif [ "$guard_rc" != "0" ] && [ "$steam_rc" = "0" ]; then
+                            steam_rc=12
+                        fi
                     fi
                     ;;
             esac
@@ -868,6 +881,14 @@ PY
     # correct no matter what is written after it.
     if [ "${write_rc:-0}" = "0" ]; then
         rm -f "$STEAM_RESULT"
+    fi
+
+    # --steam-only only: when this run took the mod for one not on mod.io on its
+    # own checkout's word because main could not be asked, say so once more,
+    # last — the warning from the id check sits above Unity's whole log. A
+    # failure of the note itself changes nothing about the run.
+    if [ "$STEAM_ONLY" = "1" ]; then
+        python3 "$UTILS_DIR/steam_guard.py" unasked-main "$REPO_ROOT" >&2 || true
     fi
 
     exit "$steam_rc"
