@@ -571,6 +571,34 @@ def test_the_modio_asset_path_is_where_a_mod_repo_keeps_it(tmp_path):
     )
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [(MODIO_ASSET.format(mod_id=6119768), 6119768), (MODIO_ASSET.format(mod_id=0), 0), ("x\n", 0)],
+    ids=["id", "zero", "no-line"],
+)
+def test_read_modio_id_is_the_recorded_id_or_zero(tmp_path, text, expected):
+    """The checkout's own mod.io id, with 0 for "none" — the reference's own spelling of it."""
+    asset = steam_identity.modio_asset_path(tmp_path, MOD)
+    asset.parent.mkdir(parents=True)
+    asset.write_text(text)
+
+    assert steam_identity.read_modio_id(asset) == expected
+
+
+def test_read_modio_id_of_a_missing_asset_is_zero(tmp_path):
+    """No asset is no id, as for a mod never published to mod.io."""
+    assert steam_identity.read_modio_id(steam_identity.modio_asset_path(tmp_path, MOD)) == 0
+
+
+def test_read_modio_id_raises_for_an_asset_that_exists_but_cannot_be_read(tmp_path):
+    """An unreadable asset is not "no id": a mod on mod.io would look as if it were not."""
+    asset = steam_identity.modio_asset_path(tmp_path, MOD)
+    asset.mkdir(parents=True)
+
+    with pytest.raises(OSError):
+        steam_identity.read_modio_id(asset)
+
+
 @needs_git
 def test_id_gap_when_the_checkout_predates_the_steam_id(tmp_path):
     """A Workshop id main recorded after the release this checkout sits on is a gap.
@@ -639,7 +667,7 @@ def test_no_id_gap_for_a_mod_never_published(tmp_path):
 
 
 @needs_git
-def test_no_id_gap_when_the_checkout_has_the_id_main_lacks(tmp_path):
+def test_no_id_gap_when_the_checkout_has_the_id_main_lacks(tmp_path, capsys):
     """A first release's branch has its ids and is not merged yet: nothing is missing here."""
     root, _ = _history(tmp_path, (0, 0))
     _git(root, "switch", "-q", "-c", "first-release")
@@ -647,30 +675,87 @@ def test_no_id_gap_when_the_checkout_has_the_id_main_lacks(tmp_path):
     _git(root, "commit", "-qam", "record the ids")
 
     assert steam_identity.id_gaps(root, MOD) == []
+    assert capsys.readouterr().err == ""
 
 
 @needs_git
-def test_no_id_gap_when_both_carry_the_id(tmp_path):
-    """The main checkout itself, with both ids: the ordinary case."""
+def test_no_id_gap_when_both_carry_the_id(tmp_path, capsys):
+    """The main checkout itself, with both ids: the ordinary case, and nothing to say about it."""
     root, _ = _history(tmp_path, (3790345467, 6119768))
 
     assert steam_identity.id_gaps(root, MOD) == []
+    assert capsys.readouterr().err == ""
 
 
 @needs_git
-def test_no_id_gap_without_the_branch(tmp_path):
-    """No `main` to compare with is no gap: the check only ever adds a refusal it can justify."""
+def test_id_gap_when_the_checkout_records_another_workshop_id(tmp_path):
+    """A Workshop id other than main's is a gap of its own: the publish would update that item.
+
+    The realistic case is a release tag that carries a rehearsal item's id,
+    replaced on main since; published from the tag, the update would go to
+    the throwaway item instead of the live one.
+    """
+    root, _ = _history(tmp_path, (3790345467, 6119768))
+    _write_ids(root, file_id=111)
+
+    gaps = steam_identity.id_gaps(root, MOD)
+
+    assert len(gaps) == 1
+    assert "Workshop id 111" in gaps[0] and "main records 3790345467" in gaps[0]
+    assert f"git checkout main -- unity/{MOD}/{MOD}_Steam.asset" in gaps[0]
+
+
+@needs_git
+def test_id_gap_when_the_checkout_records_another_modio_id(tmp_path):
+    """A mod.io id other than main's is a gap too, and `modio_only` reports it.
+
+    A normal publish from here would upload the release to that other profile,
+    which no skipped Steam stage could prevent — so the check that stops the
+    whole run has to see it.
+    """
+    root, _ = _history(tmp_path, (3790345467, 6119768))
+    _write_ids(root, mod_id=222)
+
+    gaps = steam_identity.id_gaps(root, MOD, modio_only=True)
+
+    assert len(gaps) == 1
+    assert "mod.io id 222" in gaps[0] and "main records 6119768" in gaps[0]
+
+
+@needs_git
+def test_no_id_gap_without_the_branch_but_a_warning(tmp_path, capsys):
+    """No `main` to compare with is no gap — but the run is told the comparison was not made.
+
+    The check only adds a refusal it can justify; staying silent about not
+    having checked, though, would hide that a missing id could go unnoticed.
+    """
     root, _ = _history(tmp_path, (0, 0))
     _git(root, "branch", "-q", "-m", "main", "trunk")
 
     assert steam_identity.id_gaps(root, MOD) == []
+    err = capsys.readouterr().err
+    assert f"could not compare {MOD}_Steam.asset with main" in err
+    assert f"could not compare {MOD}_modio.asset with main" in err
 
 
-def test_no_id_gap_outside_a_repository(tmp_path):
-    """Where git cannot answer at all, nothing is claimed — the same rule as is_tracked's None."""
+def test_no_id_gap_outside_a_repository_but_a_warning(tmp_path, capsys):
+    """Where git cannot answer nothing is claimed, and a warning says so, once per asset."""
     _write_ids(tmp_path, file_id=0, mod_id=0)
 
     assert steam_identity.id_gaps(tmp_path, MOD) == []
+    err = capsys.readouterr().err
+    assert len([line for line in err.splitlines() if "could not compare" in line]) == 2
+
+
+@needs_git
+def test_id_gaps_warns_when_main_lacks_the_file(tmp_path, capsys):
+    """A main without the asset cannot be compared with either; only that asset is warned about."""
+    root, _ = _history(tmp_path, (3790345467, None))
+
+    assert steam_identity.id_gaps(root, MOD) == []
+    err = capsys.readouterr().err
+    assert f"could not compare {MOD}_modio.asset with main" in err
+    assert f"{MOD}_Steam.asset" not in err
 
 
 @needs_git

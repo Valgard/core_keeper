@@ -31,6 +31,7 @@ import subprocess
 import sys
 import uuid
 from pathlib import Path
+from typing import NamedTuple
 
 import modio_api
 
@@ -142,6 +143,23 @@ def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def read_modio_id(asset: Path) -> int:
+    """The mod.io id a `<Mod>_modio.asset` records, or 0 when it records none.
+
+    0 rather than None, unlike `read_file_id`: 0 is how the mod.io reference
+    Unity writes spells "not on mod.io", and the callers compare the two.
+    Only a missing file reads as 0 for a file that cannot be read; anything
+    else that stops the read raises, for `read_file_id`'s reason — a mod on
+    mod.io whose id merely could not be read must not look like one that is
+    not on mod.io, which skips every comparison with what mod.io serves.
+    """
+    try:
+        text = asset.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return 0
+    return _stored_id(text, modio_api.MODIO_ID, 1)
+
+
 def read_file_id(asset: Path) -> int | None:
     """The stored id, or None when there is none — a missing asset, or a zero.
 
@@ -195,8 +213,13 @@ def _stored_id(text: str | None, pattern: re.Pattern[str], group: int) -> int:
     return int(match.group(group)) if match else 0
 
 
-def _on_branch(repo_root: Path, branch: str, asset: Path) -> str | None:
-    """The asset's text as `branch` has it, or None when git cannot show it.
+def _on_branch(repo_root: Path, branch: str, asset: Path) -> tuple[str | None, str | None]:
+    """The asset's text as `branch` has it, as `(text, None)` — or `(None, why)` when git cannot.
+
+    `why` is git's own first line ("does not exist in 'main'", "invalid
+    object name", "not a git repository") or the exception that stopped git,
+    so a caller can say why the comparison was not made without having to
+    tell the cases apart itself.
 
     `./` makes the path relative to repo_root itself rather than to the
     repository's top level, which is the same thing for a mod repo and stays
@@ -205,15 +228,29 @@ def _on_branch(repo_root: Path, branch: str, asset: Path) -> str | None:
     relative = asset.relative_to(repo_root).as_posix()
     try:
         shown = run_git(repo_root, "show", f"{branch}:./{relative}")
-    except (OSError, subprocess.SubprocessError):
-        return None
-    return shown.stdout if shown.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError) as err:
+        return None, f"git could not be run: {err}"
+    if shown.returncode == 0:
+        return shown.stdout, None
+    lines = shown.stderr.strip().splitlines()
+    return None, lines[0] if lines else f"git exited {shown.returncode}"
+
+
+class _Identity(NamedTuple):
+    """One identity asset as `id_gaps` checks it, with what each kind of gap would cost."""
+
+    asset: Path
+    pattern: re.Pattern[str]
+    group: int
+    label: str
+    missing: str  # what publishing from a checkout without the id would do
+    other: str  # the same for a checkout with another id; {here} is that id
 
 
 def id_gaps(
     repo_root: Path, mod_name: str, branch: str = "main", *, modio_only: bool = False
 ) -> list[str]:
-    """One message per identity asset whose id this checkout lacks while `branch` records one.
+    """One message per identity asset whose id this checkout lacks, or has unlike `branch`.
 
     Release tags commonly predate the commits that record the ids — the
     Workshop id is written by the first Steam publish, after the release
@@ -228,7 +265,12 @@ def id_gaps(
       the asset; under --steam-only the mod merely looks as if it were not on
       mod.io, and nothing is compared with what mod.io serves.
 
-    The two are therefore refused at different depths. A Workshop-id gap only
+    An id that differs from `branch`'s, both non-zero, is a gap of its own:
+    the publish would go to that other item or profile — a rehearsal item a
+    release tag still names, say, after main moved on to the live one. When
+    the move is deliberate, `branch` is the place to record it first.
+
+    The two assets are refused at different depths. A Workshop-id gap only
     has to keep Steam from running, which the Steam preflight does. A mod.io-id
     gap has to stop the whole run before mod.io is touched, so upload.sh asks
     for it alone first — `modio_only` — through `steam_guard.py modio-id`.
@@ -237,20 +279,24 @@ def id_gaps(
     Only a definite id on `branch` makes a gap: a branch that does not exist,
     a file it does not have, or git failing altogether claims nothing, the same
     rule `is_tracked` follows — this check adds a refusal only where it can say
-    exactly what is missing. A checkout that HAS an id `branch` lacks is a
-    first release not merged yet, and fine.
+    exactly what is missing. It does not stay silent about it, though: each
+    asset `branch` could not be asked about gets one warning on stderr, since
+    a gap would then go unnoticed. A checkout that HAS an id `branch` lacks is
+    a first release not merged yet, and fine.
 
     Reads the working tree, not HEAD: what a publish from here would use is
     what is on disk.
     """
-    workshop = (
+    workshop = _Identity(
         asset_path(repo_root, mod_name),
         FILE_ID,
         2,
         "Workshop id",
         "published from this checkout, the mod would get a SECOND Workshop item beside it",
+        "published from this checkout, the update would go to Workshop item {here} instead of "
+        "the one {branch} names",
     )
-    modio = (
+    modio = _Identity(
         modio_asset_path(repo_root, mod_name),
         modio_api.MODIO_ID,
         1,
@@ -259,24 +305,45 @@ def id_gaps(
         "CLIPublishHelper would call CreateModProfile and create a SECOND mod.io profile "
         "(hidden, with this release uploaded to it) and write that profile's id into "
         "this asset",
+        "a normal publish from this checkout would upload this release to mod.io profile "
+        "{here} instead of the one {branch} names",
     )
     gaps = []
-    for asset, pattern, group, label, consequence in (modio,) if modio_only else (workshop, modio):
+    for identity in (modio,) if modio_only else (workshop, modio):
+        asset = identity.asset
         try:
-            here = asset.read_text(encoding="utf-8")
+            text = asset.read_text(encoding="utf-8")
         except FileNotFoundError:
-            here = None
-        if _stored_id(here, pattern, group):
+            text = None
+        here = _stored_id(text, identity.pattern, identity.group)
+        shown, why = _on_branch(repo_root, branch, asset)
+        if why is not None:
+            print(
+                f"  ! could not compare {asset.name} with {branch} ({why}) — a {identity.label} "
+                f"that {branch} records, or a different one, would go unnoticed here.",
+                file=sys.stderr,
+            )
             continue
-        there = _stored_id(_on_branch(repo_root, branch, asset), pattern, group)
-        if not there:
+        there = _stored_id(shown, identity.pattern, identity.group)
+        if not there or here == there:
             continue
         relative = asset.relative_to(repo_root).as_posix()
-        gaps.append(
-            f"{asset} records no {label}, but {branch} has {there} — {consequence}. "
+        bring = (
             f"Bring {asset.name} over from {branch} before publishing: "
             f"git checkout {branch} -- {relative}, then commit it."
         )
+        if not here:
+            gaps.append(
+                f"{asset} records no {identity.label}, but {branch} has {there} — "
+                f"{identity.missing}. {bring}"
+            )
+        else:
+            other = identity.other.format(here=here, branch=branch)
+            gaps.append(
+                f"{asset} records {identity.label} {here}, but {branch} records {there} — "
+                f"{other}. {bring} If the move to {here} is deliberate, record it on "
+                f"{branch} first."
+            )
     return gaps
 
 
