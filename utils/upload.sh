@@ -63,21 +63,24 @@
 # a Steam failure is reported and reflected in the exit code instead of being
 # treated as fatal.
 #
-# --steam-only builds what it publishes: the checkout it was started in, in this
-# run, through CLIPublishHelper.PublishSteamOnly — the same publish build, then
-# a read of what mod.io holds, and no mod.io write of any kind. It never reads
-# MOD_INSTALL_PATH. That folder holds whatever build.sh made last, from any
-# checkout, and it used to be what --steam-only shipped: on 2026-10-11 it put an
-# unreleased build on the Workshop under the checkout's version, for eleven days.
-# Before Unity starts, the checkout is refused when unity/, localization/ or
-# CHANGELOG.md has uncommitted changes, or CHANGELOG.md has notes under
-# [Unreleased] — either way the build would not be the release its version
-# names (steam_guard.py checkout, which also prints the commit it builds from).
-# After the build and before anything is sent, the folder is held against
-# mod.io (steam_guard.py pre-upload): for a mod on mod.io, this version has to
-# be the live one there and the folder its size, or nothing is sent — so
-# --steam-only catches up a release mod.io already has and never runs ahead of
-# it. A mod not on mod.io is published uncompared, and the run says so.
+# --steam-only builds what it publishes: the checkout named on the command line
+# (default: $PWD), in this run, through CLIPublishHelper.PublishSteamOnly — the
+# same publish build, then a read of what mod.io holds, and no mod.io write of
+# any kind. It never publishes from MOD_INSTALL_PATH, and reads that variable
+# only to refuse an override inside it. That folder holds whatever build.sh made
+# last, from any checkout, and it used to be what --steam-only shipped: on
+# 2026-10-11 it put an unreleased build on the Workshop under the checkout's
+# version, for eleven days. Before Unity starts, the checkout is refused when
+# unity/, localization/ or CHANGELOG.md has uncommitted changes, or
+# CHANGELOG.md has notes under [Unreleased] — either way the build would not be
+# the release its version names (steam_guard.py checkout, which also prints the
+# commit it builds from). After the build and before anything is sent, the
+# folder is held against mod.io (steam_guard.py pre-upload): the mod.io id Unity
+# read must be the one the checkout's <Mod>_modio.asset records, the folder may
+# carry no Finder .DS_Store, and for a mod on mod.io this version has to be the
+# live one there and the folder its size, or nothing is sent — so --steam-only
+# catches up a release mod.io already has and never runs ahead of it. A mod not
+# on mod.io is published uncompared, and the run says so.
 #
 # CK_STEAM_CONTENT=<dir> with --steam-only replaces the build with that folder —
 # the repair route, for a release today's toolchain no longer rebuilds byte for
@@ -486,9 +489,11 @@ else
     # points the SDK's symlink at THIS checkout — the incident's build came from
     # another worktree's link — and runs for the override too: CLIPublishHelper
     # reads the mod.io id from the linked <Mod>_modio.asset, so a stale link
-    # would report another checkout's id. The touch makes Unity recompile, so
-    # DOTS codegen runs and DotsCodegen.Check inside the build passes the
-    # folder that is uploaded; the override builds nothing and skips it.
+    # would report another checkout's id (pre-upload holds that id against the
+    # checkout's own asset, and refuses a difference). The touch makes Unity
+    # recompile, so DOTS codegen runs and DotsCodegen.Check inside the build
+    # passes the folder that is uploaded; the override builds nothing and skips
+    # it.
     "$UTILS_DIR/link.sh" "$REPO_ROOT" >/dev/null
     if [ "$STEAM_OVERRIDE" != "1" ] && [ -d "$REPO_ROOT/unity/$MOD_NAME" ]; then
         find "$REPO_ROOT/unity/$MOD_NAME" -name '*.cs' -exec touch {} +
@@ -701,23 +706,27 @@ PY
         readonly STEAM_APP_ID="1621690"
 
         # The item's size before the upload, for the comparison after it: Steam
-        # reports the new size only some time after a submit, and a read that
-        # still returns this one means "not updated yet", not a verdict. Three
-        # answers reach steam_guard.py post-upload through CK_STEAM_SIZE_BEFORE:
-        # a number; nothing, for an item that does not exist yet; and
-        # `unreadable`, for an item that exists but whose size could not be read.
-        # With no old size to recognise a lagging read by, the comparison uses
-        # every attempt and never takes a read of 0 for a size (no uploaded
-        # build is 0 bytes, so a 0 is a size Steam is not reporting yet); a new
-        # item's wrong nonzero size is judged from the last read, and an
-        # existing item with an unreadable old size never ends as a mismatch,
-        # only as 12 (steam_guard.compare_after_upload). Not in a dry run, which
-        # sends nothing and so compares nothing. The read is the public Web
-        # API's `file_size` (steam_guard.steam_size); a hidden item is presumed
-        # invisible to it (unverified) and would read as unreadable.
+        # is expected to report the new size only some time after a submit
+        # (not measured for the size; the Web API's tag reads can lag, see
+        # steam_retag.VERIFY_ATTEMPTS), and a read that still returns this one
+        # means "not updated yet", not a verdict. steam-size prints one of
+        # three tokens, which reach steam_guard.py post-upload through
+        # CK_STEAM_SIZE_BEFORE: a positive number, the size; `none`, no
+        # Workshop id, an item this upload creates; and `unreadable`, an item
+        # that exists but whose size is not known. A crash of steam-size is
+        # `unreadable` too, through the `||` below — never the empty answer,
+        # which post-upload, like anything else it does not recognise, also
+        # reads as unknown. The distinction matters: only a new item may end in
+        # a mismatch (11) with no size from before, judged from the last read;
+        # an unknown old size ends at worst in 12
+        # (steam_guard.compare_after_upload). A read of 0 is never taken for a
+        # size, in any case: no uploaded build is 0 bytes. Not in a dry run,
+        # which sends nothing and so compares nothing. The read is the public
+        # Web API's `file_size` (steam_guard.steam_size); a hidden item is
+        # presumed invisible to it (unverified) and would read as unreadable.
         if [ "${PUBLISH_DRY_RUN:-}" != "1" ]; then
             echo "  Reading the Workshop item's current size, for the check after the upload..."
-            CK_STEAM_SIZE_BEFORE="$(python3 "$UTILS_DIR/steam_guard.py" steam-size "$REPO_ROOT" || true)"
+            CK_STEAM_SIZE_BEFORE="$(python3 "$UTILS_DIR/steam_guard.py" steam-size "$REPO_ROOT" || echo unreadable)"
             export CK_STEAM_SIZE_BEFORE
         fi
 
@@ -787,11 +796,14 @@ PY
             # The item against mod.io, once the upload is in: Steam's size of
             # the item against mod.io's filesize_uncompressed for this version
             # (steam_guard.py post-upload, which re-reads for a bounded time
-            # while the size is still CK_STEAM_SIZE_BEFORE or 0). Only where the
-            # upload may have gone through — 0, 7 and 9 are a live item, and
-            # 130 is a killed `tee` after which the upload ran on to its end
-            # (see STEAM_RESULT above). 2-6 and 124 sent nothing or failed
-            # midway, and a failed persist (write_rc) leaves no id to read.
+            # until the size matches or the attempts run out — see
+            # compare_after_upload for what counts as "not updated yet"). Only
+            # where the upload may have gone through — 0, 7 and 9 are a live
+            # item, and 130 is a killed `tee` after which the upload ran on to
+            # its end (see STEAM_RESULT above); steam_guard.COMPARABLE_STEAM_CODES
+            # is the same list. 2-6 and 124 sent nothing or failed midway, and a
+            # failed persist on an otherwise clean run (steam_rc = write_rc) is
+            # not compared.
             #
             # On the normal path both destinations got this one folder, so a
             # match shows delivery — Steam holds what mod.io holds — and says
@@ -801,9 +813,11 @@ PY
             # combine_exit owns the precedence: a mismatch (11) outranks 0, 7, 9
             # and 130, an unmade comparison (12) outranks only 0, and a guard
             # that crashed counts as an unmade comparison. Should combine itself
-            # fail — the interpreter that just ran the guard — the run reports
-            # 12 rather than a success nobody checked; without the `||`,
-            # `set -e` would end the script here with Python's code, skipping
+            # fail — the interpreter that just ran the guard — or print anything
+            # but a number, the same rule holds without it: 12 replaces only a
+            # 0, so a run never reports a success nobody checked, and a 7, 9 or
+            # 130 stays what it was. Inside the `if`, a failure cannot trip
+            # `set -e`, which would end the script with Python's code and skip
             # the STEAM_RESULT clean-up below.
             case "$steam_rc" in
                 0|7|9|130)
@@ -811,7 +825,12 @@ PY
                     guard_rc=0
                     CK_MODIO_REF="$MODIO_REF_FILE" \
                         python3 "$UTILS_DIR/steam_guard.py" post-upload "$REPO_ROOT" || guard_rc=$?
-                    steam_rc="$(python3 "$UTILS_DIR/steam_guard.py" combine "$steam_rc" "$guard_rc")" || steam_rc=12
+                    if combined="$(python3 "$UTILS_DIR/steam_guard.py" combine "$steam_rc" "$guard_rc")" \
+                            && [[ "$combined" =~ ^[0-9]+$ ]]; then
+                        steam_rc="$combined"
+                    elif [ "$steam_rc" = "0" ]; then
+                        steam_rc=12
+                    fi
                     ;;
             esac
 
