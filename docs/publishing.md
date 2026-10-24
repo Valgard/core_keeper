@@ -68,8 +68,9 @@ changelog; use a real release for anything that changes what the mod does.
   `EditModProfile` (a request with no response), and with the native Steam
   client running a fourth that crashed Unity (`pipes.cpp … Fatal assert`).
   `--profile-only` escaped it because it does not build, so its calls finished
-  before the tick. `CLIPublishHelper.Publish` now removes the queued call first
-  thing; the same run then went through.
+  before the tick. `CLIPublishHelper` now removes the queued call first thing,
+  in `Run`, which both entry points (`Publish` and `PublishSteamOnly`) go
+  through; the same run then went through.
 - **A build without its DOTS codegen is refused before the upload.** A publish
   builds in its own Unity session, so `upload.sh` touches the mod's sources
   first and `CLIPublishHelper` checks the build for its `*.g.cs` before the
@@ -186,19 +187,21 @@ twice with nothing to order them by.
 publishes to Steam alone. `upload.sh` refuses to run with both set.
 
 **`--steam-only` builds what it publishes.** It runs the publish build of the
-checkout it was started in — `CLIPublishHelper.PublishSteamOnly`: the same build
-step, then a read of what mod.io holds, and no mod.io write of any kind — and
-uploads exactly that folder. That is an entry point of its own rather than a
-mode of `Publish`, because of the stale editor assembly in the gotcha below: a
-copy compiled before it existed lacks the method, so the run fails closed with
-nothing sent instead of falling through to a mod.io release. It never reads
-`MOD_INSTALL_PATH`. That folder holds whatever `build.sh` made last, from any
-checkout or worktree, and it used to be what this mode shipped: on 2026-10-11 it
-put an unreleased build of Mod Settings Menu on the Workshop labelled 1.2.2, and
-Steam players got `CompileFailed` for eleven days. The version label and the
-content came from two unrelated places, and nothing tied them together.
+checkout named on the command line (default: the current directory) —
+`CLIPublishHelper.PublishSteamOnly`: the same build step, then a read of what
+mod.io holds, and no mod.io write of any kind — and uploads exactly that folder.
+That is an entry point of its own rather than a mode of `Publish`, because of
+the stale editor assembly in the gotcha below: a copy compiled before it existed
+lacks the method, so the run fails closed with nothing sent instead of falling
+through to a mod.io release. It never publishes from `MOD_INSTALL_PATH`, and
+reads the variable only to refuse an override inside it. That folder holds
+whatever `build.sh` made last, from any checkout or worktree, and it used to be
+what this mode shipped: on 2026-10-11 it put an unreleased build of Mod Settings
+Menu on the Workshop labelled 1.2.2, and Steam players got `CompileFailed` for
+eleven days. The version label and the content came from two unrelated places,
+and nothing tied them together.
 
-Three refusals now do, all with exit 1 and all before anything is sent:
+Three kinds of refusal now do, all with exit 1 and all before anything is sent:
 
 - **The checkout**, before Unity starts: uncommitted changes under `unity/` or
   `localization/` or to `CHANGELOG.md` — untracked files included, because
@@ -207,15 +210,21 @@ Three refusals now do, all with exit 1 and all before anything is sent:
   names. A passing checkout prints the commit it builds from.
 - **The version against mod.io**, for a mod that has a mod.io id: the topmost
   `CHANGELOG.md` version must be the one mod.io serves now. Absent from mod.io,
-  the mod would run ahead of it on Steam; present but superseded, the checkout
-  is behind. A mod.io that cannot be read is a refusal as well, never "not on
-  mod.io" — that is decided from the repository alone, by a missing or zero
-  `modId` in `<Mod>_modio.asset`.
-- **The size against mod.io**: the folder's byte total must equal the live
-  modfile's `filesize_uncompressed`. That is only sound because [a mod build reproduces byte for byte](build-environment.md#a-mod-build-reproduces-byte-for-byte);
-  the refusal names the two likely causes — a checkout that is not the released
-  state, or a toolchain that changed since the release — and the override below
-  as the repair.
+  the mod would run ahead of it on Steam; present but not served, the checkout
+  is behind — or an older modfile was made live again. A mod.io that cannot be
+  read is a refusal as well, never "not on mod.io" — that is decided from the
+  repository alone, by a missing or zero `modId` in `<Mod>_modio.asset`. So the
+  id the Unity run read is held against that asset on disk, and any difference
+  is refused: Unity reports `modId` 0 for an asset it did not load as readily as
+  for one that does not exist, and a link left pointing at another worktree
+  reports that checkout's id.
+- **The content against mod.io**: the folder's byte total must equal the
+  `filesize_uncompressed` of the modfile mod.io serves for this version. That is
+  only sound because [a mod build reproduces byte for byte](build-environment.md#a-mod-build-reproduces-byte-for-byte); the refusal names the
+  two possible causes — a checkout that is not the released state, or a
+  toolchain that changed since the release — and the override below as the
+  repair. A Finder `.DS_Store` in the folder is refused by name before that, for
+  every mod: it would be uploaded with the content and changes its size.
 
 A mod with no mod.io id is published uncompared, and the run says so. For such
 a mod a clean checkout at the wrong commit still goes through; the printed
@@ -228,8 +237,9 @@ typically mod.io's own modfile for that version, downloaded and unpacked by
 hand. The run announces it, still starts Unity (to read mod.io with the owner's
 login, not to build), and accepts the folder only when the comparison above can
 run and holds: the mod is on mod.io, this version is live there, the folder has
-its size — and it does not lie inside `MOD_INSTALL_PATH`, which is never a
-source, whatever its size. A mod not on mod.io has no override. The DOTS codegen
+its size and no `.DS_Store` — opening the unpacked folder in Finder adds one —
+and it does not lie inside `MOD_INSTALL_PATH`, which is never a source, whatever
+its size. A mod not on mod.io has no override. The DOTS codegen
 check is skipped on this path, and the run says why: it reads the assembly
 compiled from the checkout, which says nothing about a downloaded folder. Any
 other run ignores an inherited `CK_STEAM_CONTENT`, and says so; its Steam stage
@@ -242,8 +252,9 @@ names at least one category, a `CK_GAME_VERSION` whose every value has three
 numeric parts, the ModBuilderSettings `.asset`, `steam-description.txt`, a
 `CHANGELOG.md` whose topmost `## [x.y.z]` entry parses, `Editor/logo.png`, a
 recognizable `<Mod>_Steam.asset`, no id that the mod repo's `main` records and
-this checkout lacks (below), and a Workshop id for every dependency the `.asset`
-marks `required` — an unresolvable *optional* one only warns.
+this checkout lacks or records otherwise (below), and a Workshop id for every
+dependency the `.asset` marks `required` — an unresolvable *optional* one only
+warns.
 
 It is not a check of everything the stage needs, and reading it as one is how a
 gap goes unnoticed: `libsteam_api.dylib`, a working `dotnet` toolchain and a
@@ -266,10 +277,16 @@ while reporting success would be worse than the previous behaviour.
 gaps are refused at different depths.** Release tags commonly predate the commit
 that records an id — the Workshop id is written by the first Steam publish,
 after the release commit — so a checkout of a release can lack an id that
-`main` already has, and a publish from it would not know. Only a definite id on
-`main` makes a gap; a checkout that has an id `main` lacks is a first release
-not merged yet, and fine. Each refusal names the file and the `git checkout
-main -- …` that brings it over.
+`main` already has, and a publish from it would not know. A checkout whose id
+differs from `main`'s, both non-zero, is refused the same way: the publish would
+go to that other item or profile — a rehearsal item a release tag still names,
+say. Where the move to a new item is deliberate, record it on `main` first. Only
+a definite id on `main` makes a gap; a checkout that has an id `main` lacks is a
+first release not merged yet, and fine. Where `main` cannot be asked — no such
+branch, no such file on it, git failing — nothing is refused, but the run prints
+a warning per asset that the comparison was not made. Each refusal names the
+file and the `git checkout main -- …` that brings it over; commit it before a
+`--steam-only` run, whose checkout refusal counts the uncommitted asset.
 
 - **A missing Workshop id** would make the publish create a second Workshop item
   beside the live one. It is part of the preflight above, so on the normal path
@@ -278,11 +295,12 @@ main -- …` that brings it over.
 - **A missing mod.io id** costs more, and on mod.io: on `modId` 0
   `CLIPublishHelper` takes the mod for a new one, calls `CreateModProfile`, and
   uploads the release to a second, hidden mod.io profile. Skipping Steam would
-  not prevent that, so this gap stops the whole run with exit 1 before anything
-  reaches mod.io — in every mode, `--dry-run` included, so that a dry run
-  predicts the real one. Under `--steam-only` it would merely make the mod look
-  as if it were not on mod.io and skip every comparison with it, and it is
-  refused there too.
+  not prevent that, so this gap — and a differing mod.io id, which would upload
+  the release to another profile — stops the whole run with exit 1 before
+  anything reaches mod.io, in every mode, `--dry-run` included, so that a dry run
+  predicts the real one. Under `--steam-only` a missing id would merely make the
+  mod look as if it were not on mod.io and skip every comparison with it, and it
+  is refused there too.
 
 **Steam runs second and can never fail the mod.io publish.** By the time it
 starts, the mod.io release has already happened and cannot be undone, so a Steam
@@ -294,23 +312,36 @@ earlier point in the run, exit code included; it uses a distinct one because
 
 **After every upload, the Workshop item is compared with mod.io.** The item's
 size is read before the submit and again after it — from the public Web API's
-`file_size`, not through the Steam session, whose UGC query reports 0 for a
-folder's content ([measured](ck/steam-workshop.md#an-items-size-the-ugc-query-says-0-the-web-api-says-the-content-total)). It is re-read for a bounded time, because Steam
-reports a new size only a while after the submit, and held against mod.io's
-`filesize_uncompressed` for the version just published. A read of 0 is never
-taken as a size: no uploaded build is 0 bytes, so it can only be a size Steam is
-not reporting yet. A new item has no size from before to recognise a lagging
-read by, so for it a wrong size is judged only from the last read; an existing
-item whose size before the upload could not be read has none either, and for it
-a wrong-looking size is never concluded as 11, only as 12. The Web API is
-expected not to see an item that is still hidden (**unverified**: no hidden item
-has been read), and a first publish creates its item hidden, so there every read
-would fail and the run end in 12 — the comparison could not be made, which is an
-honest answer and no fault of the release. A different size ends the run in
+`file_size`, not through the Steam session, whose UGC query reported 0 for the
+one folder-content item it was [measured](ck/steam-workshop.md#an-items-size-the-ugc-query-says-0-the-web-api-says-the-content-total) on. It is re-read for a bounded time,
+because Steam is expected to report a new size only a while after the submit
+(not measured for the size; the Web API's tag reads can lag), and held against
+mod.io's `filesize_uncompressed` for the version just published — the same
+modfile the check before the upload uses: the live one when it carries that
+version, else the newest upload of it. A read of 0 is never taken as a size: no
+uploaded build is 0 bytes, so it can only be a size Steam is not reporting yet.
+Every failed read prints its cause — a network or certificate error, the
+`result` the Web API answered — so a broken read does not pass for a slow Steam.
+
+What is known of the item before the upload is one of three states: its size, a
+new item (no Workshop id recorded yet), or unknown — the read failed, answered
+0, or crashed, or its answer could not be parsed. A new item has no size from
+before to recognise a lagging read by, so for it a wrong size is judged only
+from the last read. For an unknown old size a wrong-looking size is never
+concluded as 11, only as 12; an answer the run does not recognise counts as
+unknown, never as a new item, which is the one state allowed to conclude 11
+blind. The Web API is expected not to see an item that is still hidden
+(**unverified**: no hidden item has been read), and a first publish creates its
+item hidden — as is an existing item set to hidden by hand — so there every read
+would fail and the run end in 12, which is an honest answer and no fault of the
+release. The message says so for a new item and names the command that finishes
+the check once the item is visible: `steam_guard.py steam-size <mod repo>`, with
+`MOD_NAME` set, prints the size Steam reports. A different size ends the run in
 **exit 11**; a comparison that could not be made — Steam unreadable, the item
-still at its old size or at 0, mod.io's side of it unknown — in **exit 12**. A
-mod not on mod.io is not compared, and the run says so; a dry run sent nothing
-and compares nothing.
+still at its old size or at 0, mod.io's side of it unknown, or the mod.io id
+Unity read not the one the checkout records — in **exit 12**. A mod not on
+mod.io is not compared, and the run says so; a dry run sent nothing and compares
+nothing.
 
 What it shows is narrower than it looks. Equal size is the measure both
 platforms already agree on — when the incident was found, Steam's `file_size`
@@ -340,11 +371,12 @@ dependency that did not attach costs a subscriber a convenience, a required one
 costs them a mod that does not run. 11 and 12 come from the comparison above,
 and its precedence is `steam_guard.combine_exit`: a mismatch outranks 0, 7, 9
 and 130 (a Ctrl-C that killed the `tee`, after which the upload ran on to its
-end, so the comparison still runs), 12 outranks only 0, and neither masks a
-Steam failure. Codes 2–6 come straight through from `utils/ck-workshop` — its
-own header says what each means — and 124 is a `timeout` firing, on either
-destination. The refusals before anything is sent, `upload.sh`'s own, are all
-exit 1.
+end, so the comparison still runs), 12 outranks only 0, and every other Steam
+code — a failure, or one not assigned yet — passes through untouched. Should
+that merge itself fail, 12 still replaces only a 0. Codes 2–6 come straight
+through from `utils/ck-workshop` — its own header says what each means — and 124
+is a `timeout` firing, on either destination. The refusals before anything is
+sent, `upload.sh`'s own, are all exit 1.
 
 `--changelog-only` and `--profile-only` skip Steam outright rather than
 attempting an equivalent: the former edits a mod.io modfile's changelog text,

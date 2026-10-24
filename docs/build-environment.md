@@ -140,11 +140,11 @@ and build again.
 mismatch. That is only sound if rebuilding a released commit gives the released
 bytes, so it was measured on 2026-10-23, in the Steam-only build mode:
 
-- **Same commit, same toolchain.** caveling-divining-rod's `main`, identical
-  in `unity/`, `localization/` and `CHANGELOG.md` to its 1.2.1 release, built
-  twice: 13 files and 80420 bytes each time, every file byte-identical — to
-  each other, to the folder that 1.2.1 was published from twelve days earlier,
-  and in total to mod.io's `filesize_uncompressed`.
+- **Same commit, same toolchain.** caveling-divining-rod at `e93cde8`, its
+  `main` on the day, identical in `unity/`, `localization/` and `CHANGELOG.md`
+  to its 1.2.1 release, built twice: 13 files and 80420 bytes each time, every
+  file byte-identical — to each other, to the folder that 1.2.1 was published
+  from twelve days earlier, and in total to mod.io's `filesize_uncompressed`.
 - **Across an SDK update.** sign-labels 1.0.0, published on 2026-10-01, rebuilt
   from its tag after the SDK update of 2026-10-08 (`6753598`): 60624 bytes,
   mod.io's figure for that modfile.

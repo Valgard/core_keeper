@@ -211,7 +211,9 @@ namespace CoreKeeperModUtils
                     // and wrong here: this run releases nothing on mod.io, so the asset
                     // would record a mod.io identity that does not exist, and it would
                     // appear as a new untracked file in the mod repo. Missing and
-                    // modId 0 mean the same thing — not on mod.io.
+                    // modId 0 mean the same thing here — and so does an asset Unity did
+                    // not load, which is why steam_guard.py holds the id this writes
+                    // against the checkout's own asset on disk and refuses a difference.
                     var modIoAsset = AssetDatabase.LoadAssetAtPath<ModSettings>(_modIoSettingsPath);
                     var steamModId = modIoAsset != null ? modIoAsset.modId : 0;
                     var useOverride = Environment.GetEnvironmentVariable("CK_STEAM_OVERRIDE") == "1";
@@ -1182,7 +1184,10 @@ namespace CoreKeeperModUtils
         //
         // Read with the plugin's OAuth token rather than the public game key that
         // UpdateChangelogOnly reads with: a first release's profile stays hidden until
-        // its owner makes it visible, and the owner's login is what may read it then.
+        // its owner makes it visible, and the owner's login is expected to read it then.
+        // Unverified — no hidden profile has been read this way; if it cannot, the read
+        // fails, the reference records the error, and steam_guard.py's refusal names
+        // making the profile visible as one possible fix.
         //
         // It never calls Fail. On the normal path the mod.io release has already
         // happened, and failing now would undo nothing — the reason the Steam stage
@@ -1321,8 +1326,11 @@ namespace CoreKeeperModUtils
         private static void GetAuthenticated(string url, string token, Action<string, string> done)
         {
             // Sent inside the try and subscribed outside it: an exception here must
-            // become a reason rather than reach Publish's catch, which would Fail, and
-            // done must not run twice if a completed operation calls it at once.
+            // become a reason rather than escape — called from Run itself (the override
+            // path) it would reach Run's catch, which would Fail; called from a build or
+            // mod.io callback, nothing may catch it and the run would wait for its
+            // timeout — and done must not run twice if a completed operation calls it
+            // at once.
             UnityWebRequest request = null;
             UnityWebRequestAsyncOperation operation;
             try

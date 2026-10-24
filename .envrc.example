@@ -57,7 +57,8 @@ export SDK_PATH="/path/to/core_keeper/CoreKeeperModSDK"
 # That <ModName> subdirectory is also what the SDK's Steam Workshop tab matches
 # on — it picks its content folder by EndsWith() on the PascalCase mod name.
 #
-# A publish never reads this. CLIPublishHelper builds into a fresh temporary
+# A publish never publishes from here, and reads this variable only to refuse
+# an override inside it. CLIPublishHelper builds into a fresh temporary
 # directory of its own and uploads that to mod.io, and the Steam stage uploads
 # the same one. --steam-only makes a build of its own the same way, from the
 # checkout it runs in; it used to ship the last local build from here instead,
